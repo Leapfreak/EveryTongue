@@ -6,9 +6,9 @@
     <RootNamespace>TranscriptionTools</RootNamespace>
     <StartupObject>TranscriptionTools.FormMain</StartupObject>
     <UseWindowsForms>true</UseWindowsForms>
-    <Version>1.2.0</Version>
-    <AssemblyVersion>1.2.0.0</AssemblyVersion>
-    <FileVersion>1.2.0.0</FileVersion>
+    <Version>1.2.1</Version>
+    <AssemblyVersion>1.2.1.0</AssemblyVersion>
+    <FileVersion>1.2.1.0</FileVersion>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
     <NoWarn>MSB3277;NU5118</NoWarn>
@@ -57,6 +57,14 @@
     <Content Include="..\live-server\requirements.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>live-server\requirements.txt</Link>
+    </Content>
+    <Content Include="..\live-server\hallucinations.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>live-server\hallucinations.txt</Link>
+    </Content>
+    <Content Include="..\nllb-server\profanity.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>nllb-server\profanity.json</Link>
     </Content>
   </ItemGroup>
 

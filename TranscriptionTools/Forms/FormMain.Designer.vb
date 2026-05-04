@@ -460,7 +460,7 @@ Partial Class FormMain
         ' ============================================
         Me.grpSettings.Text = "Application Settings"
         Me.grpSettings.Location = New Drawing.Point(8, 6)
-        Me.grpSettings.Size = New Drawing.Size(830, 120)
+        Me.grpSettings.Size = New Drawing.Size(830, 150)
         Me.grpSettings.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
 
         Dim sy = 25
@@ -484,12 +484,12 @@ Partial Class FormMain
             Me.lblTheme, Me.cboTheme, Me.chkStartWithWindows})
 
         Me.btnResetSettings.Text = "Reset All Settings"
-        Me.btnResetSettings.Location = New Drawing.Point(8, 135)
+        Me.btnResetSettings.Location = New Drawing.Point(8, 165)
         Me.btnResetSettings.Size = New Drawing.Size(150, 30)
 
         Me.btnCheckToolUpdates = New Button()
         Me.btnCheckToolUpdates.Text = "Check for Tool Updates"
-        Me.btnCheckToolUpdates.Location = New Drawing.Point(170, 135)
+        Me.btnCheckToolUpdates.Location = New Drawing.Point(170, 165)
         Me.btnCheckToolUpdates.Size = New Drawing.Size(180, 30)
 
         Me.tabPageSettings.Controls.AddRange({Me.grpSettings, Me.btnResetSettings, Me.btnCheckToolUpdates})
