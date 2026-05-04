@@ -150,6 +150,7 @@ Partial Class FormMain
         Me.lblVadSilence = New Label()
         Me.trkVadSilence = New TrackBar()
         Me.lblVadSilenceValue = New Label()
+        Me.btnTuneStats = New Button()
         Me.tabLiveOutput = New TabControl()
         Me.tabPageLiveClients = New TabPage()
         Me.tabPageLiveLog = New TabPage()
@@ -472,9 +473,15 @@ Partial Class FormMain
         Me.cboTheme.Location = New Drawing.Point(10, sy + 16) : Me.cboTheme.Size = New Drawing.Size(150, 23) : Me.cboTheme.DropDownStyle = ComboBoxStyle.DropDownList
         Me.cboTheme.Items.AddRange({"System", "Light", "Dark"})
         Me.cboTheme.SelectedIndex = 0
+        sy += 48
+
+        Me.chkStartWithWindows = New CheckBox()
+        Me.chkStartWithWindows.Text = "Start with Windows"
+        Me.chkStartWithWindows.Location = New Drawing.Point(10, sy)
+        Me.chkStartWithWindows.AutoSize = True
 
         Me.grpSettings.Controls.AddRange({Me.lblUiLanguage, Me.cboUiLanguage,
-            Me.lblTheme, Me.cboTheme})
+            Me.lblTheme, Me.cboTheme, Me.chkStartWithWindows})
 
         Me.btnResetSettings.Text = "Reset All Settings"
         Me.btnResetSettings.Location = New Drawing.Point(8, 135)
@@ -582,7 +589,12 @@ Partial Class FormMain
         Me.lblVadSilenceValue.Location = New Drawing.Point(780, 7)
         Me.lblVadSilenceValue.AutoSize = True
 
-        pnlLiveButtons.Controls.AddRange({Me.btnLiveStart, Me.btnLiveStop, Me.lblMaxSegment, Me.trkMaxSegment, Me.lblMaxSegmentValue, Me.lblVadSilence, Me.trkVadSilence, Me.lblVadSilenceValue})
+        Me.btnTuneStats.Text = "Tune"
+        Me.btnTuneStats.Location = New Drawing.Point(830, 0)
+        Me.btnTuneStats.Size = New Drawing.Size(70, 30)
+        Me.btnTuneStats.Enabled = False
+
+        pnlLiveButtons.Controls.AddRange({Me.btnLiveStart, Me.btnLiveStop, Me.lblMaxSegment, Me.trkMaxSegment, Me.lblMaxSegmentValue, Me.lblVadSilence, Me.trkVadSilence, Me.lblVadSilenceValue, Me.btnTuneStats})
 
         ' Output tab control
         Me.tabLiveOutput.Location = New Drawing.Point(8, 183)
@@ -611,6 +623,7 @@ Partial Class FormMain
         pnlLiveLogButtons.Controls.AddRange({Me.btnLiveSaveLog, Me.btnLiveClear})
         Me.rtbLiveOutput.Dock = DockStyle.Fill
         Me.rtbLiveOutput.[ReadOnly] = True
+        Me.rtbLiveOutput.MaxLength = Integer.MaxValue
         Me.rtbLiveOutput.BackColor = Drawing.Color.Black
         Me.rtbLiveOutput.ForeColor = Drawing.Color.FromArgb(0, 255, 100)
         Me.rtbLiveOutput.Font = New Drawing.Font("Consolas", 11)
@@ -953,6 +966,7 @@ Partial Class FormMain
     Friend WithEvents cboUiLanguage As ComboBox
     Friend WithEvents lblTheme As Label
     Friend WithEvents cboTheme As ComboBox
+    Friend WithEvents chkStartWithWindows As CheckBox
     Friend WithEvents btnResetSettings As Button
     Friend WithEvents btnCheckToolUpdates As Button
 
@@ -1001,6 +1015,7 @@ Partial Class FormMain
     Friend WithEvents lblVadSilence As Label
     Friend WithEvents trkVadSilence As TrackBar
     Friend WithEvents lblVadSilenceValue As Label
+    Friend WithEvents btnTuneStats As Button
     Friend WithEvents tabLiveOutput As TabControl
     Friend WithEvents tabPageLiveClients As TabPage
     Friend WithEvents tabPageLiveLog As TabPage

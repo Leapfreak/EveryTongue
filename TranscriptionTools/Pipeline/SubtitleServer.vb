@@ -16,6 +16,7 @@ Namespace Pipeline
         Public Event RemoteCommand As EventHandler(Of String)
         Public Event ActiveLanguagesChanged As EventHandler
         Public Event LogMessage As EventHandler(Of String)
+        Public Event InputLanguageChanged As EventHandler(Of String)
 
         Private _listener As HttpListener
         Private _httpsListener As TcpListener
@@ -300,7 +301,7 @@ Namespace Pipeline
                     End If
 
                     If String.IsNullOrEmpty(action) OrElse action = "status" Then
-                        json = $"{{""live"":{If(IsLiveRunning, "true", "false")},""sim"":{If(IsSimulating, "true", "false")}}}"
+                        json = $"{{""live"":{If(IsLiveRunning, "true", "false")},""sim"":{If(IsSimulating, "true", "false")},""inputLang"":""{InputLanguage}""}}"
                     ElseIf action = "start" OrElse action = "stop" OrElse action = "restart" OrElse action = "simulate" OrElse action = "clear" Then
                         RaiseEvent RemoteCommand(Me, action)
                         json = $"{{""ok"":true,""action"":""{action}""}}"
@@ -763,6 +764,12 @@ Namespace Pipeline
                                 RaiseEvent ActiveLanguagesChanged(Me, EventArgs.Empty)
                             End If
                         End If
+                    ElseIf typeStr = "setInputLanguage" Then
+                        Dim langProp As System.Text.Json.JsonElement = Nothing
+                        If Not root.TryGetProperty("language", langProp) Then Return
+                        Dim lang = If(langProp.GetString(), "auto")
+                        RaiseEvent LogMessage(Me, $"[SUBTITLE] INPUT LANG CHANGE -> '{lang}'")
+                        RaiseEvent InputLanguageChanged(Me, lang)
                     End If
                 End Using
             Catch
@@ -860,6 +867,7 @@ Namespace Pipeline
 
         Public Property IsLiveRunning As Boolean = False
         Public Property IsSimulating As Boolean = False
+        Public Property InputLanguage As String = "auto"
         Public Property BgColor As String = "#000000"
         Public Property FgColor As String = "#FFFFFF"
 
@@ -867,7 +875,7 @@ Namespace Pipeline
             Try
                 Dim action = ctx.Request.QueryString("action")
                 If String.IsNullOrEmpty(action) Then
-                    Dim json = $"{{""live"":{If(IsLiveRunning, "true", "false")},""sim"":{If(IsSimulating, "true", "false")}}}"
+                    Dim json = $"{{""live"":{If(IsLiveRunning, "true", "false")},""sim"":{If(IsSimulating, "true", "false")},""inputLang"":""{InputLanguage}""}}"
                     SendJsonResponse(ctx, json)
                     Return
                 End If
@@ -878,7 +886,7 @@ Namespace Pipeline
                         Dim json = $"{{""ok"":true,""action"":""{action.ToLower()}""}}"
                         SendJsonResponse(ctx, json)
                     Case "status"
-                        Dim json = $"{{""live"":{If(IsLiveRunning, "true", "false")},""sim"":{If(IsSimulating, "true", "false")}}}"
+                        Dim json = $"{{""live"":{If(IsLiveRunning, "true", "false")},""sim"":{If(IsSimulating, "true", "false")},""inputLang"":""{InputLanguage}""}}"
                         SendJsonResponse(ctx, json)
                     Case Else
                         ctx.Response.StatusCode = 400
@@ -1042,6 +1050,23 @@ body{background:{{BG_COLOR}};color:{{FG_COLOR}};font-family:'Segoe UI',Arial,san
   <button class=""restart"" onclick=""sendCommand('restart')"">&#8635; Restart</button>
   <button onclick=""sendCommand('simulate')"">&#9881; Simulate</button>
   <button class=""stop"" onclick=""sendCommand('clear')"">&#10060; Clear</button>
+  <label style=""color:#aaa;font-size:12px;margin-top:8px;display:block"" id=""lblInputLang"">Input Language</label>
+  <select id=""inputLangSelect"" onchange=""setInputLang(this.value)"" style=""background:#333;color:#fff;border:1px solid #555;border-radius:4px;padding:6px;font-size:14px;width:100%;margin-top:2px"">
+    <option value=""auto"">Auto Detect</option>
+    <option value=""ca"">Catalan</option>
+    <option value=""es"">Spanish</option>
+    <option value=""en"">English</option>
+    <option value=""fr"">French</option>
+    <option value=""de"">German</option>
+    <option value=""it"">Italian</option>
+    <option value=""pt"">Portuguese</option>
+    <option value=""nl"">Dutch</option>
+    <option value=""ru"">Russian</option>
+    <option value=""zh"">Chinese</option>
+    <option value=""ja"">Japanese</option>
+    <option value=""ko"">Korean</option>
+    <option value=""ar"">Arabic</option>
+  </select>
 </div>
 <div id=""panel"">
   <button onclick=""changeFontSize(4)"">A+</button>
@@ -1580,7 +1605,11 @@ function pollStatus(){
     if(d.live){adminStatus.textContent=t('liveRun');adminStatus.style.color='#4f4'}
     else if(d.sim){adminStatus.textContent=t('simRun');adminStatus.style.color='#fa0'}
     else{adminStatus.textContent=t('stopped');adminStatus.style.color='#f44'}
+    if(d.inputLang){document.getElementById('inputLangSelect').value=d.inputLang}
   }).catch(function(){adminStatus.textContent=t('noServer');adminStatus.style.color='#888'});
+}
+function setInputLang(lang){
+  if(ws&&ws.readyState===1){ws.send(JSON.stringify({type:'setInputLanguage',language:lang}))}
 }
 /* Apply i18n to admin panel */
 adminStatus.textContent=t('checking');

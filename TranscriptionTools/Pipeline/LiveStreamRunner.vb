@@ -480,6 +480,17 @@ Namespace Pipeline
             Return result
         End Function
 
+        Public Async Function GetStatsAsync() As Task(Of String)
+            Try
+                Dim response = Await _httpClient.GetAsync($"http://127.0.0.1:{_port}/stats")
+                If response.IsSuccessStatusCode Then
+                    Return Await response.Content.ReadAsStringAsync()
+                End If
+            Catch
+            End Try
+            Return Nothing
+        End Function
+
         Private Shared Function EscapeJson(s As String) As String
             If String.IsNullOrEmpty(s) Then Return ""
             Return s.Replace("\", "\\").Replace("""", "\""").Replace(vbCr, "").Replace(vbLf, "\n")

@@ -51,8 +51,8 @@ class _SharedFileHandler(logging.Handler):
 
 
 def setup_logging(log_dir: str):
-    """Set up file logging to pipeline-debug.log in the given directory."""
-    log_path = os.path.join(log_dir, "pipeline-debug.log")
+    """Set up file logging to YYYYMMDD_pipeline-debug.log in the given directory."""
+    log_path = os.path.join(log_dir, time.strftime("%Y%m%d") + "_pipeline-debug.log")
     handler = _SharedFileHandler(log_path)
     handler.setFormatter(logging.Formatter("%(asctime)s [LIVE] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
     handler.setLevel(logging.DEBUG)
@@ -83,6 +83,9 @@ SAMPLE_RATE = 16000
 
 # Capture config (set via /start)
 current_config: dict = {}
+
+# Current session stats (accessible via /stats endpoint)
+current_stats: "SessionStats | None" = None
 
 # Uvicorn server reference for graceful shutdown
 _server = None
@@ -179,6 +182,10 @@ def _is_hallucination(segments, last_commit_text: str = "") -> bool:
 
     full_text = " ".join(seg.text.strip() for seg in segments if seg.text.strip())
 
+    # Known hallucination phrases (e.g. "Thanks for watching")
+    if _is_known_hallucination(full_text):
+        return True
+
     # Self-repetition: only catch near-exact looping (>90% similar halves).
     # Parallel structures ("not X, but Y") typically score 60-80% — must not filter those.
     words = [re.sub(r"[^\w]", "", w) for w in full_text.lower().split()]
@@ -211,20 +218,234 @@ def _is_hallucination(segments, last_commit_text: str = "") -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Known hallucination phrase blocklist
+# ---------------------------------------------------------------------------
+_hallucination_phrases: list[str] = []
+
+
+def _load_hallucination_phrases():
+    """Load known hallucination phrases from hallucinations.txt."""
+    global _hallucination_phrases
+    txt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hallucinations.txt")
+    try:
+        with open(txt_path, "r", encoding="utf-8") as f:
+            phrases = []
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    phrases.append(line.lower())
+            _hallucination_phrases = phrases
+            logger.debug(f"Loaded {len(phrases)} hallucination phrases from {txt_path}")
+    except FileNotFoundError:
+        logger.debug("No hallucinations.txt found — phrase filter disabled")
+    except Exception as e:
+        logger.warning(f"Failed to load hallucinations.txt: {e}")
+
+
+def _is_known_hallucination(text: str) -> bool:
+    """Check if text closely matches a known hallucination phrase."""
+    if not _hallucination_phrases:
+        return False
+    cleaned = re.sub(r"[^\w\s]", "", text.lower()).strip()
+    if not cleaned:
+        return False
+    for phrase in _hallucination_phrases:
+        # Exact containment (phrase in text or text in phrase)
+        phrase_clean = re.sub(r"[^\w\s]", "", phrase).strip()
+        if not phrase_clean:
+            continue
+        # Check similarity — high threshold for short texts
+        ratio = SequenceMatcher(None, cleaned, phrase_clean).ratio()
+        if ratio > 0.8:
+            logger.debug(f"  KNOWN HALLUCINATION ({ratio:.0%} match): '{text}' ~ '{phrase}'")
+            return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Session statistics — captures speaker cadence for profile tuning
+# ---------------------------------------------------------------------------
+class SessionStats:
+    def __init__(self):
+        self.start_time = time.time()
+        self.commits = []          # list of {type, duration, chars, words, lang, time}
+        self.hallucinations = 0
+        self.silence_gaps = []     # seconds between end of one commit and start of next
+        self._last_commit_time = None
+
+    def record_commit(self, commit_type: str, duration: float, text: str, lang: str):
+        now = time.time()
+        words = len(text.split())
+        entry = {
+            "type": commit_type,    # "vad", "sentence", "force"
+            "duration": duration,
+            "chars": len(text),
+            "words": words,
+            "wps": words / duration if duration > 0.5 else 0,
+            "lang": lang,
+            "time": now,
+        }
+        self.commits.append(entry)
+        if self._last_commit_time is not None:
+            gap = now - self._last_commit_time
+            if gap < 30:  # ignore long pauses (breaks, not speech gaps)
+                self.silence_gaps.append(gap)
+        self._last_commit_time = now
+
+    def record_hallucination(self):
+        self.hallucinations += 1
+
+    def to_dict(self) -> dict:
+        """Return stats as a JSON-serializable dict for the /stats endpoint."""
+        if not self.commits:
+            return {"elapsed": time.time() - self.start_time, "commits": 0}
+
+        n = len(self.commits)
+        durations = [c["duration"] for c in self.commits]
+        word_counts = [c["words"] for c in self.commits]
+        wps_vals = [c["wps"] for c in self.commits if c["wps"] > 0]
+        char_counts = [c["chars"] for c in self.commits]
+        types = {}
+        for c in self.commits:
+            types[c["type"]] = types.get(c["type"], 0) + 1
+        langs = {}
+        for c in self.commits:
+            lang = c["lang"] or "unknown"
+            langs[lang] = langs.get(lang, 0) + 1
+
+        result = {
+            "elapsed": time.time() - self.start_time,
+            "commits": n,
+            "hallucinations": self.hallucinations,
+            "commit_types": types,
+            "languages": langs,
+            "duration": {
+                "min": round(min(durations), 1),
+                "max": round(max(durations), 1),
+                "avg": round(sum(durations) / n, 1),
+                "median": round(sorted(durations)[n // 2], 1),
+            },
+            "words": {
+                "min": min(word_counts),
+                "max": max(word_counts),
+                "avg": round(sum(word_counts) / n),
+                "median": sorted(word_counts)[n // 2],
+            },
+            "chars": {
+                "min": min(char_counts),
+                "max": max(char_counts),
+                "avg": round(sum(char_counts) / n),
+            },
+        }
+        if wps_vals:
+            result["wps"] = {
+                "min": round(min(wps_vals), 1),
+                "max": round(max(wps_vals), 1),
+                "avg": round(sum(wps_vals) / len(wps_vals), 1),
+            }
+        if self.silence_gaps:
+            gaps = self.silence_gaps
+            gn = len(gaps)
+            result["silence_gaps"] = {
+                "min": round(min(gaps), 1),
+                "max": round(max(gaps), 1),
+                "avg": round(sum(gaps) / gn, 1),
+                "median": round(sorted(gaps)[gn // 2], 1),
+            }
+        # Short segment ratio (< 3s commits that might be fragmented)
+        short_count = sum(1 for d in durations if d < 3)
+        result["short_segment_ratio"] = round(short_count / n, 2)
+        # Force-commit ratio (indicates max segment is too low)
+        result["force_commit_ratio"] = round(types.get("force", 0) / n, 2)
+
+        return result
+
+    def summary(self) -> str:
+        if not self.commits:
+            return "SESSION STATS: no commits recorded"
+
+        elapsed = time.time() - self.start_time
+        n = len(self.commits)
+        durations = [c["duration"] for c in self.commits]
+        word_counts = [c["words"] for c in self.commits]
+        wps_vals = [c["wps"] for c in self.commits if c["wps"] > 0]
+        char_counts = [c["chars"] for c in self.commits]
+
+        # Commit type breakdown
+        types = {}
+        for c in self.commits:
+            types[c["type"]] = types.get(c["type"], 0) + 1
+
+        # Language breakdown
+        langs = {}
+        for c in self.commits:
+            lang = c["lang"] or "unknown"
+            langs[lang] = langs.get(lang, 0) + 1
+
+        # Build summary
+        lines = [
+            "=" * 60,
+            f"SESSION STATS  ({elapsed/60:.0f}m {elapsed%60:.0f}s total)",
+            f"  Commits: {n}  |  Hallucinations skipped: {self.hallucinations}",
+            f"  Commit types: {', '.join(f'{k}={v}' for k, v in sorted(types.items()))}",
+            f"  Languages detected: {', '.join(f'{k}={v}' for k, v in sorted(langs.items()))}",
+            "",
+            "  Segment duration (audio seconds per commit):",
+            f"    min={min(durations):.1f}s  max={max(durations):.1f}s  avg={sum(durations)/n:.1f}s  median={sorted(durations)[n//2]:.1f}s",
+            "",
+            "  Words per commit:",
+            f"    min={min(word_counts)}  max={max(word_counts)}  avg={sum(word_counts)/n:.0f}  median={sorted(word_counts)[n//2]}",
+            "",
+            "  Characters per commit:",
+            f"    min={min(char_counts)}  max={max(char_counts)}  avg={sum(char_counts)/n:.0f}",
+        ]
+
+        if wps_vals:
+            lines += [
+                "",
+                "  Speaking rate (words/sec):",
+                f"    min={min(wps_vals):.1f}  max={max(wps_vals):.1f}  avg={sum(wps_vals)/len(wps_vals):.1f}",
+            ]
+
+        if self.silence_gaps:
+            gaps = self.silence_gaps
+            gn = len(gaps)
+            lines += [
+                "",
+                "  Silence gaps between commits:",
+                f"    min={min(gaps):.1f}s  max={max(gaps):.1f}s  avg={sum(gaps)/gn:.1f}s  median={sorted(gaps)[gn//2]:.1f}s",
+            ]
+
+        # Distribution buckets for segment duration
+        buckets = {"<2s": 0, "2-5s": 0, "5-10s": 0, "10-20s": 0, ">20s": 0}
+        for d in durations:
+            if d < 2: buckets["<2s"] += 1
+            elif d < 5: buckets["2-5s"] += 1
+            elif d < 10: buckets["5-10s"] += 1
+            elif d < 20: buckets["10-20s"] += 1
+            else: buckets[">20s"] += 1
+        lines += [
+            "",
+            "  Duration distribution:",
+            f"    {', '.join(f'{k}={v}' for k, v in buckets.items())}",
+            "=" * 60,
+        ]
+
+        return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Audio capture + transcription thread
 # ---------------------------------------------------------------------------
 def capture_and_transcribe():
     """Main capture loop running in a background thread."""
-    global capturing, model
+    global capturing, model, current_stats
 
     cfg = current_config
     device_index = cfg.get("device_index", None)
-    language = cfg.get("language", None)
     translate = cfg.get("translate", False)
     initial_prompt = cfg.get("initial_prompt", "")
     beam_size = cfg.get("beam_size", 5)
-    # These are read from current_config each iteration (live-adjustable via /config)
-    interim_interval_ms = cfg.get("interim_interval_ms", 1000)
 
     # Audio buffer
     audio_buffer = []
@@ -235,10 +456,6 @@ def capture_and_transcribe():
             logger.warning(f"Audio status: {status}")
         with buffer_lock:
             audio_buffer.append(indata[:, 0].copy())
-
-    # Treat "auto" as None for faster-whisper
-    if language == "auto":
-        language = None
 
     task = "translate" if translate else "transcribe"
 
@@ -252,7 +469,8 @@ def capture_and_transcribe():
             blocksize=int(SAMPLE_RATE * 0.1),  # 100ms blocks
         )
         stream.start()
-        logger.debug(f"CAPTURE START device={device_index} lang={language} task={task} beam={beam_size} vad_silence={cfg.get('vad_min_silence_ms', 300)}ms max_seg={cfg.get('vad_max_segment_s', 30)}s interim={interim_interval_ms}ms")
+        init_lang = cfg.get("language", "auto")
+        logger.debug(f"CAPTURE START device={device_index} lang={init_lang} task={task} beam={beam_size} vad_silence={cfg.get('vad_min_silence_ms', 300)}ms max_seg={cfg.get('vad_max_segment_s', 30)}s interim={cfg.get('interim_interval_ms', 1000)}ms")
     except Exception as e:
         logger.error(f"Failed to open audio stream: {e}")
         capturing = False
@@ -262,6 +480,8 @@ def capture_and_transcribe():
     last_interim_time = time.time()
     last_committed_pos = 0  # samples already committed
     last_commit_text = ""  # track previous commit for repetition detection only
+    stats = SessionStats()
+    current_stats = stats
 
     try:
         while not stop_event.is_set():
@@ -269,6 +489,9 @@ def capture_and_transcribe():
             vad_min_silence_ms = current_config.get("vad_min_silence_ms", 300)
             vad_max_segment_s = current_config.get("vad_max_segment_s", 30)
             interim_interval_ms = current_config.get("interim_interval_ms", 1000)
+            language = current_config.get("language", None)
+            if language == "auto":
+                language = None
 
             # Sleep for the interim interval before checking
             time.sleep(interim_interval_ms / 1000.0)
@@ -345,6 +568,7 @@ def capture_and_transcribe():
                 logger.debug(f"  [{seg.start:.1f}-{seg.end:.1f}] no_speech={seg.no_speech_prob:.2f} logprob={seg.avg_logprob:.2f} | {seg.text.strip()}")
 
             detected_lang = info.language if info else ""
+            committed_this_loop = False
 
             if all_final:
                 # VAD detected end of speech — commit everything and cut audio
@@ -353,8 +577,11 @@ def capture_and_transcribe():
                     broadcast_event("commit", full_text, lang=detected_lang)
                     logger.debug(f">>> COMMIT [{detected_lang}]: {full_text}")
                     last_commit_text = full_text[-200:]
+                    committed_this_loop = True
+                    stats.record_commit("vad", uncommitted_duration, full_text, detected_lang)
                 elif full_text:
                     logger.debug(f">>> HALLUCINATION SKIPPED (no_speech={sum(s.no_speech_prob for s in segments)/len(segments):.2f} logprob={sum(s.avg_logprob for s in segments)/len(segments):.2f}): {full_text}")
+                    stats.record_hallucination()
 
                 # Cut audio buffer
                 committed_end = last_committed_pos + int(last_seg_end * SAMPLE_RATE)
@@ -391,6 +618,8 @@ def capture_and_transcribe():
                         broadcast_event("commit", boundary_text, lang=detected_lang)
                         logger.debug(f">>> SENTENCE-COMMIT [{detected_lang}] @{boundary_time:.1f}s ({uncommitted_duration:.1f}s): {boundary_text}")
                         last_commit_text = boundary_text[-200:]
+                        committed_this_loop = True
+                        stats.record_commit("sentence", boundary_time, boundary_text, detected_lang)
 
                         # Cut audio exactly at sentence boundary (word timestamps are precise)
                         cut_pos = last_committed_pos + int(boundary_time * SAMPLE_RATE)
@@ -416,15 +645,17 @@ def capture_and_transcribe():
                     logger.debug(f">>> UPDATE: {full_text}")
                 elif full_text:
                     logger.debug(f">>> HALLUCINATION SKIPPED (no_speech={sum(s.no_speech_prob for s in segments)/len(segments):.2f} logprob={sum(s.avg_logprob for s in segments)/len(segments):.2f}): {full_text}")
+                    stats.record_hallucination()
                 last_interim_time = now
 
-            # Force-commit if exceeded max segment duration
-            if uncommitted_duration >= vad_max_segment_s and not all_final:
+            # Force-commit if exceeded max segment duration (skip if already committed above)
+            if uncommitted_duration >= vad_max_segment_s and not all_final and not committed_this_loop:
                 if full_text:
                     full_text = _strip_boundary_overlap(full_text, last_commit_text)
                     broadcast_event("commit", full_text, lang=detected_lang)
                     logger.debug(f">>> FORCE-COMMIT [{detected_lang}] ({uncommitted_duration:.1f}s): {full_text}")
                     last_commit_text = full_text[-200:]
+                    stats.record_commit("force", uncommitted_duration, full_text, detected_lang)
 
                 with buffer_lock:
                     current_audio_full = np.concatenate(audio_buffer) if audio_buffer else np.array([], dtype=np.float32)
@@ -443,6 +674,7 @@ def capture_and_transcribe():
         stream.close()
         capturing = False
         logger.debug("CAPTURE STOP")
+        logger.debug("\n" + stats.summary())
 
 
 # ---------------------------------------------------------------------------
@@ -534,12 +766,20 @@ async def update_config(request: Request):
     """Update live-adjustable config values without restarting capture."""
     body = await request.json()
     updated = []
-    for key in ("vad_min_silence_ms", "vad_max_segment_s", "interim_interval_ms"):
+    for key in ("vad_min_silence_ms", "vad_max_segment_s", "interim_interval_ms", "language"):
         if key in body:
             current_config[key] = body[key]
             updated.append(key)
     logger.debug(f"CONFIG UPDATE: {', '.join(f'{k}={current_config[k]}' for k in updated)}")
     return {"status": "ok", "updated": updated}
+
+
+@app.get("/stats")
+async def get_stats():
+    """Return current session statistics for tuning recommendations."""
+    if current_stats is None:
+        return {"status": "no_session"}
+    return current_stats.to_dict()
 
 
 @app.post("/shutdown")
@@ -599,6 +839,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     setup_logging(args.log_dir)
+    _load_hallucination_phrases()
 
     import uvicorn
 

@@ -553,6 +553,7 @@ del ""%~f0""
         ' Settings tab
         SelectComboByValue(cboUiLanguage, _config.UiLanguage, _uiLocales)
         SelectComboItem(cboTheme, _config.Theme)
+        chkStartWithWindows.Checked = _config.StartWithWindows
 
         ' Output formats
         chkSrt.Checked = _config.OutputSrt
@@ -614,6 +615,7 @@ del ""%~f0""
             _config.UiLanguage = _uiLocales(cboUiLanguage.SelectedIndex).Code
         End If
         If cboTheme.SelectedItem IsNot Nothing Then _config.Theme = cboTheme.SelectedItem.ToString()
+        _config.StartWithWindows = chkStartWithWindows.Checked
 
         ' Output formats
         _config.OutputSrt = chkSrt.Checked
@@ -1264,6 +1266,12 @@ del ""%~f0""
         End If
     End Sub
 
+    Private Sub chkStartWithWindows_CheckedChanged(sender As Object, e As EventArgs) Handles chkStartWithWindows.CheckedChanged
+        If _isInitializing Then Return
+        If chkStartWithWindows.Checked Then RegisterStartup() Else UnregisterStartup()
+        SaveUiToConfig()
+    End Sub
+
     Private Sub cboModel_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cboModel.SelectedIndexChanged
         If _config Is Nothing OrElse cboModel.SelectedItem Is Nothing Then Return
         Dim modelDir = Path.GetDirectoryName(AppConfig.ResolvePath(_config.PathModel))
@@ -1445,6 +1453,7 @@ del ""%~f0""
         ' Get input language
         Dim inputLang = "auto"
         If cboLiveInputLang.SelectedItem IsNot Nothing Then inputLang = cboLiveInputLang.SelectedItem.ToString()
+        If _subtitleServer IsNot Nothing Then _subtitleServer.InputLanguage = inputLang
 
         Dim translateToEn = False
 
@@ -1488,6 +1497,7 @@ del ""%~f0""
         If _liveRunner.IsRunning Then
             btnLiveStart.Enabled = False
             btnLiveStop.Enabled = True
+            btnTuneStats.Enabled = True
             grpLiveInput.Enabled = False
             UpdateLiveRunningStatus()
         End If
@@ -1566,7 +1576,6 @@ del ""%~f0""
                     End If
                 Case "clear"
                     AppendServerLog("Remote command: CLEAR")
-                    rtbLiveOutput.Clear()
                     _subtitleServer?.BroadcastClear()
             End Select
         Finally
@@ -1583,6 +1592,11 @@ del ""%~f0""
     End Sub
 
     Private Sub btnLiveSave_Click(sender As Object, e As EventArgs) Handles btnLiveSave.Click
+        Dim transcript = If(_liveRunner?.Transcript, "")
+        If String.IsNullOrWhiteSpace(transcript) Then
+            MessageBox.Show("No transcript to save.", "Save Transcript", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
         Using dlg As New SaveFileDialog()
             dlg.Filter = "Text files|*.txt|All files|*.*"
             dlg.DefaultExt = "txt"
@@ -1592,8 +1606,7 @@ del ""%~f0""
                 dlg.InitialDirectory = resolvedOutput
             End If
             If dlg.ShowDialog() = DialogResult.OK Then
-                ' Save the content of the live output box
-                File.WriteAllText(dlg.FileName, rtbLiveOutput.Text, System.Text.Encoding.UTF8)
+                File.WriteAllText(dlg.FileName, transcript, System.Text.Encoding.UTF8)
                 MessageBox.Show($"{GetString("Msg_TranscriptSaved")}{Environment.NewLine}{dlg.FileName}", GetString("Msg_Saved"), MessageBoxButtons.OK, MessageBoxIcon.Information)
             End If
         End Using
@@ -1613,6 +1626,171 @@ del ""%~f0""
 
     Private Sub btnLiveClear_Click(sender As Object, e As EventArgs) Handles btnLiveClear.Click
         rtbLiveOutput.Clear()
+    End Sub
+
+    Private Async Sub btnTuneStats_Click(sender As Object, e As EventArgs) Handles btnTuneStats.Click
+        If _liveRunner Is Nothing Then
+            MessageBox.Show("No session data available.", "Tune", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+
+        Dim json = Await _liveRunner.GetStatsAsync()
+        If String.IsNullOrEmpty(json) Then
+            MessageBox.Show("No statistics available yet. Run the live transcription for a while first.", "Tune", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+
+        Try
+            Using doc = System.Text.Json.JsonDocument.Parse(json)
+                Dim root = doc.RootElement
+
+                Dim commitsProp As System.Text.Json.JsonElement = Nothing
+                Dim commits As Integer = 0
+                If root.TryGetProperty("commits", commitsProp) Then commits = commitsProp.GetInt32()
+                If commits = 0 Then
+                    MessageBox.Show("No commits recorded yet. Let it run for a bit longer.", "Tune", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                    Return
+                End If
+
+                ' Read current slider values
+                Dim currentMaxSeg = trkMaxSegment.Value
+                Dim currentVadSilence = trkVadSilence.Value
+
+                ' Extract stats
+                Dim durAvg = root.GetProperty("duration").GetProperty("avg").GetDouble()
+                Dim durMedian = root.GetProperty("duration").GetProperty("median").GetDouble()
+                Dim durMax = root.GetProperty("duration").GetProperty("max").GetDouble()
+                Dim forceRatio = root.GetProperty("force_commit_ratio").GetDouble()
+                Dim shortRatio = root.GetProperty("short_segment_ratio").GetDouble()
+                Dim hallucinations = root.GetProperty("hallucinations").GetInt32()
+
+                Dim gapAvg As Double = 0
+                Dim gapMedian As Double = 0
+                Dim hasGaps = False
+                Dim gapsProp As Text.Json.JsonElement = Nothing
+                If root.TryGetProperty("silence_gaps", gapsProp) Then
+                    gapAvg = gapsProp.GetProperty("avg").GetDouble()
+                    gapMedian = gapsProp.GetProperty("median").GetDouble()
+                    hasGaps = True
+                End If
+
+                Dim wpsAvg As Double = 0
+                Dim wpsProp As Text.Json.JsonElement = Nothing
+                If root.TryGetProperty("wps", wpsProp) Then
+                    wpsAvg = wpsProp.GetProperty("avg").GetDouble()
+                End If
+
+                ' Language breakdown
+                Dim langInfo = ""
+                Dim langsProp As Text.Json.JsonElement = Nothing
+                If root.TryGetProperty("languages", langsProp) Then
+                    Dim parts As New List(Of String)
+                    For Each prop In langsProp.EnumerateObject()
+                        parts.Add($"{prop.Name}={prop.Value.GetInt32()}")
+                    Next
+                    langInfo = String.Join(", ", parts)
+                End If
+
+                ' Commit type breakdown
+                Dim typeInfo = ""
+                Dim typesProp As Text.Json.JsonElement = Nothing
+                If root.TryGetProperty("commit_types", typesProp) Then
+                    Dim parts As New List(Of String)
+                    For Each prop In typesProp.EnumerateObject()
+                        parts.Add($"{prop.Name}={prop.Value.GetInt32()}")
+                    Next
+                    typeInfo = String.Join(", ", parts)
+                End If
+
+                ' Build recommendations
+                Dim tips As New List(Of String)
+                Dim suggestedMaxSeg = currentMaxSeg
+                Dim suggestedVadSilence = currentVadSilence
+
+                ' --- Max Segment analysis ---
+                If forceRatio > 0.15 Then
+                    ' Too many force-commits: speaker talks in long stretches
+                    Dim suggested = CInt(Math.Min(60, Math.Ceiling(durMax * 1.3 / 5) * 5))
+                    tips.Add($"• Max Segment too low — {forceRatio.ToString("P0")} of commits are force-cut. Speaker needs longer segments.")
+                    tips.Add($"  Suggest: {suggested}s (currently {currentMaxSeg}s)")
+                    suggestedMaxSeg = suggested
+                ElseIf forceRatio = 0 AndAlso durMax < currentMaxSeg * 0.5 Then
+                    ' Max segment never reached and is way higher than needed
+                    Dim suggested = CInt(Math.Max(10, Math.Ceiling(durMax * 1.5 / 5) * 5))
+                    tips.Add($"• Max Segment could be tighter — longest commit was {durMax.ToString("F1")}s, limit is {currentMaxSeg}s.")
+                    tips.Add($"  Suggest: {suggested}s")
+                    suggestedMaxSeg = suggested
+                Else
+                    tips.Add($"• Max Segment ({currentMaxSeg}s) looks good for this speaker.")
+                End If
+
+                ' --- VAD Silence analysis ---
+                If shortRatio > 0.4 Then
+                    ' Too many short segments: VAD is cutting too aggressively
+                    Dim suggested = CInt(Math.Min(1500, Math.Ceiling((currentVadSilence + 200) / 100) * 100))
+                    tips.Add($"• VAD Silence too low — {shortRatio.ToString("P0")} of commits are under 3s (fragmented speech).")
+                    tips.Add($"  Suggest: {suggested}ms (currently {currentVadSilence}ms)")
+                    suggestedVadSilence = suggested
+                ElseIf hasGaps AndAlso gapMedian > 3.0 AndAlso shortRatio < 0.1 Then
+                    ' Long gaps, few short segments: could tighten silence
+                    Dim suggested = CInt(Math.Max(200, Math.Floor((currentVadSilence - 100) / 100) * 100))
+                    tips.Add($"• VAD Silence could be lower — median gap is {gapMedian.ToString("F1")}s, few short segments.")
+                    tips.Add($"  Suggest: {suggested}ms (currently {currentVadSilence}ms)")
+                    suggestedVadSilence = suggested
+                Else
+                    tips.Add($"• VAD Silence ({currentVadSilence}ms) looks good for this speaker.")
+                End If
+
+                ' --- Language detection ---
+                If langInfo.Contains(",") Then
+                    tips.Add($"• Multiple languages detected: {langInfo}")
+                    tips.Add("  If the speaker uses one language, consider forcing it via Input Language.")
+                ElseIf langInfo <> "" Then
+                    tips.Add($"• Language consistent: {langInfo}")
+                End If
+
+                ' --- General stats ---
+                tips.Add("")
+                tips.Add($"Session: {commits} commits, {hallucinations} hallucinations filtered")
+                tips.Add($"Commit types: {typeInfo}")
+                If wpsAvg > 0 Then tips.Add($"Speaking rate: {wpsAvg.ToString("F1")} words/sec")
+                tips.Add($"Segment duration: avg {durAvg.ToString("F1")}s, median {durMedian.ToString("F1")}s, max {durMax.ToString("F1")}s")
+                If hasGaps Then tips.Add($"Silence gaps: avg {gapAvg.ToString("F1")}s, median {gapMedian.ToString("F1")}s")
+
+                Dim msg = String.Join(Environment.NewLine, tips)
+                Dim result = MessageBox.Show(
+                    msg & Environment.NewLine & Environment.NewLine &
+                    "Apply suggested slider values?",
+                    "Tuning Recommendations",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Information)
+
+                If result = DialogResult.Yes Then
+                    If suggestedMaxSeg <> currentMaxSeg Then
+                        trkMaxSegment.Value = Math.Max(trkMaxSegment.Minimum, Math.Min(trkMaxSegment.Maximum, suggestedMaxSeg))
+                    End If
+                    If suggestedVadSilence <> currentVadSilence Then
+                        trkVadSilence.Value = Math.Max(trkVadSilence.Minimum, Math.Min(trkVadSilence.Maximum, suggestedVadSilence))
+                    End If
+                End If
+            End Using
+        Catch ex As Exception
+            MessageBox.Show($"Failed to parse stats: {ex.Message}", "Tune", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+        End Try
+    End Sub
+
+    Private Sub HandleInputLanguageChanged(lang As String)
+        ' Update the UI dropdown
+        SelectComboItem(cboLiveInputLang, lang)
+        ' Update subtitle server's tracked state (for status polling)
+        If _subtitleServer IsNot Nothing Then _subtitleServer.InputLanguage = lang
+        ' Forward to live-server if running
+        If _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning Then
+            Dim config As New Dictionary(Of String, Object) From {{"language", lang}}
+            Task.Run(Function() _liveRunner.UpdateConfigAsync(config))
+        End If
+        WriteDebugLog($"[INPUT LANG] Changed to '{lang}' via client")
+        AppendLiveText($"Input language changed to: {lang}", Drawing.Color.Yellow)
     End Sub
 
     Private Sub btnLiveSaveLog_Click(sender As Object, e As EventArgs) Handles btnLiveSaveLog.Click
@@ -1938,9 +2116,13 @@ del ""%~f0""
         Return False
     End Function
 
+    Private Shared Function GetPipelineLogPath() As String
+        Return IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{DateTime.Now:yyyyMMdd}_pipeline-debug.log")
+    End Function
+
     Private Shared Sub WriteDebugLog(msg As String)
         Try
-            Dim logPath = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "pipeline-debug.log")
+            Dim logPath = GetPipelineLogPath()
             IO.File.AppendAllText(logPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {msg}{Environment.NewLine}")
         Catch
         End Try
@@ -1987,10 +2169,10 @@ del ""%~f0""
     Private Sub StartTranslationService()
         If Not _config.TranslationEnabled Then Return
 
-        ' Clear debug logs on fresh start
+        ' Append session header (keep previous logs)
         Try
-            Dim logPath = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "pipeline-debug.log")
-            IO.File.WriteAllText(logPath, $"=== Translation service started at {DateTime.Now:yyyy-MM-dd HH:mm:ss} ==={Environment.NewLine}")
+            Dim logPath = GetPipelineLogPath()
+            IO.File.AppendAllText(logPath, $"{Environment.NewLine}=== Session started at {DateTime.Now:yyyy-MM-dd HH:mm:ss} ==={Environment.NewLine}")
         Catch
         End Try
 
@@ -2185,6 +2367,9 @@ del ""%~f0""
                                                   End Sub
 
         AddHandler _subtitleServer.ActiveLanguagesChanged, AddressOf HandleActiveLanguagesChanged
+        AddHandler _subtitleServer.InputLanguageChanged, Sub(s, lang)
+                                                             Me.BeginInvoke(Sub() HandleInputLanguageChanged(lang))
+                                                         End Sub
         AddHandler _subtitleServer.LogMessage, Sub(s, msg)
                                                    WriteDebugLog(msg)
                                                End Sub

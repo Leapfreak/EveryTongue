@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger("nllb-server")
 
 # Pipeline debug log — writes every translation stage to a file
-_debug_log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "nllb-debug.log")
+_debug_log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", time.strftime("%Y%m%d") + "_nllb-debug.log")
 _debug_logger = logging.getLogger("nllb-debug")
 _debug_logger.setLevel(logging.DEBUG)
 try:
@@ -72,6 +72,32 @@ class LRUCache:
 
 
 cache = LRUCache(5000)
+
+
+# ---------------------------------------------------------------------------
+# Profanity filter: scrub hallucinated profanity from translation output
+# ---------------------------------------------------------------------------
+_profanity_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profanity.json")
+_profanity_patterns: dict[str, re.Pattern] = {}
+try:
+    with open(_profanity_path, "r", encoding="utf-8") as f:
+        _profanity_words = json.load(f)
+    for _lang, _words in _profanity_words.items():
+        _pattern = r"\b(" + "|".join(re.escape(w) for w in _words) + r")\b"
+        _profanity_patterns[_lang] = re.compile(_pattern, re.IGNORECASE)
+    logger.info("Profanity filter loaded: %s", ", ".join(f"{k} ({len(v)} words)" for k, v in _profanity_words.items()))
+except FileNotFoundError:
+    logger.info("No profanity.json found — profanity filter disabled")
+except Exception as _e:
+    logger.warning("Failed to load profanity.json: %s", _e)
+
+
+def _filter_profanity(text: str, target_lang: str) -> str:
+    """Replace profane words with [...] if a filter exists for the target language."""
+    pattern = _profanity_patterns.get(target_lang)
+    if not pattern:
+        return text
+    return pattern.sub("[...]", text)
 
 
 # ---------------------------------------------------------------------------
@@ -241,8 +267,11 @@ def _translate_to_targets(text: str, source_lang: str, target_langs: list[str]) 
             after_glossary = glossary.apply(text, source_lang, tl, translated)
             if after_glossary != translated:
                 _debug_logger.debug("[GLOSSARY] %s: %r -> %r", tl, translated, after_glossary)
-            _debug_logger.debug("[FINAL] %s: %r", tl, after_glossary)
-            results[tl] = after_glossary
+            filtered = _filter_profanity(after_glossary, tl)
+            if filtered != after_glossary:
+                _debug_logger.debug("[PROFANITY] %s: %r -> %r", tl, after_glossary, filtered)
+            _debug_logger.debug("[FINAL] %s: %r", tl, filtered)
+            results[tl] = filtered
         except Exception as e:
             err_msg = str(e)
             if "cublas" in err_msg.lower() or "cuda" in err_msg.lower():
@@ -250,7 +279,7 @@ def _translate_to_targets(text: str, source_lang: str, target_langs: list[str]) 
                 if translator is not None:
                     try:
                         translated = _translate_single(text, source_lang, tl)
-                        results[tl] = glossary.apply(text, source_lang, tl, translated)
+                        results[tl] = _filter_profanity(glossary.apply(text, source_lang, tl, translated), tl)
                         continue
                     except Exception as e2:
                         logger.warning("Translation to %s failed after CPU reload: %s", tl, e2)
@@ -366,10 +395,10 @@ if __name__ == "__main__":
 
     model_path_global = args.model_path
 
-    # Clear debug log on startup
+    # Append session header (keep previous logs)
     try:
-        with open(_debug_log_path, "w", encoding="utf-8") as f:
-            f.write(f"=== NLLB server started at {time.strftime('%Y-%m-%d %H:%M:%S')} ===\n")
+        with open(_debug_log_path, "a", encoding="utf-8") as f:
+            f.write(f"\n=== NLLB server started at {time.strftime('%Y-%m-%d %H:%M:%S')} ===\n")
     except Exception:
         pass
 
