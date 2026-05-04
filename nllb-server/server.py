@@ -177,9 +177,19 @@ class Glossary:
             # Apply fixes for this target language
             fixes = entry.get("fixes", {}).get(target_lang, {})
             for wrong, right in fixes.items():
-                # Word-boundary replacement, case-insensitive
-                pattern = r"\b" + re.escape(wrong) + r"\b"
-                result = re.sub(pattern, right, result, flags=re.IGNORECASE)
+                # If the pattern contains non-word chars (punctuation, hyphens),
+                # use plain string replacement — \b won't match correctly.
+                if re.search(r"[^\w\s]", wrong):
+                    if wrong in result:
+                        result = result.replace(wrong, right)
+                    elif wrong.lower() in result.lower():
+                        # Case-insensitive plain replacement
+                        pattern = re.escape(wrong)
+                        result = re.sub(pattern, right, result, flags=re.IGNORECASE)
+                else:
+                    # Word-boundary replacement, case-insensitive
+                    pattern = r"\b" + re.escape(wrong) + r"\b"
+                    result = re.sub(pattern, right, result, flags=re.IGNORECASE)
 
         return result
 

@@ -131,8 +131,11 @@ def _strip_boundary_overlap(new_text: str, prev_text: str, max_overlap_words: in
         prev_tail = [re.sub(r"[^\w]", "", w) for w in prev_words[-n:]]
         new_head = [re.sub(r"[^\w]", "", w.lower()) for w in new_words[:n]]
         if prev_tail == new_head:
-            stripped = " ".join(new_words[n:])
-            if stripped:
+            remaining = new_words[n:]
+            # Don't strip if remaining text is shorter than what we'd remove —
+            # that likely means coincidental word match, not real overlap
+            if len(remaining) > n:
+                stripped = " ".join(remaining)
                 logger.debug(f"  BOUNDARY-DEDUP: stripped {n} overlapping words: {' '.join(new_words[:n])}")
                 return stripped
     return new_text

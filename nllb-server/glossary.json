@@ -133,5 +133,22 @@
     "fixes": {
       "eng_Latn": {"- Thank you. - Thank you.": "Thank you.", "- Thank you. - Thank you": "Thank you"}
     }
+  },
+  {
+    "comment": "'Amén' = Amen (NLLB translates as 'It's all right' or 'Así sea')",
+    "trigger": "Am\u00e9n",
+    "source_langs": ["cat_Latn", "spa_Latn"],
+    "fixes": {
+      "eng_Latn": {"It's all right": "Amen", "So be it": "Amen"},
+      "spa_Latn": {"As\u00ed sea": "Amén"}
+    }
+  },
+  {
+    "comment": "'fidelitat' = faithfulness (not 'fidelity' which has romantic/audio connotations)",
+    "trigger": "fidelitat",
+    "source_langs": ["cat_Latn"],
+    "fixes": {
+      "eng_Latn": {"Fidelity": "Faithfulness", "fidelity": "faithfulness"}
+    }
   }
 ]
