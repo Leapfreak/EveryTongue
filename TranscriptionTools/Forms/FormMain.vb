@@ -728,6 +728,7 @@ del ""%~f0""
             lblLiveDevice.Text = GetString("Lbl_LiveDevice")
             btnRefreshDevices.Text = GetString("Btn_RefreshDevices")
             lblLiveInputLang.Text = GetString("Lbl_LiveInputLang")
+            btnEditFilters.Text = GetString("Btn_Filters")
             btnLiveStart.Text = GetString("Btn_LiveStart")
             btnLiveStop.Text = GetString("Btn_LiveStop")
             btnLiveSave.Text = GetString("Btn_LiveSave")
@@ -1417,6 +1418,13 @@ del ""%~f0""
                  End Sub)
     End Sub
 
+    Private Sub btnEditFilters_Click(sender As Object, e As EventArgs) Handles btnEditFilters.Click
+        Using frm As New FormFilterEditor(AppDomain.CurrentDomain.BaseDirectory, _config.LiveServerPort, _config.TranslationPort, _resMgr)
+            frm.Icon = Me.Icon
+            frm.ShowDialog(Me)
+        End Using
+    End Sub
+
     Private Async Sub btnLiveStart_Click(sender As Object, e As EventArgs) Handles btnLiveStart.Click
         SaveUiToConfig()
 
@@ -1979,8 +1987,8 @@ del ""%~f0""
             SyncLock _pendingCommits
                 _pendingCommits.Add(commitData)
             End SyncLock
-            ' Send original text to non-translation clients only (they don't need translation)
-            _subtitleServer?.BroadcastCommit(line, skipTranslationClients:=True, lang:=sourceShort)
+            ' Send original text to source-language and non-translation clients
+            _subtitleServer?.BroadcastCommit(line, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang)
             WriteDebugLog($"[BUFFERED] commit queued ({_pendingCommits.Count} pending)")
             Return
         End If
@@ -1994,7 +2002,7 @@ del ""%~f0""
         ' Filter garbage commits — send to non-translation clients only
         If IsGarbageCommit(line) Then
             WriteDebugLog($"[FILTERED] garbage commit skipped for translation")
-            _subtitleServer?.BroadcastCommit(line, skipTranslationClients:=True, lang:=sourceShort)
+            _subtitleServer?.BroadcastCommit(line, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang)
             Return
         End If
 
@@ -2053,6 +2061,9 @@ del ""%~f0""
     End Sub
 
     Private Sub FlushPendingCommits()
+        ' Verify model is actually loaded before flushing
+        If _translationService Is Nothing OrElse Not _translationService.IsModelLoaded Then Return
+
         Dim commits As List(Of String)
         SyncLock _pendingCommits
             If _pendingCommits.Count = 0 Then Return

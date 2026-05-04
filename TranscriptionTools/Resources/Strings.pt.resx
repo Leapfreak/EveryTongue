@@ -178,4 +178,39 @@ Execute a verifica&#231;&#227;o de depend&#234;ncias na guia Configura&#231;&#24
   <data name="Tab_LiveLog"><value>Registo</value></data>
   <data name="Btn_LiveSaveLog"><value>Salvar Registo...</value></data>
   <data name="Btn_LiveClearLog"><value>Limpar Registo</value></data>
+
+  <!-- Filter Editor -->
+  <data name="Btn_Filters"><value>Filtros...</value></data>
+  <data name="FE_Title"><value>Editor de filtros</value></data>
+  <data name="FE_Tab_Hallucinations"><value>Alucinações</value></data>
+  <data name="FE_Tab_Profanity"><value>Filtro de obscenidades</value></data>
+  <data name="FE_Tab_Glossary"><value>Glossário</value></data>
+  <data name="FE_Desc_Hallucinations"><value>Frases que o whisper alucina (ex. 'Thanks for watching'). Comparação sem distinção de maiúsculas.</value></data>
+  <data name="FE_Desc_Profanity"><value>Palavras substituídas por [...] na tradução. Usa códigos NLLB (ex. eng_Latn).</value></data>
+  <data name="FE_Desc_Glossary"><value>Entradas do glossário (quando o texto fonte contém o gatilho, corrige palavras erradas na tradução):</value></data>
+  <data name="FE_Language"><value>Idioma:</value></data>
+  <data name="FE_AddLanguage"><value>Adicionar idioma...</value></data>
+  <data name="FE_Add"><value>Adicionar</value></data>
+  <data name="FE_RemoveSelected"><value>Remover selecionado</value></data>
+  <data name="FE_AddEntry"><value>Adicionar entrada</value></data>
+  <data name="FE_RemoveEntry"><value>Remover entrada</value></data>
+  <data name="FE_SelectedEntry"><value>Entrada selecionada</value></data>
+  <data name="FE_Trigger"><value>Gatilho:</value></data>
+  <data name="FE_SourceLangs"><value>Idiomas fonte:</value></data>
+  <data name="FE_Comment"><value>Comentário:</value></data>
+  <data name="FE_Fixes"><value>Correções (idioma alvo -> palavra errada -> palavra correta):</value></data>
+  <data name="FE_AddFix"><value>Adicionar correção</value></data>
+  <data name="FE_RemoveFix"><value>Remover correção</value></data>
+  <data name="FE_SaveReload"><value>Salvar e recarregar</value></data>
+  <data name="FE_Cancel"><value>Cancelar</value></data>
+  <data name="FE_Saved"><value>Salvo e recarga solicitada.</value></data>
+  <data name="FE_DiscardChanges"><value>Descartar alterações não salvas?</value></data>
+  <data name="FE_PromptLangCode"><value>Digite o código do idioma (ex. en, es, ca, fr):</value></data>
+  <data name="FE_PromptNllbCode"><value>Digite o código NLLB (ex. eng_Latn, spa_Latn):</value></data>
+  <data name="FE_ColTrigger"><value>Gatilho</value></data>
+  <data name="FE_ColSourceLangs"><value>Idiomas fonte</value></data>
+  <data name="FE_ColComment"><value>Comentário</value></data>
+  <data name="FE_ColTargetLang"><value>Idioma alvo</value></data>
+  <data name="FE_ColWrong"><value>Palavra errada</value></data>
+  <data name="FE_ColRight"><value>Palavra correta</value></data>
 </root>

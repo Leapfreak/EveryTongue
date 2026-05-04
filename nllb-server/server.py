@@ -102,17 +102,32 @@ cache = LRUCache(5000)
 # ---------------------------------------------------------------------------
 _profanity_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profanity.json")
 _profanity_patterns: dict[str, re.Pattern] = {}
-try:
-    with open(_profanity_path, "r", encoding="utf-8") as f:
-        _profanity_words = json.load(f)
-    for _lang, _words in _profanity_words.items():
-        _pattern = r"\b(" + "|".join(re.escape(w) for w in _words) + r")\b"
-        _profanity_patterns[_lang] = re.compile(_pattern, re.IGNORECASE)
-    logger.info("Profanity filter loaded: %s", ", ".join(f"{k} ({len(v)} words)" for k, v in _profanity_words.items()))
-except FileNotFoundError:
-    logger.info("No profanity.json found — profanity filter disabled")
-except Exception as _e:
-    logger.warning("Failed to load profanity.json: %s", _e)
+
+
+def _load_profanity():
+    """Load profanity word lists from profanity.json. Returns count of languages loaded."""
+    global _profanity_patterns
+    try:
+        with open(_profanity_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        patterns = {}
+        for lang, words in data.items():
+            pattern = r"\b(" + "|".join(re.escape(w) for w in words) + r")\b"
+            patterns[lang] = re.compile(pattern, re.IGNORECASE)
+        _profanity_patterns = patterns
+        logger.info("Profanity filter loaded: %s", ", ".join(f"{k} ({len(v)} words)" for k, v in data.items()))
+        return len(patterns)
+    except FileNotFoundError:
+        logger.info("No profanity.json found — profanity filter disabled")
+        _profanity_patterns = {}
+        return 0
+    except Exception as e:
+        logger.warning("Failed to load profanity.json: %s", e)
+        _profanity_patterns = {}
+        return 0
+
+
+_load_profanity()
 
 
 def _filter_profanity(text: str, target_lang: str) -> str:
@@ -402,6 +417,12 @@ async def unload_model():
 async def reload_glossary():
     count = glossary.load(glossary_path_global)
     return {"status": "ok", "entries": count}
+
+
+@app.post("/profanity/reload")
+async def reload_profanity():
+    count = _load_profanity()
+    return {"status": "ok", "languages": count}
 
 
 @app.get("/health", response_model=StatusResponse)

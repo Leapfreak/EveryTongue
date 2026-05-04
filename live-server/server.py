@@ -801,6 +801,13 @@ async def get_stats():
     return current_stats.to_dict()
 
 
+@app.post("/hallucinations/reload")
+async def reload_hallucinations():
+    """Reload hallucination phrases from disk."""
+    _load_hallucination_phrases()
+    return {"status": "ok", "count": len(_hallucination_phrases)}
+
+
 @app.post("/shutdown")
 async def shutdown():
     """Gracefully shut down the server."""

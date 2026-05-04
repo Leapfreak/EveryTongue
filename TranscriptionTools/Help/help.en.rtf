@@ -7,7 +7,7 @@
 \f0\fs36\b\cf2 Transcription Tools \endash  User Guide\b0\cf0\fs20\par
 
 \fs24\b Overview\b0\fs20\par
-Transcription Tools is a Windows desktop application that generates subtitle files from audio and video sources. It wraps the whisper.cpp speech-to-text engine for batch processing and faster-whisper with Silero VAD for real-time live transcription, with optional AI-powered translation via NLLB-200.\par
+Transcription Tools is a Windows desktop application that generates subtitle files from audio and video sources. It wraps the whisper.cpp speech-to-text engine for batch processing and faster-whisper with Silero VAD for real-time live transcription, with optional AI-powered translation to 200+ languages via NLLB-200.\par
 
 The application has six tabs: \b Live Translation\b0 , \b Subtitle Server\b0 , \b Main / Job\b0 , \b Paths & Tools\b0 , \b Settings\b0 , and \b Help\b0 .\par
 
@@ -16,20 +16,70 @@ The Live Translation tab provides real-time speech-to-text transcription from yo
 
 \b Controls\b0\par
 \pard\fi-360\li720\sa100
-\bullet\tab\b Audio Device\b0  \endash  Select your audio input device. Devices are detected via the Python sounddevice library. Click \b Refresh\b0  to re-scan if you connect a new device.\par
-\bullet\tab\b Input Language\b0  \endash  The language being spoken. Set to \b auto\b0  for automatic detection, or select a specific language for better accuracy.\par
-\bullet\tab\b Start\b0  \endash  Begin live transcription. On first use, the application downloads required dependencies (Python runtime, faster-whisper model, Python packages) if they are not already installed.\par
-\bullet\tab\b Stop\b0  \endash  Stop the live transcription session. The faster-whisper model stays loaded in memory so the next start is fast.\par
+\bullet\tab\b Audio Device\b0  \endash  Select your audio input device. Click \b Refresh\b0  to re-scan if you connect a new device.\par
+\bullet\tab\b Input Language\b0  \endash  The language being spoken. Set to \b auto\b0  for automatic detection, or select a specific language for better accuracy. This can also be changed remotely from the phone admin panel while a session is running.\par
+\bullet\tab\b Filters...\b0  \endash  Opens the Filter Editor to manage hallucination phrases, glossary corrections, and profanity filters (see Filter Editor section below).\par
+\bullet\tab\b Start / Stop\b0  \endash  Begin or stop live transcription. On first use, the application downloads required dependencies (Python runtime, faster-whisper model, Python packages) if they are not already installed. The model stays loaded in memory between sessions for fast restart.\par
+
+\pard\sa200\sl276\slmult1
+\b Tuning Sliders\b0\par
+Two sliders on the button bar allow real-time tuning of transcription behaviour without restarting:\par
+\pard\fi-360\li720\sa100
+\bullet\tab\b Max Segment\b0  (5\endash 60s) \endash  Maximum audio duration before forcing a commit. Shorter values produce more frequent, smaller subtitles. Longer values allow the VAD to accumulate longer utterances. Default: 15s.\par
+\bullet\tab\b VAD Silence\b0  (200\endash 1500ms) \endash  How long a pause in speech before the VAD considers the utterance complete. Lower values make the system more responsive but may split sentences. Higher values wait longer for the speaker to continue. Default: 800ms.\par
+\bullet\tab\b Tune\b0  \endash  Analyses session statistics (commit durations, silence gaps, word rates) and recommends optimal slider values based on the current speaker\rquote s pattern. Available after a session has been running for at least one minute.\par
 
 \pard\sa200\sl276\slmult1
 \b Sub-tabs\b0\par
 \pard\fi-360\li720\sa100
-\bullet\tab\b Live Output\b0  \endash  An embedded web view showing the same subtitle page as the Subtitle Server. Displays live transcription text with the same styling and features as the web client. A \b Save Transcript\b0  button at the bottom saves the full transcript to a text file.\par
+\bullet\tab\b Live Output\b0  \endash  An embedded web view showing the same subtitle page as the Subtitle Server. Displays live transcription text with the same styling and features as the web client. A \b Save Transcript\b0  button at the bottom saves committed text to a file.\par
 \bullet\tab\b Log\b0  \endash  A scrolling text log showing transcription activity with colour coding. In-progress text is shown in white and continuously refined as you speak. Committed (finalised) text appears in green. Status messages appear in yellow and system information in grey. Use \b Save Log\b0  and \b Clear Log\b0  to manage the log.\par
 
 \pard\sa200\sl276\slmult1
 \b Real-Time Translation\b0\par
-When the Subtitle Server is running, connected web clients can select a translation language from the dropdown on the web page. The application uses an NLLB-200 translation server to translate transcribed text on-the-fly. Each client can choose their own language independently. Over 200 languages are supported. Clients that do not select a translation language receive the original transcription.\par
+When the Subtitle Server is running, connected web clients can select a translation language from the dropdown on the web page. The application uses an NLLB-200 translation server (a Python sidecar process) to translate transcribed text on-the-fly. Each client can choose their own language independently. Over 200 languages are supported. Clients that do not select a translation language receive the original transcription.\par
+
+If commits arrive while the translation model is still loading, they are buffered and translated once the model becomes ready, so no text is lost during startup.\par
+
+\b Quality Filters\b0\par
+Three filter systems improve translation and transcription quality:\par
+\pard\fi-360\li720\sa100
+\bullet\tab\b Hallucination Filter\b0  \endash  Blocks known phrases that whisper tends to hallucinate during silence (e.g. \ldblquote Thanks for watching\rdblquote , \ldblquote Subscribe to my channel\rdblquote ). Uses fuzzy matching at 80% similarity. Phrases are defined per language in \f1 hallucinations.json\f0 .\par
+\bullet\tab\b Glossary\b0  \endash  Corrects systematic mistranslations. When source text contains a trigger word, specified wrong words in the translation output are replaced with correct ones. For example, Spanish \ldblquote culto\rdblquote  (church service) is corrected from \ldblquote cult\rdblquote  to \ldblquote service\rdblquote  in English. Defined in \f1 glossary.json\f0 .\par
+\bullet\tab\b Profanity Filter\b0  \endash  Replaces profane words in translation output with [...]. NLLB sometimes hallucinates vulgar language that was not present in the source speech. Defined per target language in \f1 profanity.json\f0 .\par
+
+\pard\sa200\sl276\slmult1
+All three filter files can be edited through the \b Filter Editor\b0  (see below) and hot-reloaded without restarting the application.\par
+
+\fs24\b\cf2 Filter Editor\b0\cf0\fs20\par
+Opened via the \b Filters...\b0  button on the Live Translation tab. Provides a graphical interface to edit the three filter JSON files without manually editing JSON.\par
+
+\b Hallucinations Tab\b0\par
+\pard\fi-360\li720\sa100
+\bullet\tab Select a language from the dropdown to view its hallucination phrases.\par
+\bullet\tab Type a phrase in the text box and click \b Add\b0  to add it.\par
+\bullet\tab Select a phrase and click \b Remove Selected\b0  to delete it.\par
+\bullet\tab Click \b Add Language\b0  to create a new language section (use whisper language codes like en, es, ca).\par
+
+\pard\sa200\sl276\slmult1
+\b Profanity Filter Tab\b0\par
+\pard\fi-360\li720\sa100
+\bullet\tab Same interface as the Hallucinations tab, but for profanity words.\par
+\bullet\tab Uses NLLB language codes (e.g. eng_Latn, spa_Latn) since the filter runs on translation output.\par
+
+\pard\sa200\sl276\slmult1
+\b Glossary Tab\b0\par
+\pard\fi-360\li720\sa100
+\bullet\tab The top grid shows all glossary entries with their trigger word, source languages, and description.\par
+\bullet\tab Select an entry to edit its details in the panel below.\par
+\bullet\tab\b Trigger\b0  \endash  The substring to look for in the source text (case-insensitive).\par
+\bullet\tab\b Source Langs\b0  \endash  Comma-separated NLLB codes for which source languages this entry applies to (e.g. spa_Latn, cat_Latn).\par
+\bullet\tab\b Comment\b0  \endash  A human-readable description of why this entry exists.\par
+\bullet\tab\b Fixes grid\b0  \endash  Each row maps a target language to a wrong/right word pair. When the trigger is detected in the source and the translation is to that target language, the wrong word is replaced with the right word.\par
+\bullet\tab Use \b Add Entry / Remove Entry\b0  for the main list and \b Add Fix / Remove Fix\b0  for the corrections grid.\par
+
+\pard\sa200\sl276\slmult1
+Click \b Save & Reload\b0  to write all changes to disk and tell the running servers to reload their filters immediately. No restart is needed.\par
 
 \fs24\b\cf2 Subtitle Server Tab\b0\cf0\fs20\par
 The Subtitle Server provides a web-based live caption overlay that can be viewed on any device (phone, tablet, second monitor) connected to the same network. It serves a web page that displays live transcription text via WebSocket. The server runs on HTTP and also starts an HTTPS listener on the next port (e.g. 5081) to support the screen wake lock feature on mobile devices.\par
@@ -54,12 +104,12 @@ The Subtitle Server provides a web-based live caption overlay that can be viewed
 
 \pard\sa200\sl276\slmult1
 \b Server Log\b0\par
-Below the connection info, a log area shows server events including client connections, disconnections, and translation requests.\par
+Below the connection info, a log area shows server events including client connections, disconnections, language changes, and translation activity.\par
 
 \b Web Page Features\b0\par
 The subtitle web page includes a toolbar in the top-right corner with the following controls:\par
 \pard\fi-360\li720\sa100
-\bullet\tab\b Remote Control\b0  (gear icon) \endash  Opens an admin panel to remotely Start, Stop, Restart, or Simulate the live transcription without returning to the desktop application.\par
+\bullet\tab\b Remote Control\b0  (gear icon) \endash  Opens an admin panel to remotely Start, Stop, Restart, or Simulate the live transcription. Also includes an \b Input Language\b0  selector to change the transcription language without returning to the desktop application. A Clear button clears the subtitle display on the current device.\par
 \bullet\tab\b Settings\b0  (Aa icon) \endash  Adjust font size, font family, bold, text colour, voice selection and speed for read-aloud, scroll direction, and tag display options. Preferences are saved locally in the browser.\par
 \bullet\tab\b Translation\b0  \endash  Select a translation language. Each client can choose independently. Select \ldblquote Original\rdblquote  to receive the untranslated text.\par
 \bullet\tab\b Tags\b0  \endash  Choose what information to show before each subtitle line: Off, Language, Time, or both.\par
@@ -141,6 +191,7 @@ Click \b Verify All Paths\b0  to check that all configured tools and files exist
 \pard\fi-360\li720\sa100
 \bullet\tab\b UI Language\b0  \endash  Change the interface language. Available: English, Spanish, French, German, Catalan, Portuguese, Simplified Chinese, Japanese.\par
 \bullet\tab\b Theme\b0  \endash  Choose System, Light, or Dark theme.\par
+\bullet\tab\b Start with Windows\b0  \endash  Launch Transcription Tools automatically when you sign in to Windows.\par
 \bullet\tab\b Reset All Settings\b0  \endash  Restore all configuration to factory defaults.\par
 \bullet\tab\b Check for Tool Updates\b0  \endash  Check if newer versions of yt-dlp, ffmpeg, or other tools are available and download them.\par
 
@@ -196,6 +247,9 @@ All dependencies are self-contained within the application folder and do not aff
 3.\tab Extract audio to MP3 (output: yt_audio.mp3)\par
 
 \pard\sa200\sl276\slmult1
+\fs24\b\cf2 Debug Logging\b0\cf0\fs20\par
+A detailed pipeline debug log is written to the application directory as \f1 YYYYMMDD_pipeline-debug.log\f0 . This log records every transcription commit, translation request, glossary/profanity filter action, timing data, and session statistics. Each session is marked with a header including the application version. Both the live-server and NLLB translation server write to the same log file with [LIVE] and [NLLB] prefixes respectively. This log is invaluable for diagnosing translation quality issues, missed utterances, or performance problems.\par
+
 \fs24\b\cf2 Tips\b0\cf0\fs20\par
 \pard\fi-360\li720\sa100
 \bullet\tab For best subtitle quality, use the \b ggml-large-v3\b0  model. For quick results on short audio, use \b ggml-tiny\b0  or \b ggml-base\b0 .\par
@@ -204,6 +258,9 @@ All dependencies are self-contained within the application folder and do not aff
 \bullet\tab For Live Translation, a CUDA-capable GPU with at least 4 GB VRAM is recommended. The faster-whisper model uses ~1.5 GB and the NLLB translation model uses ~2.6 GB.\par
 \bullet\tab The web subtitle page works on any device with a browser on the same network. Share the URL shown in the Connection Info section.\par
 \bullet\tab To keep your phone screen on while viewing subtitles, use the Keep Screen On button on the web page (requires HTTPS).\par
+\bullet\tab Use the \b Tune\b0  button after a minute of transcription to get recommended slider values tailored to the current speaker.\par
+\bullet\tab If translations seem wrong for specific words, add a glossary entry via the \b Filter Editor\b0  \endash  changes take effect immediately after saving.\par
+\bullet\tab The phone admin panel allows remote control of Start/Stop and language changes, useful when the desktop is not easily accessible.\par
 \bullet\tab The help file automatically loads in your selected UI language if available.\par
 
 \pard\sa200\sl276\slmult1

@@ -7,220 +7,277 @@
 \f0\fs36\b\cf2 Transcription Tools \endash  Guia do Usu\'e1rio\b0\cf0\fs20\par
 
 \fs24\b Vis\'e3o Geral\b0\fs20\par
-O Transcription Tools \'e9 um aplicativo de desktop para Windows que gera arquivos de legenda a partir de fontes de \'e1udio e v\'eddeo. Ele utiliza o mecanismo de reconhecimento de voz whisper.cpp para processamento em lote e o faster-whisper com Silero VAD para transcri\'e7\'e3o ao vivo em tempo real, com tradu\'e7\'e3o opcional por intelig\'eancia artificial via NLLB-200.\par
+Transcription Tools \'e9 uma aplica\'e7\'e3o de ambiente de trabalho para Windows que gera ficheiros de legendas a partir de fontes de \'e1udio e v\'eddeo. Utiliza o motor de reconhecimento de voz whisper.cpp para processamento em lote e faster-whisper com Silero VAD para transcri\'e7\'e3o ao vivo em tempo real, com tradu\'e7\'e3o opcional alimentada por IA para mais de 200 l\'ednguas via NLLB-200.\par
 
-O aplicativo possui seis abas: \b Tradu\'e7\'e3o ao Vivo\b0 , \b Servidor de Legendas\b0 , \b Principal / Tarefa\b0 , \b Caminhos e Ferramentas\b0 , \b Configura\'e7\'f5es\b0  e \b Ajuda\b0 .\par
+A aplica\'e7\'e3o tem seis separadores: \b Tradu\'e7\'e3o ao Vivo\b0 , \b Servidor de Legendas\b0 , \b Principal / Tarefa\b0 , \b Caminhos e Ferramentas\b0 , \b Configura\'e7\'f5es\b0  e \b Ajuda\b0 .\par
 
-\fs24\b\cf2 Aba Tradu\'e7\'e3o ao Vivo\b0\cf0\fs20\par
-A aba Tradu\'e7\'e3o ao Vivo fornece transcri\'e7\'e3o de voz para texto em tempo real a partir do microfone ou de outro dispositivo de entrada de \'e1udio. Ela utiliza o faster-whisper com Silero VAD (Detec\'e7\'e3o de Atividade de Voz) para detectar pausas naturais na fala e segmentar o \'e1udio em enunciados completos, produzindo transcri\'e7\'f5es mais limpas e precisas do que o fatiamento por janela fixa.\par
+\fs24\b\cf2 Separador Tradu\'e7\'e3o ao Vivo\b0\cf0\fs20\par
+O separador Tradu\'e7\'e3o ao Vivo fornece transcri\'e7\'e3o de voz para texto em tempo real a partir do microfone ou outro dispositivo de entrada de \'e1udio. Utiliza faster-whisper com Silero VAD (Dete\'e7\'e3o de Atividade de Voz) para detetar pausas naturais na fala e segmentar o \'e1udio em enunciados completos, produzindo transcri\'e7\'f5es mais limpas e precisas do que o processamento em janelas fixas.\par
 
-\b Controles\b0\par
+\b Controlos\b0\par
 \pard\fi-360\li720\sa100
-\bullet\tab\b Dispositivo de \'c1udio\b0  \endash  Selecione o dispositivo de entrada de \'e1udio. Os dispositivos s\'e3o detectados pela biblioteca Python sounddevice. Clique em \b Atualizar\b0  para redigitalizar caso conecte um novo dispositivo.\par
-\bullet\tab\b Idioma de Entrada\b0  \endash  O idioma que est\'e1 sendo falado. Defina como \b auto\b0  para detec\'e7\'e3o autom\'e1tica, ou selecione um idioma espec\'edfico para maior precis\'e3o.\par
-\bullet\tab\b Iniciar\b0  \endash  Inicia a transcri\'e7\'e3o ao vivo. No primeiro uso, o aplicativo baixa as depend\'eancias necess\'e1rias (ambiente Python, modelo faster-whisper, pacotes Python) caso ainda n\'e3o estejam instaladas.\par
-\bullet\tab\b Parar\b0  \endash  Encerra a sess\'e3o de transcri\'e7\'e3o ao vivo. O modelo faster-whisper permanece carregado na mem\'f3ria para que a pr\'f3xima inicializa\'e7\'e3o seja r\'e1pida.\par
+\bullet\tab\b Dispositivo de \'c1udio\b0  \endash  Selecione o dispositivo de entrada de \'e1udio. Clique em \b Atualizar\b0  para reexaminar se ligar um novo dispositivo.\par
+\bullet\tab\b L\'edngua de Entrada\b0  \endash  A l\'edngua que est\'e1 a ser falada. Defina como \b auto\b0  para dete\'e7\'e3o autom\'e1tica, ou selecione uma l\'edngua espec\'edfica para maior precis\'e3o. Tamb\'e9m pode ser alterada remotamente a partir do painel de administra\'e7\'e3o do telm\'f3vel enquanto uma sess\'e3o est\'e1 em execu\'e7\'e3o.\par
+\bullet\tab\b Filtros...\b0  \endash  Abre o Editor de Filtros para gerir frases de alucina\'e7\'e3o, corre\'e7\'f5es de gloss\'e1rio e filtros de profanidade (consulte a sec\'e7\'e3o Editor de Filtros abaixo).\par
+\bullet\tab\b Iniciar / Parar\b0  \endash  Iniciar ou parar a transcri\'e7\'e3o ao vivo. Na primeira utiliza\'e7\'e3o, a aplica\'e7\'e3o transfere as depend\'eancias necess\'e1rias (ambiente de execu\'e7\'e3o Python, modelo faster-whisper, pacotes Python) se ainda n\'e3o estiverem instaladas. O modelo permanece carregado em mem\'f3ria entre sess\'f5es para reinicializa\'e7\'e3o r\'e1pida.\par
 
 \pard\sa200\sl276\slmult1
-\b Sub-abas\b0\par
+\b Controlos Deslizantes de Ajuste\b0\par
+Dois controlos deslizantes na barra de bot\'f5es permitem o ajuste em tempo real do comportamento da transcri\'e7\'e3o sem reiniciar:\par
 \pard\fi-360\li720\sa100
-\bullet\tab\b Sa\'edda ao Vivo\b0  \endash  Uma visualiza\'e7\'e3o web embutida que exibe a mesma p\'e1gina de legendas do Servidor de Legendas. Mostra o texto de transcri\'e7\'e3o ao vivo com o mesmo estilo e recursos do cliente web. Um bot\'e3o \b Salvar Transcri\'e7\'e3o\b0  na parte inferior salva a transcri\'e7\'e3o completa em um arquivo de texto.\par
-\bullet\tab\b Log\b0  \endash  Um log de texto com rolagem que mostra a atividade de transcri\'e7\'e3o com c\'f3digos de cores. O texto em andamento \'e9 exibido em branco e continuamente refinado conforme voc\'ea fala. O texto confirmado (finalizado) aparece em verde. Mensagens de status aparecem em amarelo e informa\'e7\'f5es do sistema em cinza. Use \b Salvar Log\b0  e \b Limpar Log\b0  para gerenciar o log.\par
+\bullet\tab\b Segmento M\'e1ximo\b0  (5\endash 60s) \endash  Dura\'e7\'e3o m\'e1xima do \'e1udio antes de for\'e7ar uma confirma\'e7\'e3o. Valores menores produzem legendas mais frequentes e pequenas. Valores maiores permitem que o VAD acumule enunciados mais longos. Padr\'e3o: 15s.\par
+\bullet\tab\b Sil\'eancio VAD\b0  (200\endash 1500ms) \endash  Quanto tempo de pausa na fala antes de o VAD considerar o enunciado completo. Valores menores tornam o sistema mais reativo, mas podem dividir frases. Valores maiores aguardam mais tempo para que o locutor continue. Padr\'e3o: 800ms.\par
+\bullet\tab\b Ajustar\b0  \endash  Analisa as estat\'edsticas da sess\'e3o (dura\'e7\'f5es de confirma\'e7\'e3o, lacunas de sil\'eancio, taxas de palavras) e recomenda valores \'f3timos para os controlos deslizantes com base no padr\'e3o do locutor atual. Dispon\'edvel ap\'f3s a sess\'e3o estar em execu\'e7\'e3o por pelo menos um minuto.\par
+
+\pard\sa200\sl276\slmult1
+\b Sub-separadores\b0\par
+\pard\fi-360\li720\sa100
+\bullet\tab\b Sa\'edda ao Vivo\b0  \endash  Uma vista web incorporada que mostra a mesma p\'e1gina de legendas que o Servidor de Legendas. Apresenta o texto de transcri\'e7\'e3o ao vivo com o mesmo estilo e funcionalidades que o cliente web. Um bot\'e3o \b Guardar Transcri\'e7\'e3o\b0  na parte inferior guarda o texto confirmado num ficheiro.\par
+\bullet\tab\b Registo\b0  \endash  Um registo de texto com deslocamento que mostra a atividade de transcri\'e7\'e3o com c\'f3digo de cores. O texto em curso \'e9 mostrado a branco e continuamente refinado enquanto fala. O texto confirmado (finalizado) aparece a verde. As mensagens de estado aparecem a amarelo e as informa\'e7\'f5es do sistema a cinzento. Use \b Guardar Registo\b0  e \b Limpar Registo\b0  para gerir o registo.\par
 
 \pard\sa200\sl276\slmult1
 \b Tradu\'e7\'e3o em Tempo Real\b0\par
-Quando o Servidor de Legendas est\'e1 em execu\'e7\'e3o, os clientes web conectados podem selecionar um idioma de tradu\'e7\'e3o no menu suspenso da p\'e1gina web. O aplicativo usa um servidor de tradu\'e7\'e3o NLLB-200 para traduzir o texto transcrito em tempo real. Cada cliente pode escolher seu pr\'f3prio idioma de forma independente. S\'e3o suportados mais de 200 idiomas. Clientes que n\'e3o selecionam um idioma de tradu\'e7\'e3o recebem a transcri\'e7\'e3o original.\par
+Quando o Servidor de Legendas est\'e1 em execu\'e7\'e3o, os clientes web ligados podem selecionar uma l\'edngua de tradu\'e7\'e3o no menu pendente da p\'e1gina web. A aplica\'e7\'e3o usa um servidor de tradu\'e7\'e3o NLLB-200 (um processo sidecar Python) para traduzir o texto transcrito em tempo real. Cada cliente pode escolher a sua pr\'f3pria l\'edngua de forma independente. S\'e3o suportadas mais de 200 l\'ednguas. Os clientes que n\'e3o selecionam uma l\'edngua de tradu\'e7\'e3o recebem a transcri\'e7\'e3o original.\par
 
-\fs24\b\cf2 Aba Servidor de Legendas\b0\cf0\fs20\par
-O Servidor de Legendas fornece uma sobreposi\'e7\'e3o de legendas ao vivo baseada na web que pode ser visualizada em qualquer dispositivo (celular, tablet, segundo monitor) conectado \'e0 mesma rede. Ele serve uma p\'e1gina web que exibe o texto de transcri\'e7\'e3o ao vivo via WebSocket. O servidor funciona em HTTP e tamb\'e9m inicia um ouvinte HTTPS na porta seguinte (ex.: 5081) para suportar o recurso de manter a tela ativa em dispositivos m\'f3veis.\par
+Se chegarem confirma\'e7\'f5es enquanto o modelo de tradu\'e7\'e3o ainda est\'e1 a carregar, estas s\'e3o colocadas em mem\'f3ria intermed\'e1ria e traduzidas assim que o modelo estiver pronto, para que nenhum texto se perca durante a inicializa\'e7\'e3o.\par
 
-\b Configura\'e7\'f5es do Servidor\b0\par
+\b Filtros de Qualidade\b0\par
+Tr\'eas sistemas de filtros melhoram a qualidade da tradu\'e7\'e3o e da transcri\'e7\'e3o:\par
 \pard\fi-360\li720\sa100
-\bullet\tab\b Porta\b0  \endash  A porta HTTP em que o servidor escuta (padr\'e3o: 5080). O HTTPS fica automaticamente dispon\'edvel na porta+1.\par
+\bullet\tab\b Filtro de Alucina\'e7\'e3o\b0  \endash  Bloqueia frases conhecidas que o whisper tende a alucinar durante o sil\'eancio (ex.: \ldblquote Thanks for watching\rdblquote , \ldblquote Subscribe to my channel\rdblquote ). Utiliza correspond\'eancia difusa a 80% de similaridade. As frases s\'e3o definidas por l\'edngua em \f1 hallucinations.json\f0 .\par
+\bullet\tab\b Gloss\'e1rio\b0  \endash  Corrige tradu\'e7\'f5es sistem\'e1ticas incorretas. Quando o texto de origem cont\'e9m uma palavra de ativador, palavras erradas espec\'edficas no resultado da tradu\'e7\'e3o s\'e3o substitu\'eddas pelas corretas. Por exemplo, o espanhol \ldblquote culto\rdblquote  (servi\'e7o religioso) \'e9 corrigido de \ldblquote cult\rdblquote  para \ldblquote service\rdblquote  em ingl\'eas. Definido em \f1 glossary.json\f0 .\par
+\bullet\tab\b Filtro de Profanidade\b0  \endash  Substitui palavras prof\'e2nas no resultado da tradu\'e7\'e3o por [...]. O NLLB por vezes alucina linguagem vulgar que n\'e3o estava presente na fala de origem. Definido por l\'edngua de destino em \f1 profanity.json\f0 .\par
+
+\pard\sa200\sl276\slmult1
+Os tr\'eas ficheiros de filtros podem ser editados atrav\'e9s do \b Editor de Filtros\b0  (ver abaixo) e recarregados sem reiniciar a aplica\'e7\'e3o.\par
+
+\fs24\b\cf2 Editor de Filtros\b0\cf0\fs20\par
+Aberto atrav\'e9s do bot\'e3o \b Filtros...\b0  no separador Tradu\'e7\'e3o ao Vivo. Fornece uma interface gr\'e1fica para editar os tr\'eas ficheiros JSON de filtros sem editar manualmente JSON.\par
+
+\b Separador Alucina\'e7\'f5es\b0\par
+\pard\fi-360\li720\sa100
+\bullet\tab Selecione uma l\'edngua no menu pendente para ver as suas frases de alucina\'e7\'e3o.\par
+\bullet\tab Escreva uma frase na caixa de texto e clique em \b Adicionar\b0  para a adicionar.\par
+\bullet\tab Selecione uma frase e clique em \b Remover Selecionado\b0  para a eliminar.\par
+\bullet\tab Clique em \b Adicionar L\'edngua\b0  para criar uma nova sec\'e7\'e3o de l\'edngua (use c\'f3digos de l\'edngua do whisper como en, es, ca).\par
+
+\pard\sa200\sl276\slmult1
+\b Separador Filtro de Profanidade\b0\par
+\pard\fi-360\li720\sa100
+\bullet\tab Mesma interface que o separador Alucina\'e7\'f5es, mas para palavras prof\'e2nas.\par
+\bullet\tab Usa c\'f3digos de l\'edngua NLLB (ex.: eng_Latn, spa_Latn) uma vez que o filtro atua no resultado da tradu\'e7\'e3o.\par
+
+\pard\sa200\sl276\slmult1
+\b Separador Gloss\'e1rio\b0\par
+\pard\fi-360\li720\sa100
+\bullet\tab A grelha superior mostra todas as entradas do gloss\'e1rio com a palavra de ativador, l\'ednguas de origem e descri\'e7\'e3o.\par
+\bullet\tab Selecione uma entrada para editar os seus detalhes no painel abaixo.\par
+\bullet\tab\b Ativador\b0  \endash  A subcadeia a procurar no texto de origem (n\'e3o distingue mai\'fasc./min\'fasc.).\par
+\bullet\tab\b L\'ednguas de Origem\b0  \endash  C\'f3digos NLLB separados por v\'edrgulas para as l\'ednguas de origem a que esta entrada se aplica (ex.: spa_Latn, cat_Latn).\par
+\bullet\tab\b Coment\'e1rio\b0  \endash  Uma descri\'e7\'e3o leg\'edvel por humanos sobre o motivo de esta entrada existir.\par
+\bullet\tab\b Grelha de Corre\'e7\'f5es\b0  \endash  Cada linha mapeia uma l\'edngua de destino a um par de palavras errada/correta. Quando o ativador \'e9 detetado na origem e a tradu\'e7\'e3o \'e9 para essa l\'edngua de destino, a palavra errada \'e9 substitu\'edda pela correta.\par
+\bullet\tab Use \b Adicionar Entrada / Remover Entrada\b0  para a lista principal e \b Adicionar Corre\'e7\'e3o / Remover Corre\'e7\'e3o\b0  para a grelha de corre\'e7\'f5es.\par
+
+\pard\sa200\sl276\slmult1
+Clique em \b Guardar e Recarregar\b0  para gravar todas as altera\'e7\'f5es em disco e informar os servidores em execu\'e7\'e3o para recarregarem os seus filtros imediatamente. N\'e3o \'e9 necess\'e1rio reiniciar.\par
+
+\fs24\b\cf2 Separador Servidor de Legendas\b0\cf0\fs20\par
+O Servidor de Legendas fornece uma sobreposi\'e7\'e3o de legendas ao vivo baseada na web que pode ser visualizada em qualquer dispositivo (telm\'f3vel, tablet, segundo monitor) ligado \'e0 mesma rede. Serve uma p\'e1gina web que exibe o texto de transcri\'e7\'e3o ao vivo via WebSocket. O servidor funciona em HTTP e tamb\'e9m inicia um ouvinte HTTPS na porta seguinte (ex.: 5081) para suportar a funcionalidade de bloqueio de ecr\'e3 em dispositivos m\'f3veis.\par
+
+\b Defini\'e7\'f5es do Servidor\b0\par
+\pard\fi-360\li720\sa100
+\bullet\tab\b Porta\b0  \endash  A porta HTTP em que o servidor escuta (padr\'e3o: 5080). HTTPS est\'e1 automaticamente dispon\'edvel na porta+1.\par
 \bullet\tab\b Iniciar / Parar / Reiniciar Servidor\b0  \endash  Controla o servidor de legendas.\par
-\bullet\tab\b Simular\b0  \endash  Envia texto de exemplo para testar a exibi\'e7\'e3o sem uma fonte de \'e1udio ao vivo.\par
-\bullet\tab\b Parar Simula\'e7\'e3o\b0  \endash  Encerra a simula\'e7\'e3o.\par
-\bullet\tab\b Cor do Plano de Fundo / Cor do Texto\b0  \endash  Personaliza as cores de exibi\'e7\'e3o das legendas. Clique na amostra de cor para abrir um seletor de cores.\par
-\bullet\tab\b Fonte\b0  \endash  Escolhe a fam\'edlia de fontes para as legendas exibidas na p\'e1gina web.\par
-\bullet\tab\b Tamanho\b0  \endash  Define o tamanho da fonte para as legendas.\par
-\bullet\tab\b Negrito\b0  \endash  Ativa ou desativa o texto em negrito nas legendas.\par
-\bullet\tab\b Configurar Tradu\'e7\'e3o\b0  \endash  Baixa e instala o modelo de tradu\'e7\'e3o NLLB-200 e as depend\'eancias (~3,5 GB). Isso \'e9 necess\'e1rio para o recurso de tradu\'e7\'e3o em tempo real. Uma vez instalado, a tradu\'e7\'e3o fica dispon\'edvel automaticamente.\par
+\bullet\tab\b Simular\b0  \endash  Envia texto de amostra para testar a apresenta\'e7\'e3o sem uma fonte de \'e1udio ao vivo.\par
+\bullet\tab\b Parar Sim\b0  \endash  Para a simula\'e7\'e3o.\par
+\bullet\tab\b Cor de Fundo / Cor do Texto\b0  \endash  Personaliza as cores da apresenta\'e7\'e3o de legendas. Clique na amostra de cor para abrir um seletor de cores.\par
+\bullet\tab\b Tipo de Letra\b0  \endash  Escolha a fam\'edlia de tipos de letra para as legendas exibidas na p\'e1gina web.\par
+\bullet\tab\b Tamanho\b0  \endash  Defina o tamanho do tipo de letra para as legendas.\par
+\bullet\tab\b Negrito\b0  \endash  Ativa/desativa o texto em negrito para as legendas.\par
+\bullet\tab\b Configurar Tradu\'e7\'e3o\b0  \endash  Transfere e instala o modelo de tradu\'e7\'e3o NLLB-200 e as depend\'eancias (~3,5 GB). Isto \'e9 necess\'e1rio para a funcionalidade de tradu\'e7\'e3o em tempo real. Uma vez instalada, a tradu\'e7\'e3o fica dispon\'edvel automaticamente.\par
 
 \pard\sa200\sl276\slmult1
-\b Informa\'e7\'f5es de Conex\'e3o\b0\par
+\b Informa\'e7\'f5es de Liga\'e7\'e3o\b0\par
 \pard\fi-360\li720\sa100
-\bullet\tab Exibe o status do servidor, a URL e o n\'famero de clientes conectados.\par
-\bullet\tab\b Copiar URL\b0  \endash  Copia a URL do servidor para a \'e1rea de transfer\'eancia para que voc\'ea possa compartilh\'e1-la com outros dispositivos.\par
+\bullet\tab Mostra o estado do servidor, URL e n\'famero de clientes ligados.\par
+\bullet\tab\b Copiar URL\b0  \endash  Copia o URL do servidor para a \'e1rea de transfer\'eancia para que possa partilh\'e1-lo com outros dispositivos.\par
 
 \pard\sa200\sl276\slmult1
-\b Log do Servidor\b0\par
-Abaixo das informa\'e7\'f5es de conex\'e3o, uma \'e1rea de log exibe eventos do servidor, incluindo conex\'f5es de clientes, desconex\'f5es e solicita\'e7\'f5es de tradu\'e7\'e3o.\par
+\b Registo do Servidor\b0\par
+Abaixo das informa\'e7\'f5es de liga\'e7\'e3o, uma \'e1rea de registo mostra eventos do servidor incluindo liga\'e7\'f5es de clientes, desliga\'e7\'f5es, altera\'e7\'f5es de l\'edngua e atividade de tradu\'e7\'e3o.\par
 
-\b Recursos da P\'e1gina Web\b0\par
-A p\'e1gina web de legendas inclui uma barra de ferramentas no canto superior direito com os seguintes controles:\par
+\b Funcionalidades da P\'e1gina Web\b0\par
+A p\'e1gina web de legendas inclui uma barra de ferramentas no canto superior direito com os seguintes controlos:\par
 \pard\fi-360\li720\sa100
-\bullet\tab\b Controle Remoto\b0  (\'edcone de engrenagem) \endash  Abre um painel de administra\'e7\'e3o para Iniciar, Parar, Reiniciar ou Simular a transcri\'e7\'e3o ao vivo remotamente, sem retornar ao aplicativo de desktop.\par
-\bullet\tab\b Configura\'e7\'f5es\b0  (\'edcone Aa) \endash  Ajusta tamanho de fonte, fam\'edlia de fontes, negrito, cor do texto, sele\'e7\'e3o de voz e velocidade para leitura em voz alta, dire\'e7\'e3o de rolagem e op\'e7\'f5es de exibi\'e7\'e3o de etiquetas. As prefer\'eancias s\'e3o salvas localmente no navegador.\par
-\bullet\tab\b Tradu\'e7\'e3o\b0  \endash  Seleciona um idioma de tradu\'e7\'e3o. Cada cliente pode escolher de forma independente. Selecione \ldblquote Original\rdblquote  para receber o texto sem tradu\'e7\'e3o.\par
-\bullet\tab\b Etiquetas\b0  \endash  Escolha quais informa\'e7\'f5es exibir antes de cada linha de legenda: Nenhuma, Idioma, Hora ou ambas.\par
-\bullet\tab\b Ler em Voz Alta\b0  (\'edcone de alto-falante) \endash  Ativa ou desativa a leitura em voz alta. Cada nova linha de legenda \'e9 lida em voz alta usando a s\'edntese de voz do navegador.\par
-\bullet\tab\b Manter Tela Ativa\b0  (\'edcone de luz) \endash  Impede que a tela do celular ou tablet seja desligada. Requer HTTPS (porta segura). No primeiro uso, uma sobreposi\'e7\'e3o guiada explica como aceitar o certificado autoassinado (configura\'e7\'e3o \'fanica).\par
-\bullet\tab\b Salvar Transcri\'e7\'e3o\b0  \endash  Baixa a transcri\'e7\'e3o atual como um arquivo de texto.\par
+\bullet\tab\b Controlo Remoto\b0  (\'edcone de engrenagem) \endash  Abre um painel de administra\'e7\'e3o para Iniciar, Parar, Reiniciar ou Simular remotamente a transcri\'e7\'e3o ao vivo. Tamb\'e9m inclui um seletor de \b L\'edngua de Entrada\b0  para alterar a l\'edngua de transcri\'e7\'e3o sem regressar \'e0 aplica\'e7\'e3o de ambiente de trabalho. Um bot\'e3o Limpar limpa a apresenta\'e7\'e3o de legendas no dispositivo atual.\par
+\bullet\tab\b Defini\'e7\'f5es\b0  (\'edcone Aa) \endash  Ajuste o tamanho do tipo de letra, fam\'edlia de tipos de letra, negrito, cor do texto, sele\'e7\'e3o de voz e velocidade para leitura em voz alta, dire\'e7\'e3o de deslocamento e op\'e7\'f5es de apresenta\'e7\'e3o de etiquetas. As prefer\'eancias s\'e3o guardadas localmente no navegador.\par
+\bullet\tab\b Tradu\'e7\'e3o\b0  \endash  Selecione uma l\'edngua de tradu\'e7\'e3o. Cada cliente pode escolher de forma independente. Selecione \ldblquote Original\rdblquote  para receber o texto n\'e3o traduzido.\par
+\bullet\tab\b Etiquetas\b0  \endash  Escolha que informa\'e7\'e3o mostrar antes de cada linha de legendas: Desligado, L\'edngua, Hora ou ambos.\par
+\bullet\tab\b Ler em Voz Alta\b0  (\'edcone de altifalante) \endash  Ativa/desativa o texto para fala. Cada nova linha de legendas \'e9 lida em voz alta usando a s\'edntese de fala do navegador.\par
+\bullet\tab\b Manter Ecr\'e3 Ligado\b0  (\'edcone de luz) \endash  Impede que o ecr\'e3 do telm\'f3vel ou tablet adormeça. Requer HTTPS (a porta segura). Na primeira utiliza\'e7\'e3o, uma sobreposi\'e7\'e3o guiada explica como aceitar o certificado autoassinado (configura\'e7\'e3o \'fanica).\par
+\bullet\tab\b Guardar Transcri\'e7\'e3o\b0  \endash  Transfer\'eancia da transcri\'e7\'e3o atual como ficheiro de texto.\par
 
 \pard\sa200\sl276\slmult1
 \b Localiza\'e7\'e3o da P\'e1gina Web\b0\par
-A interface web detecta automaticamente o idioma do navegador e exibe todos os r\'f3tulos, bot\'f5es e mensagens no idioma correspondente. Suportados: ingl\'eas, espanhol, franc\'eas, alem\'e3o, catal\'e3o, portugu\'eas, japon\'eas e chin\'eas.\par
+A interface web deteta automaticamente a l\'edngua do navegador e exibe todas as etiquetas, bot\'f5es e mensagens na l\'edngua correspondente. Suportadas: ingl\'eas, espanhol, franc\'eas, alem\'e3o, catal\'e3o, portugu\'eas, japon\'eas e chin\'eas.\par
 
-\fs24\b\cf2 Aba Principal / Tarefa\b0\cf0\fs20\par
-A aba Principal / Tarefa gerencia o processamento em lote de arquivos de \'e1udio e v\'eddeo. Ela suporta quatro modos:\par
+\fs24\b\cf2 Separador Principal / Tarefa\b0\cf0\fs20\par
+O separador Principal / Tarefa gere o processamento em lote de ficheiros de \'e1udio e v\'eddeo. Suporta quatro modos:\par
 
 \b Modos de Processamento em Lote\b0\par
 \pard\fi-360\li720\sa100
-\bullet\tab\b YouTube -> Subtitles\b0  \endash  Baixa um v\'eddeo do YouTube (ou seleciona um arquivo de v\'eddeo local), recorta opcionalmente para um intervalo de tempo e gera legendas.\par
-\bullet\tab\b Audio File -> Subtitles\b0  \endash  Transcreve qualquer arquivo de \'e1udio (OGG, MP3, WAV, FLAC, M4A, etc.) em legendas.\par
-\bullet\tab\b YouTube -> Full Video\b0  \endash  Baixa ou copia um v\'eddeo e o recorta, sem transcri\'e7\'e3o.\par
-\bullet\tab\b YouTube -> Audio Only\b0  \endash  Baixa ou copia um v\'eddeo, recorta e extrai o \'e1udio para um arquivo MP3 de alta qualidade.\par
+\bullet\tab\b YouTube -> Legendas\b0  \endash  Transfere um v\'eddeo do YouTube (ou seleciona um ficheiro de v\'eddeo local), opcionalmente corta para um intervalo de tempo e gera legendas.\par
+\bullet\tab\b Ficheiro de \'c1udio -> Legendas\b0  \endash  Transcreve qualquer ficheiro de \'e1udio (OGG, MP3, WAV, FLAC, M4A, etc.) para legendas.\par
+\bullet\tab\b YouTube -> V\'eddeo Completo\b0  \endash  Transfere ou copia um v\'eddeo e corta-o, sem transcri\'e7\'e3o.\par
+\bullet\tab\b YouTube -> S\'f3 \'c1udio\b0  \endash  Transfere ou copia um v\'eddeo, corta-o e extrai o \'e1udio para um ficheiro MP3 de alta qualidade.\par
 
 \pard\sa200\sl276\slmult1
 \b Seletor de Modo\b0\par
-Use o menu suspenso no topo para alternar entre os modos. A interface se adapta para mostrar apenas os controles relevantes para o modo selecionado.\par
+Use o menu pendente no topo para alternar entre modos. A interface adapta-se para mostrar apenas os controlos relevantes para o modo selecionado.\par
 
-\b Controles de Entrada\b0\par
+\b Controlos de Entrada\b0\par
 \pard\fi-360\li720\sa100
-\bullet\tab\b URL / Arquivo\b0  \endash  Insira uma URL do YouTube ou clique em Procurar para selecionar um arquivo de v\'eddeo ou \'e1udio local.\par
-\bullet\tab\b Idioma de Entrada\b0  \endash  O idioma falado no \'e1udio. Defina como \b auto\b0  para detec\'e7\'e3o autom\'e1tica, ou selecione um idioma espec\'edfico para maior precis\'e3o.\par
-\bullet\tab\b Idioma de Sa\'edda\b0  \endash  O idioma das legendas geradas. Defina como \b auto\b0  para manter o mesmo idioma da entrada. Defina como \b en\b0  para traduzir para o ingl\'eas (o Whisper s\'f3 pode traduzir \i para\i0  o ingl\'eas).\par
-\bullet\tab\b Modelo\b0  \endash  Escolha qual modelo whisper usar. Modelos maiores s\'e3o mais precisos, por\'e9m mais lentos.\par
-\bullet\tab\b Hora de In\'edcio / Hora de T\'e9rmino\b0  \endash  Opcionalmente, especifique um intervalo de tempo (HH:MM:SS) para recortar o v\'eddeo antes de transcrever.\par
-\bullet\tab\b Diret\'f3rio de Sa\'edda\b0  \endash  Local onde todos os arquivos de trabalho e a sa\'edda final ser\'e3o salvos.\par
+\bullet\tab\b URL / Ficheiro\b0  \endash  Introduza um URL do YouTube ou clique em Procurar para selecionar um ficheiro de v\'eddeo ou \'e1udio local.\par
+\bullet\tab\b L\'edngua de Entrada\b0  \endash  A l\'edngua falada no \'e1udio. Defina como \b auto\b0  para dete\'e7\'e3o autom\'e1tica, ou selecione uma l\'edngua espec\'edfica para maior precis\'e3o.\par
+\bullet\tab\b L\'edngua de Sa\'edda\b0  \endash  A l\'edngua para as legendas geradas. Defina como \b auto\b0  para manter a mesma l\'edngua da entrada. Defina como \b en\b0  para traduzir para ingl\'eas (o Whisper s\'f3 pode traduzir \i para\i0  ingl\'eas).\par
+\bullet\tab\b Modelo\b0  \endash  Escolha qual modelo whisper utilizar. Modelos maiores s\'e3o mais precisos mas mais lentos.\par
+\bullet\tab\b Hora de In\'edcio / Hora de Fim\b0  \endash  Opcionalmente especifique um intervalo de tempo (HH:MM:SS) para cortar o v\'eddeo antes de transcrever.\par
+\bullet\tab\b Diret\'f3rio de Sa\'edda\b0  \endash  Onde todos os ficheiros de trabalho e o resultado final ser\'e3o guardados.\par
 
 \pard\sa200\sl276\slmult1
 \b Formatos de Sa\'edda\b0\par
-Dispon\'edvel para os modos de legenda. Selecione os formatos a gerar:\par
+Dispon\'edvel para modos de legendas. Selecione os formatos a gerar:\par
 \pard\fi-360\li720\sa100
-\bullet\tab\b SRT\b0  \endash  Formato de legenda SubRip (o mais comum, ativado por padr\'e3o)\par
+\bullet\tab\b SRT\b0  \endash  Formato de legendas SubRip (mais comum, ativado por padr\'e3o)\par
 \bullet\tab\b VTT\b0  \endash  Formato WebVTT (para uso na web)\par
 \bullet\tab\b TXT\b0  \endash  Transcri\'e7\'e3o em texto simples\par
 \bullet\tab\b JSON\b0  \endash  Sa\'edda JSON estruturada\par
 \bullet\tab\b CSV\b0  \endash  Valores separados por v\'edrgula\par
-\bullet\tab\b LRC\b0  \endash  Formato de letras musicais\par
+\bullet\tab\b LRC\b0  \endash  Formato de letras de m\'fasica\par
 
 \pard\sa200\sl276\slmult1
 \b Progresso\b0\par
 \pard\fi-360\li720\sa100
-\bullet\tab A barra de progresso superior mostra o progresso geral do pipeline. Uma segunda barra aparece durante a transcri\'e7\'e3o para o progresso em n\'edvel de fragmento.\par
-\bullet\tab\b Iniciar\b0  \endash  Inicia o processamento.\par
-\bullet\tab\b Retomar\b0  \endash  Continua uma tarefa interrompida. Selecione a pasta de sa\'edda e os fragmentos j\'e1 conclu\'eddos s\'e3o automaticamente ignorados.\par
-\bullet\tab\b Cancelar\b0  \endash  Interrompe a tarefa atual.\par
+\bullet\tab A barra de progresso superior mostra o progresso geral do pipeline. Uma segunda barra aparece durante a transcri\'e7\'e3o para o progresso ao n\'edvel dos blocos.\par
+\bullet\tab\b Iniciar\b0  \endash  Iniciar o processamento.\par
+\bullet\tab\b Retomar\b0  \endash  Continuar uma tarefa interrompida. Selecione a pasta de sa\'edda e os blocos j\'e1 conclu\'eddos s\'e3o automaticamente ignorados.\par
+\bullet\tab\b Cancelar\b0  \endash  Para a tarefa atual.\par
 \bullet\tab\b Abrir Pasta de Sa\'edda\b0  \endash  Abre o diret\'f3rio de sa\'edda no Windows Explorer.\par
-\bullet\tab\b Subtitle Edit\b0  \endash  Abre o arquivo SRT gerado no Subtitle Edit para revis\'e3o.\par
-\bullet\tab\b Abrir preview.srt\b0  \endash  Abre o arquivo SRT com o aplicativo padr\'e3o.\par
+\bullet\tab\b Subtitle Edit\b0  \endash  Abre o ficheiro SRT gerado no Subtitle Edit para revis\'e3o.\par
+\bullet\tab\b Abrir preview.srt\b0  \endash  Abre o ficheiro SRT com a sua aplica\'e7\'e3o padr\'e3o.\par
 
 \pard\sa200\sl276\slmult1
-\b Log\b0\par
-Uma \'e1rea de log na parte inferior da aba exibe a sa\'edda em tempo real do pipeline de processamento. Cada entrada possui carimbo de hora e c\'f3digo de cores: verde para sucesso, preto para informa\'e7\'e3o, cinza para sa\'edda de depura\'e7\'e3o e vermelho para erros. O log rola automaticamente para mostrar a sa\'edda mais recente. Use \b Limpar Log\b0  para redefinir e \b Copiar para \'c1rea de Transfer\'eancia\b0  para copiar o log completo.\par
+\b Registo\b0\par
+Uma \'e1rea de registo na parte inferior do separador mostra a sa\'edda em tempo real do pipeline de processamento. Cada entrada tem um carimbo de data/hora e c\'f3digo de cores: verde para sucesso, preto para informa\'e7\'e3o, cinzento para sa\'edda de depura\'e7\'e3o e vermelho para erros. O registo desloca-se automaticamente para mostrar a sa\'edda mais recente. Use \b Limpar Registo\b0  para repor e \b Copiar para \'c1rea de Transfer\'eancia\b0  para copiar o registo completo.\par
 
-\fs24\b\cf2 Aba Caminhos e Ferramentas\b0\cf0\fs20\par
-Configure os caminhos de arquivo para ferramentas e modelos externos:\par
+\fs24\b\cf2 Separador Caminhos e Ferramentas\b0\cf0\fs20\par
+Configure os caminhos de ficheiros para ferramentas e modelos externos:\par
 \pard\fi-360\li720\sa100
-\bullet\tab\b whisper-cli.exe\b0  \endash  O mecanismo de reconhecimento de voz whisper (usado pelos modos de transcri\'e7\'e3o em lote).\par
-\bullet\tab\b yt-dlp.exe\b0  \endash  Baixador de v\'eddeos do YouTube.\par
-\bullet\tab\b ffmpeg.exe\b0  \endash  Ferramenta de processamento de \'e1udio/v\'eddeo (recorte, convers\'e3o, fragmenta\'e7\'e3o).\par
-\bullet\tab\b ffprobe.exe\b0  \endash  Ferramenta de an\'e1lise de \'e1udio/v\'eddeo (detec\'e7\'e3o de dura\'e7\'e3o).\par
-\bullet\tab\b Modelo YouTube (.bin)\b0  \endash  O arquivo de modelo whisper usado no modo YouTube -> Subtitles.\par
-\bullet\tab\b Modelo de Arquivo de \'c1udio (.bin)\b0  \endash  O arquivo de modelo whisper usado no modo Audio File -> Subtitles. Pode ser definido para um modelo diferente (ex.: menor, mais r\'e1pido).\par
+\bullet\tab\b whisper-cli.exe\b0  \endash  O motor de reconhecimento de voz whisper (usado pelos modos de transcri\'e7\'e3o em lote).\par
+\bullet\tab\b yt-dlp.exe\b0  \endash  Transferidor de v\'eddeos do YouTube.\par
+\bullet\tab\b ffmpeg.exe\b0  \endash  Ferramenta de processamento de \'e1udio/v\'eddeo (corte, convers\'e3o, divis\'e3o em blocos).\par
+\bullet\tab\b ffprobe.exe\b0  \endash  Ferramenta de an\'e1lise de \'e1udio/v\'eddeo (dete\'e7\'e3o de dura\'e7\'e3o).\par
+\bullet\tab\b Modelo YouTube (.bin)\b0  \endash  O ficheiro de modelo whisper usado para o modo YouTube -> Legendas.\par
+\bullet\tab\b Modelo Ficheiro de \'c1udio (.bin)\b0  \endash  O ficheiro de modelo whisper usado para o modo Ficheiro de \'c1udio -> Legendas. Pode ser definido como um modelo diferente (ex.: mais pequeno, mais r\'e1pido).\par
 \bullet\tab\b Modelo faster-whisper (pasta)\b0  \endash  O diret\'f3rio do modelo faster-whisper usado pela Tradu\'e7\'e3o ao Vivo (padr\'e3o: faster-whisper-large-v3).\par
 \bullet\tab\b Modelo de tradu\'e7\'e3o NLLB (pasta)\b0  \endash  O diret\'f3rio do modelo de tradu\'e7\'e3o NLLB-200 (padr\'e3o: nllb-model).\par
-\bullet\tab\b Diret\'f3rio de sa\'edda padr\'e3o\b0  \endash  Diret\'f3rio base onde as pastas de sa\'edda com data e hora s\'e3o criadas.\par
-\bullet\tab\b String de formato yt-dlp\b0  \endash  Prefer\'eancia de formato de download para o yt-dlp (padr\'e3o: melhor v\'eddeo MP4 + \'e1udio M4A).\par
+\bullet\tab\b Raiz de sa\'edda padr\'e3o\b0  \endash  Diret\'f3rio base onde s\'e3o criadas as pastas de sa\'edda com carimbo de data/hora.\par
+\bullet\tab\b Cadeia de formato yt-dlp\b0  \endash  Prefer\'eancia de formato de transfer\'eancia para yt-dlp (padr\'e3o: melhor v\'eddeo MP4 + \'e1udio M4A).\par
 
 \pard\sa200\sl276\slmult1
-Clique em \b Verificar Todos os Caminhos\b0  para verificar se todas as ferramentas e arquivos configurados existem. Use o link \b Baixar modelos whisper\b0  para obter arquivos de modelo do reposit\'f3rio Hugging Face.\par
+Clique em \b Verificar Todos os Caminhos\b0  para verificar que todas as ferramentas e ficheiros configurados existem. Use a hiperliga\'e7\'e3o \b Transferir modelos whisper\b0  para obter ficheiros de modelos do reposit\'f3rio Hugging Face.\par
 
-\fs24\b\cf2 Aba Configura\'e7\'f5es\b0\cf0\fs20\par
+\fs24\b\cf2 Separador Configura\'e7\'f5es\b0\cf0\fs20\par
 \pard\fi-360\li720\sa100
-\bullet\tab\b Idioma da Interface\b0  \endash  Altera o idioma da interface. Dispon\'edveis: ingl\'eas, espanhol, franc\'eas, alem\'e3o, catal\'e3o, portugu\'eas, chin\'eas simplificado, japon\'eas.\par
+\bullet\tab\b L\'edngua da Interface\b0  \endash  Altere a l\'edngua da interface. Dispon\'edveis: ingl\'eas, espanhol, franc\'eas, alem\'e3o, catal\'e3o, portugu\'eas, chin\'eas simplificado, japon\'eas.\par
 \bullet\tab\b Tema\b0  \endash  Escolha o tema Sistema, Claro ou Escuro.\par
-\bullet\tab\b Redefinir Todas as Configura\'e7\'f5es\b0  \endash  Restaura todas as configura\'e7\'f5es aos padr\'f5es de f\'e1brica.\par
-\bullet\tab\b Verificar Atualiza\'e7\'f5es de Ferramentas\b0  \endash  Verifica se vers\'f5es mais recentes do yt-dlp, ffmpeg ou outras ferramentas est\'e3o dispon\'edveis e as baixa.\par
+\bullet\tab\b Iniciar com o Windows\b0  \endash  Inicia o Transcription Tools automaticamente quando inicia sess\'e3o no Windows.\par
+\bullet\tab\b Repor Todas as Defini\'e7\'f5es\b0  \endash  Restaura toda a configura\'e7\'e3o para os valores predefinidos de f\'e1brica.\par
+\bullet\tab\b Verificar Atualiza\'e7\'f5es de Ferramentas\b0  \endash  Verifica se est\'e3o dispon\'edveis vers\'f5es mais recentes de yt-dlp, ffmpeg ou outras ferramentas e transfere-as.\par
 
 \pard\sa200\sl276\slmult1
-\fs24\b\cf2 Configura\'e7\'e3o Inicial\b0\cf0\fs20\par
-Na primeira execu\'e7\'e3o, o aplicativo verifica as ferramentas e depend\'eancias necess\'e1rias. Se alguma estiver faltando, voc\'ea \'e9 solicitado a baix\'e1-las automaticamente. Isso inclui:\par
+\fs24\b\cf2 Configura\'e7\'e3o na Primeira Execu\'e7\'e3o\b0\cf0\fs20\par
+Na primeira execu\'e7\'e3o, a aplica\'e7\'e3o verifica as ferramentas e depend\'eancias necess\'e1rias. Se alguma estiver em falta, ser\'e1 solicitado que as transfira automaticamente. Isto inclui:\par
 \pard\fi-360\li720\sa100
-\bullet\tab Ferramentas principais: whisper-cli, yt-dlp, ffmpeg, ffprobe e o arquivo de modelo whisper.\par
-\bullet\tab Ambiente Python: Uma instala\'e7\'e3o port\'e1til do Python usada pelos servidores de transcri\'e7\'e3o ao vivo e tradu\'e7\'e3o.\par
-\bullet\tab Pacotes Python: Bibliotecas necess\'e1rias para o faster-whisper e o NLLB (instaladas via pip).\par
+\bullet\tab Ferramentas principais: whisper-cli, yt-dlp, ffmpeg, ffprobe e o ficheiro de modelo whisper.\par
+\bullet\tab Ambiente de execu\'e7\'e3o Python: Uma instala\'e7\'e3o Python port\'e1til usada pelos servidores de transcri\'e7\'e3o ao vivo e tradu\'e7\'e3o.\par
+\bullet\tab Pacotes Python: Bibliotecas necess\'e1rias para faster-whisper e NLLB (instaladas via pip).\par
 \bullet\tab Modelo faster-whisper: O modelo de reconhecimento de voz para Tradu\'e7\'e3o ao Vivo (~3 GB).\par
-\bullet\tab Modelo NLLB-200: O modelo de tradu\'e7\'e3o (~2,6 GB), baixado quando a tradu\'e7\'e3o \'e9 configurada pela primeira vez.\par
+\bullet\tab Modelo NLLB-200: O modelo de tradu\'e7\'e3o (~2,6 GB), transferido quando a tradu\'e7\'e3o \'e9 configurada pela primeira vez.\par
 
 \pard\sa200\sl276\slmult1
-Todas as depend\'eancias s\'e3o autocontidas dentro da pasta do aplicativo e n\'e3o afetam a instala\'e7\'e3o do Python no sistema.\par
+Todas as depend\'eancias est\'e3o autocontidas dentro da pasta da aplica\'e7\'e3o e n\'e3o afetam a instala\'e7\'e3o Python do seu sistema.\par
 
 \fs24\b\cf2 Pipeline de Processamento\b0\cf0\fs20\par
 
-\b YouTube -> Subtitles (8 etapas):\b0\par
+\b YouTube -> Legendas (8 passos):\b0\par
 \pard\fi-360\li720\sa100
 0.\tab Validar entradas e caminhos de ferramentas\par
-1.\tab Baixar v\'eddeo usando yt-dlp (ou copiar arquivo local)\par
-2.\tab Recortar v\'eddeo para o intervalo de tempo especificado usando ffmpeg\par
-3.\tab Extrair \'e1udio para o formato WAV (16 kHz mono)\par
-4.\tab Detectar dura\'e7\'e3o do \'e1udio usando ffprobe\par
-5.\tab Dividir \'e1udio em fragmentos para processamento paralelo\par
-6.\tab Transcrever todos os fragmentos em paralelo usando whisper-cli\par
-7.\tab Mesclar os arquivos SRT dos fragmentos no arquivo de legenda final com os carimbos de tempo corrigidos\par
+1.\tab Transferir v\'eddeo com yt-dlp (ou copiar ficheiro local)\par
+2.\tab Cortar v\'eddeo para o intervalo de tempo especificado com ffmpeg\par
+3.\tab Extrair \'e1udio para formato WAV (16kHz mono)\par
+4.\tab Detetar dura\'e7\'e3o do \'e1udio com ffprobe\par
+5.\tab Dividir \'e1udio em blocos para processamento paralelo\par
+6.\tab Transcrever todos os blocos em paralelo com whisper-cli\par
+7.\tab Fundir os ficheiros SRT dos blocos no ficheiro de legendas final com carimbos de tempo corrigidos\par
 
 \pard\sa200\sl276\slmult1
-\b Audio File -> Subtitles (6 etapas):\b0\par
+\b Ficheiro de \'c1udio -> Legendas (6 passos):\b0\par
 \pard\fi-360\li720\sa100
 0.\tab Validar entradas e caminhos de ferramentas\par
-1.\tab Converter \'e1udio para o formato WAV (16 kHz mono)\par
-2.\tab Detectar dura\'e7\'e3o do \'e1udio\par
-3.\tab Dividir \'e1udio em fragmentos\par
-4.\tab Transcrever todos os fragmentos em paralelo\par
-5.\tab Mesclar no arquivo SRT final\par
+1.\tab Converter \'e1udio para formato WAV (16kHz mono)\par
+2.\tab Detetar dura\'e7\'e3o do \'e1udio\par
+3.\tab Dividir \'e1udio em blocos\par
+4.\tab Transcrever todos os blocos em paralelo\par
+5.\tab Fundir no ficheiro SRT final\par
 
 \pard\sa200\sl276\slmult1
-\b YouTube -> Full Video (3 etapas):\b0\par
+\b YouTube -> V\'eddeo Completo (3 passos):\b0\par
 \pard\fi-360\li720\sa100
 0.\tab Validar entradas e caminhos de ferramentas\par
-1.\tab Baixar v\'eddeo (ou copiar arquivo local)\par
-2.\tab Recortar v\'eddeo (sa\'edda: preview.mp4)\par
+1.\tab Transferir v\'eddeo (ou copiar ficheiro local)\par
+2.\tab Cortar v\'eddeo (sa\'edda: preview.mp4)\par
 
 \pard\sa200\sl276\slmult1
-\b YouTube -> Audio Only (4 etapas):\b0\par
+\b YouTube -> S\'f3 \'c1udio (4 passos):\b0\par
 \pard\fi-360\li720\sa100
 0.\tab Validar entradas e caminhos de ferramentas\par
-1.\tab Baixar v\'eddeo (ou copiar arquivo local)\par
-2.\tab Recortar v\'eddeo\par
+1.\tab Transferir v\'eddeo (ou copiar ficheiro local)\par
+2.\tab Cortar v\'eddeo\par
 3.\tab Extrair \'e1udio para MP3 (sa\'edda: yt_audio.mp3)\par
 
 \pard\sa200\sl276\slmult1
+\fs24\b\cf2 Registo de Depura\'e7\'e3o\b0\cf0\fs20\par
+Um registo detalhado de depura\'e7\'e3o do pipeline \'e9 escrito no diret\'f3rio da aplica\'e7\'e3o como \f1 YYYYMMDD_pipeline-debug.log\f0 . Este registo grava cada confirma\'e7\'e3o de transcri\'e7\'e3o, pedido de tradu\'e7\'e3o, a\'e7\'e3o do filtro de gloss\'e1rio/profanidade, dados de temporiza\'e7\'e3o e estat\'edsticas de sess\'e3o. Cada sess\'e3o \'e9 marcada com um cabe\'e7alho que inclui a vers\'e3o da aplica\'e7\'e3o. Tanto o live-server como o servidor de tradu\'e7\'e3o NLLB escrevem no mesmo ficheiro de registo com os prefixos [LIVE] e [NLLB] respetivamente. Este registo \'e9 inestim\'e1vel para diagnosticar problemas de qualidade de tradu\'e7\'e3o, enunciados perdidos ou problemas de desempenho.\par
+
 \fs24\b\cf2 Dicas\b0\cf0\fs20\par
 \pard\fi-360\li720\sa100
-\bullet\tab Para melhor qualidade de legendas, use o modelo \b ggml-large-v3\b0 . Para resultados r\'e1pidos em \'e1udios curtos, use \b ggml-tiny\b0  ou \b ggml-base\b0 .\par
-\bullet\tab Use \b Retomar\b0  para continuar uma tarefa interrompida sem precisar baixar novamente ou reprocessar fragmentos j\'e1 conclu\'eddos.\par
-\bullet\tab Defina o \b Idioma de Sa\'edda\b0  como \b en\b0  para traduzir \'e1udio em idioma estrangeiro diretamente em legendas em ingl\'eas.\par
-\bullet\tab Para Tradu\'e7\'e3o ao Vivo, recomenda-se uma GPU com suporte a CUDA e pelo menos 4 GB de VRAM. O modelo faster-whisper usa ~1,5 GB e o modelo de tradu\'e7\'e3o NLLB usa ~2,6 GB.\par
-\bullet\tab A p\'e1gina web de legendas funciona em qualquer dispositivo com navegador na mesma rede. Compartilhe a URL exibida na se\'e7\'e3o de Informa\'e7\'f5es de Conex\'e3o.\par
-\bullet\tab Para manter a tela do celular ativa ao visualizar legendas, use o bot\'e3o Manter Tela Ativa na p\'e1gina web (requer HTTPS).\par
-\bullet\tab O arquivo de ajuda \'e9 carregado automaticamente no idioma da interface selecionado, se dispon\'edvel.\par
+\bullet\tab Para melhor qualidade de legendas, use o modelo \b ggml-large-v3\b0 . Para resultados r\'e1pidos em \'e1udio curto, use \b ggml-tiny\b0  ou \b ggml-base\b0 .\par
+\bullet\tab Use \b Retomar\b0  para continuar uma tarefa interrompida sem voltar a transferir ou reprocessar os blocos j\'e1 conclu\'eddos.\par
+\bullet\tab Defina \b L\'edngua de Sa\'edda\b0  como \b en\b0  para traduzir \'e1udio em l\'edngua estrangeira diretamente para legendas em ingl\'eas.\par
+\bullet\tab Para Tradu\'e7\'e3o ao Vivo, recomenda-se uma GPU com capacidade CUDA e pelo menos 4 GB de VRAM. O modelo faster-whisper usa ~1,5 GB e o modelo de tradu\'e7\'e3o NLLB usa ~2,6 GB.\par
+\bullet\tab A p\'e1gina web de legendas funciona em qualquer dispositivo com um navegador na mesma rede. Partilhe o URL mostrado na sec\'e7\'e3o Informa\'e7\'f5es de Liga\'e7\'e3o.\par
+\bullet\tab Para manter o ecr\'e3 do telm\'f3vel ligado durante a visualiza\'e7\'e3o de legendas, use o bot\'e3o Manter Ecr\'e3 Ligado na p\'e1gina web (requer HTTPS).\par
+\bullet\tab Use o bot\'e3o \b Ajustar\b0  ap\'f3s um minuto de transcri\'e7\'e3o para obter valores recomendados dos controlos deslizantes adaptados ao locutor atual.\par
+\bullet\tab Se as tradu\'e7\'f5es parecerem erradas para palavras espec\'edficas, adicione uma entrada de gloss\'e1rio atrav\'e9s do \b Editor de Filtros\b0  \endash  as altera\'e7\'f5es entram em vigor imediatamente ap\'f3s guardar.\par
+\bullet\tab O painel de administra\'e7\'e3o do telm\'f3vel permite o controlo remoto de Iniciar/Parar e altera\'e7\'f5es de l\'edngua, \'fatil quando o ambiente de trabalho n\'e3o est\'e1 facilmente acess\'edvel.\par
+\bullet\tab O ficheiro de ajuda carrega automaticamente na l\'edngua da interface selecionada, se dispon\'edvel.\par
 
 \pard\sa200\sl276\slmult1
 \fs24\b\cf2 Ferramentas Externas Necess\'e1rias\b0\cf0\fs20\par
-As seguintes ferramentas s\'e3o necess\'e1rias e podem ser baixadas automaticamente pela aba Configura\'e7\'f5es:\par
+As seguintes ferramentas s\'e3o necess\'e1rias e podem ser transferidas automaticamente a partir do separador Configura\'e7\'f5es:\par
 \pard\fi-360\li720\sa100
-\bullet\tab\b whisper-cli\b0  \endash  Mecanismo de reconhecimento de voz (whisper.cpp) para transcri\'e7\'e3o em lote\par
-\bullet\tab\b yt-dlp\b0  \endash  Baixador do YouTube (necess\'e1rio para os modos baseados no YouTube)\par
+\bullet\tab\b whisper-cli\b0  \endash  Motor de reconhecimento de voz (whisper.cpp) para transcri\'e7\'e3o em lote\par
+\bullet\tab\b yt-dlp\b0  \endash  Transferidor do YouTube (necess\'e1rio para modos baseados no YouTube)\par
 \bullet\tab\b ffmpeg\b0  \endash  Processamento de \'e1udio/v\'eddeo (necess\'e1rio para todos os modos)\par
-\bullet\tab\b ffprobe\b0  \endash  An\'e1lise de m\'eddia, inclu\'eddo com o ffmpeg\par
-\bullet\tab\b Subtitle Edit\b0  (opcional) \endash  Para revisar e editar os arquivos de legenda gerados\par
+\bullet\tab\b ffprobe\b0  \endash  An\'e1lise de multim\'e9dia, inclu\'eddo com ffmpeg\par
+\bullet\tab\b Subtitle Edit\b0  (opcional) \endash  Para rever e editar os ficheiros de legendas gerados\par
 
 \pard\sa200\sl276\slmult1
-\b Depend\'eancias Gerenciadas Automaticamente\b0\par
-Os seguintes itens s\'e3o baixados automaticamente no primeiro uso:\par
+\b Depend\'eancias Geridas Automaticamente\b0\par
+As seguintes s\'e3o transferidas automaticamente na primeira utiliza\'e7\'e3o:\par
 \pard\fi-360\li720\sa100
-\bullet\tab\b Python (embutido)\b0  \endash  Um ambiente Python port\'e1til usado pelos servidores de transcri\'e7\'e3o ao vivo e tradu\'e7\'e3o.\par
+\bullet\tab\b Python (incorporado)\b0  \endash  Um ambiente de execu\'e7\'e3o Python port\'e1til usado pelos servidores de transcri\'e7\'e3o ao vivo e tradu\'e7\'e3o.\par
 \bullet\tab\b Modelo faster-whisper\b0  \endash  O modelo de reconhecimento de voz faster-whisper large-v3 (~3 GB).\par
 \bullet\tab\b Modelo NLLB-200\b0  \endash  O modelo de tradu\'e7\'e3o Meta NLLB-200 1.3B (~2,6 GB).\par
 \bullet\tab\b Pacotes Python\b0  \endash  faster-whisper, sounddevice, ctranslate2, sentencepiece, FastAPI, uvicorn e outras bibliotecas.\par

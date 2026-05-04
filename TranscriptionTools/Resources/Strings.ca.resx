@@ -178,4 +178,39 @@ Executeu la verificaci&#243; de depend&#232;ncies des de la pestanya Configuraci
   <data name="Tab_LiveLog"><value>Registre</value></data>
   <data name="Btn_LiveSaveLog"><value>Desar Registre...</value></data>
   <data name="Btn_LiveClearLog"><value>Esborrar Registre</value></data>
+
+  <!-- Filter Editor -->
+  <data name="Btn_Filters"><value>Filtres...</value></data>
+  <data name="FE_Title"><value>Editor de filtres</value></data>
+  <data name="FE_Tab_Hallucinations"><value>Al·lucinacions</value></data>
+  <data name="FE_Tab_Profanity"><value>Filtre d'obscenitats</value></data>
+  <data name="FE_Tab_Glossary"><value>Glossari</value></data>
+  <data name="FE_Desc_Hallucinations"><value>Frases que whisper al·lucina (ex. 'Thanks for watching'). Es comparen sense distinció de majúscules.</value></data>
+  <data name="FE_Desc_Profanity"><value>Paraules substituïdes per [...] a la traducció. Utilitza codis NLLB (ex. eng_Latn).</value></data>
+  <data name="FE_Desc_Glossary"><value>Entrades del glossari (quan el text font conté el disparador, corregeix paraules errònies a la traducció):</value></data>
+  <data name="FE_Language"><value>Idioma:</value></data>
+  <data name="FE_AddLanguage"><value>Afegir idioma...</value></data>
+  <data name="FE_Add"><value>Afegir</value></data>
+  <data name="FE_RemoveSelected"><value>Eliminar seleccionat</value></data>
+  <data name="FE_AddEntry"><value>Afegir entrada</value></data>
+  <data name="FE_RemoveEntry"><value>Eliminar entrada</value></data>
+  <data name="FE_SelectedEntry"><value>Entrada seleccionada</value></data>
+  <data name="FE_Trigger"><value>Disparador:</value></data>
+  <data name="FE_SourceLangs"><value>Idiomes font:</value></data>
+  <data name="FE_Comment"><value>Comentari:</value></data>
+  <data name="FE_Fixes"><value>Correccions (idioma destí -> paraula errònia -> paraula correcta):</value></data>
+  <data name="FE_AddFix"><value>Afegir correcció</value></data>
+  <data name="FE_RemoveFix"><value>Eliminar correcció</value></data>
+  <data name="FE_SaveReload"><value>Desar i recarregar</value></data>
+  <data name="FE_Cancel"><value>Cancel·lar</value></data>
+  <data name="FE_Saved"><value>Desat i recàrrega sol·licitada.</value></data>
+  <data name="FE_DiscardChanges"><value>Descartar els canvis sense desar?</value></data>
+  <data name="FE_PromptLangCode"><value>Introduïu el codi d'idioma (ex. en, es, ca, fr):</value></data>
+  <data name="FE_PromptNllbCode"><value>Introduïu el codi NLLB (ex. eng_Latn, spa_Latn):</value></data>
+  <data name="FE_ColTrigger"><value>Disparador</value></data>
+  <data name="FE_ColSourceLangs"><value>Idiomes font</value></data>
+  <data name="FE_ColComment"><value>Comentari</value></data>
+  <data name="FE_ColTargetLang"><value>Idioma destí</value></data>
+  <data name="FE_ColWrong"><value>Paraula errònia</value></data>
+  <data name="FE_ColRight"><value>Paraula correcta</value></data>
 </root>

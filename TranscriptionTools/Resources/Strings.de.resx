@@ -178,4 +178,39 @@ F&#252;hren Sie die Abh&#228;ngigkeitspr&#252;fung auf der Registerkarte Einstel
   <data name="Tab_LiveLog"><value>Protokoll</value></data>
   <data name="Btn_LiveSaveLog"><value>Protokoll Speichern...</value></data>
   <data name="Btn_LiveClearLog"><value>Protokoll Löschen</value></data>
+
+  <!-- Filter Editor -->
+  <data name="Btn_Filters"><value>Filter...</value></data>
+  <data name="FE_Title"><value>Filter-Editor</value></data>
+  <data name="FE_Tab_Hallucinations"><value>Halluzinationen</value></data>
+  <data name="FE_Tab_Profanity"><value>Obszönitätsfilter</value></data>
+  <data name="FE_Tab_Glossary"><value>Glossar</value></data>
+  <data name="FE_Desc_Hallucinations"><value>Phrasen, die Whisper halluziniert (z.B. 'Thanks for watching'). Groß-/Kleinschreibung wird ignoriert.</value></data>
+  <data name="FE_Desc_Profanity"><value>Wörter, die in der Übersetzung durch [...] ersetzt werden. Verwendet NLLB-Codes (z.B. eng_Latn).</value></data>
+  <data name="FE_Desc_Glossary"><value>Glossareinträge (wenn der Quelltext den Auslöser enthält, werden falsche Wörter in der Übersetzung korrigiert):</value></data>
+  <data name="FE_Language"><value>Sprache:</value></data>
+  <data name="FE_AddLanguage"><value>Sprache hinzufügen...</value></data>
+  <data name="FE_Add"><value>Hinzufügen</value></data>
+  <data name="FE_RemoveSelected"><value>Auswahl entfernen</value></data>
+  <data name="FE_AddEntry"><value>Eintrag hinzufügen</value></data>
+  <data name="FE_RemoveEntry"><value>Eintrag entfernen</value></data>
+  <data name="FE_SelectedEntry"><value>Ausgewählter Eintrag</value></data>
+  <data name="FE_Trigger"><value>Auslöser:</value></data>
+  <data name="FE_SourceLangs"><value>Quellsprachen:</value></data>
+  <data name="FE_Comment"><value>Kommentar:</value></data>
+  <data name="FE_Fixes"><value>Korrekturen (Zielsprache -> falsches Wort -> richtiges Wort):</value></data>
+  <data name="FE_AddFix"><value>Korrektur hinzufügen</value></data>
+  <data name="FE_RemoveFix"><value>Korrektur entfernen</value></data>
+  <data name="FE_SaveReload"><value>Speichern und neu laden</value></data>
+  <data name="FE_Cancel"><value>Abbrechen</value></data>
+  <data name="FE_Saved"><value>Gespeichert und Neuladen angefordert.</value></data>
+  <data name="FE_DiscardChanges"><value>Nicht gespeicherte Änderungen verwerfen?</value></data>
+  <data name="FE_PromptLangCode"><value>Sprachcode eingeben (z.B. en, es, ca, fr):</value></data>
+  <data name="FE_PromptNllbCode"><value>NLLB-Sprachcode eingeben (z.B. eng_Latn, spa_Latn):</value></data>
+  <data name="FE_ColTrigger"><value>Auslöser</value></data>
+  <data name="FE_ColSourceLangs"><value>Quellsprachen</value></data>
+  <data name="FE_ColComment"><value>Kommentar</value></data>
+  <data name="FE_ColTargetLang"><value>Zielsprache</value></data>
+  <data name="FE_ColWrong"><value>Falsches Wort</value></data>
+  <data name="FE_ColRight"><value>Richtiges Wort</value></data>
 </root>

@@ -178,4 +178,39 @@
   <data name="Tab_LiveLog"><value>&#12525;&#12464;</value></data>
   <data name="Btn_LiveSaveLog"><value>&#12525;&#12464;&#12434;&#20445;&#23384;...</value></data>
   <data name="Btn_LiveClearLog"><value>&#12525;&#12464;&#12434;&#12463;&#12522;&#12450;</value></data>
+
+  <!-- Filter Editor -->
+  <data name="Btn_Filters"><value>フィルター...</value></data>
+  <data name="FE_Title"><value>フィルターエディター</value></data>
+  <data name="FE_Tab_Hallucinations"><value>幻覚</value></data>
+  <data name="FE_Tab_Profanity"><value>不適切語フィルター</value></data>
+  <data name="FE_Tab_Glossary"><value>用語集</value></data>
+  <data name="FE_Desc_Hallucinations"><value>Whisperが幻覚する定型句（例：'Thanks for watching'）。大文字小文字を区別せずに照合。</value></data>
+  <data name="FE_Desc_Profanity"><value>翻訳出力で[...]に置換される単語。NLLBコードを使用（例：eng_Latn）。</value></data>
+  <data name="FE_Desc_Glossary"><value>用語集エントリ（ソーステキストにトリガーが含まれる場合、翻訳の誤った単語を修正）：</value></data>
+  <data name="FE_Language"><value>言語：</value></data>
+  <data name="FE_AddLanguage"><value>言語を追加...</value></data>
+  <data name="FE_Add"><value>追加</value></data>
+  <data name="FE_RemoveSelected"><value>選択を削除</value></data>
+  <data name="FE_AddEntry"><value>エントリ追加</value></data>
+  <data name="FE_RemoveEntry"><value>エントリ削除</value></data>
+  <data name="FE_SelectedEntry"><value>選択されたエントリ</value></data>
+  <data name="FE_Trigger"><value>トリガー：</value></data>
+  <data name="FE_SourceLangs"><value>ソース言語：</value></data>
+  <data name="FE_Comment"><value>コメント：</value></data>
+  <data name="FE_Fixes"><value>修正（対象言語 -> 誤った語 -> 正しい語）：</value></data>
+  <data name="FE_AddFix"><value>修正を追加</value></data>
+  <data name="FE_RemoveFix"><value>修正を削除</value></data>
+  <data name="FE_SaveReload"><value>保存して再読み込み</value></data>
+  <data name="FE_Cancel"><value>キャンセル</value></data>
+  <data name="FE_Saved"><value>保存し、再読み込みを要求しました。</value></data>
+  <data name="FE_DiscardChanges"><value>未保存の変更を破棄しますか？</value></data>
+  <data name="FE_PromptLangCode"><value>言語コードを入力（例：en, es, ca, fr）：</value></data>
+  <data name="FE_PromptNllbCode"><value>NLLBコードを入力（例：eng_Latn, spa_Latn）：</value></data>
+  <data name="FE_ColTrigger"><value>トリガー</value></data>
+  <data name="FE_ColSourceLangs"><value>ソース言語</value></data>
+  <data name="FE_ColComment"><value>コメント</value></data>
+  <data name="FE_ColTargetLang"><value>対象言語</value></data>
+  <data name="FE_ColWrong"><value>誤った語</value></data>
+  <data name="FE_ColRight"><value>正しい語</value></data>
 </root>

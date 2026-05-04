@@ -178,4 +178,39 @@ Please run the dependency check from the Settings tab to download all required c
   <data name="Tab_LiveLog"><value>Log</value></data>
   <data name="Btn_LiveSaveLog"><value>Save Log...</value></data>
   <data name="Btn_LiveClearLog"><value>Clear Log</value></data>
+
+  <!-- Filter Editor -->
+  <data name="Btn_Filters"><value>Filters...</value></data>
+  <data name="FE_Title"><value>Filter Editor</value></data>
+  <data name="FE_Tab_Hallucinations"><value>Hallucinations</value></data>
+  <data name="FE_Tab_Profanity"><value>Profanity Filter</value></data>
+  <data name="FE_Tab_Glossary"><value>Glossary</value></data>
+  <data name="FE_Desc_Hallucinations"><value>Phrases that whisper hallucinates (e.g. 'Thanks for watching'). Matched case-insensitively.</value></data>
+  <data name="FE_Desc_Profanity"><value>Words replaced with [...] in translation output. Uses NLLB language codes (e.g. eng_Latn).</value></data>
+  <data name="FE_Desc_Glossary"><value>Glossary entries (when source text contains trigger, fix wrong words in translation):</value></data>
+  <data name="FE_Language"><value>Language:</value></data>
+  <data name="FE_AddLanguage"><value>Add Language...</value></data>
+  <data name="FE_Add"><value>Add</value></data>
+  <data name="FE_RemoveSelected"><value>Remove Selected</value></data>
+  <data name="FE_AddEntry"><value>Add Entry</value></data>
+  <data name="FE_RemoveEntry"><value>Remove Entry</value></data>
+  <data name="FE_SelectedEntry"><value>Selected Entry</value></data>
+  <data name="FE_Trigger"><value>Trigger:</value></data>
+  <data name="FE_SourceLangs"><value>Source Langs:</value></data>
+  <data name="FE_Comment"><value>Comment:</value></data>
+  <data name="FE_Fixes"><value>Fixes (target language -> wrong word -> right word):</value></data>
+  <data name="FE_AddFix"><value>Add Fix</value></data>
+  <data name="FE_RemoveFix"><value>Remove Fix</value></data>
+  <data name="FE_SaveReload"><value>Save &amp; Reload</value></data>
+  <data name="FE_Cancel"><value>Cancel</value></data>
+  <data name="FE_Saved"><value>Saved and reload requested.</value></data>
+  <data name="FE_DiscardChanges"><value>Discard unsaved changes?</value></data>
+  <data name="FE_PromptLangCode"><value>Enter language code (e.g. en, es, ca, fr):</value></data>
+  <data name="FE_PromptNllbCode"><value>Enter NLLB language code (e.g. eng_Latn, spa_Latn):</value></data>
+  <data name="FE_ColTrigger"><value>Trigger</value></data>
+  <data name="FE_ColSourceLangs"><value>Source Languages</value></data>
+  <data name="FE_ColComment"><value>Comment</value></data>
+  <data name="FE_ColTargetLang"><value>Target Language</value></data>
+  <data name="FE_ColWrong"><value>Wrong Word</value></data>
+  <data name="FE_ColRight"><value>Right Word</value></data>
 </root>

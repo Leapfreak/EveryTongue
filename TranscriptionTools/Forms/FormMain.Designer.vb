@@ -138,6 +138,7 @@ Partial Class FormMain
         Me.lblLiveDevice = New Label()
         Me.cboLiveDevice = New ComboBox()
         Me.btnRefreshDevices = New Button()
+        Me.btnEditFilters = New Button()
         Me.lblLiveInputLang = New Label()
         Me.cboLiveInputLang = New ComboBox()
         Me.btnLiveStart = New Button()
@@ -528,8 +529,12 @@ Partial Class FormMain
         Me.cboLiveInputLang.Size = New Drawing.Size(150, 23)
         Me.cboLiveInputLang.DropDownStyle = ComboBoxStyle.DropDownList
 
+        Me.btnEditFilters.Text = "Filters..."
+        Me.btnEditFilters.Location = New Drawing.Point(170, ly + 15)
+        Me.btnEditFilters.Size = New Drawing.Size(80, 25)
+
         Me.grpLiveInput.Controls.AddRange({Me.lblLiveDevice, Me.cboLiveDevice, Me.btnRefreshDevices,
-            Me.lblLiveInputLang, Me.cboLiveInputLang})
+            Me.lblLiveInputLang, Me.cboLiveInputLang, Me.btnEditFilters})
 
         ' Buttons panel
         Dim pnlLiveButtons As New Panel()
@@ -992,6 +997,7 @@ Partial Class FormMain
     Friend WithEvents btnRefreshDevices As Button
     Friend WithEvents lblLiveInputLang As Label
     Friend WithEvents cboLiveInputLang As ComboBox
+    Friend WithEvents btnEditFilters As Button
     Friend WithEvents btnLiveStart As Button
     Friend WithEvents btnLiveStop As Button
     Friend WithEvents btnLiveSave As Button

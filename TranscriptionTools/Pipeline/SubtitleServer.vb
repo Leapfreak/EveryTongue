@@ -578,7 +578,7 @@ Namespace Pipeline
             CleanupDeadClients(deadKeys)
         End Sub
 
-        Public Function BroadcastCommit(text As String, Optional skipTranslationClients As Boolean = False, Optional lang As String = "") As Integer
+        Public Function BroadcastCommit(text As String, Optional skipTranslationClients As Boolean = False, Optional lang As String = "", Optional sourceLang As String = "") As Integer
             Dim commitId = Interlocked.Increment(_commitCounter)
             If Not _isRunning Then Return commitId
             _currentLine = ""
@@ -599,7 +599,9 @@ Namespace Pipeline
 
             For Each kvp In _clients
                 Try
-                    If skipTranslationClients AndAlso Not String.IsNullOrEmpty(kvp.Value.Language) Then
+                    ' Skip clients that need a different language (translation pending)
+                    ' but still send to source-language clients and clients with no language set
+                    If skipTranslationClients AndAlso Not String.IsNullOrEmpty(kvp.Value.Language) AndAlso kvp.Value.Language <> sourceLang Then
                         RaiseEvent LogMessage(Me,$"[SUBTITLE] COMMIT SKIP {kvp.Value.RemoteEndpoint} lang={kvp.Value.Language}")
                         Continue For
                     End If

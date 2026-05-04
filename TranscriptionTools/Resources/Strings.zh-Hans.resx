@@ -178,4 +178,39 @@
   <data name="Tab_LiveLog"><value>&#26085;&#24535;</value></data>
   <data name="Btn_LiveSaveLog"><value>&#20445;&#23384;&#26085;&#24535;...</value></data>
   <data name="Btn_LiveClearLog"><value>&#28165;&#38500;&#26085;&#24535;</value></data>
+
+  <!-- Filter Editor -->
+  <data name="Btn_Filters"><value>过滤器...</value></data>
+  <data name="FE_Title"><value>过滤器编辑器</value></data>
+  <data name="FE_Tab_Hallucinations"><value>幻觉</value></data>
+  <data name="FE_Tab_Profanity"><value>不雅词过滤</value></data>
+  <data name="FE_Tab_Glossary"><value>术语表</value></data>
+  <data name="FE_Desc_Hallucinations"><value>Whisper产生的幻觉短语（如'Thanks for watching'）。不区分大小写匹配。</value></data>
+  <data name="FE_Desc_Profanity"><value>翻译输出中替换为[...]的词语。使用NLLB语言代码（如eng_Latn）。</value></data>
+  <data name="FE_Desc_Glossary"><value>术语表条目（当源文本包含触发词时，修正翻译中的错误词语）：</value></data>
+  <data name="FE_Language"><value>语言：</value></data>
+  <data name="FE_AddLanguage"><value>添加语言...</value></data>
+  <data name="FE_Add"><value>添加</value></data>
+  <data name="FE_RemoveSelected"><value>删除所选</value></data>
+  <data name="FE_AddEntry"><value>添加条目</value></data>
+  <data name="FE_RemoveEntry"><value>删除条目</value></data>
+  <data name="FE_SelectedEntry"><value>所选条目</value></data>
+  <data name="FE_Trigger"><value>触发词：</value></data>
+  <data name="FE_SourceLangs"><value>源语言：</value></data>
+  <data name="FE_Comment"><value>注释：</value></data>
+  <data name="FE_Fixes"><value>修正（目标语言 -> 错误词 -> 正确词）：</value></data>
+  <data name="FE_AddFix"><value>添加修正</value></data>
+  <data name="FE_RemoveFix"><value>删除修正</value></data>
+  <data name="FE_SaveReload"><value>保存并重新加载</value></data>
+  <data name="FE_Cancel"><value>取消</value></data>
+  <data name="FE_Saved"><value>已保存并请求重新加载。</value></data>
+  <data name="FE_DiscardChanges"><value>放弃未保存的更改？</value></data>
+  <data name="FE_PromptLangCode"><value>输入语言代码（如en, es, ca, fr）：</value></data>
+  <data name="FE_PromptNllbCode"><value>输入NLLB语言代码（如eng_Latn, spa_Latn）：</value></data>
+  <data name="FE_ColTrigger"><value>触发词</value></data>
+  <data name="FE_ColSourceLangs"><value>源语言</value></data>
+  <data name="FE_ColComment"><value>注释</value></data>
+  <data name="FE_ColTargetLang"><value>目标语言</value></data>
+  <data name="FE_ColWrong"><value>错误词</value></data>
+  <data name="FE_ColRight"><value>正确词</value></data>
 </root>
