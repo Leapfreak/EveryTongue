@@ -18,6 +18,7 @@ Public Class FormMain
     Private _subtitleServer As SubtitleServer
     Private _translationService As TranslationService
     Private _translationUnloadTimer As System.Threading.Timer
+    Private _pendingCommits As New List(Of String)()
     Private _simCts As CancellationTokenSource
     Private _isInitializing As Boolean = True
     Private _exitForReal As Boolean = False
@@ -1966,12 +1967,25 @@ del ""%~f0""
         Dim activeTargets = If(targets IsNot Nothing, String.Join(",", targets), "none")
         targets?.Remove(sourceLang)
 
-        Dim translationReady = targets IsNot Nothing AndAlso targets.Count > 0 AndAlso
-            _translationService IsNot Nothing AndAlso _translationService.IsRunning AndAlso _translationService.IsModelLoaded
+        Dim hasTargets = targets IsNot Nothing AndAlso targets.Count > 0
+        Dim serviceRunning = _translationService IsNot Nothing AndAlso _translationService.IsRunning
+        Dim modelLoaded = serviceRunning AndAlso _translationService.IsModelLoaded
+        Dim translationReady = hasTargets AndAlso modelLoaded
 
-        WriteDebugLog($"[BROADCAST] targets=[{activeTargets}] source={sourceLang} skip={translationReady}")
+        WriteDebugLog($"[BROADCAST] targets=[{activeTargets}] source={sourceLang} ready={translationReady} modelLoaded={modelLoaded}")
 
-        ' No translation clients or translation not ready — send to everyone immediately
+        ' Model still loading — buffer the commit for later translation
+        If hasTargets AndAlso serviceRunning AndAlso Not modelLoaded Then
+            SyncLock _pendingCommits
+                _pendingCommits.Add(commitData)
+            End SyncLock
+            ' Send original text to non-translation clients only (they don't need translation)
+            _subtitleServer?.BroadcastCommit(line, skipTranslationClients:=True, lang:=sourceShort)
+            WriteDebugLog($"[BUFFERED] commit queued ({_pendingCommits.Count} pending)")
+            Return
+        End If
+
+        ' No translation clients or service not running — send to everyone immediately
         If Not translationReady Then
             _subtitleServer?.BroadcastCommit(line, skipTranslationClients:=False, lang:=sourceShort)
             Return
@@ -2036,6 +2050,20 @@ del ""%~f0""
         ' Single atomic broadcast — sends the right text to each client based on their
         ' current language. No two-phase race condition.
         _subtitleServer?.BroadcastCommitTranslated(line, sourceShort, translations, langTags)
+    End Sub
+
+    Private Sub FlushPendingCommits()
+        Dim commits As List(Of String)
+        SyncLock _pendingCommits
+            If _pendingCommits.Count = 0 Then Return
+            commits = New List(Of String)(_pendingCommits)
+            _pendingCommits.Clear()
+        End SyncLock
+
+        WriteDebugLog($"[FLUSH] translating {commits.Count} buffered commits")
+        For Each c In commits
+            TranslateAndBroadcastAsync(c)
+        Next
     End Sub
 
     Private Shared Function NllbToShortCode(nllbCode As String) As String
@@ -2293,13 +2321,15 @@ del ""%~f0""
         ' Append session header (keep previous logs)
         Try
             Dim logPath = GetPipelineLogPath()
-            IO.File.AppendAllText(logPath, $"{Environment.NewLine}=== Session started at {DateTime.Now:yyyy-MM-dd HH:mm:ss} ==={Environment.NewLine}")
+            Dim ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version
+            IO.File.AppendAllText(logPath, $"{Environment.NewLine}=== Session started at {DateTime.Now:yyyy-MM-dd HH:mm:ss} v{ver.Major}.{ver.Minor}.{ver.Build} ==={Environment.NewLine}")
         Catch
         End Try
 
         _translationService = New TranslationService()
         AddHandler _translationService.StatusChanged, Sub(s, msg)
                                                           AppendServerLog(msg)
+                                                          If msg.Contains("model loaded") Then FlushPendingCommits()
                                                       End Sub
 
         Dim modelPath = _config.TranslationModelPath
@@ -2316,6 +2346,9 @@ del ""%~f0""
         _translationUnloadTimer = Nothing
         _translationService?.Stop()
         _translationService = Nothing
+        SyncLock _pendingCommits
+            _pendingCommits.Clear()
+        End SyncLock
     End Sub
 
     Private Sub ResetTranslationUnloadTimer()

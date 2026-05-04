@@ -20,7 +20,13 @@ from pydantic import BaseModel
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("nllb-server")
-logger.propagate = False  # Don't duplicate to stderr — file handler only
+logger.setLevel(logging.DEBUG)
+logger.propagate = False
+# Stderr handler for UI display (VB captures via ErrorDataReceived)
+_stderr_handler = logging.StreamHandler()
+_stderr_handler.setLevel(logging.INFO)
+_stderr_handler.setFormatter(logging.Formatter("%(message)s"))
+logger.addHandler(_stderr_handler)
 
 # Pipeline debug log — shared with live-server via --log-dir
 _debug_logger = logging.getLogger("nllb-debug")

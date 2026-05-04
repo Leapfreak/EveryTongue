@@ -150,5 +150,13 @@
     "fixes": {
       "eng_Latn": {"Fidelity": "Faithfulness", "fidelity": "faithfulness"}
     }
+  },
+  {
+    "comment": "'nens/nenes' = children (NLLB mistranslates as 'nans')",
+    "trigger": "nen",
+    "source_langs": ["cat_Latn"],
+    "fixes": {
+      "eng_Latn": {"nans": "children", "Nans": "Children", "nan": "child", "Nan": "Child"}
+    }
   }
 ]
