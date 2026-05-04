@@ -716,6 +716,12 @@ Namespace Pipeline
             Return sourceLang
         End Function
 
+        Public Sub BroadcastSystemMessage(text As String)
+            If Not _isRunning Then Return
+            Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)}}}"
+            BroadcastMessage(json)
+        End Sub
+
         Private Sub BroadcastMessage(json As String)
             Dim buffer = Encoding.UTF8.GetBytes(json)
             Dim deadKeys As New List(Of String)

@@ -1494,6 +1494,10 @@ del ""%~f0""
 
         _liveRunner.Start(_config, deviceId, inputLang, translateToEn)
 
+        If _liveRunner.IsRunning AndAlso _subtitleServer IsNot Nothing Then
+            _subtitleServer.BroadcastSystemMessage("[Transcription Started]")
+        End If
+
         If _liveRunner.IsRunning Then
             btnLiveStart.Enabled = False
             btnLiveStop.Enabled = True
@@ -1505,6 +1509,9 @@ del ""%~f0""
 
     Private Sub btnLiveStop_Click(sender As Object, e As EventArgs) Handles btnLiveStop.Click
         If _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning Then
+            If _subtitleServer IsNot Nothing Then
+                _subtitleServer.BroadcastSystemMessage("[Transcription Stopped]")
+            End If
             _liveRunner.Stop()
             AppendLiveText("", Drawing.Color.Gray)
             AppendLiveText("Live transcription stopped.", Drawing.Color.Yellow)
