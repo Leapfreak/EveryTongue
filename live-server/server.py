@@ -200,19 +200,25 @@ def _is_hallucination(segments, last_commit_text: str = "") -> bool:
             return True
 
     # Repetition of previous commit
-    if last_commit_text and len(last_commit_text) > 20:
+    if last_commit_text:
         # Normalize: lowercase, strip ALL punctuation and leading numbers, compare words only
         norm_new = " ".join(re.sub(r"[^\w\s]", "", full_text.lower()).split())
         norm_prev = " ".join(re.sub(r"[^\w\s]", "", last_commit_text.lower()).split())
         # Strip leading numbers from both
         norm_new = re.sub(r"^\d+\s*", "", norm_new)
         norm_prev = re.sub(r"^\d+\s*", "", norm_prev)
-        # Use sequence matching for contiguous similarity
-        ratio = SequenceMatcher(None, norm_new, norm_prev).ratio()
-        # Only flag very high similarity (>85%) — obvious exact repeats
-        if ratio > 0.85:
-            logger.debug(f"  REPETITION detected (similarity={ratio:.0%}, {total_speech_dur:.1f}s)")
-            return True
+        # Short texts: exact match only (avoids false positives on common short phrases)
+        if len(norm_prev) <= 20:
+            if norm_new == norm_prev:
+                logger.debug(f"  REPETITION detected (exact short match)")
+                return True
+        else:
+            # Use sequence matching for contiguous similarity
+            ratio = SequenceMatcher(None, norm_new, norm_prev).ratio()
+            # Only flag very high similarity (>85%) — obvious exact repeats
+            if ratio > 0.85:
+                logger.debug(f"  REPETITION detected (similarity={ratio:.0%}, {total_speech_dur:.1f}s)")
+                return True
 
     return False
 
@@ -224,22 +230,22 @@ _hallucination_phrases: list[str] = []
 
 
 def _load_hallucination_phrases():
-    """Load known hallucination phrases from hallucinations.txt."""
+    """Load known hallucination phrases from hallucinations.json."""
     global _hallucination_phrases
-    txt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hallucinations.txt")
+    json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hallucinations.json")
     try:
-        with open(txt_path, "r", encoding="utf-8") as f:
-            phrases = []
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#"):
-                    phrases.append(line.lower())
-            _hallucination_phrases = phrases
-            logger.debug(f"Loaded {len(phrases)} hallucination phrases from {txt_path}")
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        phrases = []
+        for lang_phrases in data.values():
+            for p in lang_phrases:
+                phrases.append(p.lower())
+        _hallucination_phrases = phrases
+        logger.debug(f"Loaded {len(phrases)} hallucination phrases from {json_path}")
     except FileNotFoundError:
-        logger.debug("No hallucinations.txt found — phrase filter disabled")
+        logger.debug("No hallucinations.json found — phrase filter disabled")
     except Exception as e:
-        logger.warning(f"Failed to load hallucinations.txt: {e}")
+        logger.warning(f"Failed to load hallucinations.json: {e}")
 
 
 def _is_known_hallucination(text: str) -> bool:
