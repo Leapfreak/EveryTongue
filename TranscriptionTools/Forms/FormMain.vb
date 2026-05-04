@@ -2759,19 +2759,30 @@ del ""%~f0""
             Return
         End If
 
+        ' Guarantee process exit even if cleanup hangs
+        Dim exitTimer As New System.Threading.Timer(
+            Sub(state) Environment.Exit(0), Nothing, 15000, Timeout.Infinite)
+
         ' Real exit — clean up everything
         _cts?.Cancel()
-        _liveRunner?.ShutdownServer()
         _simCts?.Cancel()
-        StopTranslationService()
-        _subtitleServer?.Stop()
+
+        ' Shut down servers in parallel with a combined timeout
+        Dim shutdownTask = Task.Run(
+            Sub()
+                Try : _liveRunner?.ShutdownServer() : Catch : End Try
+                Try : StopTranslationService() : Catch : End Try
+                Try : _subtitleServer?.Stop() : Catch : End Try
+            End Sub)
+        shutdownTask.Wait(10000)
+
         trayIcon.Visible = False
         trayIcon.Dispose()
 
         ' Kill any orphaned python-embed processes that survived graceful shutdown
         KillOrphanedPythonProcesses()
 
-        ' Offer to clean up today's working folders
+        ' Offer to clean up today's working folders — show form so MessageBox is visible
         Try
             Dim outputRoot = AppConfig.ResolvePath(_config.PathOutputRoot)
             If Not String.IsNullOrWhiteSpace(outputRoot) AndAlso Directory.Exists(outputRoot) Then
@@ -2781,6 +2792,8 @@ del ""%~f0""
                     ToArray()
 
                 If todayFolders.Length > 0 Then
+                    Me.Show()
+                    Me.BringToFront()
                     Dim folderNames = String.Join(Environment.NewLine, todayFolders.Select(Function(d) "  " & Path.GetFileName(d)))
                     Dim msg = $"Delete {todayFolders.Length} working folder(s) from today?" & Environment.NewLine & Environment.NewLine & folderNames
                     Dim result = MessageBox.Show(msg, GetString("Msg_CleanUp"), MessageBoxButtons.YesNo, MessageBoxIcon.Question)
@@ -2799,6 +2812,7 @@ del ""%~f0""
         End Try
 
         ' Force process exit to ensure no background tasks keep the process alive
+        exitTimer.Dispose()
         Environment.Exit(0)
     End Sub
 

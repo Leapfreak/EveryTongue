@@ -3,8 +3,7 @@ Imports System.Net.Http
 Imports System.Text
 Imports System.Text.Json
 
-Public Class FormFilterEditor
-    Inherits Form
+Partial Public Class FormFilterEditor
 
     Private ReadOnly _baseDir As String
     Private ReadOnly _livePort As Integer
@@ -17,41 +16,12 @@ Public Class FormFilterEditor
     Private ReadOnly _glossaryPath As String
     Private ReadOnly _profanityPath As String
 
-    ' --- Hallucinations tab ---
-    Private WithEvents cboHalLang As New ComboBox()
-    Private lstHalPhrases As New ListBox()
-    Private txtHalPhrase As New TextBox()
-    Private WithEvents btnHalAdd As New Button()
-    Private WithEvents btnHalRemove As New Button()
-    Private WithEvents btnHalAddLang As New Button()
+    ' Data
     Private _halData As New Dictionary(Of String, List(Of String))()
-
-    ' --- Profanity tab ---
-    Private WithEvents cboProfLang As New ComboBox()
-    Private lstProfWords As New ListBox()
-    Private txtProfWord As New TextBox()
-    Private WithEvents btnProfAdd As New Button()
-    Private WithEvents btnProfRemove As New Button()
-    Private WithEvents btnProfAddLang As New Button()
     Private _profData As New Dictionary(Of String, List(Of String))()
-
-    ' --- Glossary tab ---
-    Private dgvGlossary As New DataGridView()
-    Private txtGlosTrigger As New TextBox()
-    Private txtGlosComment As New TextBox()
-    Private txtGlosSourceLangs As New TextBox()
-    Private dgvFixes As New DataGridView()
-    Private WithEvents btnGlosAdd As New Button()
-    Private WithEvents btnGlosRemove As New Button()
-    Private WithEvents btnFixAdd As New Button()
-    Private WithEvents btnFixRemove As New Button()
     Private _glossaryData As New List(Of GlossaryEntry)()
     Private _selectedGlosIdx As Integer = -1
-
-    ' Bottom buttons
-    Private WithEvents btnSave As New Button()
-    Private WithEvents btnCancel As New Button()
-
+    Private _suppressGlosEvents As Boolean = False
     Private _dirty As Boolean = False
 
     Private Function S(key As String) As String
@@ -74,223 +44,55 @@ Public Class FormFilterEditor
         _glossaryPath = Path.Combine(baseDir, "nllb-server", "glossary.json")
         _profanityPath = Path.Combine(baseDir, "nllb-server", "profanity.json")
 
-        InitializeUI()
+        InitializeComponent()
+        ApplyLocalization()
+        WireUpEvents()
         LoadAllData()
     End Sub
 
-    Private Sub InitializeUI()
+    Private Sub ApplyLocalization()
         Me.Text = S("FE_Title")
-        Me.Size = New Drawing.Size(750, 650)
-        Me.MinimumSize = New Drawing.Size(650, 550)
-        Me.StartPosition = FormStartPosition.CenterParent
-        Me.FormBorderStyle = FormBorderStyle.Sizable
+        tabHal.Text = S("FE_Tab_Hallucinations")
+        tabProf.Text = S("FE_Tab_Profanity")
+        tabGlos.Text = S("FE_Tab_Glossary")
 
-        Dim tabs As New TabControl()
-        tabs.Dock = DockStyle.Fill
-
-        ' --- Hallucinations tab ---
-        Dim tabHal As New TabPage(S("FE_Tab_Hallucinations"))
-        tabHal.Padding = New Padding(8)
-        tabHal.AutoScroll = True
-        BuildListEditorTab(tabHal, cboHalLang, lstHalPhrases, txtHalPhrase, btnHalAdd, btnHalRemove, btnHalAddLang,
-            S("FE_Desc_Hallucinations"))
-
-        ' --- Profanity tab ---
-        Dim tabProf As New TabPage(S("FE_Tab_Profanity"))
-        tabProf.Padding = New Padding(8)
-        tabProf.AutoScroll = True
-        BuildListEditorTab(tabProf, cboProfLang, lstProfWords, txtProfWord, btnProfAdd, btnProfRemove, btnProfAddLang,
-            S("FE_Desc_Profanity"))
-
-        ' --- Glossary tab ---
-        Dim tabGlos As New TabPage(S("FE_Tab_Glossary"))
-        tabGlos.Padding = New Padding(8)
-        tabGlos.AutoScroll = True
-        BuildGlossaryTab(tabGlos)
-
-        tabs.TabPages.AddRange({tabHal, tabProf, tabGlos})
-
-        ' Bottom panel
-        Dim pnlBottom As New Panel()
-        pnlBottom.Dock = DockStyle.Bottom
-        pnlBottom.Height = 45
-
-        btnSave.Text = S("FE_SaveReload")
-        btnSave.Size = New Drawing.Size(120, 30)
-        btnSave.Location = New Drawing.Point(Me.ClientSize.Width - 260, 8)
-        btnSave.Anchor = AnchorStyles.Bottom Or AnchorStyles.Right
-
-        btnCancel.Text = S("FE_Cancel")
-        btnCancel.Size = New Drawing.Size(80, 30)
-        btnCancel.Location = New Drawing.Point(Me.ClientSize.Width - 130, 8)
-        btnCancel.Anchor = AnchorStyles.Bottom Or AnchorStyles.Right
-
-        pnlBottom.Controls.AddRange({btnSave, btnCancel})
-
-        Me.Controls.Add(pnlBottom)
-        Me.Controls.Add(tabs)
-    End Sub
-
-    Private Sub BuildListEditorTab(tab As TabPage, cbo As ComboBox, lst As ListBox, txt As TextBox,
-                                    btnAdd As Button, btnRemove As Button, btnAddLang As Button,
-                                    description As String)
-        Dim lblDesc As New Label()
-        lblDesc.Text = description
-        lblDesc.Location = New Drawing.Point(8, 8)
-        lblDesc.AutoSize = True
-        lblDesc.MaximumSize = New Drawing.Size(700, 0)
-
-        Dim lblLang As New Label()
-        lblLang.Text = S("FE_Language")
-        lblLang.Location = New Drawing.Point(8, 38)
-        lblLang.AutoSize = True
-
-        cbo.Location = New Drawing.Point(80, 35)
-        cbo.Size = New Drawing.Size(150, 23)
-        cbo.DropDownStyle = ComboBoxStyle.DropDownList
-
-        btnAddLang.Text = S("FE_AddLanguage")
-        btnAddLang.Location = New Drawing.Point(240, 34)
-        btnAddLang.Size = New Drawing.Size(110, 25)
-
-        lst.Location = New Drawing.Point(8, 65)
-        lst.Size = New Drawing.Size(500, 350)
-        lst.Anchor = AnchorStyles.Top Or AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
-        lst.Font = New Drawing.Font("Consolas", 10)
-
-        btnRemove.Text = S("FE_RemoveSelected")
-        btnRemove.Location = New Drawing.Point(520, 65)
-        btnRemove.Size = New Drawing.Size(130, 25)
-        btnRemove.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-
-        txt.Location = New Drawing.Point(8, 420)
-        txt.Size = New Drawing.Size(400, 23)
-        txt.Anchor = AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
-
-        btnAdd.Text = S("FE_Add")
-        btnAdd.Location = New Drawing.Point(415, 419)
-        btnAdd.Size = New Drawing.Size(60, 25)
-        btnAdd.Anchor = AnchorStyles.Bottom Or AnchorStyles.Right
-
-        tab.Controls.AddRange({lblDesc, lblLang, cbo, btnAddLang, lst, txt, btnAdd, btnRemove})
-        lblDesc.SendToBack()
-        lblLang.SendToBack()
-    End Sub
-
-    Private Sub BuildGlossaryTab(tab As TabPage)
-        Dim lblEntries As New Label()
-        lblEntries.Text = S("FE_Desc_Glossary")
-        lblEntries.Location = New Drawing.Point(8, 8)
-        lblEntries.AutoSize = True
-
-        ' Top DataGridView: entry list
-        dgvGlossary.Location = New Drawing.Point(8, 28)
-        dgvGlossary.Size = New Drawing.Size(700, 160)
-        dgvGlossary.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        dgvGlossary.AllowUserToAddRows = False
-        dgvGlossary.AllowUserToDeleteRows = False
-        dgvGlossary.SelectionMode = DataGridViewSelectionMode.FullRowSelect
-        dgvGlossary.MultiSelect = False
-        dgvGlossary.ReadOnly = True
-        dgvGlossary.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
-        dgvGlossary.RowHeadersVisible = False
-        dgvGlossary.ScrollBars = ScrollBars.Vertical
-
-        dgvGlossary.Columns.Add("Trigger", S("FE_ColTrigger"))
-        dgvGlossary.Columns.Add("SourceLangs", S("FE_ColSourceLangs"))
-        dgvGlossary.Columns.Add("Comment", S("FE_ColComment"))
-        dgvGlossary.Columns("Trigger").FillWeight = 20
-        dgvGlossary.Columns("SourceLangs").FillWeight = 25
-        dgvGlossary.Columns("Comment").FillWeight = 55
-
-        AddHandler dgvGlossary.SelectionChanged, AddressOf GlossarySelectionChanged
-
+        lblHalDesc.Text = S("FE_Desc_Hallucinations")
+        lblHalLang.Text = S("FE_Language")
+        btnHalAddLang.Text = S("FE_AddLanguage")
+        btnHalAdd.Text = S("FE_Add")
+        btnHalRemove.Text = S("FE_RemoveSelected")
+        btnHalSave.Text = S("FE_SaveReload")
+        lblProfDesc.Text = S("FE_Desc_Profanity")
+        lblProfLang.Text = S("FE_Language")
+        btnProfAddLang.Text = S("FE_AddLanguage")
+        btnProfAdd.Text = S("FE_Add")
+        btnProfRemove.Text = S("FE_RemoveSelected")
+        btnProfSave.Text = S("FE_SaveReload")
+        lblGlosDesc.Text = S("FE_Desc_Glossary")
+        colTrigger.HeaderText = S("FE_ColTrigger")
+        colSourceLangs.HeaderText = S("FE_ColSourceLangs")
+        colComment.HeaderText = S("FE_ColComment")
         btnGlosAdd.Text = S("FE_AddEntry")
-        btnGlosAdd.Location = New Drawing.Point(8, 193)
-        btnGlosAdd.Size = New Drawing.Size(90, 25)
-
         btnGlosRemove.Text = S("FE_RemoveEntry")
-        btnGlosRemove.Location = New Drawing.Point(105, 193)
-        btnGlosRemove.Size = New Drawing.Size(100, 25)
-
-        ' Detail panel
-        Dim grpDetail As New GroupBox()
         grpDetail.Text = S("FE_SelectedEntry")
-        grpDetail.Location = New Drawing.Point(8, 222)
-        grpDetail.Size = New Drawing.Size(700, 250)
-        grpDetail.Anchor = AnchorStyles.Top Or AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
-
-        Dim lblTrigger As New Label()
         lblTrigger.Text = S("FE_Trigger")
-        lblTrigger.Location = New Drawing.Point(10, 22)
-        lblTrigger.AutoSize = True
-
-        txtGlosTrigger.Location = New Drawing.Point(100, 19)
-        txtGlosTrigger.Size = New Drawing.Size(200, 23)
-        AddHandler txtGlosTrigger.TextChanged, AddressOf GlossaryDetailChanged
-
-        Dim lblSrcLangs As New Label()
         lblSrcLangs.Text = S("FE_SourceLangs")
-        lblSrcLangs.Location = New Drawing.Point(310, 22)
-        lblSrcLangs.AutoSize = True
-
-        txtGlosSourceLangs.Location = New Drawing.Point(410, 19)
-        txtGlosSourceLangs.Size = New Drawing.Size(270, 23)
-        AddHandler txtGlosSourceLangs.TextChanged, AddressOf GlossaryDetailChanged
-
-        Dim lblComment As New Label()
         lblComment.Text = S("FE_Comment")
-        lblComment.Location = New Drawing.Point(10, 50)
-        lblComment.AutoSize = True
-
-        txtGlosComment.Location = New Drawing.Point(100, 47)
-        txtGlosComment.Size = New Drawing.Size(580, 23)
-        AddHandler txtGlosComment.TextChanged, AddressOf GlossaryDetailChanged
-
-        Dim lblFixes As New Label()
         lblFixes.Text = S("FE_Fixes")
-        lblFixes.Location = New Drawing.Point(10, 78)
-        lblFixes.AutoSize = True
-
-        dgvFixes.Location = New Drawing.Point(10, 96)
-        dgvFixes.Size = New Drawing.Size(570, 140)
-        dgvFixes.Anchor = AnchorStyles.Top Or AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
-        dgvFixes.ScrollBars = ScrollBars.Vertical
-        dgvFixes.AllowUserToAddRows = False
-        dgvFixes.AllowUserToDeleteRows = False
-        dgvFixes.SelectionMode = DataGridViewSelectionMode.FullRowSelect
-        dgvFixes.MultiSelect = False
-        dgvFixes.RowHeadersVisible = False
-        dgvFixes.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
-
-        dgvFixes.Columns.Add("TargetLang", S("FE_ColTargetLang"))
-        dgvFixes.Columns.Add("Wrong", S("FE_ColWrong"))
-        dgvFixes.Columns.Add("Right", S("FE_ColRight"))
-        dgvFixes.Columns("TargetLang").FillWeight = 30
-        dgvFixes.Columns("Wrong").FillWeight = 35
-        dgvFixes.Columns("Right").FillWeight = 35
-
-        AddHandler dgvFixes.CellEndEdit, AddressOf FixCellEdited
-
+        colTargetLang.HeaderText = S("FE_ColTargetLang")
+        colWrong.HeaderText = S("FE_ColWrong")
+        colRight.HeaderText = S("FE_ColRight")
         btnFixAdd.Text = S("FE_AddFix")
-        btnFixAdd.Location = New Drawing.Point(590, 96)
-        btnFixAdd.Size = New Drawing.Size(90, 25)
-        btnFixAdd.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-
         btnFixRemove.Text = S("FE_RemoveFix")
-        btnFixRemove.Location = New Drawing.Point(590, 126)
-        btnFixRemove.Size = New Drawing.Size(90, 25)
-        btnFixRemove.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        btnGlosSave.Text = S("FE_SaveReload")
+    End Sub
 
-        grpDetail.Controls.AddRange({lblTrigger, txtGlosTrigger, lblSrcLangs, txtGlosSourceLangs,
-            lblComment, txtGlosComment, lblFixes, dgvFixes, btnFixAdd, btnFixRemove})
-        lblFixes.SendToBack()
-        lblTrigger.SendToBack()
-        lblSrcLangs.SendToBack()
-        lblComment.SendToBack()
-
-        tab.Controls.AddRange({lblEntries, dgvGlossary, btnGlosAdd, btnGlosRemove, grpDetail})
-        lblEntries.SendToBack()
+    Private Sub WireUpEvents()
+        AddHandler dgvGlossary.SelectionChanged, AddressOf GlossarySelectionChanged
+        AddHandler txtGlosTrigger.TextChanged, AddressOf GlossaryDetailChanged
+        AddHandler txtGlosSourceLangs.TextChanged, AddressOf GlossaryDetailChanged
+        AddHandler txtGlosComment.TextChanged, AddressOf GlossaryDetailChanged
+        AddHandler dgvFixes.CellEndEdit, AddressOf FixCellEdited
     End Sub
 
     ' =========================================================================
@@ -511,8 +313,6 @@ Public Class FormFilterEditor
         Next
     End Sub
 
-    Private _suppressGlosEvents As Boolean = False
-
     Private Sub GlossarySelectionChanged(sender As Object, e As EventArgs)
         If _suppressGlosEvents Then Return
         SaveCurrentGlossaryDetail()
@@ -560,9 +360,9 @@ Public Class FormFilterEditor
         ' Save fixes from grid
         entry.Fixes.Clear()
         For Each row As DataGridViewRow In dgvFixes.Rows
-            Dim tl = TryCast(row.Cells("TargetLang").Value, String)
-            Dim wrong = TryCast(row.Cells("Wrong").Value, String)
-            Dim right = TryCast(row.Cells("Right").Value, String)
+            Dim tl = TryCast(row.Cells("colTargetLang").Value, String)
+            Dim wrong = TryCast(row.Cells("colWrong").Value, String)
+            Dim right = TryCast(row.Cells("colRight").Value, String)
             If Not String.IsNullOrWhiteSpace(tl) AndAlso Not String.IsNullOrWhiteSpace(wrong) Then
                 entry.Fixes.Add(New GlossaryFix() With {
                     .TargetLang = tl.Trim(),
@@ -574,9 +374,9 @@ Public Class FormFilterEditor
 
         ' Update the main grid row
         If _selectedGlosIdx < dgvGlossary.Rows.Count Then
-            dgvGlossary.Rows(_selectedGlosIdx).Cells("Trigger").Value = entry.Trigger
-            dgvGlossary.Rows(_selectedGlosIdx).Cells("SourceLangs").Value = String.Join(", ", entry.SourceLangs)
-            dgvGlossary.Rows(_selectedGlosIdx).Cells("Comment").Value = entry.Comment
+            dgvGlossary.Rows(_selectedGlosIdx).Cells("colTrigger").Value = entry.Trigger
+            dgvGlossary.Rows(_selectedGlosIdx).Cells("colSourceLangs").Value = String.Join(", ", entry.SourceLangs)
+            dgvGlossary.Rows(_selectedGlosIdx).Cells("colComment").Value = entry.Comment
         End If
     End Sub
 
@@ -622,7 +422,7 @@ Public Class FormFilterEditor
     ' =========================================================================
     ' Save & Reload
     ' =========================================================================
-    Private Sub btnSave_Click(sender As Object, e As EventArgs) Handles btnSave.Click
+    Private Sub btnSave_Click(sender As Object, e As EventArgs) Handles btnHalSave.Click, btnProfSave.Click, btnGlosSave.Click
         SaveCurrentGlossaryDetail()
 
         Try
@@ -726,12 +526,11 @@ Public Class FormFilterEditor
         End Try
     End Sub
 
-    Private Sub btnCancel_Click(sender As Object, e As EventArgs) Handles btnCancel.Click
+    Private Sub FormFilterEditor_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
         If _dirty Then
             Dim result = MessageBox.Show(S("FE_DiscardChanges"), S("FE_Title"), MessageBoxButtons.YesNo, MessageBoxIcon.Question)
-            If result <> DialogResult.Yes Then Return
+            If result <> DialogResult.Yes Then e.Cancel = True
         End If
-        Me.Close()
     End Sub
 
     ' =========================================================================
