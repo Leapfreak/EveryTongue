@@ -1584,6 +1584,23 @@ del ""%~f0""
                 Case "clear"
                     AppendServerLog("Remote command: CLEAR")
                     _subtitleServer?.BroadcastClear()
+                Case Else
+                    If command.StartsWith("setSliders:") Then
+                        Dim parts = command.Substring(11).Split(","c)
+                        If parts.Length = 2 Then
+                            Dim maxSeg As Integer
+                            Dim vadSilence As Integer
+                            If Integer.TryParse(parts(0), maxSeg) AndAlso Integer.TryParse(parts(1), vadSilence) Then
+                                AppendServerLog($"Remote command: SET SLIDERS maxSeg={maxSeg}s vadSilence={vadSilence}ms")
+                                trkMaxSegment.Value = Math.Max(trkMaxSegment.Minimum, Math.Min(trkMaxSegment.Maximum, maxSeg))
+                                lblMaxSegmentValue.Text = $"{trkMaxSegment.Value}s"
+                                trkVadSilence.Value = Math.Max(trkVadSilence.Minimum, Math.Min(trkVadSilence.Maximum, vadSilence))
+                                lblVadSilenceValue.Text = $"{trkVadSilence.Value}ms"
+                                SaveUiToConfig()
+                                PushLiveConfig()
+                            End If
+                        End If
+                    End If
             End Select
         Finally
             _isRemoteCommand = False
@@ -1775,16 +1792,133 @@ del ""%~f0""
                 If result = DialogResult.Yes Then
                     If suggestedMaxSeg <> currentMaxSeg Then
                         trkMaxSegment.Value = Math.Max(trkMaxSegment.Minimum, Math.Min(trkMaxSegment.Maximum, suggestedMaxSeg))
+                        lblMaxSegmentValue.Text = $"{trkMaxSegment.Value}s"
                     End If
                     If suggestedVadSilence <> currentVadSilence Then
                         trkVadSilence.Value = Math.Max(trkVadSilence.Minimum, Math.Min(trkVadSilence.Maximum, suggestedVadSilence))
+                        lblVadSilenceValue.Text = $"{trkVadSilence.Value}ms"
                     End If
+                    SaveUiToConfig()
+                    PushLiveConfig()
                 End If
             End Using
         Catch ex As Exception
             MessageBox.Show($"Failed to parse stats: {ex.Message}", "Tune", MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End Try
     End Sub
+
+    Private Function GetTuneJson() As String
+        If _liveRunner Is Nothing Then Return Nothing
+
+        Dim json As String = Nothing
+        ' GetStatsAsync must be awaited — use .Result on background thread (TuneCallback is called from server thread)
+        Try
+            json = _liveRunner.GetStatsAsync().Result
+        Catch
+        End Try
+        If String.IsNullOrEmpty(json) Then Return Nothing
+
+        Try
+            Using doc = System.Text.Json.JsonDocument.Parse(json)
+                Dim root = doc.RootElement
+
+                Dim commitsProp As System.Text.Json.JsonElement = Nothing
+                Dim commits As Integer = 0
+                If root.TryGetProperty("commits", commitsProp) Then commits = commitsProp.GetInt32()
+                If commits = 0 Then Return Nothing
+
+                Dim currentMaxSeg = trkMaxSegment.Value
+                Dim currentVadSilence = trkVadSilence.Value
+
+                Dim durAvg = root.GetProperty("duration").GetProperty("avg").GetDouble()
+                Dim durMedian = root.GetProperty("duration").GetProperty("median").GetDouble()
+                Dim durMax = root.GetProperty("duration").GetProperty("max").GetDouble()
+                Dim forceRatio = root.GetProperty("force_commit_ratio").GetDouble()
+                Dim shortRatio = root.GetProperty("short_segment_ratio").GetDouble()
+                Dim hallucinations = root.GetProperty("hallucinations").GetInt32()
+
+                Dim gapAvg As Double = 0
+                Dim gapMedian As Double = 0
+                Dim hasGaps = False
+                Dim gapsProp As Text.Json.JsonElement = Nothing
+                If root.TryGetProperty("silence_gaps", gapsProp) Then
+                    gapAvg = gapsProp.GetProperty("avg").GetDouble()
+                    gapMedian = gapsProp.GetProperty("median").GetDouble()
+                    hasGaps = True
+                End If
+
+                Dim wpsAvg As Double = 0
+                Dim wpsProp As Text.Json.JsonElement = Nothing
+                If root.TryGetProperty("wps", wpsProp) Then
+                    wpsAvg = wpsProp.GetProperty("avg").GetDouble()
+                End If
+
+                Dim langInfo = ""
+                Dim langsProp As Text.Json.JsonElement = Nothing
+                If root.TryGetProperty("languages", langsProp) Then
+                    Dim parts As New List(Of String)
+                    For Each prop In langsProp.EnumerateObject()
+                        parts.Add($"{prop.Name}={prop.Value.GetInt32()}")
+                    Next
+                    langInfo = String.Join(", ", parts)
+                End If
+
+                Dim typeInfo = ""
+                Dim typesProp As Text.Json.JsonElement = Nothing
+                If root.TryGetProperty("commit_types", typesProp) Then
+                    Dim parts As New List(Of String)
+                    For Each prop In typesProp.EnumerateObject()
+                        parts.Add($"{prop.Name}={prop.Value.GetInt32()}")
+                    Next
+                    typeInfo = String.Join(", ", parts)
+                End If
+
+                Dim tips As New List(Of String)
+                Dim suggestedMaxSeg = currentMaxSeg
+                Dim suggestedVadSilence = currentVadSilence
+
+                If forceRatio > 0.15 Then
+                    Dim suggested = CInt(Math.Min(60, Math.Ceiling(durMax * 1.3 / 5) * 5))
+                    tips.Add($"Max Segment too low - {forceRatio.ToString("P0")} force-cut. Suggest: {suggested}s (current {currentMaxSeg}s)")
+                    suggestedMaxSeg = suggested
+                ElseIf forceRatio = 0 AndAlso durMax < currentMaxSeg * 0.5 Then
+                    Dim suggested = CInt(Math.Max(10, Math.Ceiling(durMax * 1.5 / 5) * 5))
+                    tips.Add($"Max Segment could be tighter - longest {durMax.ToString("F1")}s, limit {currentMaxSeg}s. Suggest: {suggested}s")
+                    suggestedMaxSeg = suggested
+                Else
+                    tips.Add($"Max Segment ({currentMaxSeg}s) looks good.")
+                End If
+
+                If shortRatio > 0.4 Then
+                    Dim suggested = CInt(Math.Min(1500, Math.Ceiling((currentVadSilence + 200) / 100) * 100))
+                    tips.Add($"VAD Silence too low - {shortRatio.ToString("P0")} under 3s. Suggest: {suggested}ms (current {currentVadSilence}ms)")
+                    suggestedVadSilence = suggested
+                ElseIf hasGaps AndAlso gapMedian > 3.0 AndAlso shortRatio < 0.1 Then
+                    Dim suggested = CInt(Math.Max(200, Math.Floor((currentVadSilence - 100) / 100) * 100))
+                    tips.Add($"VAD Silence could be lower - median gap {gapMedian.ToString("F1")}s. Suggest: {suggested}ms (current {currentVadSilence}ms)")
+                    suggestedVadSilence = suggested
+                Else
+                    tips.Add($"VAD Silence ({currentVadSilence}ms) looks good.")
+                End If
+
+                If langInfo.Contains(",") Then
+                    tips.Add($"Multiple languages detected: {langInfo}")
+                End If
+
+                ' Build JSON response
+                Dim tipsJson = String.Join(",", tips.Select(Function(t) $"""{t.Replace("""", "\""")}"""))
+                Return $"{{""currentMaxSeg"":{currentMaxSeg},""currentVadSilence"":{currentVadSilence}," &
+                       $"""suggestedMaxSeg"":{suggestedMaxSeg},""suggestedVadSilence"":{suggestedVadSilence}," &
+                       $"""commits"":{commits},""hallucinations"":{hallucinations}," &
+                       $"""durAvg"":{durAvg.ToString("F1", Globalization.CultureInfo.InvariantCulture)}," &
+                       $"""durMax"":{durMax.ToString("F1", Globalization.CultureInfo.InvariantCulture)}," &
+                       $"""wpsAvg"":{wpsAvg.ToString("F1", Globalization.CultureInfo.InvariantCulture)}," &
+                       $"""tips"":[{tipsJson}]}}"
+            End Using
+        Catch
+            Return Nothing
+        End Try
+    End Function
 
     Private Sub HandleInputLanguageChanged(lang As String)
         ' Update the UI dropdown
@@ -2380,6 +2514,7 @@ del ""%~f0""
         AddHandler _subtitleServer.LogMessage, Sub(s, msg)
                                                    WriteDebugLog(msg)
                                                End Sub
+        _subtitleServer.TuneCallback = AddressOf GetTuneJson
 
         Try
             _subtitleServer.Start(port, _config.AllowFirewall)

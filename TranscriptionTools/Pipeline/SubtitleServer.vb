@@ -291,20 +291,41 @@ Namespace Pipeline
                 ElseIf path.StartsWith("/api/control") Then
                     Dim json As String
                     Dim qIdx = path.IndexOf("?"c)
+                    Dim qs As String = If(qIdx >= 0, path.Substring(qIdx + 1), "")
                     Dim action As String = Nothing
-                    If qIdx >= 0 Then
-                        Dim qs = path.Substring(qIdx + 1)
-                        For Each pair In qs.Split("&"c)
-                            Dim kv = pair.Split("="c)
-                            If kv.Length = 2 AndAlso kv(0) = "action" Then action = kv(1).ToLower()
-                        Next
-                    End If
+                    For Each pair In qs.Split("&"c)
+                        Dim kv = pair.Split("="c)
+                        If kv.Length = 2 AndAlso kv(0) = "action" Then action = kv(1).ToLower()
+                    Next
 
                     If String.IsNullOrEmpty(action) OrElse action = "status" Then
                         json = $"{{""live"":{If(IsLiveRunning, "true", "false")},""sim"":{If(IsSimulating, "true", "false")},""inputLang"":""{InputLanguage}""}}"
                     ElseIf action = "start" OrElse action = "stop" OrElse action = "restart" OrElse action = "simulate" OrElse action = "clear" Then
                         RaiseEvent RemoteCommand(Me, action)
                         json = $"{{""ok"":true,""action"":""{action}""}}"
+                    ElseIf action = "tune" Then
+                        If TuneCallback IsNot Nothing Then
+                            json = TuneCallback.Invoke()
+                            If json Is Nothing Then json = "{""error"":""no data""}"
+                        Else
+                            json = "{""error"":""not available""}"
+                        End If
+                    ElseIf action = "setsliders" Then
+                        Dim maxSeg As String = Nothing
+                        Dim vadSilence As String = Nothing
+                        For Each pair2 In qs.Split("&"c)
+                            Dim kv2 = pair2.Split("="c)
+                            If kv2.Length = 2 Then
+                                If kv2(0) = "maxSeg" Then maxSeg = kv2(1)
+                                If kv2(0) = "vadSilence" Then vadSilence = kv2(1)
+                            End If
+                        Next
+                        If maxSeg IsNot Nothing AndAlso vadSilence IsNot Nothing Then
+                            RaiseEvent RemoteCommand(Me, $"setSliders:{maxSeg},{vadSilence}")
+                            json = "{""ok"":true}"
+                        Else
+                            json = "{""error"":""missing params""}"
+                        End If
                     Else
                         json = "{""error"":""unknown action""}"
                     End If
@@ -874,6 +895,7 @@ Namespace Pipeline
         Public Property IsLiveRunning As Boolean = False
         Public Property IsSimulating As Boolean = False
         Public Property InputLanguage As String = "auto"
+        Public Property TuneCallback As Func(Of String) = Nothing
         Public Property BgColor As String = "#000000"
         Public Property FgColor As String = "#FFFFFF"
 
@@ -894,6 +916,22 @@ Namespace Pipeline
                     Case "status"
                         Dim json = $"{{""live"":{If(IsLiveRunning, "true", "false")},""sim"":{If(IsSimulating, "true", "false")},""inputLang"":""{InputLanguage}""}}"
                         SendJsonResponse(ctx, json)
+                    Case "tune"
+                        If TuneCallback IsNot Nothing Then
+                            Dim json = TuneCallback.Invoke()
+                            SendJsonResponse(ctx, If(json, "{""error"":""no data""}"))
+                        Else
+                            SendJsonResponse(ctx, "{""error"":""not available""}")
+                        End If
+                    Case "setsliders"
+                        Dim maxSeg = ctx.Request.QueryString("maxSeg")
+                        Dim vadSilence = ctx.Request.QueryString("vadSilence")
+                        If maxSeg IsNot Nothing AndAlso vadSilence IsNot Nothing Then
+                            RaiseEvent RemoteCommand(Me, $"setSliders:{maxSeg},{vadSilence}")
+                            SendJsonResponse(ctx, "{""ok"":true}")
+                        Else
+                            SendJsonResponse(ctx, "{""error"":""missing params""}")
+                        End If
                     Case Else
                         ctx.Response.StatusCode = 400
                         SendJsonResponse(ctx, "{""error"":""unknown action""}")
@@ -1056,6 +1094,7 @@ body{background:{{BG_COLOR}};color:{{FG_COLOR}};font-family:'Segoe UI',Arial,san
   <button class=""restart"" onclick=""sendCommand('restart')"">&#8635; Restart</button>
   <button onclick=""sendCommand('simulate')"">&#9881; Simulate</button>
   <button class=""stop"" onclick=""sendCommand('clear')"">&#10060; Clear</button>
+  <button onclick=""requestTune()"" style=""border-color:#48f;color:#8af"">&#9881; Tune</button>
   <label style=""color:#aaa;font-size:12px;margin-top:8px;display:block"" id=""lblInputLang"">Input Language</label>
   <select id=""inputLangSelect"" onchange=""setInputLang(this.value)"" style=""background:#333;color:#fff;border:1px solid #555;border-radius:4px;padding:6px;font-size:14px;width:100%;margin-top:2px"">
     <option value=""auto"">Auto Detect</option>
@@ -1616,6 +1655,28 @@ function pollStatus(){
 }
 function setInputLang(lang){
   if(ws&&ws.readyState===1){ws.send(JSON.stringify({type:'setInputLanguage',language:lang}))}
+}
+function requestTune(){
+  adminStatus.textContent='Fetching stats...';
+  fetch('/api/control?action=tune').then(function(r){return r.json()}).then(function(d){
+    if(d.error){adminStatus.textContent=d.error;return}
+    var msg='TUNING RECOMMENDATIONS\n\n';
+    for(var i=0;i<d.tips.length;i++){msg+=d.tips[i]+'\n'}
+    msg+='\nSession: '+d.commits+' commits, '+d.hallucinations+' hallucinations filtered';
+    msg+='\nAvg duration: '+d.durAvg+'s, Max: '+d.durMax+'s';
+    if(d.wpsAvg>0){msg+='\nSpeaking rate: '+d.wpsAvg+' words/sec'}
+    msg+='\n\nCurrent: Max Segment='+d.currentMaxSeg+'s, VAD Silence='+d.currentVadSilence+'ms';
+    msg+='\nSuggested: Max Segment='+d.suggestedMaxSeg+'s, VAD Silence='+d.suggestedVadSilence+'ms';
+    if(d.suggestedMaxSeg!==d.currentMaxSeg||d.suggestedVadSilence!==d.currentVadSilence){
+      msg+='\n\nApply suggested values?';
+      if(confirm(msg)){
+        fetch('/api/control?action=setsliders&maxSeg='+d.suggestedMaxSeg+'&vadSilence='+d.suggestedVadSilence).then(function(r){return r.json()}).then(function(r){
+          if(r.ok){adminStatus.textContent='Sliders updated!';adminStatus.style.color='#4f4'}
+          else{adminStatus.textContent='Failed to apply'}
+        }).catch(function(){adminStatus.textContent='Failed to apply'});
+      }else{adminStatus.textContent='Tune cancelled'}
+    }else{alert(msg);adminStatus.textContent='No changes needed'}
+  }).catch(function(){adminStatus.textContent='Failed to fetch stats'});
 }
 /* Apply i18n to admin panel */
 adminStatus.textContent=t('checking');
