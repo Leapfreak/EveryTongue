@@ -797,6 +797,13 @@ Namespace Pipeline
                         Dim lang = If(langProp.GetString(), "auto")
                         RaiseEvent LogMessage(Me, $"[SUBTITLE] INPUT LANG CHANGE -> '{lang}'")
                         RaiseEvent InputLanguageChanged(Me, lang)
+                    ElseIf typeStr = "ping" Then
+                        ' Keepalive — respond with pong
+                        Dim info As ClientInfo = Nothing
+                        If _clients.TryGetValue(clientId, info) Then
+                            Dim pong = Encoding.UTF8.GetBytes("{""type"":""pong""}")
+                            TrySendToClient(info, pong)
+                        End If
                     End If
                 End Using
             Catch
@@ -1535,6 +1542,9 @@ function connect(){
   var ws=new WebSocket(proto+'//'+location.host+'/ws');
   wsRef=ws;
   ws.onopen=function(){statusEl.textContent=t('connected');statusEl.className='connected';
+    /* Clear existing lines — server replays full history on connect */
+    while(lines.children.length>1)lines.removeChild(lines.children[1]);
+    if(currentEl){currentEl.remove();currentEl=null}
     var lang=localStorage.getItem('transLang')||'';
     if(lang){ws.send(JSON.stringify({type:'setLanguage',language:lang}))}
   };
@@ -1545,9 +1555,18 @@ function connect(){
       if(msg.type==='commit')addCommitted(msg.text,msg.lang||'',msg.time||'');
       else if(msg.type==='update')updateCurrent(msg.text);
       else if(msg.type==='clear'){if(currentEl){currentEl.remove();currentEl=null}while(lines.children.length>1)lines.removeChild(lines.children[1]);autoScroll()}
+      else if(msg.type==='pong'){}
     }catch(ex){}
   }
 }
+/* Reconnect immediately when phone screen wakes / tab becomes visible */
+document.addEventListener('visibilitychange',function(){
+  if(!document.hidden&&(!wsRef||wsRef.readyState>1)){connect()}
+});
+/* Keepalive: detect dead connections faster (every 15s) */
+setInterval(function(){
+  if(wsRef&&wsRef.readyState===1){try{wsRef.send(JSON.stringify({type:'ping'}))}catch(ex){}}
+},15000);
 /* Apply i18n to HTML elements */
 document.title=t('title');
 statusEl.textContent=t('connecting');

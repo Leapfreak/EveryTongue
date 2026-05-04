@@ -168,7 +168,7 @@ Namespace Pipeline
 
             Dim psi As New ProcessStartInfo() With {
                 .FileName = pythonPath,
-                .Arguments = $"""{serverScript}"" --port {_port} --model-path ""{resolvedModelPath}"" --device {_device}{glossaryArg}",
+                .Arguments = $"""{serverScript}"" --port {_port} --model-path ""{resolvedModelPath}"" --device {_device}{glossaryArg} --log-dir ""{AppDomain.CurrentDomain.BaseDirectory.TrimEnd({"\"c, "/"c})}""",
                 .UseShellExecute = False,
                 .RedirectStandardOutput = True,
                 .RedirectStandardError = True,

@@ -730,8 +730,6 @@ del ""%~f0""
             btnLiveStart.Text = GetString("Btn_LiveStart")
             btnLiveStop.Text = GetString("Btn_LiveStop")
             btnLiveSave.Text = GetString("Btn_LiveSave")
-            btnLiveClear.Text = GetString("Btn_LiveClearLog")
-            btnLiveSaveLog.Text = GetString("Btn_LiveSaveLog")
             tabPageLiveClients.Text = GetString("Tab_LiveOutput")
             tabPageLiveLog.Text = GetString("Tab_LiveLog")
 
@@ -1648,10 +1646,6 @@ del ""%~f0""
         End If
     End Sub
 
-    Private Sub btnLiveClear_Click(sender As Object, e As EventArgs) Handles btnLiveClear.Click
-        rtbLiveOutput.Clear()
-    End Sub
-
     Private Async Sub btnTuneStats_Click(sender As Object, e As EventArgs) Handles btnTuneStats.Click
         If _liveRunner Is Nothing Then
             MessageBox.Show("No session data available.", "Tune", MessageBoxButtons.OK, MessageBoxIcon.Information)
@@ -1932,20 +1926,6 @@ del ""%~f0""
         End If
         WriteDebugLog($"[INPUT LANG] Changed to '{lang}' via client")
         AppendLiveText($"Input language changed to: {lang}", Drawing.Color.Yellow)
-    End Sub
-
-    Private Sub btnLiveSaveLog_Click(sender As Object, e As EventArgs) Handles btnLiveSaveLog.Click
-        Using dlg As New SaveFileDialog()
-            dlg.Filter = "Text files|*.txt|All files|*.*"
-            dlg.DefaultExt = "txt"
-            dlg.FileName = $"live_log_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.txt"
-            Dim resolvedOutput = AppConfig.ResolvePath(_config.PathOutputRoot)
-            If Directory.Exists(resolvedOutput) Then dlg.InitialDirectory = resolvedOutput
-            If dlg.ShowDialog() = DialogResult.OK Then
-                File.WriteAllText(dlg.FileName, rtbLiveOutput.Text, System.Text.Encoding.UTF8)
-                MessageBox.Show($"Log saved.{Environment.NewLine}{dlg.FileName}", "Saved", MessageBoxButtons.OK, MessageBoxIcon.Information)
-            End If
-        End Using
     End Sub
 
     Private Sub AppendLiveText(text As String, color As Drawing.Color)

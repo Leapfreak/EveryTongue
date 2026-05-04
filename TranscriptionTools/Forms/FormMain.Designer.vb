@@ -143,7 +143,6 @@ Partial Class FormMain
         Me.btnLiveStart = New Button()
         Me.btnLiveStop = New Button()
         Me.btnLiveSave = New Button()
-        Me.btnLiveClear = New Button()
         Me.lblMaxSegment = New Label()
         Me.trkMaxSegment = New TrackBar()
         Me.lblMaxSegmentValue = New Label()
@@ -549,9 +548,6 @@ Partial Class FormMain
 
         Me.btnLiveSave.Text = "Save Transcript..."
 
-        Me.btnLiveSaveLog = New Button()
-        Me.btnLiveSaveLog.Text = "Save Log..."
-        Me.btnLiveClear.Text = "Clear Log"
 
         Me.lblMaxSegment.Text = "Max Segment:"
         Me.lblMaxSegment.Location = New Drawing.Point(230, 7)
@@ -614,13 +610,6 @@ Partial Class FormMain
 
         Me.tabPageLiveLog.Text = "Log"
         Me.tabPageLiveLog.Padding = New Padding(2)
-        Dim pnlLiveLogButtons As New FlowLayoutPanel()
-        pnlLiveLogButtons.Dock = DockStyle.Bottom
-        pnlLiveLogButtons.Height = 34
-        pnlLiveLogButtons.Padding = New Padding(0, 2, 0, 0)
-        Me.btnLiveSaveLog.Size = New Drawing.Size(100, 30)
-        Me.btnLiveClear.Size = New Drawing.Size(100, 30)
-        pnlLiveLogButtons.Controls.AddRange({Me.btnLiveSaveLog, Me.btnLiveClear})
         Me.rtbLiveOutput.Dock = DockStyle.Fill
         Me.rtbLiveOutput.[ReadOnly] = True
         Me.rtbLiveOutput.MaxLength = Integer.MaxValue
@@ -629,7 +618,6 @@ Partial Class FormMain
         Me.rtbLiveOutput.Font = New Drawing.Font("Consolas", 11)
         Me.rtbLiveOutput.ScrollBars = RichTextBoxScrollBars.Vertical
         Me.tabPageLiveLog.Controls.Add(Me.rtbLiveOutput)
-        Me.tabPageLiveLog.Controls.Add(pnlLiveLogButtons)
 
         Me.tabLiveOutput.TabPages.AddRange({Me.tabPageLiveClients, Me.tabPageLiveLog})
 
@@ -1007,8 +995,6 @@ Partial Class FormMain
     Friend WithEvents btnLiveStart As Button
     Friend WithEvents btnLiveStop As Button
     Friend WithEvents btnLiveSave As Button
-    Friend WithEvents btnLiveClear As Button
-    Friend WithEvents btnLiveSaveLog As Button
     Friend WithEvents lblMaxSegment As Label
     Friend WithEvents trkMaxSegment As TrackBar
     Friend WithEvents lblMaxSegmentValue As Label

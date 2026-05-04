@@ -20,18 +20,35 @@ from pydantic import BaseModel
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("nllb-server")
+logger.propagate = False  # Don't duplicate to stderr — file handler only
 
-# Pipeline debug log — writes every translation stage to a file
-_debug_log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", time.strftime("%Y%m%d") + "_nllb-debug.log")
+# Pipeline debug log — shared with live-server via --log-dir
 _debug_logger = logging.getLogger("nllb-debug")
 _debug_logger.setLevel(logging.DEBUG)
-try:
-    _debug_handler = logging.FileHandler(_debug_log_path, encoding="utf-8")
-    _debug_handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
-    _debug_logger.addHandler(_debug_handler)
-    _debug_logger.propagate = False
-except Exception:
-    pass
+_debug_logger.propagate = False
+
+
+class _SharedFileHandler(logging.Handler):
+    """File handler that opens/closes per write so other processes can share the file."""
+    def __init__(self, path):
+        super().__init__()
+        self._path = path
+
+    def emit(self, record):
+        try:
+            with open(self._path, "a", encoding="utf-8") as f:
+                f.write(self.format(record) + "\n")
+        except Exception:
+            pass
+
+
+def setup_logging(log_dir: str):
+    """Set up file logging to YYYYMMDD_pipeline-debug.log in the given directory."""
+    log_path = os.path.join(log_dir, time.strftime("%Y%m%d") + "_pipeline-debug.log")
+    handler = _SharedFileHandler(log_path)
+    handler.setFormatter(logging.Formatter("%(asctime)s [NLLB] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+    handler.setLevel(logging.DEBUG)
+    _debug_logger.addHandler(handler)
 
 app = FastAPI()
 
@@ -391,16 +408,16 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--glossary", type=str, default="",
                         help="Path to glossary.json for post-translation fixes")
+    parser.add_argument("--log-dir", type=str, default="",
+                        help="Directory for pipeline-debug.log (shared log)")
     args = parser.parse_args()
 
     model_path_global = args.model_path
 
-    # Append session header (keep previous logs)
-    try:
-        with open(_debug_log_path, "a", encoding="utf-8") as f:
-            f.write(f"\n=== NLLB server started at {time.strftime('%Y-%m-%d %H:%M:%S')} ===\n")
-    except Exception:
-        pass
+    # Set up logging to shared pipeline-debug.log
+    log_dir = args.log_dir or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+    setup_logging(log_dir)
+    _debug_logger.debug(f"NLLB server started")
 
     # Load glossary: explicit path, or default next to server.py
     glossary_path_global = args.glossary

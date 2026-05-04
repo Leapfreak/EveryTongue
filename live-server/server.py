@@ -27,6 +27,12 @@ from sse_starlette.sse import EventSourceResponse
 # ---------------------------------------------------------------------------
 logger = logging.getLogger("live-server")
 logger.setLevel(logging.DEBUG)
+logger.propagate = False
+# Stderr handler for UI display (VB captures via ErrorDataReceived)
+_stderr_handler = logging.StreamHandler()
+_stderr_handler.setLevel(logging.DEBUG)
+_stderr_handler.setFormatter(logging.Formatter("%(message)s"))
+logger.addHandler(_stderr_handler)
 
 # Suppress all other loggers
 logging.basicConfig(level=logging.WARNING)
@@ -119,8 +125,9 @@ def _strip_boundary_overlap(new_text: str, prev_text: str, max_overlap_words: in
     new_words = new_text.split()
     if not prev_words or not new_words:
         return new_text
-    # Check if 1-4 words at the start of new_text match the end of prev_text
-    for n in range(min(max_overlap_words, len(prev_words), len(new_words)), 0, -1):
+    # Check if 2-4 words at the start of new_text match the end of prev_text
+    # (1-word overlaps are too unreliable with common short words like "i", "de", "el")
+    for n in range(min(max_overlap_words, len(prev_words), len(new_words)), 1, -1):
         prev_tail = [re.sub(r"[^\w]", "", w) for w in prev_words[-n:]]
         new_head = [re.sub(r"[^\w]", "", w.lower()) for w in new_words[:n]]
         if prev_tail == new_head:
@@ -173,8 +180,11 @@ def _is_hallucination(segments, last_commit_text: str = "") -> bool:
     avg_no_speech = sum(seg.no_speech_prob for seg in segments) / len(segments)
     avg_logprob = sum(seg.avg_logprob for seg in segments) / len(segments)
 
-    # Very short audio (< 1.5s) with very high no-speech probability
-    if total_speech_dur < 1.5 and avg_no_speech > 0.8:
+    # Very high no-speech probability — almost certainly not real speech
+    if avg_no_speech >= 0.85:
+        return True
+    # Short audio (< 1.5s) with high no-speech probability
+    if total_speech_dur < 1.5 and avg_no_speech >= 0.7:
         return True
     # Low confidence on very short audio (likely hallucinated filler)
     if avg_logprob < -0.8 and total_speech_dur < 1.0:

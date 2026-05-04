@@ -95,11 +95,43 @@
     }
   },
   {
+    "comment": "'furiar-se' = to become furious (NLLB translates vulgarly)",
+    "trigger": "furiar",
+    "source_langs": ["cat_Latn", "spa_Latn"],
+    "fixes": {
+      "eng_Latn": {"pissed off": "furious", "pissed": "furious"}
+    }
+  },
+  {
     "comment": "'ofrenda' = offering (church collection)",
     "trigger": "ofrenda",
     "source_langs": ["spa_Latn"],
     "fixes": {
       "eng_Latn": {"gift": "offering", "gifts": "offerings"}
+    }
+  },
+  {
+    "comment": "'rumieu' (ponder/reflect) mistranslated as 'rum'",
+    "trigger": "rumieu",
+    "source_langs": ["cat_Latn"],
+    "fixes": {
+      "eng_Latn": {"rum": "reflect on it"}
+    }
+  },
+  {
+    "comment": "'processos' in context = processes, not lawsuits",
+    "trigger": "processos",
+    "source_langs": ["cat_Latn"],
+    "fixes": {
+      "eng_Latn": {"lawsuits": "processes", "lawsuit": "process"}
+    }
+  },
+  {
+    "comment": "NLLB doubles 'Gràcies' into '- Thank you. - Thank you.'",
+    "trigger": "Gr\u00e0cies",
+    "source_langs": ["cat_Latn"],
+    "fixes": {
+      "eng_Latn": {"- Thank you. - Thank you.": "Thank you.", "- Thank you. - Thank you": "Thank you"}
     }
   }
 ]
