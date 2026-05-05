@@ -108,6 +108,18 @@ Public Class FormMain
                                                End Sub)
                  End Sub)
 
+        ' Context menu for live output
+        Dim cms As New ContextMenuStrip()
+        cms.Items.Add("Copy", Nothing, Sub(s2, e2)
+                                            If rtbLiveOutput.SelectionLength > 0 Then
+                                                Clipboard.SetText(rtbLiveOutput.SelectedText)
+                                            Else
+                                                Clipboard.SetText(rtbLiveOutput.Text)
+                                            End If
+                                        End Sub)
+        cms.Items.Add("Clear", Nothing, Sub(s2, e2) rtbLiveOutput.Clear())
+        rtbLiveOutput.ContextMenuStrip = cms
+
         ' Apply theme
         ApplyTheme(_config.Theme)
 
@@ -1163,7 +1175,11 @@ del ""%~f0""
     Private Sub BrowseForFolder(textBox As TextBox)
         Using dlg As New FolderBrowserDialog()
             If Not String.IsNullOrWhiteSpace(textBox.Text) Then
-                dlg.SelectedPath = textBox.Text
+                Try
+                    Dim resolved = AppConfig.ResolvePath(textBox.Text)
+                    If Directory.Exists(resolved) Then dlg.SelectedPath = resolved
+                Catch
+                End Try
             End If
             If dlg.ShowDialog() = DialogResult.OK Then
                 textBox.Text = dlg.SelectedPath
@@ -1198,6 +1214,14 @@ del ""%~f0""
 
     Private Sub btnBrowseOutputRoot_Click(sender As Object, e As EventArgs) Handles btnBrowseOutputRoot.Click
         BrowseForFolder(txtPathOutputRoot)
+    End Sub
+
+    Private Sub btnBrowseFasterWhisper_Click(sender As Object, e As EventArgs) Handles btnBrowseFasterWhisper.Click
+        BrowseForFolder(txtPathFasterWhisper)
+    End Sub
+
+    Private Sub btnBrowseNllbModel_Click(sender As Object, e As EventArgs) Handles btnBrowseNllbModel.Click
+        BrowseForFolder(txtPathNllbModel)
     End Sub
 
 #End Region
@@ -1542,13 +1566,13 @@ del ""%~f0""
         PushLiveConfig()
     End Sub
 
-    Private Sub PushLiveConfig()
+    Private Async Sub PushLiveConfig()
         If _liveRunner Is Nothing OrElse Not _liveRunner.IsRunning Then Return
         Dim cfg As New Dictionary(Of String, Object) From {
             {"vad_max_segment_s", trkMaxSegment.Value},
             {"vad_min_silence_ms", trkVadSilence.Value}
         }
-        _liveRunner.UpdateConfigAsync(cfg)
+        Await _liveRunner.UpdateConfigAsync(cfg)
     End Sub
 
     Private _isRemoteCommand As Boolean = False
@@ -1946,11 +1970,22 @@ del ""%~f0""
     End Sub
 
     Private Sub CommitLiveLine()
-        ' Just add a newline after the current in-progress line to make it permanent
-        rtbLiveOutput.SelectionStart = rtbLiveOutput.TextLength
-        rtbLiveOutput.SelectionLength = 0
-        rtbLiveOutput.AppendText(Environment.NewLine)
-        rtbLiveOutput.ScrollToCaret()
+        ' Recolor the last line to commit color (bright) and add newline
+        Dim rtb = rtbLiveOutput
+        Dim txt = rtb.Text
+        Dim lastNewline = txt.LastIndexOf(vbLf)
+        Dim lineStart = If(lastNewline >= 0, lastNewline + 1, 0)
+        If lineStart < txt.Length Then
+            rtb.SelectionStart = lineStart
+            rtb.SelectionLength = txt.Length - lineStart
+            Dim commitColor As Drawing.Color = Drawing.Color.White
+            Try : commitColor = ColorTranslator.FromHtml(_config.SubtitleFgColor) : Catch : End Try
+            rtb.SelectionColor = commitColor
+            rtb.SelectionStart = rtb.TextLength
+            rtb.SelectionLength = 0
+        End If
+        rtb.AppendText(Environment.NewLine)
+        rtb.ScrollToCaret()
     End Sub
 
 
@@ -2414,11 +2449,8 @@ del ""%~f0""
             rtb.SelectionStart = 0
             rtb.SelectionLength = txt.Length
         End If
-        Try
-            rtb.SelectionColor = ColorTranslator.FromHtml(_config.SubtitleFgColor)
-        Catch
-            rtb.SelectionColor = Drawing.Color.White
-        End Try
+        ' Updates shown in dim color (interim/in-progress)
+        rtb.SelectionColor = Drawing.Color.FromArgb(120, 120, 120)
         rtb.SelectedText = text
         rtb.ScrollToCaret()
     End Sub
@@ -2636,7 +2668,7 @@ del ""%~f0""
 
     Private Sub btnCopyUrl_Click(sender As Object, e As EventArgs) Handles btnCopyUrl.Click
         If _subtitleServer IsNot Nothing AndAlso _subtitleServer.IsRunning Then
-            Dim url = $"http://{GetLocalIpAddress()}:{_subtitleServer.Port}"
+            Dim url = $"https://{GetLocalIpAddress()}:{_subtitleServer.HttpsPort}"
             Clipboard.SetText(url)
             AppendServerLog("URL copied to clipboard.")
         End If

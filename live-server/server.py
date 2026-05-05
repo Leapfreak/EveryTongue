@@ -125,19 +125,21 @@ def _strip_boundary_overlap(new_text: str, prev_text: str, max_overlap_words: in
     new_words = new_text.split()
     if not prev_words or not new_words:
         return new_text
-    # Check if 2-4 words at the start of new_text match the end of prev_text
-    # (1-word overlaps are too unreliable with common short words like "i", "de", "el")
-    for n in range(min(max_overlap_words, len(prev_words), len(new_words)), 1, -1):
+    # Check if 1-4 words at the start of new_text match the end of prev_text
+    for n in range(min(max_overlap_words, len(prev_words), len(new_words)), 0, -1):
         prev_tail = [re.sub(r"[^\w]", "", w) for w in prev_words[-n:]]
         new_head = [re.sub(r"[^\w]", "", w.lower()) for w in new_words[:n]]
         if prev_tail == new_head:
+            # For single-word overlap, only strip if the word is 4+ chars
+            # (avoids false matches on common short words like "i", "de", "el", "a")
+            if n == 1 and len(prev_tail[0]) < 4:
+                continue
             remaining = new_words[n:]
-            # Don't strip if remaining text is shorter than what we'd remove —
-            # that likely means coincidental word match, not real overlap
-            if len(remaining) > n:
-                stripped = " ".join(remaining)
-                logger.debug(f"  BOUNDARY-DEDUP: stripped {n} overlapping words: {' '.join(new_words[:n])}")
-                return stripped
+            if not remaining:
+                continue
+            stripped = " ".join(remaining)
+            logger.debug(f"  BOUNDARY-DEDUP: stripped {n} overlapping words: {' '.join(new_words[:n])}")
+            return stripped
     return new_text
 
 
@@ -155,7 +157,14 @@ def _find_sentence_boundary_word(words, min_time: float, audio_end: float) -> tu
         word_stripped = w.word.rstrip()
         # Must end with sentence punctuation but NOT ellipsis (...)
         if w.end >= min_time and word_stripped[-1:] in ".!?;" and not word_stripped.endswith("..."):
-            last_boundary_idx = i
+            # Verify next word starts uppercase (true sentence boundary)
+            if i + 1 < len(words):
+                next_word = words[i + 1].word.lstrip()
+                if next_word and next_word[0].isupper():
+                    last_boundary_idx = i
+            else:
+                # Last word in the list — accept as boundary
+                last_boundary_idx = i
 
     if last_boundary_idx < 0:
         return None, None
@@ -188,6 +197,11 @@ def _is_hallucination(segments, last_commit_text: str = "") -> bool:
         return True
     # Short audio (< 1.5s) with high no-speech probability
     if total_speech_dur < 1.5 and avg_no_speech >= 0.7:
+        return True
+    # Single word, short duration, moderate no-speech — catches "Gràcies"/"Gracias" filler
+    # that leaks through the above thresholds (no_speech 0.45-0.7 range)
+    word_count = sum(1 for seg in segments for w in seg.text.split() if w.strip())
+    if word_count <= 1 and total_speech_dur < 2.0 and avg_no_speech > 0.45:
         return True
     # Low confidence on very short audio (likely hallucinated filler)
     if avg_logprob < -0.8 and total_speech_dur < 1.0:
@@ -499,6 +513,7 @@ def capture_and_transcribe():
     last_interim_time = time.time()
     last_committed_pos = 0  # samples already committed
     last_commit_text = ""  # track previous commit for repetition detection only
+    consec_hallucinations = 0  # consecutive hallucination skips without real commit
     stats = SessionStats()
     current_stats = stats
 
@@ -597,21 +612,37 @@ def capture_and_transcribe():
                     logger.debug(f">>> COMMIT [{detected_lang}]: {full_text}")
                     last_commit_text = full_text[-200:]
                     committed_this_loop = True
+                    consec_hallucinations = 0
                     stats.record_commit("vad", uncommitted_duration, full_text, detected_lang)
-                elif full_text:
-                    logger.debug(f">>> HALLUCINATION SKIPPED (no_speech={sum(s.no_speech_prob for s in segments)/len(segments):.2f} logprob={sum(s.avg_logprob for s in segments)/len(segments):.2f}): {full_text}")
-                    stats.record_hallucination()
 
-                # Cut audio buffer
-                committed_end = last_committed_pos + int(last_seg_end * SAMPLE_RATE)
-                with buffer_lock:
-                    current_audio_full = np.concatenate(audio_buffer)
-                    remaining = current_audio_full[committed_end:]
-                    audio_buffer.clear()
-                    if len(remaining) > 0:
-                        audio_buffer.append(remaining)
-                    last_committed_pos = 0
-                last_interim_time = now
+                    # Cut audio buffer after successful commit (pad 0.12s past last word)
+                    committed_end = last_committed_pos + int((last_seg_end + 0.12) * SAMPLE_RATE)
+                    with buffer_lock:
+                        current_audio_full = np.concatenate(audio_buffer)
+                        remaining = current_audio_full[committed_end:]
+                        audio_buffer.clear()
+                        if len(remaining) > 0:
+                            audio_buffer.append(remaining)
+                        last_committed_pos = 0
+                    last_interim_time = now
+                elif full_text:
+                    consec_hallucinations += 1
+                    logger.debug(f">>> HALLUCINATION SKIPPED #{consec_hallucinations} (no_speech={sum(s.no_speech_prob for s in segments)/len(segments):.2f} logprob={sum(s.avg_logprob for s in segments)/len(segments):.2f}): {full_text}")
+                    stats.record_hallucination()
+                    # After 3 consecutive hallucinations at same position, cut buffer
+                    # (stuck on a noise blip — no real speech to preserve)
+                    if consec_hallucinations >= 3:
+                        logger.debug(f">>> CUTTING BUFFER after {consec_hallucinations} consecutive hallucinations")
+                        with buffer_lock:
+                            current_audio_full = np.concatenate(audio_buffer) if audio_buffer else np.array([], dtype=np.float32)
+                            committed_end = last_committed_pos + int(last_seg_end * SAMPLE_RATE)
+                            remaining = current_audio_full[committed_end:]
+                            audio_buffer.clear()
+                            if len(remaining) > 0:
+                                audio_buffer.append(remaining)
+                            last_committed_pos = 0
+                        consec_hallucinations = 0
+                        last_interim_time = now
 
             elif uncommitted_duration >= 6.0:
                 # Try to find a sentence boundary to commit at using word timestamps
@@ -638,10 +669,11 @@ def capture_and_transcribe():
                         logger.debug(f">>> SENTENCE-COMMIT [{detected_lang}] @{boundary_time:.1f}s ({uncommitted_duration:.1f}s): {boundary_text}")
                         last_commit_text = boundary_text[-200:]
                         committed_this_loop = True
+                        consec_hallucinations = 0
                         stats.record_commit("sentence", boundary_time, boundary_text, detected_lang)
 
-                        # Cut audio exactly at sentence boundary (word timestamps are precise)
-                        cut_pos = last_committed_pos + int(boundary_time * SAMPLE_RATE)
+                        # Cut audio at sentence boundary + small pad to avoid word tail leaking
+                        cut_pos = last_committed_pos + int((boundary_time + 0.12) * SAMPLE_RATE)
                         with buffer_lock:
                             current_audio_full = np.concatenate(audio_buffer)
                             remaining = current_audio_full[cut_pos:]
@@ -668,14 +700,20 @@ def capture_and_transcribe():
                 last_interim_time = now
 
             # Force-commit if exceeded max segment duration (skip if already committed above)
-            if uncommitted_duration >= vad_max_segment_s and not all_final and not committed_this_loop:
-                if full_text:
+            if uncommitted_duration >= vad_max_segment_s and not committed_this_loop:
+                if full_text and not _is_hallucination(segments, last_commit_text):
                     full_text = _strip_boundary_overlap(full_text, last_commit_text)
                     broadcast_event("commit", full_text, lang=detected_lang)
                     logger.debug(f">>> FORCE-COMMIT [{detected_lang}] ({uncommitted_duration:.1f}s): {full_text}")
                     last_commit_text = full_text[-200:]
+                    consec_hallucinations = 0
                     stats.record_commit("force", uncommitted_duration, full_text, detected_lang)
+                elif full_text:
+                    logger.debug(f">>> FORCE-COMMIT SKIPPED (hallucination, cutting buffer): {full_text}")
+                    stats.record_hallucination()
 
+                # Always cut buffer at max segment to prevent unbounded growth
+                consec_hallucinations = 0
                 with buffer_lock:
                     current_audio_full = np.concatenate(audio_buffer) if audio_buffer else np.array([], dtype=np.float32)
                     committed_end = int(last_seg_end * SAMPLE_RATE) + last_committed_pos

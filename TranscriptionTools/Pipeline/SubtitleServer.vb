@@ -1093,8 +1093,8 @@ body{background:{{BG_COLOR}};color:{{FG_COLOR}};font-family:'Segoe UI',Arial,san
 <div id=""toolbar"">
   <button id=""btnAdmin"" onclick=""toggleAdmin()"" title=""Remote Control"">&#9881;</button>
   <button id=""btnSettings"" onclick=""togglePanel()"" title=""Settings"">Aa</button>
-  <button id=""btnSpeak"" onclick=""toggleSpeak()"" title=""Read aloud"">&#128264;</button>
   <button id=""btnWake"" onclick=""toggleWakeLock()"" title=""Keep screen on"">&#128261;</button>
+  <button id=""btnSpeak"" onclick=""toggleSpeak()"" title=""Read aloud"">&#128264;</button>
 </div>
 <div id=""adminPanel"">
   <div id=""adminStatus"">Checking...</div>

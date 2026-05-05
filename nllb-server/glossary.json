@@ -158,5 +158,21 @@
     "fixes": {
       "eng_Latn": {"nans": "children", "Nans": "Children", "nan": "child", "Nan": "Child"}
     }
+  },
+  {
+    "comment": "'Senyor' in biblical context = Lord, not Mr",
+    "trigger": "Senyor",
+    "source_langs": ["cat_Latn"],
+    "fixes": {
+      "eng_Latn": {"Mr": "the Lord", "Mr.": "the Lord", "Sir": "the Lord"}
+    }
+  },
+  {
+    "comment": "'Señor' in biblical context = Lord, not Mr",
+    "trigger": "Se\u00f1or",
+    "source_langs": ["spa_Latn"],
+    "fixes": {
+      "eng_Latn": {"Mr": "the Lord", "Mr.": "the Lord", "Sir": "the Lord"}
+    }
   }
 ]
