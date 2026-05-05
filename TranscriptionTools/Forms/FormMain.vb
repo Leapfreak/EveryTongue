@@ -1176,7 +1176,7 @@ del ""%~f0""
         Using dlg As New FolderBrowserDialog()
             If Not String.IsNullOrWhiteSpace(textBox.Text) Then
                 Try
-                    Dim resolved = AppConfig.ResolvePath(textBox.Text)
+                    Dim resolved = Path.GetFullPath(AppConfig.ResolvePath(textBox.Text))
                     If Directory.Exists(resolved) Then dlg.SelectedPath = resolved
                 Catch
                 End Try
