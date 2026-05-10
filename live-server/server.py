@@ -95,6 +95,7 @@ current_stats: "SessionStats | None" = None
 
 # Uvicorn server reference for graceful shutdown
 _server = None
+_shutting_down: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -891,15 +892,15 @@ async def reload_hallucinations():
 @app.post("/shutdown")
 async def shutdown():
     """Gracefully shut down the server."""
-    global capturing
+    global capturing, _shutting_down
     logger.debug("Shutdown requested")
+    _shutting_down = True
 
     # Stop capture if running
     if capturing:
         stop_event.set()
-        if capture_thread is not None:
-            capture_thread.join(timeout=3)
         capturing = False
+        # Don't join capture_thread here — it can block the response
 
     # Schedule server shutdown
     if _server is not None:
@@ -917,13 +918,15 @@ async def stream_events(request: Request):
 
     async def event_generator():
         try:
-            while True:
+            while not _shutting_down:
                 if await request.is_disconnected():
                     break
                 try:
-                    event_type, data = await asyncio.wait_for(q.get(), timeout=15.0)
+                    event_type, data = await asyncio.wait_for(q.get(), timeout=2.0)
                     yield {"event": event_type, "data": data}
                 except asyncio.TimeoutError:
+                    if _shutting_down:
+                        break
                     # Send keepalive comment
                     yield {"comment": "keepalive"}
         finally:
