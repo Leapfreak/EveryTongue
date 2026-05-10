@@ -15,6 +15,7 @@ Public Class FormMain
     Private _currentOutputDir As String = ""
     Private _resMgr As ResourceManager
     Private _liveRunner As LiveStreamRunner
+    Private _liveTranscript As New System.Text.StringBuilder()
     Private _subtitleServer As SubtitleServer
     Private _translationService As TranslationService
     Private _translationUnloadTimer As System.Threading.Timer
@@ -36,6 +37,49 @@ Public Class FormMain
         "be", "br", "fo", "gl", "ha", "ht", "hy", "ka", "kk", "lb",
         "ln", "mg", "mi", "nn", "oc", "sa", "tk", "wo", "yi", "yue"
     }
+
+    Private ReadOnly _langNames As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
+        {"auto", "Auto Detect"}, {"en", "English"}, {"es", "Spanish"}, {"fr", "French"},
+        {"de", "German"}, {"it", "Italian"}, {"pt", "Portuguese"}, {"nl", "Dutch"},
+        {"pl", "Polish"}, {"ru", "Russian"}, {"zh", "Chinese"}, {"ja", "Japanese"},
+        {"ko", "Korean"}, {"ar", "Arabic"}, {"hi", "Hindi"}, {"tr", "Turkish"},
+        {"vi", "Vietnamese"}, {"th", "Thai"}, {"cs", "Czech"}, {"el", "Greek"},
+        {"hu", "Hungarian"}, {"ro", "Romanian"}, {"da", "Danish"}, {"fi", "Finnish"},
+        {"no", "Norwegian"}, {"sv", "Swedish"}, {"sk", "Slovak"}, {"uk", "Ukrainian"},
+        {"bg", "Bulgarian"}, {"hr", "Croatian"}, {"ca", "Catalan"}, {"cy", "Welsh"},
+        {"et", "Estonian"}, {"ga", "Irish"}, {"lv", "Latvian"}, {"lt", "Lithuanian"},
+        {"mt", "Maltese"}, {"sl", "Slovenian"}, {"sq", "Albanian"}, {"mk", "Macedonian"},
+        {"sr", "Serbian"}, {"bs", "Bosnian"}, {"is", "Icelandic"}, {"ms", "Malay"},
+        {"sw", "Swahili"}, {"tl", "Tagalog"}, {"ta", "Tamil"}, {"te", "Telugu"},
+        {"ml", "Malayalam"}, {"si", "Sinhala"}, {"bn", "Bengali"}, {"gu", "Gujarati"},
+        {"kn", "Kannada"}, {"mr", "Marathi"}, {"ne", "Nepali"}, {"pa", "Punjabi"},
+        {"ur", "Urdu"}, {"my", "Myanmar"}, {"lo", "Lao"}, {"km", "Khmer"},
+        {"he", "Hebrew"}, {"fa", "Persian"}, {"id", "Indonesian"}, {"jw", "Javanese"},
+        {"la", "Latin"}, {"mn", "Mongolian"}, {"ps", "Pashto"}, {"sd", "Sindhi"},
+        {"sn", "Shona"}, {"so", "Somali"}, {"su", "Sundanese"}, {"tg", "Tajik"},
+        {"tt", "Tatar"}, {"uz", "Uzbek"}, {"yo", "Yoruba"}, {"af", "Afrikaans"},
+        {"am", "Amharic"}, {"as", "Assamese"}, {"az", "Azerbaijani"}, {"ba", "Bashkir"},
+        {"be", "Belarusian"}, {"br", "Breton"}, {"fo", "Faroese"}, {"gl", "Galician"},
+        {"ha", "Hausa"}, {"ht", "Haitian Creole"}, {"hy", "Armenian"}, {"ka", "Georgian"},
+        {"kk", "Kazakh"}, {"lb", "Luxembourgish"}, {"ln", "Lingala"}, {"mg", "Malagasy"},
+        {"mi", "Maori"}, {"nn", "Nynorsk"}, {"oc", "Occitan"}, {"sa", "Sanskrit"},
+        {"tk", "Turkmen"}, {"wo", "Wolof"}, {"yi", "Yiddish"}, {"yue", "Cantonese"}
+    }
+
+    Private Function LangDisplayName(code As String) As String
+        Dim name As String = Nothing
+        If _langNames.TryGetValue(code, name) Then Return $"{name} ({code})"
+        Return code
+    End Function
+
+    Private Function LangCodeFromDisplay(display As String) As String
+        Dim pIdx = display.LastIndexOf("("c)
+        If pIdx > 0 Then
+            Dim code = display.Substring(pIdx + 1).TrimEnd(")"c)
+            Return code
+        End If
+        Return display
+    End Function
 
     ' Available UI locales with native names
     Private ReadOnly _uiLocales As (Code As String, Name As String)() = {
@@ -1397,10 +1441,31 @@ del ""%~f0""
     Private Sub PopulateLiveLanguageDropdowns()
         cboLiveInputLang.Items.Clear()
         For Each lang In _whisperLanguages
-            cboLiveInputLang.Items.Add(lang)
+            cboLiveInputLang.Items.Add(LangDisplayName(lang))
         Next
 
-        SelectComboItem(cboLiveInputLang, _config.Language)
+        cboLiveInputLang.AutoCompleteMode = AutoCompleteMode.SuggestAppend
+        cboLiveInputLang.AutoCompleteSource = AutoCompleteSource.ListItems
+
+        SelectLiveInputLang(_config.Language)
+    End Sub
+
+    Private Sub SelectLiveInputLang(code As String)
+        Dim display = LangDisplayName(code)
+        For i = 0 To cboLiveInputLang.Items.Count - 1
+            If cboLiveInputLang.Items(i).ToString().Equals(display, StringComparison.OrdinalIgnoreCase) Then
+                cboLiveInputLang.SelectedIndex = i
+                Return
+            End If
+        Next
+        ' Fallback: try matching by code in parentheses
+        For i = 0 To cboLiveInputLang.Items.Count - 1
+            If cboLiveInputLang.Items(i).ToString().Contains($"({code})") Then
+                cboLiveInputLang.SelectedIndex = i
+                Return
+            End If
+        Next
+        If cboLiveInputLang.Items.Count > 0 Then cboLiveInputLang.SelectedIndex = 0
     End Sub
 
     Private Sub cboLiveDevice_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cboLiveDevice.SelectedIndexChanged
@@ -1416,9 +1481,16 @@ del ""%~f0""
 
     Private Sub cboLiveInputLang_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cboLiveInputLang.SelectedIndexChanged
         If _isInitializing OrElse cboLiveInputLang.SelectedItem Is Nothing Then Return
-        _config.Language = cboLiveInputLang.SelectedItem.ToString()
+        _config.Language = LangCodeFromDisplay(cboLiveInputLang.SelectedItem.ToString())
         SelectComboItem(cboInputLanguage, _config.Language)
         ConfigManager.Save(_config)
+    End Sub
+
+    Private Sub cboLiveInputLang_Leave(sender As Object, e As EventArgs) Handles cboLiveInputLang.Leave
+        ' Snap to valid item if user typed something that didn't match
+        If cboLiveInputLang.SelectedIndex < 0 Then
+            SelectLiveInputLang(_config.Language)
+        End If
     End Sub
 
     Private Sub btnRefreshDevices_Click(sender As Object, e As EventArgs) Handles btnRefreshDevices.Click
@@ -1483,7 +1555,7 @@ del ""%~f0""
 
         ' Get input language
         Dim inputLang = "auto"
-        If cboLiveInputLang.SelectedItem IsNot Nothing Then inputLang = cboLiveInputLang.SelectedItem.ToString()
+        If cboLiveInputLang.SelectedItem IsNot Nothing Then inputLang = LangCodeFromDisplay(cboLiveInputLang.SelectedItem.ToString())
         If _subtitleServer IsNot Nothing Then _subtitleServer.InputLanguage = inputLang
 
         Dim translateToEn = False
@@ -1501,6 +1573,12 @@ del ""%~f0""
 
         ' Committed final line - finalize the in-progress line with a newline
         AddHandler _liveRunner.OutputLineCommitted, Sub(s, line)
+                                                        ' Accumulate transcript text (strip lang prefix)
+                                                        Dim textOnly = line
+                                                        Dim ti = line.IndexOf(vbTab)
+                                                        If ti > 0 Then textOnly = line.Substring(ti + 1)
+                                                        _liveTranscript.AppendLine(textOnly)
+
                                                         TranslateAndBroadcastAsync(line)
                                                         If rtbLiveOutput.InvokeRequired Then
                                                             rtbLiveOutput.BeginInvoke(Sub() CommitLiveLine())
@@ -1647,7 +1725,7 @@ del ""%~f0""
     End Sub
 
     Private Sub btnLiveSave_Click(sender As Object, e As EventArgs) Handles btnLiveSave.Click
-        Dim transcript = If(_liveRunner?.Transcript, "")
+        Dim transcript = _liveTranscript.ToString()
         If String.IsNullOrWhiteSpace(transcript) Then
             MessageBox.Show("No transcript to save.", "Save Transcript", MessageBoxButtons.OK, MessageBoxIcon.Information)
             Return
@@ -1949,7 +2027,7 @@ del ""%~f0""
 
     Private Sub HandleInputLanguageChanged(lang As String)
         ' Update the UI dropdown
-        SelectComboItem(cboLiveInputLang, lang)
+        SelectLiveInputLang(lang)
         ' Update subtitle server's tracked state (for status polling)
         If _subtitleServer IsNot Nothing Then _subtitleServer.InputLanguage = lang
         ' Forward to live-server if running
@@ -2327,9 +2405,9 @@ del ""%~f0""
         ' Fallback when faster-whisper doesn't provide a detected language
         Dim inputLang = ""
         If cboLiveInputLang.InvokeRequired Then
-            inputLang = CStr(cboLiveInputLang.Invoke(Function() If(cboLiveInputLang.SelectedItem, "auto").ToString()))
+            inputLang = CStr(cboLiveInputLang.Invoke(Function() LangCodeFromDisplay(If(cboLiveInputLang.SelectedItem, "auto").ToString())))
         Else
-            If cboLiveInputLang.SelectedItem IsNot Nothing Then inputLang = cboLiveInputLang.SelectedItem.ToString()
+            If cboLiveInputLang.SelectedItem IsNot Nothing Then inputLang = LangCodeFromDisplay(cboLiveInputLang.SelectedItem.ToString())
         End If
 
         If inputLang = "auto" Then inputLang = "es"

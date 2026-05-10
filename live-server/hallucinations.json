@@ -47,6 +47,30 @@
     "Gracias por mirar"
   ],
   "ca": [
-    "Gràcies per veure"
+    "Gràcies per veure",
+    "Bona nit"
+  ],
+  "ru": [
+    "Субтитры сделал",
+    "Субтитры создавал",
+    "Субтитры делал"
+  ],
+  "de": [
+    "Untertitel von",
+    "Danke fürs Zuschauen"
+  ],
+  "pt": [
+    "Legendas por",
+    "Legendado por",
+    "Obrigado por assistir"
+  ],
+  "zh": [
+    "字幕由",
+    "字幕制作",
+    "感谢观看"
+  ],
+  "ko": [
+    "자막 제작",
+    "시청해 주셔서 감사합니다"
   ]
 }

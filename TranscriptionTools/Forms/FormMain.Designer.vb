@@ -527,7 +527,7 @@ Partial Class FormMain
         Me.lblLiveInputLang.AutoSize = True
         Me.cboLiveInputLang.Location = New Drawing.Point(10, ly + 16)
         Me.cboLiveInputLang.Size = New Drawing.Size(150, 23)
-        Me.cboLiveInputLang.DropDownStyle = ComboBoxStyle.DropDownList
+        Me.cboLiveInputLang.DropDownStyle = ComboBoxStyle.DropDown
 
         Me.btnEditFilters.Text = "Filters..."
         Me.btnEditFilters.Location = New Drawing.Point(170, ly + 15)

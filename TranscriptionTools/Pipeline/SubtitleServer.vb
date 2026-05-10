@@ -30,7 +30,6 @@ Namespace Pipeline
         Private _currentLine As String = ""
         Private ReadOnly _committedLines As New ConcurrentQueue(Of CommittedEntry)()
         Private _lastCommittedEntry As CommittedEntry
-        Private Const MaxCommittedLines As Integer = 200
         Private _commitCounter As Integer = 0
 
         Private Class ClientInfo
@@ -39,6 +38,7 @@ Namespace Pipeline
             Public Property UserAgent As String = ""
             Public Property RemoteEndpoint As String = ""
             Public ReadOnly SendLock As New Object()
+            Public SendBusy As Integer = 0  ' 1 = a send is in-flight (used with Interlocked)
         End Class
 
         Private Class CommittedEntry
@@ -407,32 +407,24 @@ Namespace Pipeline
             Dim shortUa = ParseUserAgent(userAgent)
             RaiseEvent StatusChanged(Me, $"Client connected: {remoteEndpoint} — {shortUa} ({_clients.Count} total)")
 
-            ' Send history — replay uses final text (never pending)
-            Try
-                For Each entry In _committedLines
-                    Dim text = GetTextForClient(info, entry.OriginalText, entry.Translations)
-                    Dim clientLang = GetLangForClient(info, entry.SourceLang, entry.Translations)
-                    Dim ts = entry.Timestamp.ToString("HH:mm:ss")
-                    Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)},""lang"":{EscapeJson(clientLang)},""time"":{EscapeJson(ts)},""id"":{entry.Id}}}"
-                    Dim buf = Encoding.UTF8.GetBytes(json)
-                    Await ws.SendAsync(New ArraySegment(Of Byte)(buf), WebSocketMessageType.Text, True, ct).ConfigureAwait(False)
-                Next
-                If _currentLine.Length > 0 Then
-                    Dim json = $"{{""type"":""update"",""text"":{EscapeJson(_currentLine)}}}"
-                    Dim buf = Encoding.UTF8.GetBytes(json)
-                    Await ws.SendAsync(New ArraySegment(Of Byte)(buf), WebSocketMessageType.Text, True, ct).ConfigureAwait(False)
-                End If
-            Catch
-            End Try
-
             ' Read loop — parse client messages (setLanguage, etc.)
+            ' History replay is deferred until client sends its first message with lastId
             Dim recvBuf = New Byte(1023) {}
+            Dim historyReplayed = False
             Try
                 While ws.State = WebSocketState.Open AndAlso Not ct.IsCancellationRequested
                     Dim result = Await ws.ReceiveAsync(New ArraySegment(Of Byte)(recvBuf), ct).ConfigureAwait(False)
                     If result.MessageType = WebSocketMessageType.Text AndAlso result.Count > 0 Then
                         Dim msg = Encoding.UTF8.GetString(recvBuf, 0, result.Count)
-                        ProcessClientMessage(clientId, msg)
+                        ' On first message, extract lastId and replay history
+                        If Not historyReplayed Then
+                            historyReplayed = True
+                            Dim lastId = ExtractLastId(msg)
+                            ProcessClientMessage(clientId, msg)
+                            Await ReplayHistory(ws, info, lastId, ct).ConfigureAwait(False)
+                        Else
+                            ProcessClientMessage(clientId, msg)
+                        End If
                     ElseIf result.MessageType = WebSocketMessageType.Close Then
                         Exit While
                     End If
@@ -445,6 +437,53 @@ Namespace Pipeline
             removed?.WebSocket?.Dispose()
             RaiseEvent StatusChanged(Me, $"Client disconnected: {remoteEndpoint} ({_clients.Count} total)")
             RaiseEvent ActiveLanguagesChanged(Me, EventArgs.Empty)
+        End Function
+
+        Private Function ExtractLastId(jsonMsg As String) As Integer
+            Try
+                Using doc = System.Text.Json.JsonDocument.Parse(jsonMsg)
+                    Dim root = doc.RootElement
+                    Dim lastIdProp As System.Text.Json.JsonElement = Nothing
+                    If root.TryGetProperty("lastId", lastIdProp) Then
+                        Return lastIdProp.GetInt32()
+                    End If
+                End Using
+            Catch
+            End Try
+            Return 0
+        End Function
+
+        Private Async Function ReplayHistory(ws As WebSocket, info As ClientInfo, lastId As Integer, ct As CancellationToken) As Task
+            Try
+                ' Wait for any in-flight send to finish before replaying
+                Dim spinWait = 0
+                While Interlocked.CompareExchange(info.SendBusy, 1, 0) <> 0
+                    Await Task.Delay(10, ct).ConfigureAwait(False)
+                    spinWait += 1
+                    If spinWait > 100 Then Exit Function ' Give up after 1s
+                End While
+                Try
+                    For Each entry In _committedLines
+                        If entry.Id <= lastId Then Continue For
+                        Dim text = GetTextForClient(info, entry.OriginalText, entry.Translations)
+                        Dim clientLang = GetLangForClient(info, entry.SourceLang, entry.Translations)
+                        Dim ts = entry.Timestamp.ToString("HH:mm:ss")
+                        Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)},""lang"":{EscapeJson(clientLang)},""time"":{EscapeJson(ts)},""id"":{entry.Id}}}"
+                        Dim buf = Encoding.UTF8.GetBytes(json)
+                        If ws.State = WebSocketState.Open Then
+                            Await ws.SendAsync(New ArraySegment(Of Byte)(buf), WebSocketMessageType.Text, True, ct).ConfigureAwait(False)
+                        End If
+                    Next
+                    If _currentLine.Length > 0 AndAlso ws.State = WebSocketState.Open Then
+                        Dim json = $"{{""type"":""update"",""text"":{EscapeJson(_currentLine)}}}"
+                        Dim buf = Encoding.UTF8.GetBytes(json)
+                        Await ws.SendAsync(New ArraySegment(Of Byte)(buf), WebSocketMessageType.Text, True, ct).ConfigureAwait(False)
+                    End If
+                Finally
+                    Interlocked.Exchange(info.SendBusy, 0)
+                End Try
+            Catch
+            End Try
         End Function
 
         Private Function GetOrCreateCertificate() As X509Certificate2
@@ -543,18 +582,28 @@ Namespace Pipeline
         ''' </summary>
         Private Function TrySendToClient(client As ClientInfo, data As Byte()) As Boolean
             Dim ws = client.WebSocket
-            If ws.State <> WebSocketState.Open Then Return False
-            Try
-                SyncLock client.SendLock
-                    Task.Run(Async Function()
+            If ws Is Nothing Then Return False
+            If ws.State = WebSocketState.Closed OrElse ws.State = WebSocketState.Aborted Then
+                Return False
+            End If
+            ' If a previous send is still in-flight, skip this message (backpressure)
+            If Interlocked.CompareExchange(client.SendBusy, 1, 0) <> 0 Then
+                Return True ' Not dead, just busy — skip this update
+            End If
+            ' Fire-and-forget async send — avoids blocking the UI thread
+            ' which would deadlock with WebView2's embedded browser
+            Task.Run(Async Function()
+                         Try
+                             If ws.State = WebSocketState.Open Then
                                  Await ws.SendAsync(New ArraySegment(Of Byte)(data), WebSocketMessageType.Text, True, CancellationToken.None).ConfigureAwait(False)
-                             End Function).Wait(3000)
-                End SyncLock
-                Return True
-            Catch
-                ' Timeout or send error — don't kill the client, just skip this message
-                Return ws.State = WebSocketState.Open
-            End Try
+                             End If
+                         Catch
+                             ' Send failed — will be detected on next state check
+                         Finally
+                             Interlocked.Exchange(client.SendBusy, 0)
+                         End Try
+                     End Function)
+            Return True
         End Function
 
         Public Sub BroadcastUpdate(text As String)
@@ -569,8 +618,12 @@ Namespace Pipeline
             For Each kvp In _clients
                 Try
                     If Not String.IsNullOrEmpty(kvp.Value.Language) Then Continue For
-                    If Not TrySendToClient(kvp.Value, buffer) Then deadKeys.Add(kvp.Key)
-                Catch
+                    If Not TrySendToClient(kvp.Value, buffer) Then
+                        RaiseEvent LogMessage(Me, $"[WS] BroadcastUpdate send failed: {kvp.Value.RemoteEndpoint}")
+                        deadKeys.Add(kvp.Key)
+                    End If
+                Catch ex As Exception
+                    RaiseEvent LogMessage(Me, $"[WS] BroadcastUpdate EXCEPTION: {kvp.Value?.RemoteEndpoint} — {ex.GetType().Name}: {ex.Message}")
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -587,10 +640,6 @@ Namespace Pipeline
             Dim entry As New CommittedEntry(commitId, text, lang, Nothing)
             _lastCommittedEntry = entry
             _committedLines.Enqueue(entry)
-            While _committedLines.Count > MaxCommittedLines
-                Dim discard As CommittedEntry = Nothing
-                _committedLines.TryDequeue(discard)
-            End While
 
             Dim ts = entry.Timestamp.ToString("HH:mm:ss")
             Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)},""lang"":{EscapeJson(lang)},""time"":{EscapeJson(ts)},""id"":{commitId}}}"
@@ -605,8 +654,12 @@ Namespace Pipeline
                         RaiseEvent LogMessage(Me,$"[SUBTITLE] COMMIT SKIP {kvp.Value.RemoteEndpoint} lang={kvp.Value.Language}")
                         Continue For
                     End If
-                    If Not TrySendToClient(kvp.Value, buffer) Then deadKeys.Add(kvp.Key)
-                Catch
+                    If Not TrySendToClient(kvp.Value, buffer) Then
+                        RaiseEvent LogMessage(Me, $"[WS] BroadcastCommit send failed: {kvp.Value.RemoteEndpoint}")
+                        deadKeys.Add(kvp.Key)
+                    End If
+                Catch ex As Exception
+                    RaiseEvent LogMessage(Me, $"[WS] BroadcastCommit EXCEPTION: {kvp.Value?.RemoteEndpoint} — {ex.GetType().Name}: {ex.Message}")
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -622,10 +675,6 @@ Namespace Pipeline
             Dim entry As New CommittedEntry(Interlocked.Increment(_commitCounter), originalText, sourceLang, translations)
             _lastCommittedEntry = entry
             _committedLines.Enqueue(entry)
-            While _committedLines.Count > MaxCommittedLines
-                Dim discard As CommittedEntry = Nothing
-                _committedLines.TryDequeue(discard)
-            End While
 
             Dim ts = entry.Timestamp.ToString("HH:mm:ss")
             Dim deadKeys As New List(Of String)
@@ -654,16 +703,19 @@ Namespace Pipeline
                         End If
                     End If
 
-                    Dim langTag = ""
+                    Dim langTag As String = ""
                     If langTags IsNot Nothing Then langTags.TryGetValue(tag, langTag)
-                    Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)},""lang"":{EscapeJson(langTag)},""time"":{EscapeJson(ts)}}}"
+                    If langTag Is Nothing Then langTag = tag
+                    Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)},""lang"":{EscapeJson(langTag)},""time"":{EscapeJson(ts)},""id"":{entry.Id}}}"
                     Dim buffer = Encoding.UTF8.GetBytes(json)
                     If TrySendToClient(kvp.Value, buffer) Then
                         RaiseEvent LogMessage(Me, $"[SUBTITLE] SENT to {kvp.Value.RemoteEndpoint} lang={If(clientLang, "original")}")
                     Else
+                        RaiseEvent LogMessage(Me, $"[WS] Send returned false: {kvp.Value.RemoteEndpoint} lang={If(clientLang, "original")}")
                         deadKeys.Add(kvp.Key)
                     End If
-                Catch
+                Catch ex As Exception
+                    RaiseEvent LogMessage(Me, $"[WS] BroadcastCommitTranslated EXCEPTION: {kvp.Value?.RemoteEndpoint} — {ex.GetType().Name}: {ex.Message} at {ex.StackTrace?.Split(vbCrLf)(0)}")
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -695,10 +747,11 @@ Namespace Pipeline
                         Continue For
                     End If
 
-                    Dim tagValue = ""
+                    Dim tagValue As String = ""
                     If langTags IsNot Nothing Then langTags.TryGetValue(lang, tagValue)
-
-                    Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(translated)},""lang"":{EscapeJson(tagValue)},""time"":{EscapeJson(ts)}}}"
+                    If tagValue Is Nothing Then tagValue = lang
+                    Dim entryId = If(_lastCommittedEntry IsNot Nothing, _lastCommittedEntry.Id, 0)
+                    Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(translated)},""lang"":{EscapeJson(tagValue)},""time"":{EscapeJson(ts)},""id"":{entryId}}}"
                     Dim buffer = Encoding.UTF8.GetBytes(json)
                     If TrySendToClient(kvp.Value, buffer) Then
                         RaiseEvent LogMessage(Me,$"[SUBTITLE] SENT translation to {kvp.Value.RemoteEndpoint} lang={lang}")
@@ -763,8 +816,10 @@ Namespace Pipeline
         Private Sub CleanupDeadClients(deadKeys As List(Of String))
             For Each key In deadKeys
                 Dim removed As ClientInfo = Nothing
-                _clients.TryRemove(key, removed)
-                removed?.WebSocket?.Dispose()
+                If _clients.TryRemove(key, removed) Then
+                    RaiseEvent LogMessage(Me, $"[WS] Cleanup dead: {removed.RemoteEndpoint} state={removed.WebSocket?.State}")
+                    removed?.WebSocket?.Dispose()
+                End If
             Next
 
             If deadKeys.Count > 0 Then
@@ -861,32 +916,24 @@ Namespace Pipeline
             Dim shortUa = ParseUserAgent(userAgent)
             RaiseEvent StatusChanged(Me, $"Client connected: {remoteEndpoint} — {shortUa} ({_clients.Count} total)")
 
-            ' Send history to new client — replay uses final text (never pending)
-            Try
-                For Each entry In _committedLines
-                    Dim text = GetTextForClient(info, entry.OriginalText, entry.Translations)
-                    Dim clientLang = GetLangForClient(info, entry.SourceLang, entry.Translations)
-                    Dim ts = entry.Timestamp.ToString("HH:mm:ss")
-                    Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)},""lang"":{EscapeJson(clientLang)},""time"":{EscapeJson(ts)},""id"":{entry.Id}}}"
-                    Dim buf = Encoding.UTF8.GetBytes(json)
-                    Await ws.SendAsync(New ArraySegment(Of Byte)(buf), WebSocketMessageType.Text, True, ct).ConfigureAwait(False)
-                Next
-                If _currentLine.Length > 0 Then
-                    Dim json = $"{{""type"":""update"",""text"":{EscapeJson(_currentLine)}}}"
-                    Dim buf = Encoding.UTF8.GetBytes(json)
-                    Await ws.SendAsync(New ArraySegment(Of Byte)(buf), WebSocketMessageType.Text, True, ct).ConfigureAwait(False)
-                End If
-            Catch
-            End Try
-
             ' Read loop — parse client messages (setLanguage, etc.)
+            ' History replay is deferred until client sends its first message with lastId
             Dim recvBuf = New Byte(1023) {}
+            Dim historyReplayed = False
             Try
                 While ws.State = WebSocketState.Open AndAlso Not ct.IsCancellationRequested
                     Dim result = Await ws.ReceiveAsync(New ArraySegment(Of Byte)(recvBuf), ct).ConfigureAwait(False)
                     If result.MessageType = WebSocketMessageType.Text AndAlso result.Count > 0 Then
                         Dim msg = Encoding.UTF8.GetString(recvBuf, 0, result.Count)
-                        ProcessClientMessage(clientId, msg)
+                        ' On first message, extract lastId and replay history
+                        If Not historyReplayed Then
+                            historyReplayed = True
+                            Dim lastId = ExtractLastId(msg)
+                            ProcessClientMessage(clientId, msg)
+                            Await ReplayHistory(ws, info, lastId, ct).ConfigureAwait(False)
+                        Else
+                            ProcessClientMessage(clientId, msg)
+                        End If
                     ElseIf result.MessageType = WebSocketMessageType.Close Then
                         Exit While
                     End If
@@ -1521,7 +1568,6 @@ function addCommitted(text,lang,time){
   el.dataset.highlighted='1';
   setTimeout(function(){el.style.color=textColor;delete el.dataset.highlighted},5000);
   autoScroll();
-  while(lines.children.length>201){if(scrollMode==='down'){lines.removeChild(lines.lastChild)}else{lines.removeChild(lines.children[1])}}
   speak(text);
 }
 function updateCurrent(text){
@@ -1531,6 +1577,7 @@ function updateCurrent(text){
 }
 applyScrollMode();
 var wsRef=null;
+var lastCommitId=0;
 function setTransLang(lang){
   localStorage.setItem('transLang',lang);
   closeAllPanels();
@@ -1544,19 +1591,20 @@ function connect(){
   var ws=new WebSocket(proto+'//'+location.host+'/ws');
   wsRef=ws;
   ws.onopen=function(){statusEl.textContent=t('connected');statusEl.className='connected';
-    /* Clear existing lines — server replays full history on connect */
-    while(lines.children.length>1)lines.removeChild(lines.children[1]);
     if(currentEl){currentEl.remove();currentEl=null}
     var lang=localStorage.getItem('transLang')||'';
-    if(lang){ws.send(JSON.stringify({type:'setLanguage',language:lang}))}
+    ws.send(JSON.stringify({type:'setLanguage',language:lang,lastId:lastCommitId}));
   };
   ws.onclose=function(){statusEl.textContent=t('disconnected');statusEl.className='disconnected';wsRef=null;setTimeout(connect,2000)};
   ws.onerror=function(){ws.close()};
   ws.onmessage=function(e){
     try{var msg=JSON.parse(e.data);
-      if(msg.type==='commit')addCommitted(msg.text,msg.lang||'',msg.time||'');
+      if(msg.type==='commit'){
+        var id=msg.id||0;
+        if(id>lastCommitId){lastCommitId=id;addCommitted(msg.text,msg.lang||'',msg.time||'')}
+      }
       else if(msg.type==='update')updateCurrent(msg.text);
-      else if(msg.type==='clear'){if(currentEl){currentEl.remove();currentEl=null}while(lines.children.length>1)lines.removeChild(lines.children[1]);autoScroll()}
+      else if(msg.type==='clear'){if(currentEl){currentEl.remove();currentEl=null}while(lines.children.length>1)lines.removeChild(lines.children[1]);lastCommitId=0;autoScroll()}
       else if(msg.type==='pong'){}
     }catch(ex){}
   }
@@ -1675,7 +1723,7 @@ function pollStatus(){
   }).catch(function(){adminStatus.textContent=t('noServer');adminStatus.style.color='#888'});
 }
 function setInputLang(lang){
-  if(ws&&ws.readyState===1){ws.send(JSON.stringify({type:'setInputLanguage',language:lang}))}
+  if(wsRef&&wsRef.readyState===1){wsRef.send(JSON.stringify({type:'setInputLanguage',language:lang}))}
 }
 function requestTune(){
   adminStatus.textContent='Fetching stats...';

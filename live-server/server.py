@@ -182,7 +182,24 @@ def _find_sentence_boundary_word(words, min_time: float, audio_end: float) -> tu
     return text, boundary_time
 
 
-def _is_hallucination(segments, last_commit_text: str = "") -> bool:
+# Language-to-script mapping for mismatch detection
+_LANG_SCRIPT = {
+    "ru": "cyrillic", "uk": "cyrillic", "bg": "cyrillic", "sr": "cyrillic", "mk": "cyrillic", "be": "cyrillic",
+    "ja": "cjk", "zh": "cjk", "ko": "cjk",
+    "ar": "arabic", "fa": "arabic", "ur": "arabic",
+    "hi": "devanagari", "mr": "devanagari", "ne": "devanagari",
+    "th": "thai", "ka": "georgian", "hy": "armenian", "he": "hebrew", "el": "greek",
+}
+
+
+def _is_script_mismatch(lang_a: str, lang_b: str) -> bool:
+    """Return True if two languages use different scripts (Latin vs Cyrillic, etc.)."""
+    script_a = _LANG_SCRIPT.get(lang_a, "latin")
+    script_b = _LANG_SCRIPT.get(lang_b, "latin")
+    return script_a != script_b
+
+
+def _is_hallucination(segments, last_commit_text: str = "", detected_lang: str = "", recent_langs: list = None) -> bool:
     """Detect likely hallucinations using segment metadata.
     High no_speech_prob or very low avg_logprob on short segments = hallucination.
     Also detects repetition of previously committed text and self-repetition."""
@@ -208,6 +225,18 @@ def _is_hallucination(segments, last_commit_text: str = "") -> bool:
         return True
 
     full_text = " ".join(seg.text.strip() for seg in segments if seg.text.strip())
+
+    # Language-mismatch detection: if recent commits are in one script and this
+    # segment suddenly switches to a different script, it's very likely a hallucination
+    # (e.g. transcribing Catalan and whisper hallucinates Russian "Субтитры сделал...")
+    if detected_lang and recent_langs and len(recent_langs) >= 3:
+        dominant_lang = max(set(recent_langs), key=recent_langs.count)
+        if detected_lang != dominant_lang and _is_script_mismatch(detected_lang, dominant_lang):
+            # Different script — require very high confidence to allow through
+            if avg_no_speech > 0.3 or avg_logprob < -0.2:
+                logger.debug(f"  LANG MISMATCH: '{detected_lang}' vs dominant '{dominant_lang}' "
+                             f"(no_speech={avg_no_speech:.2f}, logprob={avg_logprob:.2f})")
+                return True
 
     # Known hallucination phrases (e.g. "Thanks for watching")
     if _is_known_hallucination(full_text):
@@ -514,6 +543,7 @@ def capture_and_transcribe():
     last_committed_pos = 0  # samples already committed
     last_commit_text = ""  # track previous commit for repetition detection only
     consec_hallucinations = 0  # consecutive hallucination skips without real commit
+    recent_langs = []  # rolling window of last N committed languages for mismatch detection
     stats = SessionStats()
     current_stats = stats
 
@@ -606,7 +636,7 @@ def capture_and_transcribe():
 
             if all_final:
                 # VAD detected end of speech — commit everything and cut audio
-                if full_text and not _is_hallucination(segments, last_commit_text):
+                if full_text and not _is_hallucination(segments, last_commit_text, detected_lang, recent_langs):
                     full_text = _strip_boundary_overlap(full_text, last_commit_text)
                     broadcast_event("commit", full_text, lang=detected_lang)
                     logger.debug(f">>> COMMIT [{detected_lang}]: {full_text}")
@@ -614,6 +644,10 @@ def capture_and_transcribe():
                     committed_this_loop = True
                     consec_hallucinations = 0
                     stats.record_commit("vad", uncommitted_duration, full_text, detected_lang)
+                    if detected_lang:
+                        recent_langs.append(detected_lang)
+                        if len(recent_langs) > 10:
+                            recent_langs.pop(0)
 
                     # Cut audio buffer after successful commit (pad 0.12s past last word)
                     committed_end = last_committed_pos + int((last_seg_end + 0.12) * SAMPLE_RATE)
@@ -651,7 +685,7 @@ def capture_and_transcribe():
 
                 if boundary_text and boundary_time:
                     # Check for hallucination before committing
-                    if _is_hallucination(segments, last_commit_text):
+                    if _is_hallucination(segments, last_commit_text, detected_lang, recent_langs):
                         logger.debug(f">>> SENTENCE-COMMIT BLOCKED (hallucination): {boundary_text}")
                         # Discard the bad audio and reset
                         with buffer_lock:
@@ -671,6 +705,10 @@ def capture_and_transcribe():
                         committed_this_loop = True
                         consec_hallucinations = 0
                         stats.record_commit("sentence", boundary_time, boundary_text, detected_lang)
+                        if detected_lang:
+                            recent_langs.append(detected_lang)
+                            if len(recent_langs) > 10:
+                                recent_langs.pop(0)
 
                         # Cut audio at sentence boundary + small pad to avoid word tail leaking
                         cut_pos = last_committed_pos + int((boundary_time + 0.12) * SAMPLE_RATE)
@@ -691,7 +729,7 @@ def capture_and_transcribe():
 
             else:
                 # Short audio — just emit update (skip hallucinations)
-                if full_text and not _is_hallucination(segments, last_commit_text):
+                if full_text and not _is_hallucination(segments, last_commit_text, detected_lang, recent_langs):
                     broadcast_event("update", full_text)
                     logger.debug(f">>> UPDATE: {full_text}")
                 elif full_text:
@@ -701,13 +739,17 @@ def capture_and_transcribe():
 
             # Force-commit if exceeded max segment duration (skip if already committed above)
             if uncommitted_duration >= vad_max_segment_s and not committed_this_loop:
-                if full_text and not _is_hallucination(segments, last_commit_text):
+                if full_text and not _is_hallucination(segments, last_commit_text, detected_lang, recent_langs):
                     full_text = _strip_boundary_overlap(full_text, last_commit_text)
                     broadcast_event("commit", full_text, lang=detected_lang)
                     logger.debug(f">>> FORCE-COMMIT [{detected_lang}] ({uncommitted_duration:.1f}s): {full_text}")
                     last_commit_text = full_text[-200:]
                     consec_hallucinations = 0
                     stats.record_commit("force", uncommitted_duration, full_text, detected_lang)
+                    if detected_lang:
+                        recent_langs.append(detected_lang)
+                        if len(recent_langs) > 10:
+                            recent_langs.pop(0)
                 elif full_text:
                     logger.debug(f">>> FORCE-COMMIT SKIPPED (hallucination, cutting buffer): {full_text}")
                     stats.record_hallucination()
