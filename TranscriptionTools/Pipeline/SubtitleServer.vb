@@ -46,13 +46,15 @@ Namespace Pipeline
             Public Property OriginalText As String = ""
             Public Property SourceLang As String = ""
             Public Property Translations As Dictionary(Of String, String)
+            Public Property LangTags As Dictionary(Of String, String)
             Public Property Timestamp As DateTime
 
-            Public Sub New(id As Integer, text As String, Optional lang As String = "", Optional translations As Dictionary(Of String, String) = Nothing)
+            Public Sub New(id As Integer, text As String, Optional lang As String = "", Optional translations As Dictionary(Of String, String) = Nothing, Optional langTags As Dictionary(Of String, String) = Nothing)
                 Me.Id = id
                 OriginalText = text
                 SourceLang = If(lang, "")
                 Me.Translations = If(translations, New Dictionary(Of String, String)())
+                Me.LangTags = langTags
                 Timestamp = DateTime.Now
             End Sub
         End Class
@@ -466,7 +468,7 @@ Namespace Pipeline
                     For Each entry In _committedLines
                         If entry.Id <= lastId Then Continue For
                         Dim text = GetTextForClient(info, entry.OriginalText, entry.Translations)
-                        Dim clientLang = GetLangForClient(info, entry.SourceLang, entry.Translations)
+                        Dim clientLang = GetLangForClient(info, entry.SourceLang, entry.Translations, entry.LangTags)
                         Dim ts = entry.Timestamp.ToString("HH:mm:ss")
                         Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)},""lang"":{EscapeJson(clientLang)},""time"":{EscapeJson(ts)},""id"":{entry.Id}}}"
                         Dim buf = Encoding.UTF8.GetBytes(json)
@@ -672,7 +674,7 @@ Namespace Pipeline
         Public Sub BroadcastCommitTranslated(originalText As String, sourceLang As String, translations As Dictionary(Of String, String), langTags As Dictionary(Of String, String))
             If Not _isRunning Then Return
             _currentLine = ""
-            Dim entry As New CommittedEntry(Interlocked.Increment(_commitCounter), originalText, sourceLang, translations)
+            Dim entry As New CommittedEntry(Interlocked.Increment(_commitCounter), originalText, sourceLang, translations, langTags)
             _lastCommittedEntry = entry
             _committedLines.Enqueue(entry)
 
@@ -786,10 +788,19 @@ Namespace Pipeline
             Return originalText
         End Function
 
-        Private Shared Function GetLangForClient(client As ClientInfo, sourceLang As String, translations As Dictionary(Of String, String)) As String
-            If String.IsNullOrEmpty(client.Language) Then Return sourceLang
-            If translations IsNot Nothing AndAlso translations.ContainsKey(client.Language) Then Return client.Language
-            Return sourceLang
+        Private Shared Function GetLangForClient(client As ClientInfo, sourceLang As String, translations As Dictionary(Of String, String), langTags As Dictionary(Of String, String)) As String
+            Dim rawTag As String
+            If String.IsNullOrEmpty(client.Language) Then
+                rawTag = sourceLang
+            ElseIf translations IsNot Nothing AndAlso translations.ContainsKey(client.Language) Then
+                rawTag = client.Language
+            Else
+                rawTag = sourceLang
+            End If
+            ' Resolve to display tag if available
+            Dim displayTag As String = Nothing
+            If langTags IsNot Nothing Then langTags.TryGetValue(rawTag, displayTag)
+            Return If(displayTag, rawTag)
         End Function
 
         Public Sub BroadcastSystemMessage(text As String)

@@ -366,11 +366,15 @@ Namespace Pipeline
         Public Sub [Stop]()
             _shuttingDown = True
             _cts?.Cancel()
+            ' Cancel pending HTTP requests (breaks blocking SSE ReadLine)
+            _httpClient.CancelPendingRequests()
 
             ' Shut down the server completely
             Try
-                Dim content As New StringContent("{}", Encoding.UTF8, "application/json")
-                _httpClient.PostAsync($"http://127.0.0.1:{_port}/shutdown", content).Wait(3000)
+                Using shutdownClient As New HttpClient() With {.Timeout = TimeSpan.FromSeconds(3)}
+                    Dim content As New StringContent("{}", Encoding.UTF8, "application/json")
+                    shutdownClient.PostAsync($"http://127.0.0.1:{_port}/shutdown", content).Wait(3000)
+                End Using
             Catch
             End Try
 
@@ -394,11 +398,14 @@ Namespace Pipeline
         Public Sub ShutdownServer()
             _shuttingDown = True
             _cts?.Cancel()
+            _httpClient.CancelPendingRequests()
 
             ' Ask the server to shut down gracefully
             Try
-                Dim content As New StringContent("{}", Encoding.UTF8, "application/json")
-                _httpClient.PostAsync($"http://127.0.0.1:{_port}/shutdown", content).Wait(3000)
+                Using shutdownClient As New HttpClient() With {.Timeout = TimeSpan.FromSeconds(3)}
+                    Dim content As New StringContent("{}", Encoding.UTF8, "application/json")
+                    shutdownClient.PostAsync($"http://127.0.0.1:{_port}/shutdown", content).Wait(3000)
+                End Using
             Catch
             End Try
 
