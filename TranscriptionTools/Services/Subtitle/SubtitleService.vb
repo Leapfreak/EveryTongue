@@ -58,6 +58,9 @@ Namespace Services.Subtitle
         ''' <summary>Set after DI resolution to avoid circular dependency.</summary>
         Public Property BibleService As IBibleService
 
+        ''' <summary>Set after DI resolution to enable server-side TTS generation.</summary>
+        Public Property TtsService As ITtsService
+
         ' ── Client management ──
 
         Public Function AddClient(client As ClientConnection) As Boolean Implements ISubtitleService.AddClient
@@ -191,14 +194,20 @@ Namespace Services.Subtitle
             Next
 
             CleanupDeadClients(deadKeys)
+
+            ' Fire-and-forget TTS for non-translation commits
+            If Not skipTranslationClients Then
+                FireTtsForCommit(commitId, text, lang, Nothing)
+            End If
+
             Return commitId
         End Function
 
-        Public Sub BroadcastCommitTranslated(originalText As String,
+        Public Function BroadcastCommitTranslated(originalText As String,
                                               sourceLang As String,
                                               translations As Dictionary(Of String, String),
-                                              langTags As Dictionary(Of String, String)) Implements ISubtitleService.BroadcastCommitTranslated
-            If Not IsRunning Then Return
+                                              langTags As Dictionary(Of String, String)) As Integer Implements ISubtitleService.BroadcastCommitTranslated
+            If Not IsRunning Then Return 0
             _currentLine = ""
 
             Dim entry As New CommittedEntry(Interlocked.Increment(_commitCounter), originalText, sourceLang, translations, langTags)
@@ -244,7 +253,12 @@ Namespace Services.Subtitle
             Next
 
             CleanupDeadClients(deadKeys)
-        End Sub
+
+            ' Fire-and-forget TTS generation for each translated language
+            FireTtsForCommit(entry.Id, originalText, sourceLang, translations)
+
+            Return entry.Id
+        End Function
 
         Public Sub BroadcastTranslationsOnly(translations As Dictionary(Of String, String),
                                               langTags As Dictionary(Of String, String)) Implements ISubtitleService.BroadcastTranslationsOnly
@@ -442,6 +456,92 @@ Namespace Services.Subtitle
                 Return ""
             End Try
         End Function
+
+        ''' <summary>
+        ''' Fire-and-forget TTS generation for each language with connected clients.
+        ''' On success, sends a tts WebSocket message to matching clients.
+        ''' </summary>
+        Private Sub FireTtsForCommit(commitId As Integer, originalText As String,
+                                     sourceLang As String,
+                                     translations As Dictionary(Of String, String))
+            If TtsService Is Nothing Then Return
+
+            ' Collect languages that have connected clients
+            Dim clientLangs As New HashSet(Of String)()
+            For Each kvp In _clients
+                Dim lang = kvp.Value.Language
+                If Not String.IsNullOrEmpty(lang) Then clientLangs.Add(lang)
+            Next
+
+            ' Generate TTS for each active translation language
+            If translations IsNot Nothing Then
+                For Each kvp In translations
+                    If clientLangs.Contains(kvp.Key) Then
+                        Dim ttsLang = kvp.Key
+                        Dim ttsText = kvp.Value
+                        Dim ttsCommitId = commitId
+                        Task.Run(Async Function()
+                                     Try
+                                         Dim url = Await TtsService.SynthesiseAsync(
+                                             ttsText, ttsLang, ttsCommitId, CancellationToken.None)
+                                         If url IsNot Nothing Then
+                                             NotifyTtsReady(ttsCommitId, ttsLang, url)
+                                         End If
+                                     Catch ex As Exception
+                                         _logger.LogDebug(ex, "TTS generation failed for {Lang} commit {Id}",
+                                                         ttsLang, ttsCommitId)
+                                     End Try
+                                 End Function)
+                    End If
+                Next
+            End If
+
+            ' Also generate for source-language clients (no translation needed)
+            If Not String.IsNullOrEmpty(sourceLang) AndAlso
+               (clientLangs.Count = 0 OrElse _clients.Values.Any(Function(c) String.IsNullOrEmpty(c.Language))) Then
+                Dim srcText = originalText
+                Dim srcLang = sourceLang
+                Dim srcCommitId = commitId
+                Task.Run(Async Function()
+                             Try
+                                 Dim url = Await TtsService.SynthesiseAsync(
+                                     srcText, srcLang, srcCommitId, CancellationToken.None)
+                                 If url IsNot Nothing Then
+                                     NotifyTtsReady(srcCommitId, srcLang, url)
+                                 End If
+                             Catch ex As Exception
+                                 _logger.LogDebug(ex, "TTS generation failed for source {Lang} commit {Id}",
+                                                 srcLang, srcCommitId)
+                             End Try
+                         End Function)
+            End If
+        End Sub
+
+        ''' <summary>
+        ''' Send a tts WebSocket message to clients whose language matches.
+        ''' </summary>
+        Private Sub NotifyTtsReady(commitId As Integer, language As String, url As String)
+            Dim json = $"{{""type"":""tts"",""id"":{commitId},""url"":{EscapeJson(url)},""lang"":{EscapeJson(language)}}}"
+            Dim buffer = Encoding.UTF8.GetBytes(json)
+            Dim deadKeys As New List(Of String)
+
+            For Each kvp In _clients
+                Try
+                    ' Send to clients watching this language, or source-language clients
+                    Dim clientLang = kvp.Value.Language
+                    If clientLang = language OrElse
+                       (String.IsNullOrEmpty(clientLang) AndAlso String.IsNullOrEmpty(language)) Then
+                        If Not TrySendToClient(kvp.Value, buffer) Then
+                            deadKeys.Add(kvp.Key)
+                        End If
+                    End If
+                Catch
+                    deadKeys.Add(kvp.Key)
+                End Try
+            Next
+
+            CleanupDeadClients(deadKeys)
+        End Sub
 
         Private Sub CleanupDeadClients(deadKeys As List(Of String))
             For Each key In deadKeys

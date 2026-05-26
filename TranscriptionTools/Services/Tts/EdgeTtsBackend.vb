@@ -41,12 +41,16 @@ Namespace Services.Tts
             Dim tempFile = Path.Combine(Path.GetTempPath(),
                 $"edge_tts_{Guid.NewGuid():N}.mp3")
 
+            Dim textFile = Path.Combine(Path.GetTempPath(),
+                $"edge_tts_{Guid.NewGuid():N}.txt")
             Try
-                ' edge-tts --voice {voice} --text {text} --write-media {file}
+                ' Write text to file to avoid CLI escaping issues
+                Await File.WriteAllTextAsync(textFile, text, ct)
+
                 Dim voice = GetVoiceForLanguage(language)
                 Dim psi As New ProcessStartInfo() With {
                     .FileName = pythonPath,
-                    .Arguments = $"-m edge_tts --voice ""{voice}"" --text ""{text.Replace("""", "'")}"" --write-media ""{tempFile}""",
+                    .Arguments = $"-m edge_tts --voice ""{voice}"" --file ""{textFile}"" --write-media ""{tempFile}""",
                     .UseShellExecute = False,
                     .CreateNoWindow = True,
                     .RedirectStandardOutput = True,
@@ -67,6 +71,7 @@ Namespace Services.Tts
             Catch
             Finally
                 Try : File.Delete(tempFile) : Catch : End Try
+                Try : File.Delete(textFile) : Catch : End Try
             End Try
 
             Return Nothing
@@ -116,6 +121,23 @@ Namespace Services.Tts
             Dim embedPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
                 "python-embed", "python.exe")
             If File.Exists(embedPath) Then Return embedPath
+
+            ' Fallback to system Python
+            Try
+                Dim psi As New ProcessStartInfo() With {
+                    .FileName = "python",
+                    .Arguments = "--version",
+                    .UseShellExecute = False,
+                    .RedirectStandardOutput = True,
+                    .CreateNoWindow = True
+                }
+                Using proc = Process.Start(psi)
+                    proc.WaitForExit(5000)
+                    If proc.ExitCode = 0 Then Return "python"
+                End Using
+            Catch
+            End Try
+
             Return ""
         End Function
     End Class

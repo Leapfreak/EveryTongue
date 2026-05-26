@@ -140,11 +140,16 @@ Namespace Server
             ' ── Build the app ──
             Dim app = builder.Build()
 
-            ' Wire BibleService into SubtitleService for reference detection
+            ' Wire BibleService and TtsService into SubtitleService (post-build, avoids circular DI)
             Dim subtitleSvc = TryCast(app.Services.GetService(GetType(ISubtitleService)), SubtitleService)
             Dim bibleSvc = TryCast(app.Services.GetService(GetType(IBibleService)), IBibleService)
             If subtitleSvc IsNot Nothing AndAlso bibleSvc IsNot Nothing Then
                 subtitleSvc.BibleService = bibleSvc
+            End If
+
+            Dim ttsSvc = app.Services.GetService(Of ITtsService)()
+            If subtitleSvc IsNot Nothing AndAlso ttsSvc IsNot Nothing Then
+                subtitleSvc.TtsService = ttsSvc
             End If
 
             ' ── Middleware pipeline (order matters) ──

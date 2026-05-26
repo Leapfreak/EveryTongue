@@ -7,6 +7,7 @@ Imports Microsoft.Extensions.Options
 Imports TranscriptionTools.Server.Hubs
 Imports TranscriptionTools.Services.Infrastructure
 Imports TranscriptionTools.Services.Interfaces
+Imports TranscriptionTools.Services.Tts
 
 Namespace Server
     ''' <summary>
@@ -21,6 +22,7 @@ Namespace Server
             MapControlEndpoint(app)
             MapBibleEndpoints(app)
             MapAudioEndpoints(app)
+            MapTtsEndpoints(app)
         End Sub
 
         Private Sub MapWebSocketEndpoint(app As IEndpointRouteBuilder)
@@ -338,6 +340,38 @@ Namespace Server
 
                     Await result.Stream.CopyToAsync(context.Response.Body, context.RequestAborted)
                     result.Stream.Dispose()
+                End Function)
+        End Sub
+
+        Private Sub MapTtsEndpoints(app As IEndpointRouteBuilder)
+
+            ' Serve cached TTS audio files — /tts/cache/{filename}
+            app.MapGet("/tts/cache/{filename}",
+                Function(filename As String, context As HttpContext) As IResult
+                    ' Validate filename — no path traversal
+                    If filename.Contains("..") OrElse filename.Contains("/") OrElse
+                       filename.Contains("\") Then
+                        Return Results.BadRequest(New With {.error = "invalid filename"})
+                    End If
+
+                    Dim cache = context.RequestServices.GetService(Of TtsCache)()
+                    If cache Is Nothing Then
+                        Return Results.StatusCode(503)
+                    End If
+
+                    Dim filePath = IO.Path.Combine(cache.CacheDirectory, filename)
+                    If Not IO.File.Exists(filePath) Then
+                        Return Results.NotFound(New With {.error = "not found"})
+                    End If
+
+                    Dim contentType = "audio/mpeg"
+                    If filename.EndsWith(".wav") Then contentType = "audio/wav"
+                    If filename.EndsWith(".opus") Then contentType = "audio/ogg"
+
+                    Return Results.File(
+                        IO.File.ReadAllBytes(filePath),
+                        contentType,
+                        filename)
                 End Function)
         End Sub
 

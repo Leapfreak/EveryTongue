@@ -335,6 +335,26 @@ body {
     cursor: pointer;
 }
 
+/* ── TTS skip indicator ── */
+#ttsSkip {
+    display: none;
+    position: fixed;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(68, 119, 255, 0.9);
+    color: #fff;
+    padding: 8px 20px;
+    border-radius: 20px;
+    font-size: 13px;
+    cursor: pointer;
+    z-index: 15;
+    white-space: nowrap;
+}
+#ttsSkip:active { background: rgba(68, 119, 255, 1) }
+
+#panel button.active { color: #4f4; border-color: #4f4 }
+
 .bible-ot-label, .bible-nt-label {
     color: #888;
     font-size: 12px;

@@ -43,10 +43,10 @@ Namespace Services.Interfaces
                                   Optional skipTranslationClients As Boolean = False,
                                   Optional lang As String = "",
                                   Optional sourceLang As String = "") As Integer
-        Sub BroadcastCommitTranslated(originalText As String,
+        Function BroadcastCommitTranslated(originalText As String,
                                        sourceLang As String,
                                        translations As Dictionary(Of String, String),
-                                       langTags As Dictionary(Of String, String))
+                                       langTags As Dictionary(Of String, String)) As Integer
         Sub BroadcastTranslationsOnly(translations As Dictionary(Of String, String),
                                        langTags As Dictionary(Of String, String))
         Sub BroadcastClear()
