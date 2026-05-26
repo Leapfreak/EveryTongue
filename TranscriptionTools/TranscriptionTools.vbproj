@@ -73,6 +73,14 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>nllb-server\profanity.json</Link>
     </Content>
+    <Content Include="..\mms-tts-server\server.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>mms-tts-server\server.py</Link>
+    </Content>
+    <Content Include="..\mms-tts-server\requirements.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>mms-tts-server\requirements.txt</Link>
+    </Content>
   </ItemGroup>
 
   <!-- Kestrel static web content -->

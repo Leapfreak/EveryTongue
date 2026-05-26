@@ -562,6 +562,13 @@ del ""%~f0""
         CheckDependenciesAsync(manualCheck:=True)
     End Sub
 
+    Private Sub btnDownloadManager_Click(sender As Object, e As EventArgs) Handles btnDownloadManager.Click
+        Dim biblesDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Bibles")
+        Using dlg As New Forms.FormDownloadManager(_config, biblesDir)
+            dlg.ShowDialog(Me)
+        End Using
+    End Sub
+
     Private Sub PopulateLanguageDropdowns()
         cboInputLanguage.Items.Clear()
         cboOutputLanguage.Items.Clear()

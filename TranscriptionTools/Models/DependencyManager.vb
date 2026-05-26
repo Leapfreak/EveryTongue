@@ -641,6 +641,44 @@ Namespace Models
         End Function
 
         ' ──────────────────────────────────────────
+        '  MMS-TTS (Meta offline TTS — optional)
+        ' ──────────────────────────────────────────
+
+        Public Function CheckMmsTtsAsync() As Task(Of ToolState)
+            Dim state As New ToolState With {
+                .Name = "MMS-TTS (optional)"
+            }
+            If MmsTtsBackend.CheckDepsInstalled() Then
+                state.Status = ToolStatus.UpToDate
+                state.InstalledVersion = "installed"
+            End If
+            Return Task.FromResult(state)
+        End Function
+
+        ''' <summary>
+        ''' Installs PyTorch (CPU-only, ~200 MB) and transformers for MMS-TTS.
+        ''' Requires Python embedded to be installed first.
+        ''' </summary>
+        Public Async Function InstallMmsTtsDepsAsync(progress As IProgress(Of (downloaded As Long, total As Long))) As Task
+            If Not File.Exists(PythonExePath()) Then
+                Throw New InvalidOperationException("Python embedded must be installed first")
+            End If
+
+            ' Install CPU-only PyTorch (~200 MB instead of ~2.5 GB with CUDA)
+            Await RunProcessAsync(PythonExePath(),
+                "-m pip install torch --index-url https://download.pytorch.org/whl/cpu --no-warn-script-location",
+                _toolsDir, 600000)
+
+            ' Install remaining deps (transformers, numpy, etc.)
+            Dim mmsTtsReq = Path.Combine(_toolsDir, "mms-tts-server", "requirements.txt")
+            If File.Exists(mmsTtsReq) Then
+                Await RunProcessAsync(PythonExePath(),
+                    $"-m pip install -r ""{mmsTtsReq}"" --no-warn-script-location",
+                    _toolsDir, 600000)
+            End If
+        End Function
+
+        ' ──────────────────────────────────────────
         '  faster-whisper Model
         ' ──────────────────────────────────────────
 

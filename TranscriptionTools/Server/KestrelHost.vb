@@ -171,6 +171,21 @@ Namespace Server
                 subtitleSvc.TtsAudioOutput = ttsOutput
             End If
 
+            ' Start MMS-TTS sidecar if deps are installed (optional tier-2 offline TTS)
+            Dim backends = app.Services.GetServices(Of ITtsBackend)()
+            For Each backend In backends
+                Dim mmsTts = TryCast(backend, MmsTtsBackend)
+                If mmsTts IsNot Nothing Then
+                    If MmsTtsBackend.CheckDepsInstalled() Then
+                        AddHandler mmsTts.StatusChanged, Sub(s, msg)
+                                                             logCallback?.Invoke(msg)
+                                                         End Sub
+                        mmsTts.Start()
+                    End If
+                    Exit For
+                End If
+            Next
+
             ' ── Middleware pipeline (order matters) ──
             ConfigureMiddleware(app)
 
@@ -313,10 +328,20 @@ Namespace Server
         End Sub
 
         Public Sub Dispose() Implements IDisposable.Dispose
-            ' Stop TTS audio output before shutting down
+            ' Stop TTS audio output and MMS-TTS sidecar before shutting down
             Try
                 Dim subtitleSvc = TryCast(_app?.Services?.GetService(GetType(ISubtitleService)), SubtitleService)
                 subtitleSvc?.TtsAudioOutput?.Dispose()
+            Catch
+            End Try
+            Try
+                Dim backends = _app?.Services?.GetServices(Of ITtsBackend)()
+                If backends IsNot Nothing Then
+                    For Each backend In backends
+                        Dim mmsTts = TryCast(backend, MmsTtsBackend)
+                        mmsTts?.Stop()
+                    Next
+                End If
             Catch
             End Try
 

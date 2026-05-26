@@ -492,7 +492,12 @@ Partial Class FormMain
         Me.btnCheckToolUpdates.Location = New Drawing.Point(170, 165)
         Me.btnCheckToolUpdates.Size = New Drawing.Size(180, 30)
 
-        Me.tabPageSettings.Controls.AddRange({Me.grpSettings, Me.btnResetSettings, Me.btnCheckToolUpdates})
+        Me.btnDownloadManager = New Button()
+        Me.btnDownloadManager.Text = "Download Manager"
+        Me.btnDownloadManager.Location = New Drawing.Point(362, 165)
+        Me.btnDownloadManager.Size = New Drawing.Size(160, 30)
+
+        Me.tabPageSettings.Controls.AddRange({Me.grpSettings, Me.btnResetSettings, Me.btnCheckToolUpdates, Me.btnDownloadManager})
 
         ' ============================================
         ' TAB 6 LAYOUT: Live Translation
@@ -962,6 +967,7 @@ Partial Class FormMain
     Friend WithEvents chkStartWithWindows As CheckBox
     Friend WithEvents btnResetSettings As Button
     Friend WithEvents btnCheckToolUpdates As Button
+    Friend WithEvents btnDownloadManager As Button
 
     ' Subtitle Server tab
     Friend WithEvents tabPageServer As TabPage
