@@ -33,18 +33,49 @@ Namespace Server
 
         Private Sub MapCoreEndpoints(app As IEndpointRouteBuilder)
 
-            ' Health check — lightweight, returns server status
+            ' Health check — returns status of all subsystems
             app.MapGet("/api/health", Function(context As HttpContext) As IResult
                                           Dim ver = GetType(EndpointRegistration).Assembly.
                                               GetName().Version
                                           Dim version = If(ver?.ToString(), "unknown")
+
+                                          Dim subtitleSvc = context.RequestServices.GetService(Of ISubtitleService)
+                                          Dim translationSvc = context.RequestServices.GetService(Of ITranslationService)
+                                          Dim bibleSvc = context.RequestServices.GetService(Of IBibleService)
+                                          Dim metricsSvc = context.RequestServices.GetService(Of IMetricsService)
+
+                                          Dim checks As New Dictionary(Of String, String)()
+                                          checks("kestrel") = "healthy"
+                                          checks("subtitles") = If(subtitleSvc IsNot Nothing, "healthy", "unavailable")
+                                          checks("translation") = If(translationSvc IsNot Nothing, "healthy", "unavailable")
+                                          checks("bible") = If(bibleSvc IsNot Nothing, "healthy", "unavailable")
+
+                                          Dim overall = If(checks.Values.All(Function(v) v = "healthy"),
+                                              "healthy", "degraded")
+
+                                          Dim uptime = If(metricsSvc IsNot Nothing,
+                                              TimeSpan.FromSeconds(metricsSvc.UptimeSeconds).ToString("hh\:mm\:ss"),
+                                              "00:00:00")
+
                                           Return Results.Ok(New With {
-                                              .status = "healthy",
+                                              .status = overall,
+                                              .checks = checks,
+                                              .uptime = uptime,
                                               .version = version,
                                               .timestamp = DateTime.UtcNow
                                           })
                                       End Function).
                 ExcludeFromDescription()
+
+            ' Metrics — detailed runtime statistics
+            app.MapGet("/api/metrics", Function(context As HttpContext) As IResult
+                                           Dim metricsSvc = context.RequestServices.
+                                               GetService(Of IMetricsService)
+                                           If metricsSvc Is Nothing Then
+                                               Return Results.Json(New With {.error = "Metrics not available"})
+                                           End If
+                                           Return Results.Ok(metricsSvc.GetSnapshot())
+                                       End Function)
 
             ' Client configuration — replaces {{BG_COLOR}}/{{FG_COLOR}} template injection
             ' Client fetches this on load to configure itself
