@@ -3,6 +3,7 @@ Imports Microsoft.AspNetCore.Builder
 Imports Microsoft.AspNetCore.Http
 Imports Microsoft.AspNetCore.Routing
 Imports Microsoft.Extensions.DependencyInjection
+Imports Microsoft.Extensions.Logging
 Imports Microsoft.Extensions.Options
 Imports TranscriptionTools.Server.Hubs
 Imports TranscriptionTools.Services.Infrastructure
@@ -212,9 +213,12 @@ Namespace Server
 
             ' List available translations
             app.MapGet("/bible/translations", Async Function(context As HttpContext) As Task
+                                                  Dim logger = context.RequestServices.
+                                                      GetService(Of ILoggerFactory)?.CreateLogger("BibleEndpoint")
                                                   Dim bibleService = context.RequestServices.
                                                       GetService(Of IBibleService)
                                                   If bibleService Is Nothing Then
+                                                      logger?.LogWarning("Bible service not available")
                                                       Await context.Response.WriteAsJsonAsync(
                                                           New With {.error = "Bible service not available"})
                                                       Return
@@ -222,6 +226,8 @@ Namespace Server
                                                   Dim lang = context.Request.Query("lang").FirstOrDefault()
                                                   Dim translations = Await bibleService.GetTranslationsAsync(
                                                       If(lang, ""), context.RequestAborted)
+                                                  logger?.LogInformation("Bible translations: lang={Lang}, count={Count}",
+                                                      If(lang, "(all)"), translations.Count)
                                                   Await context.Response.WriteAsJsonAsync(translations)
                                               End Function)
 

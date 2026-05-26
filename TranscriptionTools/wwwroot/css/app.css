@@ -345,7 +345,9 @@ body {
     font-size: 14px;
     cursor: pointer;
     margin-left: 8px;
+    line-height: 1;
 }
+.bible-verse-speak::after { content: "\1F508" }
 .bible-verse-speak:active { color: #4f4; border-color: #4f4 }
 
 .bible-read-all-bar {
@@ -360,10 +362,18 @@ body {
     border: 1px solid #47f;
     border-radius: 6px;
     padding: 8px 20px;
-    font-size: 14px;
+    font-size: 15px;
     cursor: pointer;
+    min-width: 140px;
 }
 .bible-read-all-btn:active { background: #47f; color: #fff }
+.bible-read-all-btn.stopping {
+    background: #411;
+    color: #f66;
+    border-color: #f44;
+    font-size: 16px;
+    font-weight: bold;
+}
 
 .bible-ref-link {
     color: #47f;

@@ -145,12 +145,13 @@ Namespace Services.Bible
         End Sub
 
         Private Sub ScanTranslations()
+            _logger.LogInformation("Bible: scanning directory: {Dir}", _biblesDir)
             If Not Directory.Exists(_biblesDir) Then
-                _logger.LogWarning("Bible: directory not found: {Dir}", _biblesDir)
+                _logger.LogWarning("Bible: directory NOT FOUND: {Dir}", _biblesDir)
                 Return
             End If
 
-            Dim extensions = {"*.db", "*.sqlite", "*.sqlite3"}
+            Dim extensions = {"*.db", "*.sqlite", "*.sqlite3", "*.SQLite3"}
             For Each ext In extensions
                 For Each dbFile In Directory.GetFiles(_biblesDir, ext, SearchOption.AllDirectories)
                     Try
@@ -161,9 +162,7 @@ Namespace Services.Bible
                 Next
             Next
 
-            If _translations.Count > 0 Then
-                _logger.LogInformation("Bible: found {Count} translations", _translations.Count)
-            End If
+            _logger.LogInformation("Bible: found {Count} translation(s) in {Dir}", _translations.Count, _biblesDir)
         End Sub
 
         Private Sub LoadTranslation(dbFile As String)

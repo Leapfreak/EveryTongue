@@ -165,8 +165,8 @@ Namespace Models
 
         Public Shared Function ResolvePath(configPath As String) As String
             If String.IsNullOrWhiteSpace(configPath) Then Return ""
-            If IO.Path.IsPathRooted(configPath) Then Return configPath
-            Return IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, configPath)
+            If IO.Path.IsPathRooted(configPath) Then Return IO.Path.GetFullPath(configPath)
+            Return IO.Path.GetFullPath(IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, configPath))
         End Function
     End Class
 End Namespace

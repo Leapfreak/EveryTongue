@@ -2133,6 +2133,7 @@ del ""%~f0""
     End Sub
 
     Private Sub AppendLiveText(text As String, color As Drawing.Color)
+        WriteDebugLog($"[Live] {text}")
         rtbLiveOutput.SelectionStart = rtbLiveOutput.TextLength
         rtbLiveOutput.SelectionLength = 0
         rtbLiveOutput.SelectionColor = color

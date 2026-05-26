@@ -662,7 +662,8 @@ document.getElementById('lpAdminToggle').textContent=t('adminLabel');
 document.getElementById('lpAdminPin').placeholder=t('adminPin');
 
 /* ── Admin access control ── */
-var isAdmin=localStorage.getItem('isAdmin')==='true';
+localStorage.removeItem('isAdmin');
+var isAdmin=sessionStorage.getItem('isAdmin')==='true';
 var hasAdminPin=false;
 
 function toggleAdminLogin(){
@@ -676,7 +677,7 @@ function verifyAdminPin(){
   if(!pin){msg.textContent=t('adminBad');return}
   fetch('/api/admin/verify?pin='+encodeURIComponent(pin)).then(function(r){return r.json()}).then(function(d){
     if(d.ok){
-      localStorage.setItem('isAdmin','true');
+      sessionStorage.setItem('isAdmin','true');
       isAdmin=true;
       msg.style.color='#4f4';msg.textContent=t('adminOk');
       document.getElementById('btnAdmin').style.display='';
@@ -858,10 +859,18 @@ function loadBibleTranslations(){
   bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">Loading...</div>';
   var uiLang=(navigator.language||'en').split('-')[0];
   fetch('/bible/translations?lang='+encodeURIComponent(uiLang)).then(function(r){return r.json()}).then(function(data){
+    console.log('Bible translations (lang='+uiLang+'):', JSON.stringify(data));
     /* If no Bibles match the user's language, fall back to all */
-    if(!data||data.length===0){fetch('/bible/translations').then(function(r2){return r2.json()}).then(function(all){populateBibleData(all)}).catch(function(){});return}
+    if(!data||!Array.isArray(data)||data.length===0){
+      fetch('/bible/translations').then(function(r2){return r2.json()}).then(function(all){
+        console.log('Bible translations (all):', JSON.stringify(all));
+        if(Array.isArray(all)){populateBibleData(all)}
+      }).catch(function(){});
+      return;
+    }
     populateBibleData(data);
-  }).catch(function(){
+  }).catch(function(err){
+    console.error('Bible translations fetch error:', err);
     bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:40px">Failed to load translations</div>';
   });
 }
@@ -1096,6 +1105,8 @@ function speakBibleVerse(text){
   var utter=new SpeechSynthesisUtterance(text);
   utter.rate=speechRate;
   if(selectedVoice){var voices=synth.getVoices();for(var i=0;i<voices.length;i++){if(voices[i].name===selectedVoice){utter.voice=voices[i];break}}}
+  utter.onend=function(){stopBibleTts()};
+  utter.onerror=function(){stopBibleTts()};
   synth.speak(utter);
 }
 
@@ -1122,7 +1133,12 @@ function readAllVerses(){
   var verseDivs=bibleContent.querySelectorAll('.bible-verse');
   var allText='';
   for(var i=0;i<verseDivs.length;i++){
-    allText+=verseDivs[i].textContent+' ';
+    /* Get only text nodes, skip .vnum span and speak button */
+    var nodes=verseDivs[i].childNodes;
+    for(var j=0;j<nodes.length;j++){
+      if(nodes[j].nodeType===3){allText+=nodes[j].textContent}
+    }
+    allText+=' ';
   }
   allText=allText.trim();
   if(!allText)return;
@@ -1133,7 +1149,7 @@ function readAllVerses(){
 function addVerseSpeakBtn(div,text){
   var btn=document.createElement('button');
   btn.className='bible-verse-speak';
-  btn.innerHTML='&#128264;';
+  btn.setAttribute('aria-label','Read verse');
   btn.title=t('readVerse');
   btn.onclick=function(e){
     e.stopPropagation();
@@ -1146,10 +1162,26 @@ function addVerseSpeakBtn(div,text){
 function addReadAllBtn(){
   var bar=document.createElement('div');bar.className='bible-read-all-bar';
   var btn=document.createElement('button');btn.className='bible-read-all-btn';
-  btn.innerHTML='&#128264; '+t('readAll');
-  btn.onclick=function(){readAllVerses()};
+  btn.id='btnReadAll';
+  btn.textContent=t('readAll');
+  btn.onclick=function(){
+    if(synth.speaking||ttsPlaying){
+      stopBibleTts();
+    }else{
+      readAllVerses();
+      btn.textContent=t('stop');
+      btn.className='bible-read-all-btn stopping';
+    }
+  };
   bar.appendChild(btn);
   bibleContent.insertBefore(bar,bibleContent.firstChild);
+}
+function stopBibleTts(){
+  synth.cancel();
+  clearTtsQueue();
+  if(ttsAudio){ttsAudio.pause();ttsAudio.src=''}
+  var btn=document.getElementById('btnReadAll');
+  if(btn){btn.textContent=t('readAll');btn.className='bible-read-all-btn'}
 }
 
 /* Chapter counts by book (standard Protestant canon) */
