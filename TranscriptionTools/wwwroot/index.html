@@ -10,6 +10,7 @@
 <div id="status" class="disconnected">Connecting...</div>
 <div id="toolbar">
   <button id="btnAdmin" onclick="toggleAdmin()" title="Remote Control" style="display:none">&#9881;</button>
+  <button id="btnHome" onclick="goHome()" title="Home">&#8962;</button>
   <button id="btnSettings" onclick="togglePanel()" title="Settings">Aa</button>
   <button id="btnWake" onclick="toggleWakeLock()" title="Keep screen on">&#128261;</button>
   <button id="btnBible" onclick="toggleBible()" title="Bible">&#128214;</button>
@@ -116,6 +117,7 @@
     <button id="btnRefGo" onclick="lookupRef()">Go</button>
   </div>
   <div id="bibleNav">
+    <button id="btnBibleClose" onclick="closeBible()">&#10005;</button>
     <button id="btnBibleBack" onclick="bibleBack()" style="display:none">&#8592;</button>
     <span id="bibleNavTitle"></span>
     <button id="btnBibleSearch" onclick="toggleBibleSearch()">&#128269;</button>

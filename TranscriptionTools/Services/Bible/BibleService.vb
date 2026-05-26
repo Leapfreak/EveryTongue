@@ -139,12 +139,16 @@ Namespace Services.Bible
                 End If
             End If
 
-            _logger.LogInformation("Bible: scanning {Dir}", _biblesDir)
+            _logger.LogInformation("Bible: scanning {Dir} (exists={Exists})",
+                _biblesDir, Directory.Exists(_biblesDir))
             ScanTranslations()
         End Sub
 
         Private Sub ScanTranslations()
-            If Not Directory.Exists(_biblesDir) Then Return
+            If Not Directory.Exists(_biblesDir) Then
+                _logger.LogWarning("Bible: directory not found: {Dir}", _biblesDir)
+                Return
+            End If
 
             Dim extensions = {"*.db", "*.sqlite", "*.sqlite3"}
             For Each ext In extensions

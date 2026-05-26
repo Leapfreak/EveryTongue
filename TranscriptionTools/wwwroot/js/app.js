@@ -307,6 +307,11 @@ function createLangItem(lang){
 }
 document.getElementById('lpSearch').oninput=function(){renderLangList(this.value)};
 
+function goHome(){
+  localStorage.removeItem('langChosen');
+  location.reload();
+}
+
 /* Populate transLangSelect dropdown dynamically from LANGS */
 (function(){
   var sel=document.getElementById('transLangSelect');

@@ -220,6 +220,7 @@ body {
     font-size: 16px;
     cursor: pointer;
 }
+#btnBibleClose { color: #f66; border-color: #a44 }
 #bibleNavTitle {
     flex: 1;
     color: #aaa;

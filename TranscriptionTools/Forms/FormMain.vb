@@ -2651,7 +2651,8 @@ del ""%~f0""
                 .AllowRemote = _config.AllowFirewall,
                 .BgColor = _config.SubtitleBgColor,
                 .FgColor = _config.SubtitleFgColor,
-                .AdminPin = If(_config.AdminPin, "")
+                .AdminPin = If(_config.AdminPin, ""),
+                .BiblesDirectory = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Bibles")
             }
 
             _kestrelHost.Start(kestrelOptions,
