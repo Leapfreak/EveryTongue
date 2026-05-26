@@ -4,7 +4,9 @@ Imports Microsoft.AspNetCore.Http
 Imports Microsoft.AspNetCore.Routing
 Imports Microsoft.Extensions.DependencyInjection
 Imports Microsoft.Extensions.Options
+Imports TranscriptionTools.Server.Hubs
 Imports TranscriptionTools.Services.Infrastructure
+Imports TranscriptionTools.Services.Interfaces
 
 Namespace Server
     ''' <summary>
@@ -14,12 +16,21 @@ Namespace Server
     Public Module EndpointRegistration
 
         Public Sub MapAllEndpoints(app As IEndpointRouteBuilder)
+            MapWebSocketEndpoint(app)
             MapCoreEndpoints(app)
             ' Future phases will add:
             ' MapBibleEndpoints(app)
             ' MapTtsEndpoints(app)
             ' MapAudioEndpoints(app)
             ' MapFeedbackEndpoints(app)
+        End Sub
+
+        Private Sub MapWebSocketEndpoint(app As IEndpointRouteBuilder)
+            ' WebSocket subtitle hub — /ws
+            app.Map("/ws", Async Function(context As HttpContext) As Task
+                               Dim hub = context.RequestServices.GetRequiredService(Of SubtitleHub)()
+                               Await hub.HandleAsync(context)
+                           End Function)
         End Sub
 
         Private Sub MapCoreEndpoints(app As IEndpointRouteBuilder)

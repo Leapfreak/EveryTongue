@@ -1,0 +1,543 @@
+Imports System.Collections.Concurrent
+Imports System.Net.WebSockets
+Imports System.Text
+Imports System.Text.Json
+Imports System.Threading
+Imports Microsoft.Extensions.Logging
+Imports Microsoft.Extensions.Options
+Imports TranscriptionTools.Server
+Imports TranscriptionTools.Services.Interfaces
+
+Namespace Services.Subtitle
+    ''' <summary>
+    ''' Core subtitle service — manages client state, broadcast, and history.
+    ''' Extracted from SubtitleServer.vb with the same logic and backpressure model.
+    ''' </summary>
+    Public Class SubtitleService
+        Implements ISubtitleService
+
+        Private ReadOnly _logger As ILogger(Of SubtitleService)
+        Private ReadOnly _options As ServerOptions
+        Private ReadOnly _clients As New ConcurrentDictionary(Of String, ClientConnection)()
+        Private ReadOnly _committedLines As New ConcurrentQueue(Of CommittedEntry)()
+        Private _lastCommittedEntry As CommittedEntry
+        Private _commitCounter As Integer = 0
+        Private _currentLine As String = ""
+
+        ' ── Events ──
+
+        Public Event StatusChanged As EventHandler(Of String) Implements ISubtitleService.StatusChanged
+        Public Event RemoteCommand As EventHandler(Of String) Implements ISubtitleService.RemoteCommand
+        Public Event ActiveLanguagesChanged As EventHandler Implements ISubtitleService.ActiveLanguagesChanged
+        Public Event InputLanguageChanged As EventHandler(Of String) Implements ISubtitleService.InputLanguageChanged
+        Public Event LogMessage As EventHandler(Of String) Implements ISubtitleService.LogMessage
+
+        ' ── Properties ──
+
+        Public Property IsRunning As Boolean = True Implements ISubtitleService.IsRunning
+        Public Property IsLiveRunning As Boolean = False Implements ISubtitleService.IsLiveRunning
+        Public Property IsSimulating As Boolean = False Implements ISubtitleService.IsSimulating
+        Public Property InputLanguage As String = "auto" Implements ISubtitleService.InputLanguage
+        Public Property TuneCallback As Func(Of String) = Nothing Implements ISubtitleService.TuneCallback
+        Public Property BgColor As String = "#000000" Implements ISubtitleService.BgColor
+        Public Property FgColor As String = "#FFFFFF" Implements ISubtitleService.FgColor
+
+        Public ReadOnly Property ConnectedClients As Integer Implements ISubtitleService.ConnectedClients
+            Get
+                Return _clients.Count
+            End Get
+        End Property
+
+        Public Sub New(logger As ILogger(Of SubtitleService),
+                       options As IOptions(Of ServerOptions))
+            _logger = logger
+            _options = options.Value
+        End Sub
+
+        ' ── Client management ──
+
+        Public Function AddClient(client As ClientConnection) As Boolean Implements ISubtitleService.AddClient
+            If _clients.TryAdd(client.Id, client) Then
+                Dim shortUa = ParseUserAgent(client.UserAgent)
+                RaiseEvent StatusChanged(Me, $"Client connected: {client.RemoteEndpoint} — {shortUa} ({_clients.Count} total)")
+                Return True
+            End If
+            Return False
+        End Function
+
+        Public Function RemoveClient(clientId As String) As Boolean Implements ISubtitleService.RemoveClient
+            Dim removed As ClientConnection = Nothing
+            If _clients.TryRemove(clientId, removed) Then
+                RaiseEvent StatusChanged(Me, $"Client disconnected: {removed.RemoteEndpoint} ({_clients.Count} total)")
+                RaiseEvent ActiveLanguagesChanged(Me, EventArgs.Empty)
+                Return True
+            End If
+            Return False
+        End Function
+
+        Public Function GetActiveTranslationLanguages() As List(Of String) Implements ISubtitleService.GetActiveTranslationLanguages
+            Dim langs As New HashSet(Of String)()
+            For Each kvp In _clients
+                Dim lang = kvp.Value.Language
+                If Not String.IsNullOrEmpty(lang) Then langs.Add(lang)
+            Next
+            Return langs.ToList()
+        End Function
+
+        ' ── Message processing ──
+
+        Public Sub ProcessClientMessage(clientId As String, jsonText As String) Implements ISubtitleService.ProcessClientMessage
+            Try
+                Using doc = JsonDocument.Parse(jsonText)
+                    Dim root = doc.RootElement
+                    Dim typeProp As JsonElement = Nothing
+                    If Not root.TryGetProperty("type", typeProp) Then Return
+                    Dim typeStr = typeProp.GetString()
+
+                    If typeStr = "setLanguage" Then
+                        Dim langProp As JsonElement = Nothing
+                        If Not root.TryGetProperty("language", langProp) Then Return
+                        Dim lang = langProp.GetString()
+                        Dim info As ClientConnection = Nothing
+                        If _clients.TryGetValue(clientId, info) Then
+                            Dim oldLang = info.Language
+                            info.Language = If(lang, "")
+                            If oldLang <> info.Language Then
+                                RaiseEvent LogMessage(Me, $"[SUBTITLE] LANG CHANGE {info.RemoteEndpoint}: '{oldLang}' -> '{info.Language}'")
+                                RaiseEvent ActiveLanguagesChanged(Me, EventArgs.Empty)
+                            End If
+                        End If
+
+                    ElseIf typeStr = "setInputLanguage" Then
+                        Dim langProp As JsonElement = Nothing
+                        If Not root.TryGetProperty("language", langProp) Then Return
+                        Dim lang = If(langProp.GetString(), "auto")
+                        RaiseEvent LogMessage(Me, $"[SUBTITLE] INPUT LANG CHANGE -> '{lang}'")
+                        RaiseEvent InputLanguageChanged(Me, lang)
+
+                    ElseIf typeStr = "ping" Then
+                        Dim info As ClientConnection = Nothing
+                        If _clients.TryGetValue(clientId, info) Then
+                            Dim pong = Encoding.UTF8.GetBytes("{""type"":""pong""}")
+                            TrySendToClient(info, pong)
+                        End If
+                    End If
+                End Using
+            Catch
+            End Try
+        End Sub
+
+        ' ── Broadcast methods ──
+
+        Public Sub BroadcastUpdate(text As String) Implements ISubtitleService.BroadcastUpdate
+            If Not IsRunning Then Return
+            _currentLine = text
+
+            ' Pre-encode once, send to all non-translation clients
+            Dim json = $"{{""type"":""update"",""text"":{EscapeJson(text)}}}"
+            Dim buffer = Encoding.UTF8.GetBytes(json)
+            Dim deadKeys As New List(Of String)
+
+            For Each kvp In _clients
+                Try
+                    If Not String.IsNullOrEmpty(kvp.Value.Language) Then Continue For
+                    If Not TrySendToClient(kvp.Value, buffer) Then
+                        RaiseEvent LogMessage(Me, $"[WS] BroadcastUpdate send failed: {kvp.Value.RemoteEndpoint}")
+                        deadKeys.Add(kvp.Key)
+                    End If
+                Catch ex As Exception
+                    deadKeys.Add(kvp.Key)
+                End Try
+            Next
+
+            CleanupDeadClients(deadKeys)
+        End Sub
+
+        Public Function BroadcastCommit(text As String,
+                                         Optional skipTranslationClients As Boolean = False,
+                                         Optional lang As String = "",
+                                         Optional sourceLang As String = "") As Integer Implements ISubtitleService.BroadcastCommit
+            Dim commitId = Interlocked.Increment(_commitCounter)
+            If Not IsRunning Then Return commitId
+            _currentLine = ""
+
+            Dim entry As New CommittedEntry(commitId, text, lang, Nothing)
+            _lastCommittedEntry = entry
+            EnqueueWithCap(entry)
+
+            Dim ts = entry.Timestamp.ToString("HH:mm:ss")
+            Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)},""lang"":{EscapeJson(lang)},""time"":{EscapeJson(ts)},""id"":{commitId}}}"
+            Dim buffer = Encoding.UTF8.GetBytes(json)
+            Dim deadKeys As New List(Of String)
+
+            For Each kvp In _clients
+                Try
+                    If skipTranslationClients AndAlso Not String.IsNullOrEmpty(kvp.Value.Language) AndAlso kvp.Value.Language <> sourceLang Then
+                        Continue For
+                    End If
+                    If Not TrySendToClient(kvp.Value, buffer) Then
+                        deadKeys.Add(kvp.Key)
+                    End If
+                Catch
+                    deadKeys.Add(kvp.Key)
+                End Try
+            Next
+
+            CleanupDeadClients(deadKeys)
+            Return commitId
+        End Function
+
+        Public Sub BroadcastCommitTranslated(originalText As String,
+                                              sourceLang As String,
+                                              translations As Dictionary(Of String, String),
+                                              langTags As Dictionary(Of String, String)) Implements ISubtitleService.BroadcastCommitTranslated
+            If Not IsRunning Then Return
+            _currentLine = ""
+
+            Dim entry As New CommittedEntry(Interlocked.Increment(_commitCounter), originalText, sourceLang, translations, langTags)
+            _lastCommittedEntry = entry
+            EnqueueWithCap(entry)
+
+            Dim ts = entry.Timestamp.ToString("HH:mm:ss")
+            Dim deadKeys As New List(Of String)
+
+            For Each kvp In _clients
+                Try
+                    Dim clientLang = kvp.Value.Language
+                    Dim text As String
+                    Dim tag As String
+
+                    If String.IsNullOrEmpty(clientLang) Then
+                        text = originalText
+                        tag = sourceLang
+                    Else
+                        Dim translated As String = Nothing
+                        If translations IsNot Nothing AndAlso translations.TryGetValue(clientLang, translated) Then
+                            text = translated
+                            tag = clientLang
+                        Else
+                            Continue For
+                        End If
+                    End If
+
+                    Dim langTag As String = ""
+                    If langTags IsNot Nothing Then langTags.TryGetValue(tag, langTag)
+                    If langTag Is Nothing Then langTag = tag
+                    Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)},""lang"":{EscapeJson(langTag)},""time"":{EscapeJson(ts)},""id"":{entry.Id}}}"
+                    Dim buffer = Encoding.UTF8.GetBytes(json)
+                    If Not TrySendToClient(kvp.Value, buffer) Then
+                        deadKeys.Add(kvp.Key)
+                    End If
+                Catch
+                    deadKeys.Add(kvp.Key)
+                End Try
+            Next
+
+            CleanupDeadClients(deadKeys)
+        End Sub
+
+        Public Sub BroadcastTranslationsOnly(translations As Dictionary(Of String, String),
+                                              langTags As Dictionary(Of String, String)) Implements ISubtitleService.BroadcastTranslationsOnly
+            If Not IsRunning OrElse translations Is Nothing Then Return
+
+            If _lastCommittedEntry IsNot Nothing Then
+                For Each kvp In translations
+                    _lastCommittedEntry.Translations(kvp.Key) = kvp.Value
+                Next
+            End If
+
+            Dim ts = DateTime.Now.ToString("HH:mm:ss")
+            Dim deadKeys As New List(Of String)
+
+            For Each kvp In _clients
+                Try
+                    Dim lang = kvp.Value.Language
+                    If String.IsNullOrEmpty(lang) Then Continue For
+                    Dim translated As String = Nothing
+                    If Not translations.TryGetValue(lang, translated) Then Continue For
+
+                    Dim tagValue As String = ""
+                    If langTags IsNot Nothing Then langTags.TryGetValue(lang, tagValue)
+                    If tagValue Is Nothing Then tagValue = lang
+                    Dim entryId = If(_lastCommittedEntry IsNot Nothing, _lastCommittedEntry.Id, 0)
+                    Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(translated)},""lang"":{EscapeJson(tagValue)},""time"":{EscapeJson(ts)},""id"":{entryId}}}"
+                    Dim buffer = Encoding.UTF8.GetBytes(json)
+                    If Not TrySendToClient(kvp.Value, buffer) Then
+                        deadKeys.Add(kvp.Key)
+                    End If
+                Catch
+                    deadKeys.Add(kvp.Key)
+                End Try
+            Next
+
+            CleanupDeadClients(deadKeys)
+        End Sub
+
+        Public Sub BroadcastClear() Implements ISubtitleService.BroadcastClear
+            If Not IsRunning Then Return
+            _currentLine = ""
+            While _committedLines.Count > 0
+                Dim discard As CommittedEntry = Nothing
+                _committedLines.TryDequeue(discard)
+            End While
+            BroadcastMessage("{""type"":""clear""}")
+        End Sub
+
+        Public Sub BroadcastSystemMessage(text As String) Implements ISubtitleService.BroadcastSystemMessage
+            If Not IsRunning Then Return
+            Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)}}}"
+            BroadcastMessage(json)
+        End Sub
+
+        ' ── History replay ──
+
+        Public Async Function ReplayHistoryAsync(client As ClientConnection,
+                                                  lastId As Integer,
+                                                  ct As CancellationToken) As Task Implements ISubtitleService.ReplayHistoryAsync
+            Try
+                ' Wait for any in-flight send to finish
+                Dim spinWait = 0
+                While Interlocked.CompareExchange(client.SendBusy, 1, 0) <> 0
+                    Await Task.Delay(10, ct).ConfigureAwait(False)
+                    spinWait += 1
+                    If spinWait > 100 Then Exit Function
+                End While
+                Try
+                    Dim replayed = 0
+                    For Each entry In _committedLines
+                        If entry.Id <= lastId Then Continue For
+                        If replayed >= _options.MaxReplayEntries Then Exit For
+
+                        Dim text = GetTextForClient(client, entry.OriginalText, entry.Translations)
+                        Dim clientLang = GetLangForClient(client, entry.SourceLang, entry.Translations, entry.LangTags)
+                        Dim ts = entry.Timestamp.ToString("HH:mm:ss")
+                        Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)},""lang"":{EscapeJson(clientLang)},""time"":{EscapeJson(ts)},""id"":{entry.Id}}}"
+                        Dim buf = Encoding.UTF8.GetBytes(json)
+                        If client.WebSocket.State = WebSocketState.Open Then
+                            Await client.WebSocket.SendAsync(
+                                New ArraySegment(Of Byte)(buf),
+                                WebSocketMessageType.Text, True, ct).ConfigureAwait(False)
+                            replayed += 1
+                        End If
+                    Next
+
+                    ' Send current in-progress line if any
+                    If _currentLine.Length > 0 AndAlso client.WebSocket.State = WebSocketState.Open Then
+                        Dim json = $"{{""type"":""update"",""text"":{EscapeJson(_currentLine)}}}"
+                        Dim buf = Encoding.UTF8.GetBytes(json)
+                        Await client.WebSocket.SendAsync(
+                            New ArraySegment(Of Byte)(buf),
+                            WebSocketMessageType.Text, True, ct).ConfigureAwait(False)
+                    End If
+                Finally
+                    Interlocked.Exchange(client.SendBusy, 0)
+                End Try
+            Catch
+            End Try
+        End Function
+
+        ' ── Private helpers ──
+
+        Private Function TrySendToClient(client As ClientConnection, data As Byte()) As Boolean
+            Dim ws = client.WebSocket
+            If ws Is Nothing Then Return False
+            If ws.State = WebSocketState.Closed OrElse ws.State = WebSocketState.Aborted Then
+                Return False
+            End If
+
+            ' Backpressure: if previous send still in-flight, skip this message
+            If Interlocked.CompareExchange(client.SendBusy, 1, 0) <> 0 Then
+                Interlocked.Increment(client.MessagesDropped)
+                Return True ' Not dead, just busy
+            End If
+
+            ' Fire-and-forget async send
+            Task.Run(Async Function()
+                         Try
+                             If ws.State = WebSocketState.Open Then
+                                 Await ws.SendAsync(
+                                     New ArraySegment(Of Byte)(data),
+                                     WebSocketMessageType.Text, True,
+                                     CancellationToken.None).ConfigureAwait(False)
+                                 Interlocked.Increment(client.MessagesSent)
+                             End If
+                         Catch
+                         Finally
+                             Interlocked.Exchange(client.SendBusy, 0)
+                         End Try
+                     End Function)
+            Return True
+        End Function
+
+        Private Sub BroadcastMessage(json As String)
+            Dim buffer = Encoding.UTF8.GetBytes(json)
+            Dim deadKeys As New List(Of String)
+
+            For Each kvp In _clients
+                Try
+                    If Not TrySendToClient(kvp.Value, buffer) Then deadKeys.Add(kvp.Key)
+                Catch
+                    deadKeys.Add(kvp.Key)
+                End Try
+            Next
+
+            CleanupDeadClients(deadKeys)
+        End Sub
+
+        Private Sub EnqueueWithCap(entry As CommittedEntry)
+            _committedLines.Enqueue(entry)
+            ' Enforce history cap
+            While _committedLines.Count > _options.HistoryCap
+                Dim discard As CommittedEntry = Nothing
+                _committedLines.TryDequeue(discard)
+            End While
+        End Sub
+
+        Private Sub CleanupDeadClients(deadKeys As List(Of String))
+            For Each key In deadKeys
+                Dim removed As ClientConnection = Nothing
+                If _clients.TryRemove(key, removed) Then
+                    _logger.LogDebug("Cleanup dead client: {Endpoint}", removed.RemoteEndpoint)
+                    Try : removed.WebSocket?.Dispose() : Catch : End Try
+                End If
+            Next
+            If deadKeys.Count > 0 Then
+                RaiseEvent StatusChanged(Me, $"Clients: {_clients.Count}")
+                RaiseEvent ActiveLanguagesChanged(Me, EventArgs.Empty)
+            End If
+        End Sub
+
+        Private Shared Function GetTextForClient(client As ClientConnection,
+                                                  originalText As String,
+                                                  translations As Dictionary(Of String, String)) As String
+            If String.IsNullOrEmpty(client.Language) Then Return originalText
+            If translations IsNot Nothing Then
+                Dim translated As String = Nothing
+                If translations.TryGetValue(client.Language, translated) Then Return translated
+            End If
+            Return originalText
+        End Function
+
+        Private Shared Function GetLangForClient(client As ClientConnection,
+                                                  sourceLang As String,
+                                                  translations As Dictionary(Of String, String),
+                                                  langTags As Dictionary(Of String, String)) As String
+            Dim rawTag As String
+            If String.IsNullOrEmpty(client.Language) Then
+                rawTag = sourceLang
+            ElseIf translations IsNot Nothing AndAlso translations.ContainsKey(client.Language) Then
+                rawTag = client.Language
+            Else
+                rawTag = sourceLang
+            End If
+            Dim displayTag As String = Nothing
+            If langTags IsNot Nothing Then langTags.TryGetValue(rawTag, displayTag)
+            Return If(displayTag, rawTag)
+        End Function
+
+        Public Function ExtractLastId(jsonMsg As String) As Integer
+            Try
+                Using doc = JsonDocument.Parse(jsonMsg)
+                    Dim root = doc.RootElement
+                    Dim lastIdProp As JsonElement = Nothing
+                    If root.TryGetProperty("lastId", lastIdProp) Then
+                        Return lastIdProp.GetInt32()
+                    End If
+                End Using
+            Catch
+            End Try
+            Return 0
+        End Function
+
+        ' ── Shared utilities ──
+
+        Public Shared Function EscapeJson(s As String) As String
+            Dim sb As New StringBuilder("""")
+            For Each c In s
+                Select Case c
+                    Case """"c : sb.Append("\""")
+                    Case "\"c : sb.Append("\\")
+                    Case ChrW(8) : sb.Append("\b")
+                    Case ChrW(9) : sb.Append("\t")
+                    Case ChrW(10) : sb.Append("\n")
+                    Case ChrW(12) : sb.Append("\f")
+                    Case ChrW(13) : sb.Append("\r")
+                    Case Else
+                        If AscW(c) < 32 Then
+                            sb.Append($"\u{AscW(c):X4}")
+                        Else
+                            sb.Append(c)
+                        End If
+                End Select
+            Next
+            sb.Append(""""c)
+            Return sb.ToString()
+        End Function
+
+        Public Shared Function ParseUserAgent(ua As String) As String
+            If String.IsNullOrWhiteSpace(ua) Then Return "Unknown"
+
+            Dim device = ""
+            Dim os = ""
+            Dim browser = ""
+
+            If ua.Contains("iPhone") Then
+                device = "iPhone"
+            ElseIf ua.Contains("iPad") Then
+                device = "iPad"
+            ElseIf ua.Contains("Android") Then
+                device = "Android"
+            ElseIf ua.Contains("Windows") Then
+                device = "Windows"
+            ElseIf ua.Contains("Macintosh") Then
+                device = "Mac"
+            ElseIf ua.Contains("Linux") Then
+                device = "Linux"
+            ElseIf ua.Contains("CrOS") Then
+                device = "ChromeOS"
+            End If
+
+            Dim m = Text.RegularExpressions.Regex.Match(ua, "iPhone OS (\d+[_\.]\d+)")
+            If m.Success Then
+                os = "iOS " & m.Groups(1).Value.Replace("_", ".")
+            Else
+                m = Text.RegularExpressions.Regex.Match(ua, "CPU OS (\d+[_\.]\d+)")
+                If m.Success Then
+                    os = "iPadOS " & m.Groups(1).Value.Replace("_", ".")
+                Else
+                    m = Text.RegularExpressions.Regex.Match(ua, "Android (\d+[\.\d]*)")
+                    If m.Success Then os = "Android " & m.Groups(1).Value
+                End If
+            End If
+
+            If ua.Contains("EdgA/") OrElse ua.Contains("Edg/") OrElse ua.Contains("Edge/") Then
+                browser = "Edge"
+            ElseIf ua.Contains("SamsungBrowser/") Then
+                browser = "Samsung Browser"
+            ElseIf ua.Contains("OPR/") OrElse ua.Contains("Opera") Then
+                browser = "Opera"
+            ElseIf ua.Contains("CriOS/") Then
+                browser = "Chrome (iOS)"
+            ElseIf ua.Contains("FxiOS/") Then
+                browser = "Firefox (iOS)"
+            ElseIf ua.Contains("Firefox/") Then
+                browser = "Firefox"
+            ElseIf ua.Contains("Chrome/") Then
+                browser = "Chrome"
+            ElseIf ua.Contains("Safari/") Then
+                browser = "Safari"
+            ElseIf ua.Contains("MSIE") OrElse ua.Contains("Trident") Then
+                browser = "IE"
+            End If
+
+            Dim parts As New List(Of String)()
+            If device.Length > 0 Then parts.Add(device)
+            If os.Length > 0 AndAlso Not os.StartsWith(device) Then parts.Add(os)
+            If os.Length > 0 AndAlso os.StartsWith(device) Then parts.Clear() : parts.Add(os)
+            If browser.Length > 0 Then parts.Add(browser)
+
+            If parts.Count = 0 Then Return If(ua.Length > 80, ua.Substring(0, 80) & "...", ua)
+            Return String.Join(" / ", parts)
+        End Function
+    End Class
+End Namespace

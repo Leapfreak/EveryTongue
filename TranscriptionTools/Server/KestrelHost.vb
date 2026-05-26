@@ -9,8 +9,11 @@ Imports Microsoft.Extensions.DependencyInjection
 Imports Microsoft.Extensions.Hosting
 Imports Microsoft.Extensions.Logging
 Imports Microsoft.Extensions.Options
+Imports TranscriptionTools.Server.Hubs
 Imports TranscriptionTools.Server.Middleware
 Imports TranscriptionTools.Services.Infrastructure
+Imports TranscriptionTools.Services.Interfaces
+Imports TranscriptionTools.Services.Subtitle
 
 Namespace Server
     ''' <summary>
@@ -219,10 +222,12 @@ Namespace Server
             services.Configure(Of GzipCompressionProviderOptions)(
                 Sub(opts) opts.Level = IO.Compression.CompressionLevel.Fastest)
 
+            ' Core services
+            services.AddSingleton(Of ISubtitleService, SubtitleService)()
+            services.AddTransient(Of SubtitleHub)()
+
             ' Future phases will register:
-            ' services.AddSingleton(Of ISubtitleService, SubtitleService)()
             ' services.AddSingleton(Of ITranslationService, TranslationOrchestrator)()
-            ' services.AddSingleton(Of ITtsService, TtsOrchestrator)()
             ' services.AddSingleton(Of IBibleService, BibleService)()
             ' services.AddSingleton(Of IAudioStreamService, AudioStreamService)()
             ' services.AddSingleton(Of IMetricsService, MetricsService)()
