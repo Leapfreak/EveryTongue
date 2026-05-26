@@ -10,7 +10,7 @@
 <div id="status" class="disconnected">Connecting...</div>
 <div id="toolbar">
   <button id="btnAdmin" onclick="toggleAdmin()" title="Remote Control" style="display:none">&#128737;</button>
-  <button id="btnHome" onclick="goHome()" title="Home">&#8634;</button>
+  <button id="btnHome" onclick="goHome()" title="Home">&#8962;</button>
   <button id="btnSettings" onclick="togglePanel()" title="Settings">&#9881;</button>
   <button id="btnWake" onclick="toggleWakeLock()" title="Keep screen on">&#9728;</button>
   <button id="btnBible" onclick="toggleBible()" title="Bible">&#128214;</button>
@@ -72,11 +72,7 @@
   <button id="btnSpeak" onclick="toggleSpeak()" style="width:100%;min-width:60px">&#128264; Read Aloud</button>
   <label id="lblServerTts">Server TTS</label>
   <button id="btnServerTts" onclick="toggleServerTts()" style="width:100%;min-width:60px">Server TTS</button>
-  <label id="lblTransLang">Translation</label>
-  <select id="transLangSelect" onchange="setTransLang(this.value)">
-    <option value="">Original</option>
-  </select>
-  <button id="btnBrowseLangs" onclick="showLangPicker()" style="width:100%;margin-top:6px;background:#333;color:#ccc;border:1px solid #555;border-radius:4px;padding:8px;font-size:14px;cursor:pointer">&#127760; Browse All</button>
+  <select id="transLangSelect" style="display:none"></select>
   <label id="lblScroll">Scroll Direction</label>
   <select id="scrollDir" onchange="setScrollDir(this.value)">
     <option value="up">Bottom-up (newest at bottom)</option>

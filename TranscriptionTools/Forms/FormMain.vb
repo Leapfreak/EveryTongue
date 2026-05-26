@@ -670,6 +670,7 @@ del ""%~f0""
         nudTransUnload.Value = Math.Max(nudTransUnload.Minimum, Math.Min(nudTransUnload.Maximum, _config.TranslationUnloadMinutes))
         chkTransEnabled.Checked = _config.TranslationEnabled
         chkAllowFirewall.Checked = _config.AllowFirewall
+        txtTtsBackends.Text = If(_config.TtsBackends, "")
 
         ApplyLiveOutputFont()
 
@@ -752,6 +753,7 @@ del ""%~f0""
         _config.TranslationUnloadMinutes = CInt(nudTransUnload.Value)
         _config.TranslationEnabled = chkTransEnabled.Checked
         _config.AllowFirewall = chkAllowFirewall.Checked
+        _config.TtsBackends = txtTtsBackends.Text.Trim()
 
         ' Live sliders
         _config.LiveMaxSegmentSec = trkMaxSegment.Value
@@ -2730,7 +2732,8 @@ del ""%~f0""
                 .BgColor = _config.SubtitleBgColor,
                 .FgColor = _config.SubtitleFgColor,
                 .AdminPin = If(_config.AdminPin, ""),
-                .BiblesDirectory = AppConfig.ResolvePath(If(_config.BiblesDirectory, ".\Bibles"))
+                .BiblesDirectory = AppConfig.ResolvePath(If(_config.BiblesDirectory, ".\Bibles")),
+                .TtsBackends = If(_config.TtsBackends, "")
             }
 
             _kestrelHost.Start(kestrelOptions,

@@ -155,6 +155,12 @@ Namespace Server
                 subtitleSvc.TtsService = ttsSvc
             End If
 
+            ' Apply TTS backend preference from config
+            Dim ttsOrch = TryCast(ttsSvc, TtsOrchestrator)
+            If ttsOrch IsNot Nothing AndAlso Not String.IsNullOrEmpty(options.TtsBackends) Then
+                ttsOrch.SetPreferredBackends(options.TtsBackends)
+            End If
+
             ' Wire TTS audio output for local PA/NDI playback
             Dim ttsCache = app.Services.GetService(Of TtsCache)()
             If subtitleSvc IsNot Nothing AndAlso ttsCache IsNot Nothing Then

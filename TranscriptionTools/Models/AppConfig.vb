@@ -151,6 +151,14 @@ Namespace Models
         Public Property TranslationUnloadMinutes As Integer = 10
         Public Property TranslationGlossaryPath As String = ".\nllb-server\glossary.json"
 
+        ' --- TTS ---
+
+        ''' <summary>
+        ''' Comma-separated list of preferred TTS backends in priority order.
+        ''' Values: piper, mms-tts, edgetts. Empty = all (default fallback order).
+        ''' </summary>
+        Public Property TtsBackends As String = ""
+
         Public Property FirstRunComplete As Boolean = False
         Public Property StartWithWindows As Boolean = False
         Public Property AllowFirewall As Boolean = False

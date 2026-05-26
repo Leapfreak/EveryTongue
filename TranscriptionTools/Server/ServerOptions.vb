@@ -33,6 +33,12 @@ Namespace Server
         Public Property TtsOutputVolume As Single = 1.0F
 
         ''' <summary>
+        ''' Comma-separated preferred TTS backends (piper, mms-tts, edgetts).
+        ''' Empty = all backends in default priority order.
+        ''' </summary>
+        Public Property TtsBackends As String = ""
+
+        ''' <summary>
         ''' PIN required to access admin controls from the phone client.
         ''' Empty string means admin features are hidden (no gear button shown).
         ''' </summary>

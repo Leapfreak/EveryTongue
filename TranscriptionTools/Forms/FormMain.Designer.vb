@@ -833,6 +833,23 @@ Partial Class FormMain
 
         svy += 48
 
+        Me.lblTtsBackends = New Label()
+        Me.lblTtsBackends.Text = "TTS Backends"
+        Me.lblTtsBackends.Location = New Drawing.Point(10, svy)
+        Me.lblTtsBackends.AutoSize = True
+
+        Me.txtTtsBackends = New TextBox()
+        Me.txtTtsBackends.Location = New Drawing.Point(10, svy + 16)
+        Me.txtTtsBackends.Size = New Drawing.Size(300, 23)
+
+        Dim lblTtsHint As New Label()
+        lblTtsHint.Text = "(piper, mms-tts, edgetts — comma-separated, empty = all)"
+        lblTtsHint.Location = New Drawing.Point(320, svy + 18)
+        lblTtsHint.AutoSize = True
+        lblTtsHint.ForeColor = Drawing.Color.Gray
+
+        svy += 48
+
         Me.btnSetupTranslation = New Button()
         Me.btnSetupTranslation.Text = "Check Dependencies"
         Me.btnSetupTranslation.Location = New Drawing.Point(10, svy + 2)
@@ -848,6 +865,7 @@ Partial Class FormMain
             Me.lblLiveServerPort, Me.nudLiveServerPort, Me.lblTranslationPort, Me.nudTranslationPort,
             Me.lblTransDevice, Me.cboTransDevice, Me.lblTransUnload, Me.nudTransUnload,
             Me.chkTransEnabled, Me.chkAllowFirewall,
+            Me.lblTtsBackends, Me.txtTtsBackends, lblTtsHint,
             Me.btnSetupTranslation})
 
         ' Connection info group
@@ -1107,6 +1125,8 @@ Partial Class FormMain
     Friend WithEvents nudTransUnload As NumericUpDown
     Friend WithEvents chkTransEnabled As CheckBox
     Friend WithEvents chkAllowFirewall As CheckBox
+    Friend WithEvents lblTtsBackends As Label
+    Friend WithEvents txtTtsBackends As TextBox
 
     ' Live Translation tab
     Friend WithEvents grpLiveInput As GroupBox
