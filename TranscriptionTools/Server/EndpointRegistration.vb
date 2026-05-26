@@ -194,7 +194,7 @@ Namespace Server
                                                   Dim lang = context.Request.Query("lang").FirstOrDefault()
                                                   Dim translations = Await bibleService.GetTranslationsAsync(
                                                       If(lang, ""), context.RequestAborted)
-                                                  Return Results.Ok(translations)
+                                                  Return Results.Json(translations)
                                               End Function)
 
             ' Get chapter

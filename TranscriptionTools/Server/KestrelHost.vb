@@ -15,6 +15,7 @@ Imports TranscriptionTools.Services.Infrastructure
 Imports TranscriptionTools.Services.Interfaces
 Imports Microsoft.AspNetCore.StaticFiles
 Imports Microsoft.Extensions.FileProviders
+Imports TranscriptionTools.Services.Bible
 Imports TranscriptionTools.Services.Subtitle
 
 Namespace Server
@@ -227,6 +228,7 @@ Namespace Server
             ' Core services
             services.AddSingleton(Of ISubtitleService, SubtitleService)()
             services.AddTransient(Of SubtitleHub)()
+            services.AddSingleton(Of IBibleService, BibleService)()
 
             ' Future phases will register:
             ' services.AddSingleton(Of ITranslationService, TranslationOrchestrator)()

@@ -16,6 +16,9 @@ Namespace Server
         ''' <summary>Maximum entries replayed to a reconnecting client.</summary>
         Public Property MaxReplayEntries As Integer = 200
 
+        ''' <summary>Path to the Bibles directory. If empty, searches near the executable.</summary>
+        Public Property BiblesDirectory As String = ""
+
         ''' <summary>Background/foreground colours for the web client.</summary>
         Public Property BgColor As String = "#000000"
         Public Property FgColor As String = "#FFFFFF"
