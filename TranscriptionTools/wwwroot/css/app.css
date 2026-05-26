@@ -309,6 +309,8 @@ body {
     font-size: 16px;
     line-height: 1.5;
     color: #ddd;
+    position: relative;
+    padding-right: 40px;
 }
 .bible-verse .vnum {
     color: #47f;
@@ -322,6 +324,8 @@ body {
     padding: 8px 0;
     border-bottom: 1px solid #222;
     cursor: pointer;
+    position: relative;
+    padding-right: 40px;
 }
 .bible-search-result:active { background: #222 }
 .bible-search-ref {
@@ -336,18 +340,17 @@ body {
 }
 
 .bible-verse-speak {
-    float: right;
+    position: absolute;
+    right: 0;
+    top: 6px;
     background: #222;
     color: #888;
     border: 1px solid #444;
     border-radius: 4px;
-    padding: 2px 8px;
+    padding: 4px 10px;
     font-size: 14px;
     cursor: pointer;
-    margin-left: 8px;
-    line-height: 1;
 }
-.bible-verse-speak::after { content: "\1F508" }
 .bible-verse-speak:active { color: #4f4; border-color: #4f4 }
 
 .bible-read-all-bar {
@@ -367,12 +370,23 @@ body {
     min-width: 140px;
 }
 .bible-read-all-btn:active { background: #47f; color: #fff }
-.bible-read-all-btn.stopping {
-    background: #411;
-    color: #f66;
-    border-color: #f44;
-    font-size: 16px;
+
+#btnBibleStop {
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #c00;
+    color: #fff;
+    border: 2px solid #f44;
+    border-radius: 30px;
+    padding: 12px 30px;
+    font-size: 18px;
     font-weight: bold;
+    cursor: pointer;
+    z-index: 10000;
+    box-shadow: 0 4px 16px rgba(255,0,0,0.4);
 }
 
 .bible-ref-link {

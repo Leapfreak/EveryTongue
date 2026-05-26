@@ -1102,16 +1102,20 @@ function openBibleRef(book,chapter,verseStart,verseEnd){
 /* ── Bible Verse TTS ── */
 var bibleTtsActive=false;
 function speakBibleVerse(text){
+  console.log('[BibleTTS] speakBibleVerse called, text length='+((text||'').length)+', synth='+!!synth);
   clearTtsQueue();
   synth.cancel();
-  if(!synth||!text)return;
+  if(!synth||!text){console.log('[BibleTTS] aborted: synth='+!!synth+' text='+!!text);return}
   bibleTtsActive=true;
   var utter=new SpeechSynthesisUtterance(text);
   utter.rate=speechRate;
   if(selectedVoice){var voices=synth.getVoices();for(var i=0;i<voices.length;i++){if(voices[i].name===selectedVoice){utter.voice=voices[i];break}}}
-  utter.onend=function(){bibleTtsActive=false;resetReadAllBtn()};
-  utter.onerror=function(){bibleTtsActive=false;resetReadAllBtn()};
+  utter.onend=function(){console.log('[BibleTTS] onend');bibleTtsActive=false;hideBibleStopBtn()};
+  utter.onerror=function(e){console.log('[BibleTTS] onerror',e);bibleTtsActive=false;hideBibleStopBtn()};
+  console.log('[BibleTTS] calling synth.speak, text="'+text.substring(0,80)+'..."');
   synth.speak(utter);
+  showBibleStopBtn();
+  console.log('[BibleTTS] synth.speaking='+synth.speaking+' synth.pending='+synth.pending);
 }
 
 function speakBibleVerseServer(text){
@@ -1132,12 +1136,17 @@ function speakBibleVerseServer(text){
     }
   }
   wsRef.send(JSON.stringify({type:'requestTts',text:text,language:lang}));
+  showBibleStopBtn();
 }
 
 function readAllVerses(){
   /* Works for both chapter view (.bible-verse) and search results (.bible-search-text) */
   var verseDivs=bibleContent.querySelectorAll('.bible-verse');
-  if(verseDivs.length===0){verseDivs=bibleContent.querySelectorAll('.bible-search-text')}
+  console.log('[BibleTTS] readAllVerses: .bible-verse count='+verseDivs.length);
+  if(verseDivs.length===0){
+    verseDivs=bibleContent.querySelectorAll('.bible-search-text');
+    console.log('[BibleTTS] readAllVerses: .bible-search-text count='+verseDivs.length);
+  }
   var allText='';
   for(var i=0;i<verseDivs.length;i++){
     /* Get only text nodes, skip .vnum span and speak button */
@@ -1148,7 +1157,9 @@ function readAllVerses(){
     allText+=' ';
   }
   allText=allText.trim();
-  if(!allText)return;
+  console.log('[BibleTTS] readAllVerses: allText length='+allText.length+', first 100="'+allText.substring(0,100)+'"');
+  if(!allText){console.log('[BibleTTS] readAllVerses: no text found, aborting');return}
+  console.log('[BibleTTS] useServerTts()='+useServerTts());
   if(useServerTts()){speakBibleVerseServer(allText)}
   else{speakBibleVerse(allText)}
 }
@@ -1156,12 +1167,14 @@ function readAllVerses(){
 function addVerseSpeakBtn(div,text){
   var btn=document.createElement('button');
   btn.className='bible-verse-speak';
-  btn.setAttribute('aria-label','Read verse');
+  btn.textContent='\u25B6';
   btn.title=t('readVerse');
   btn.onclick=function(e){
     e.stopPropagation();
+    console.log('[BibleTTS] verse speak clicked, text length='+((text||'').length)+', useServerTts='+useServerTts());
     if(useServerTts()){speakBibleVerseServer(text)}
     else{speakBibleVerse(text)}
+    showBibleStopBtn();
   };
   div.appendChild(btn);
 }
@@ -1172,27 +1185,33 @@ function addReadAllBtn(){
   btn.id='btnReadAll';
   btn.textContent=t('readAll');
   btn.onclick=function(){
-    if(bibleTtsActive){
-      stopBibleTts();
-    }else{
-      readAllVerses();
-      btn.textContent=t('stop');
-      btn.className='bible-read-all-btn stopping';
-    }
+    console.log('[BibleTTS] ReadAll clicked');
+    readAllVerses();
   };
   bar.appendChild(btn);
   bibleContent.insertBefore(bar,bibleContent.firstChild);
 }
+
+/* Floating stop button — created once, shown/hidden as needed */
+var btnBibleStop=document.createElement('button');
+btnBibleStop.id='btnBibleStop';
+btnBibleStop.textContent=t('stop');
+btnBibleStop.onclick=function(){stopBibleTts()};
+document.body.appendChild(btnBibleStop);
+
+function showBibleStopBtn(){
+  btnBibleStop.style.display='block';
+}
+function hideBibleStopBtn(){
+  btnBibleStop.style.display='none';
+}
 function stopBibleTts(){
+  console.log('[BibleTTS] stopBibleTts called');
   bibleTtsActive=false;
   synth.cancel();
   clearTtsQueue();
   if(ttsAudio){ttsAudio.pause();ttsAudio.src=''}
-  resetReadAllBtn();
-}
-function resetReadAllBtn(){
-  var btn=document.getElementById('btnReadAll');
-  if(btn){btn.textContent=t('readAll');btn.className='bible-read-all-btn'}
+  hideBibleStopBtn();
 }
 
 /* Chapter counts by book (standard Protestant canon) */
