@@ -185,16 +185,18 @@ Namespace Server
         Private Sub MapBibleEndpoints(app As IEndpointRouteBuilder)
 
             ' List available translations
-            app.MapGet("/bible/translations", Async Function(context As HttpContext) As Task(Of IResult)
+            app.MapGet("/bible/translations", Async Function(context As HttpContext) As Task
                                                   Dim bibleService = context.RequestServices.
                                                       GetService(Of IBibleService)
                                                   If bibleService Is Nothing Then
-                                                      Return Results.Json(New With {.error = "Bible service not available"})
+                                                      Await context.Response.WriteAsJsonAsync(
+                                                          New With {.error = "Bible service not available"})
+                                                      Return
                                                   End If
                                                   Dim lang = context.Request.Query("lang").FirstOrDefault()
                                                   Dim translations = Await bibleService.GetTranslationsAsync(
                                                       If(lang, ""), context.RequestAborted)
-                                                  Return Results.Json(translations)
+                                                  Await context.Response.WriteAsJsonAsync(translations)
                                               End Function)
 
             ' Get chapter

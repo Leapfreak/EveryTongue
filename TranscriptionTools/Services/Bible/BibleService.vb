@@ -27,7 +27,7 @@ Namespace Services.Bible
         '   <S>123</S>  Strong's numbers (KJV+)
         '   <J>...</J>  Jesus' words (KJV+)
         '   <pb/>       Paragraph breaks (BCI, etc.)
-        Private Shared ReadOnly TagPattern As New Regex("</?[SJ]>|<S>\d+</S>|<pb/>", RegexOptions.Compiled)
+        Private Shared ReadOnly TagPattern As New Regex("<S>\d+</S>|</?[SJ]>|<pb/>", RegexOptions.Compiled)
 
         ' Book name aliases for reference parsing (English)
         ' Maps display name/abbreviation -> short_name used in DB queries
