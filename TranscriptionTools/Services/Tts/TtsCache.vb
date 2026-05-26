@@ -97,18 +97,5 @@ Namespace Services.Tts
                     DateTime.UtcNow - oldest, TimeSpan.Zero)
             }
         End Function
-
-        ''' <summary>
-        ''' Clear all cached audio files.
-        ''' </summary>
-        Public Sub Clear()
-            Try
-                For Each f In Directory.GetFiles(_cacheDir)
-                    Try : File.Delete(f) : Catch : End Try
-                Next
-                _entries.Clear()
-            Catch
-            End Try
-        End Sub
     End Class
 End Namespace

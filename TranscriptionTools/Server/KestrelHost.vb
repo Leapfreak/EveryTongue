@@ -26,8 +26,7 @@ Namespace Server
     ''' Hosts ASP.NET Core Kestrel in-process within the WinForms application.
     ''' Runs on a background thread; FormMain remains on the UI thread.
     '''
-    ''' During migration (Phases 1-9): runs on temporary ports alongside legacy SubtitleServer.
-    ''' After cutover (Phase 10): takes over production ports 5080/5081.
+    ''' Runs on production ports 5080/5081.
     ''' </summary>
     Public Class KestrelHost
         Implements IDisposable

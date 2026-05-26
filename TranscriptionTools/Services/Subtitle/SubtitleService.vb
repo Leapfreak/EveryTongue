@@ -13,7 +13,6 @@ Imports TranscriptionTools.Services.Models
 Namespace Services.Subtitle
     ''' <summary>
     ''' Core subtitle service — manages client state, broadcast, and history.
-    ''' Extracted from SubtitleServer.vb with the same logic and backpressure model.
     ''' </summary>
     Public Class SubtitleService
         Implements ISubtitleService

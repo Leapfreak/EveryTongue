@@ -413,7 +413,6 @@ Namespace Server
 
         ''' <summary>
         ''' Generates a minimal silent WAV file (2 seconds, 8kHz, 8-bit mono).
-        ''' Same as the existing SubtitleServer implementation.
         ''' </summary>
         Private Function GenerateSilentWav() As Byte()
             Dim sampleRate As Integer = 8000

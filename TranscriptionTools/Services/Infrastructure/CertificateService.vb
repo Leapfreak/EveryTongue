@@ -8,7 +8,6 @@ Imports Microsoft.Extensions.Logging
 Namespace Services.Infrastructure
     ''' <summary>
     ''' Manages self-signed certificate generation and loading for HTTPS.
-    ''' Extracted from SubtitleServer.vb — same cert, same path, same logic.
     ''' </summary>
     Public Class CertificateService
         Implements ICertificateService
