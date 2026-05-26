@@ -15,8 +15,11 @@ Imports TranscriptionTools.Services.Infrastructure
 Imports TranscriptionTools.Services.Interfaces
 Imports Microsoft.AspNetCore.StaticFiles
 Imports Microsoft.Extensions.FileProviders
+Imports TranscriptionTools.Services.Audio
 Imports TranscriptionTools.Services.Bible
 Imports TranscriptionTools.Services.Subtitle
+Imports TranscriptionTools.Services.Translation
+Imports TranscriptionTools.Services.Tts
 
 Namespace Server
     ''' <summary>
@@ -229,12 +232,21 @@ Namespace Server
             services.AddSingleton(Of ISubtitleService, SubtitleService)()
             services.AddTransient(Of SubtitleHub)()
             services.AddSingleton(Of IBibleService, BibleService)()
+            services.AddSingleton(Of IMetricsService, MetricsService)()
+            services.AddSingleton(Of IAudioStreamService, AudioStreamService)()
 
-            ' Future phases will register:
-            ' services.AddSingleton(Of ITranslationService, TranslationOrchestrator)()
-            ' services.AddSingleton(Of IBibleService, BibleService)()
-            ' services.AddSingleton(Of IAudioStreamService, AudioStreamService)()
-            ' services.AddSingleton(Of IMetricsService, MetricsService)()
+            ' Translation backends (NLLB registered later by FormMain when pipeline starts)
+            services.AddSingleton(Of ITranslationBackend, DeepLBackend)()
+            services.AddSingleton(Of ITranslationBackend, GoogleBackend)()
+            services.AddSingleton(Of ITranslationBackend, AzureBackend)()
+            services.AddSingleton(Of ITranslationService, TranslationOrchestrator)()
+
+            ' TTS backends and orchestrator
+            services.AddSingleton(Of TtsCache)()
+            services.AddSingleton(Of ITtsBackend, PiperBackend)()
+            services.AddSingleton(Of ITtsBackend, MmsTtsBackend)()
+            services.AddSingleton(Of ITtsBackend, EdgeTtsBackend)()
+            services.AddSingleton(Of ITtsService, TtsOrchestrator)()
         End Sub
 
         Private Sub ConfigureMiddleware(app As WebApplication)

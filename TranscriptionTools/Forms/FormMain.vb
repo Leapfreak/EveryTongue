@@ -1695,6 +1695,9 @@ del ""%~f0""
                 Case "clear"
                     AppendServerLog("Remote command: CLEAR")
                     _subtitleServer?.BroadcastClear()
+                    Dim kSvc = TryCast(_kestrelHost?.Services?.GetService(
+                        GetType(Services.Interfaces.ISubtitleService)), Services.Interfaces.ISubtitleService)
+                    kSvc?.BroadcastClear()
                 Case Else
                     If command.StartsWith("setSliders:") Then
                         Dim parts = command.Substring(11).Split(","c)
@@ -1720,9 +1723,21 @@ del ""%~f0""
     End Sub
 
     Private Sub UpdateLiveRunningStatus()
+        Dim isLive = _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning
+        Dim isSim = _simCts IsNot Nothing AndAlso Not _simCts.IsCancellationRequested
+
         If _subtitleServer IsNot Nothing Then
-            _subtitleServer.IsLiveRunning = _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning
-            _subtitleServer.IsSimulating = _simCts IsNot Nothing AndAlso Not _simCts.IsCancellationRequested
+            _subtitleServer.IsLiveRunning = isLive
+            _subtitleServer.IsSimulating = isSim
+        End If
+
+        ' Sync Kestrel's subtitle service state
+        Dim kSvc = TryCast(_kestrelHost?.Services?.GetService(
+            GetType(Services.Interfaces.ISubtitleService)), Services.Interfaces.ISubtitleService)
+        If kSvc IsNot Nothing Then
+            kSvc.IsLiveRunning = isLive
+            kSvc.IsSimulating = isSim
+            kSvc.InputLanguage = If(_subtitleServer?.InputLanguage, "auto")
         End If
     End Sub
 
@@ -2688,6 +2703,20 @@ del ""%~f0""
             _kestrelHost.Start(kestrelOptions,
                 Sub(msg) AppendServerLog($"[Kestrel] {msg}"))
 
+            ' Wire up remote command handler so /api/control routes to FormMain
+            EndpointRegistration.RemoteCommandHandler = Sub(cmd)
+                                                            Me.BeginInvoke(Sub() HandleRemoteCommand(cmd))
+                                                        End Sub
+
+            ' Configure Kestrel's SubtitleService with callbacks from FormMain
+            Dim subtitleSvc = TryCast(_kestrelHost.Services?.GetService(
+                GetType(Services.Interfaces.ISubtitleService)), Services.Interfaces.ISubtitleService)
+            If subtitleSvc IsNot Nothing Then
+                subtitleSvc.TuneCallback = AddressOf GetTuneJson
+                subtitleSvc.IsLiveRunning = (_liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning)
+                subtitleSvc.InputLanguage = If(_subtitleServer?.InputLanguage, "auto")
+            End If
+
             AppendServerLog($"Kestrel server started on HTTP:{kestrelOptions.HttpPort} HTTPS:{kestrelOptions.HttpsPort}")
         Catch ex As Exception
             AppendServerLog($"Kestrel failed to start: {ex.Message}")
@@ -2707,6 +2736,7 @@ del ""%~f0""
         StopSimulation()
         _subtitleServer?.Stop()
         _subtitleServer = Nothing
+        EndpointRegistration.RemoteCommandHandler = Nothing
         Try : _kestrelHost?.Stop() : Catch : End Try
         _kestrelHost = Nothing
         UpdateServerUi(False)
@@ -2717,6 +2747,7 @@ del ""%~f0""
         StopSimulation()
         _subtitleServer?.Stop()
         _subtitleServer = Nothing
+        EndpointRegistration.RemoteCommandHandler = Nothing
         Try : _kestrelHost?.Stop() : Catch : End Try
         _kestrelHost = Nothing
         AppendServerLog("Restarting server...")
