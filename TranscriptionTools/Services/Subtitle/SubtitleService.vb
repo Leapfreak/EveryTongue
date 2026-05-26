@@ -7,6 +7,7 @@ Imports Microsoft.Extensions.Logging
 Imports Microsoft.Extensions.Options
 Imports TranscriptionTools.Server
 Imports TranscriptionTools.Services.Interfaces
+Imports TranscriptionTools.Services.Models
 
 Namespace Services.Subtitle
     ''' <summary>
@@ -53,6 +54,9 @@ Namespace Services.Subtitle
             _logger = logger
             _options = options.Value
         End Sub
+
+        ''' <summary>Set after DI resolution to avoid circular dependency.</summary>
+        Public Property BibleService As IBibleService
 
         ' ── Client management ──
 
@@ -165,8 +169,11 @@ Namespace Services.Subtitle
             _lastCommittedEntry = entry
             EnqueueWithCap(entry)
 
+            ' Detect Bible references in committed text
+            Dim refsJson = DetectAndSerializeRefs(text, entry)
+
             Dim ts = entry.Timestamp.ToString("HH:mm:ss")
-            Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)},""lang"":{EscapeJson(lang)},""time"":{EscapeJson(ts)},""id"":{commitId}}}"
+            Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)},""lang"":{EscapeJson(lang)},""time"":{EscapeJson(ts)},""id"":{commitId}{refsJson}}}"
             Dim buffer = Encoding.UTF8.GetBytes(json)
             Dim deadKeys As New List(Of String)
 
@@ -198,6 +205,9 @@ Namespace Services.Subtitle
             _lastCommittedEntry = entry
             EnqueueWithCap(entry)
 
+            ' Detect Bible references in original text
+            Dim refsJson = DetectAndSerializeRefs(originalText, entry)
+
             Dim ts = entry.Timestamp.ToString("HH:mm:ss")
             Dim deadKeys As New List(Of String)
 
@@ -223,7 +233,7 @@ Namespace Services.Subtitle
                     Dim langTag As String = ""
                     If langTags IsNot Nothing Then langTags.TryGetValue(tag, langTag)
                     If langTag Is Nothing Then langTag = tag
-                    Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)},""lang"":{EscapeJson(langTag)},""time"":{EscapeJson(ts)},""id"":{entry.Id}}}"
+                    Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)},""lang"":{EscapeJson(langTag)},""time"":{EscapeJson(ts)},""id"":{entry.Id}{refsJson}}}"
                     Dim buffer = Encoding.UTF8.GetBytes(json)
                     If Not TrySendToClient(kvp.Value, buffer) Then
                         deadKeys.Add(kvp.Key)
@@ -311,7 +321,8 @@ Namespace Services.Subtitle
                         Dim text = GetTextForClient(client, entry.OriginalText, entry.Translations)
                         Dim clientLang = GetLangForClient(client, entry.SourceLang, entry.Translations, entry.LangTags)
                         Dim ts = entry.Timestamp.ToString("HH:mm:ss")
-                        Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)},""lang"":{EscapeJson(clientLang)},""time"":{EscapeJson(ts)},""id"":{entry.Id}}}"
+                        Dim refsJson = SerializeStoredRefs(entry)
+                        Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)},""lang"":{EscapeJson(clientLang)},""time"":{EscapeJson(ts)},""id"":{entry.Id}{refsJson}}}"
                         Dim buf = Encoding.UTF8.GetBytes(json)
                         If client.WebSocket.State = WebSocketState.Open Then
                             Await client.WebSocket.SendAsync(
@@ -392,6 +403,45 @@ Namespace Services.Subtitle
                 _committedLines.TryDequeue(discard)
             End While
         End Sub
+
+        ''' <summary>
+        ''' Detect Bible references in text and return a JSON fragment like: ,"refs":[...]
+        ''' Also stores refs on the CommittedEntry for replay.
+        ''' </summary>
+        Private Function DetectAndSerializeRefs(text As String, entry As CommittedEntry) As String
+            If BibleService Is Nothing Then Return ""
+            Try
+                Dim refs = BibleService.DetectReferencesInText(text)
+                If refs Is Nothing OrElse refs.Count = 0 Then Return ""
+                entry.BibleRefs = refs.Cast(Of Object)().ToList()
+                Dim sb As New StringBuilder(",""refs"":[")
+                For i = 0 To refs.Count - 1
+                    If i > 0 Then sb.Append(",")
+                    Dim r = refs(i)
+                    sb.Append($"{{""book"":{EscapeJson(r.Reference.Book)},""chapter"":{r.Reference.Chapter},""verseStart"":{r.Reference.VerseStart},""verseEnd"":{r.Reference.VerseEnd},""matched"":{EscapeJson(r.MatchedText)},""start"":{r.StartIndex},""len"":{r.Length}}}")
+                Next
+                sb.Append("]")
+                Return sb.ToString()
+            Catch
+                Return ""
+            End Try
+        End Function
+
+        Private Function SerializeStoredRefs(entry As CommittedEntry) As String
+            If entry.BibleRefs Is Nothing OrElse entry.BibleRefs.Count = 0 Then Return ""
+            Try
+                Dim sb As New StringBuilder(",""refs"":[")
+                For i = 0 To entry.BibleRefs.Count - 1
+                    If i > 0 Then sb.Append(",")
+                    Dim r = DirectCast(entry.BibleRefs(i), Models.DetectedReference)
+                    sb.Append($"{{""book"":{EscapeJson(r.Reference.Book)},""chapter"":{r.Reference.Chapter},""verseStart"":{r.Reference.VerseStart},""verseEnd"":{r.Reference.VerseEnd},""matched"":{EscapeJson(r.MatchedText)},""start"":{r.StartIndex},""len"":{r.Length}}}")
+                Next
+                sb.Append("]")
+                Return sb.ToString()
+            Catch
+                Return ""
+            End Try
+        End Function
 
         Private Sub CleanupDeadClients(deadKeys As List(Of String))
             For Each key In deadKeys

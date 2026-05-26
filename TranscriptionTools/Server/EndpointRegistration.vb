@@ -202,66 +202,80 @@ Namespace Server
             ' Get chapter
             app.MapGet("/bible/{id}/{book}/{chapter:int}",
                 Async Function(id As String, book As String, chapter As Integer,
-                               context As HttpContext) As Task(Of IResult)
+                               context As HttpContext) As Task
                     Dim bibleService = context.RequestServices.GetService(Of IBibleService)
                     If bibleService Is Nothing Then
-                        Return Results.Json(New With {.error = "Bible service not available"})
+                        Await context.Response.WriteAsJsonAsync(
+                            New With {.error = "Bible service not available"})
+                        Return
                     End If
                     Dim result = Await bibleService.GetChapterAsync(
                         id, book, chapter, context.RequestAborted)
-                    Return Results.Ok(result)
+                    Await context.Response.WriteAsJsonAsync(result)
                 End Function)
 
             ' Get verse or verse range
             app.MapGet("/bible/{id}/{book}/{chapter:int}/{verses}",
                 Async Function(id As String, book As String, chapter As Integer,
-                               verses As String, context As HttpContext) As Task(Of IResult)
+                               verses As String, context As HttpContext) As Task
                     Dim bibleService = context.RequestServices.GetService(Of IBibleService)
                     If bibleService Is Nothing Then
-                        Return Results.Json(New With {.error = "Bible service not available"})
+                        Await context.Response.WriteAsJsonAsync(
+                            New With {.error = "Bible service not available"})
+                        Return
                     End If
                     Dim parts = verses.Split("-"c)
                     Dim vStart = Integer.Parse(parts(0))
                     Dim vEnd = If(parts.Length > 1, Integer.Parse(parts(1)), -1)
                     Dim result = Await bibleService.GetVersesAsync(
                         id, book, chapter, vStart, vEnd, context.RequestAborted)
-                    Return Results.Ok(result)
+                    Await context.Response.WriteAsJsonAsync(result)
                 End Function)
 
             ' Full-text search
-            app.MapGet("/bible/search", Async Function(context As HttpContext) As Task(Of IResult)
+            app.MapGet("/bible/search", Async Function(context As HttpContext) As Task
                                             Dim bibleService = context.RequestServices.
                                                 GetService(Of IBibleService)
                                             If bibleService Is Nothing Then
-                                                Return Results.Json(New With {.error = "Bible service not available"})
+                                                Await context.Response.WriteAsJsonAsync(
+                                                    New With {.error = "Bible service not available"})
+                                                Return
                                             End If
                                             Dim q = context.Request.Query("q").FirstOrDefault()
                                             Dim transId = context.Request.Query("translation").FirstOrDefault()
                                             If String.IsNullOrEmpty(q) OrElse String.IsNullOrEmpty(transId) Then
-                                                Return Results.BadRequest(New With {.error = "q and translation required"})
+                                                context.Response.StatusCode = 400
+                                                Await context.Response.WriteAsJsonAsync(
+                                                    New With {.error = "q and translation required"})
+                                                Return
                                             End If
                                             Dim maxResults = 50
                                             Dim maxStr = context.Request.Query("max").FirstOrDefault()
                                             If maxStr IsNot Nothing Then Integer.TryParse(maxStr, maxResults)
                                             Dim searchResults = Await bibleService.SearchAsync(
                                                 q, transId, maxResults, context.RequestAborted)
-                                            Return Results.Ok(searchResults)
+                                            Await context.Response.WriteAsJsonAsync(searchResults)
                                         End Function)
 
             ' Parse human-readable reference
-            app.MapGet("/bible/parse", Async Function(context As HttpContext) As Task(Of IResult)
+            app.MapGet("/bible/parse", Async Function(context As HttpContext) As Task
                                            Dim bibleService = context.RequestServices.
                                                GetService(Of IBibleService)
                                            If bibleService Is Nothing Then
-                                               Return Results.Json(New With {.error = "Bible service not available"})
+                                               Await context.Response.WriteAsJsonAsync(
+                                                   New With {.error = "Bible service not available"})
+                                               Return
                                            End If
                                            Dim ref = context.Request.Query("ref").FirstOrDefault()
                                            If String.IsNullOrEmpty(ref) Then
-                                               Return Results.BadRequest(New With {.error = "ref parameter required"})
+                                               context.Response.StatusCode = 400
+                                               Await context.Response.WriteAsJsonAsync(
+                                                   New With {.error = "ref parameter required"})
+                                               Return
                                            End If
                                            Dim lang = If(context.Request.Query("lang").FirstOrDefault(), "en")
                                            Dim result = Await bibleService.ParseReferenceAsync(ref, lang)
-                                           Return Results.Ok(result)
+                                           Await context.Response.WriteAsJsonAsync(result)
                                        End Function)
         End Sub
 

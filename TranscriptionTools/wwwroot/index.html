@@ -13,6 +13,7 @@
   <button id="btnSettings" onclick="togglePanel()" title="Settings">Aa</button>
   <button id="btnWake" onclick="toggleWakeLock()" title="Keep screen on">&#128261;</button>
   <button id="btnSpeak" onclick="toggleSpeak()" title="Read aloud">&#128264;</button>
+  <button id="btnBible" onclick="toggleBible()" title="Bible">&#128214;</button>
 </div>
 <div id="adminPanel">
   <div id="adminStatus">Checking...</div>
@@ -169,6 +170,23 @@
     <option value="both">Language + Time</option>
   </select>
   <button id="btnSave" onclick="saveTranscript()" style="width:100%;margin-top:12px">&#128190; Save Transcript</button>
+</div>
+<div id="biblePanel">
+  <div id="bibleHeader">
+    <select id="bibleTransSelect" onchange="onBibleTransChange(this.value)"></select>
+    <input id="bibleRefInput" type="text" placeholder="John 3:16" onkeydown="if(event.key==='Enter')lookupRef()">
+    <button id="btnRefGo" onclick="lookupRef()">Go</button>
+  </div>
+  <div id="bibleNav">
+    <button id="btnBibleBack" onclick="bibleBack()" style="display:none">&#8592;</button>
+    <span id="bibleNavTitle"></span>
+    <button id="btnBibleSearch" onclick="toggleBibleSearch()">&#128269;</button>
+  </div>
+  <div id="bibleSearchBox" style="display:none">
+    <input id="bibleSearchInput" type="text" placeholder="Search..." onkeydown="if(event.key==='Enter')bibleSearch()">
+    <button onclick="bibleSearch()">&#128269;</button>
+  </div>
+  <div id="bibleContent"></div>
 </div>
 <div id="container"><div id="lines"><div id="spacer"></div></div></div>
 <script src="/js/app.js"></script>

@@ -13,7 +13,7 @@ Implementation plan for making Transcription Tools field-deployable by a non-tec
 | [3](#3-audio-level-monitor) | Audio Level Monitor | New | 1 |
 | [4](#4-diagnostic-bundle--remote-support) | Diagnostic Bundle / Remote Support | New | 1 |
 | [5](#5-glossary-management--simplified-for-non-technical-users) | Glossary Management — Simplified | Improve | 2 |
-| [6](#6-text-to-speech--server-side-engine) | Text-to-Speech — Server-Side Engine | Improve | 4 |
+| [6](#6-text-to-speech--server-side-engine) | Text-to-Speech — Server-Side Engine | Scaffolded | 4 |
 | [7](#7-portable-usb-deployment) | Portable USB Deployment | New | 5 |
 | [8](#8-crash-recovery--system-wide-resilience) | Crash Recovery — System-Wide | Improve | 2 |
 | [9](#9-multi-language-operator-ui--expand-coverage) | Multi-Language Operator UI | Improve | 2 |
@@ -23,9 +23,9 @@ Implementation plan for making Transcription Tools field-deployable by a non-tec
 | [11C](#11c-device-compatibility--suitability-scoring) | Device Compatibility & Suitability Scoring | New | 4 |
 | [12](#12-hardware-readiness-score) | Hardware Readiness Score | New | 1 |
 | [13](#13-recommended-specifications-generator) | Recommended Specifications Generator | New | 1 |
-| [14](#14-pluggable-translation-backends) | Pluggable Translation Backends (Cloud APIs) | New | 4 |
-| [15](#15-server-infrastructure-upgrade--kestrel) | Server Infrastructure Upgrade (Kestrel) | Replace | 3 |
-| [16](#16-bible-integration) | Bible Integration | New | 4 |
+| [14](#14-pluggable-translation-backends) | Pluggable Translation Backends (Cloud APIs) | Scaffolded | 4 |
+| [15](#15-server-infrastructure-upgrade--kestrel) | Server Infrastructure Upgrade (Kestrel) | **Done** | 3 |
+| [16](#16-bible-integration) | Bible Integration | Partial | 4 |
 
 **[Implementation Order](#implementation-order)** | **[Development Notes](#development-notes)** | **[Notes](#notes)**
 
@@ -287,7 +287,22 @@ Critical files can get corrupted during USB transfers, incomplete downloads, or 
 
 ## 6. Text-to-Speech — Server-Side Engine
 
-**Status:** Fully implemented using browser Web Speech API. Voice selection, speed control, toggle on/off. Works on phones that have good built-in voices.
+**Status:** Browser-side TTS fully implemented. Server-side TTS scaffolded on `feature/kestrel-migration` branch.
+
+**What's done (Kestrel branch):**
+- **(a) Server-Side TTS** — `TtsOrchestrator` implements `ITtsService`, selects best backend per language by priority. Three backends coded: `PiperBackend` (priority 1, local ONNX), `MmsTtsBackend` (priority 2, Python sidecar), `EdgeTtsBackend` (priority 3, cloud free). All registered in Kestrel DI.
+- **TtsCache** — Ring-buffer cache in `%APPDATA%/TranscriptionTools/tts-cache/`, keyed by `{lang}_commit_{id}.{codec}`, evicts oldest when 200 entries/lang exceeded. Hit/miss tracking.
+
+**What's NOT done:**
+- No Piper models downloaded or tested
+- No MMS-TTS Python sidecar created
+- No Edge TTS actual API integration tested
+- **(b) Voice Model Management** — No download/management UI
+- **(c) Hybrid Approach** — No server TTS toggle in phone UI
+- **(d) Earphone Mode** — Not started
+- No `/tts/cache/{file}` endpoint or phone audio playback
+
+**What already exists (browser-side):**
 
 **What exists:**
 - `speechSynthesis` API in SubtitleServer.vb embedded JS (lines 1458-1505)
@@ -1298,7 +1313,26 @@ For languages not yet in the UI (e.g., before Feature #9 adds Polish/Romanian), 
 
 ## 14. Pluggable Translation Backends (Cloud APIs)
 
-**Status:** Not started. Translation is currently NLLB-200 only, running locally via the Python sidecar. No option to use cloud translation services.
+**Status:** Scaffolded on `feature/kestrel-migration` branch.
+
+**What's done:**
+- **(a) Backend Abstraction** — `ITranslationBackend` interface with `TranslateAsync`, `GetSupportedLanguagesAsync`, `CheckHealthAsync`, `IsAvailable`, `RequiresInternet`, `Name`. `TranslationOrchestrator` implements `ITranslationService` with fallback chain and per-language backend overrides.
+- **(b) Cloud Backend Implementations** — `DeepLBackend`, `GoogleBackend`, `AzureBackend` all coded in `Services/Translation/CloudTranslationBackend.vb`. Each has `Configure(apiKey)` method. Return `IsAvailable=False` until API keys set.
+- `NllbBackend` wraps existing `TranslationService` as an `ITranslationBackend`
+- All backends registered in Kestrel DI container
+- **(e) Hybrid Mode** — `TranslationOrchestrator.LanguageOverrides` dictionary supports per-language backend selection with NLLB as always-available fallback
+
+**What's NOT done:**
+- **(c) Configuration UI** — No Settings tab UI for backend selection or API key entry
+- **(d) Language Mapping** — `ILanguageMapService` interface defined but not implemented (no `language-codes.json`)
+- **(f) Cost Awareness** — No usage tracking or budget limits
+- **(g) Latency Considerations** — No batching or latency indicators
+- **(h) Glossary Integration** — Not wired to cloud backends
+- NllbBackend not yet registered in DI (needs legacy TranslationService instance from FormMain)
+
+**Original problem description (kept for context):**
+
+Not started. Translation is currently NLLB-200 only, running locally via the Python sidecar. No option to use cloud translation services.
 
 **Problem:** NLLB-200 is excellent for offline use, but cloud translation APIs (Google Translate, DeepL, Azure Translator) generally produce higher-quality translations, especially for less-resourced languages. When internet is available and accuracy matters more than offline capability, users should be able to choose a cloud backend. This also opens the door for organisations that already have API keys/contracts with translation providers.
 
@@ -1439,7 +1473,25 @@ For simplicity, apply the existing local glossary (Feature #5) as a post-process
 
 ## 15. Server Infrastructure Upgrade — Kestrel
 
-**Status:** Current implementation uses HttpListener (HTTP) + raw TcpListener with manual SslStream (HTTPS). Functional but not designed for scale.
+**Status:** **DONE** — Implemented on `feature/kestrel-migration` branch (12 commits). Kestrel replaces legacy SubtitleServer as the sole server. All sub-features (a-h) complete. Legacy `Pipeline/SubtitleServer.vb` is dead code.
+
+**What was built:**
+- `Server/KestrelHost.vb` — Kestrel hosted in-process on background thread, full DI container
+- `Server/EndpointRegistration.vb` — All Minimal API endpoints (health, config, control, Bible, audio, metrics, cert, nosleep)
+- `Server/ServerOptions.vb` — Config (ports, colors, BiblesDirectory, AllowRemote)
+- `Server/Middleware/` — ErrorHandlingMiddleware, RequestLoggingMiddleware
+- `Server/Hubs/SubtitleHub.vb` — WebSocket hub with backpressure
+- `Services/Subtitle/SubtitleService.vb` — ISubtitleService with broadcast, history, client management
+- `Services/Infrastructure/CertificateService.vb` — Self-signed cert (RSA 2048, SAN with local IPs)
+- `Services/Infrastructure/MetricsService.vb` — Thread-safe metrics collection
+- `wwwroot/` — Extracted static web client (index.html, css/app.css, js/app.js)
+- FormMain cutover: `SubtitleSvc` property resolves from DI, all broadcasts routed through Kestrel
+- Response compression: Brotli + Gzip (~63% reduction)
+- HTTP/2 support, proper WebSocket middleware, static file caching
+
+**Original problem description (kept for context):**
+
+Current implementation uses HttpListener (HTTP) + raw TcpListener with manual SslStream (HTTPS). Functional but not designed for scale.
 
 **Problem:** The existing SubtitleServer architecture works for 10-20 clients but has fundamental bottlenecks that prevent scaling to 100+ concurrent connections. As features grow (Bible queries, feedback endpoints, spec sheet serving, glossary suggestions, diagnostics API), the manual routing and request handling becomes increasingly fragile and hard to maintain. Every new endpoint must be duplicated across both HTTP and HTTPS code paths.
 
@@ -1715,7 +1767,22 @@ Include a `metrics-snapshot.json` in the diagnostics ZIP:
 
 ## 16. Bible Integration
 
-**Status:** Not started. No Bible data, search, or verse lookup functionality exists in the application.
+**Status:** Partially implemented on `feature/kestrel-migration` branch.
+
+**What's done:**
+- **(a) Bible Data Source** — `Services/Bible/BibleService.vb` scans `Bibles/{lang_code}/` for SQLite files. Reads ISO language codes from DB `info` table. Tested with KJV+ (en), BCI (ca), NVIC'17 (es). Configurable path via `ServerOptions.BiblesDirectory`. Strips markup tags (`<S>`, `<J>`, `<pb/>`).
+- **(b) Bible API Endpoints** — All working: `/bible/translations`, `/bible/{id}/{book}/{chapter}`, `/bible/{id}/{book}/{chapter}/{verses}`, `/bible/search`, `/bible/parse`
+- **(c) Reference Parser** — BookAliases dictionary (English names/abbreviations), regex pattern matching for chapter:verse format. `DetectReferencesInText()` method coded.
+- **(e) Reference Detection** — `DetectReferencesInText()` coded in BibleService but NOT yet wired into WebSocket commit messages.
+
+**What's NOT done:**
+- **(d) Phone Client Bible Tab** — No Bible browsing/search UI on the phone client yet
+- **(e) WebSocket integration** — Reference detection exists but not wired to enrich commit messages with `bible_refs`
+- **(f) Offline Bible Bundles** — No download/management UI
+
+**Original problem description (kept for context):**
+
+Not started. No Bible data, search, or verse lookup functionality exists in the application.
 
 **Problem:** Agape's work is centred on communicating the Bible across languages. When a speaker references a Bible verse, listeners need to see it in their own language — not a machine translation of the speaker's quote, but the actual published Bible text in their language. Machine-translating scripture produces approximations; serving the real text produces trust.
 
