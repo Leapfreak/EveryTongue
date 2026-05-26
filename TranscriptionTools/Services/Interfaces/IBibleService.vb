@@ -12,6 +12,10 @@ Namespace Services.Interfaces
                                       ct As CancellationToken
         ) As Task(Of IReadOnlyList(Of BibleTranslation))
 
+        Function GetBooksAsync(translationId As String,
+                               ct As CancellationToken
+        ) As Task(Of IReadOnlyList(Of BibleBook))
+
         Function GetChapterAsync(translationId As String,
                                  book As String,
                                  chapter As Integer,
@@ -34,6 +38,7 @@ Namespace Services.Interfaces
 
         Function ParseReferenceAsync(reference As String,
                                      Optional language As String = "en",
+                                     Optional translationId As String = Nothing,
                                      Optional ct As CancellationToken = Nothing
         ) As Task(Of BibleReference)
 

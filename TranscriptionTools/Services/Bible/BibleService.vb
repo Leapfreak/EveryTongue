@@ -103,9 +103,9 @@ Namespace Services.Bible
             {"Revelation", "Rev"}, {"Rev", "Rev"}, {"Apocalypse", "Rev"}
         }
 
-        ' Regex for detecting Bible references in text
+        ' Regex for detecting Bible references in text (supports accented characters for non-English)
         Private Shared ReadOnly RefPattern As New Regex(
-            "(?<book>(?:\d\s*)?[A-Z][a-z]+(?:\s+[a-z]+)*)\s+(?<chapter>\d{1,3})\s*:\s*(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3}))?",
+            "(?<book>(?:\d\s*)?[\p{Lu}][\p{Ll}]+(?:\s+[\p{Ll}]+)*)\s+(?<chapter>\d{1,3})\s*:\s*(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3}))?",
             RegexOptions.Compiled)
 
         ' Internal class to track DB path alongside translation info
@@ -151,7 +151,7 @@ Namespace Services.Bible
                 Return
             End If
 
-            Dim extensions = {"*.db", "*.sqlite", "*.sqlite3", "*.SQLite3"}
+            Dim extensions = {"*.db", "*.sqlite", "*.sqlite3"}
             For Each ext In extensions
                 For Each dbFile In Directory.GetFiles(_biblesDir, ext, SearchOption.AllDirectories)
                     Try
@@ -229,6 +229,8 @@ Namespace Services.Bible
             }
 
             _logger.LogInformation("Bible: loaded {Id} ({Lang}) — {Name}", id, lang, name)
+            _logger.LogDebug("Bible: {Id} books: {Books}", id,
+                String.Join(", ", bookMap.Keys.Where(Function(k) k.Length <= 8).OrderBy(Function(k) bookMap(k))))
         End Sub
 
         Private Function GetConnection(translationId As String) As SqliteConnection
@@ -271,6 +273,30 @@ Namespace Services.Bible
                                   e.Info.Language.Equals(language, StringComparison.OrdinalIgnoreCase)).
                 Select(Function(e) e.Info).ToList()
             Return Task.FromResult(DirectCast(result, IReadOnlyList(Of BibleTranslation)))
+        End Function
+
+        Public Function GetBooksAsync(translationId As String, ct As CancellationToken
+        ) As Task(Of IReadOnlyList(Of BibleBook)) Implements IBibleService.GetBooksAsync
+            Dim books As New List(Of BibleBook)()
+            Using conn = GetConnection(translationId)
+                If conn Is Nothing Then Return Task.FromResult(DirectCast(books, IReadOnlyList(Of BibleBook)))
+                Using cmd = conn.CreateCommand()
+                    cmd.CommandText = "SELECT b.book_number, b.short_name, b.long_name, " &
+                        "(SELECT MAX(v.chapter) FROM verses v WHERE v.book_number = b.book_number) AS chapters " &
+                        "FROM books b ORDER BY b.book_number"
+                    Using reader = cmd.ExecuteReader()
+                        While reader.Read()
+                            books.Add(New BibleBook With {
+                                .Number = reader.GetInt32(0),
+                                .ShortName = reader.GetString(1),
+                                .LongName = reader.GetString(2),
+                                .Chapters = If(reader.IsDBNull(3), 1, reader.GetInt32(3))
+                            })
+                        End While
+                    End Using
+                End Using
+            End Using
+            Return Task.FromResult(DirectCast(books, IReadOnlyList(Of BibleBook)))
         End Function
 
         Public Function GetChapterAsync(translationId As String, book As String,
@@ -387,6 +413,7 @@ Namespace Services.Bible
 
         Public Function ParseReferenceAsync(reference As String,
                                             Optional language As String = "en",
+                                            Optional translationId As String = Nothing,
                                             Optional ct As CancellationToken = Nothing
         ) As Task(Of BibleReference) Implements IBibleService.ParseReferenceAsync
             Dim m = RefPattern.Match(reference)
@@ -396,7 +423,28 @@ Namespace Services.Bible
 
             Dim bookName = m.Groups("book").Value.Trim()
             Dim bookCode As String = Nothing
-            If Not BookAliases.TryGetValue(bookName, bookCode) Then
+
+            ' 1. Try translation's own BookMap (short_name + long_name from DB)
+            If Not String.IsNullOrEmpty(translationId) Then
+                Dim entry As BibleTranslationEntry = Nothing
+                If _translations.TryGetValue(translationId, entry) Then
+                    Dim bookNum As Integer
+                    If entry.BookMap.TryGetValue(bookName, bookNum) Then
+                        ' Find the short_name for this book_number
+                        bookCode = entry.BookMap.
+                            Where(Function(kv) kv.Value = bookNum).
+                            OrderBy(Function(kv) kv.Key.Length).
+                            Select(Function(kv) kv.Key).FirstOrDefault()
+                    End If
+                End If
+            End If
+
+            ' 2. Fall back to English aliases
+            If bookCode Is Nothing Then
+                BookAliases.TryGetValue(bookName, bookCode)
+            End If
+
+            If bookCode Is Nothing Then
                 Return Task.FromResult(New BibleReference With {.IsValid = False})
             End If
 

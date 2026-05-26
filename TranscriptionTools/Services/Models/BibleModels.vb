@@ -10,6 +10,16 @@ Namespace Services.Models
     End Class
 
     ''' <summary>
+    ''' A book in a Bible translation with its localized name.
+    ''' </summary>
+    Public Class BibleBook
+        Public Property Number As Integer
+        Public Property ShortName As String
+        Public Property LongName As String
+        Public Property Chapters As Integer
+    End Class
+
+    ''' <summary>
     ''' A chapter of a Bible book with all its verses.
     ''' </summary>
     Public Class BibleChapter

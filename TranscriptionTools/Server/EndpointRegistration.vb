@@ -231,6 +231,18 @@ Namespace Server
                                                   Await context.Response.WriteAsJsonAsync(translations)
                                               End Function)
 
+            ' List books for a translation
+            app.MapGet("/bible/{id}/books",
+                Async Function(id As String, context As HttpContext) As Task
+                    Dim bibleService = context.RequestServices.GetService(Of IBibleService)
+                    If bibleService Is Nothing Then
+                        Await context.Response.WriteAsJsonAsync(Array.Empty(Of Object)())
+                        Return
+                    End If
+                    Dim books = Await bibleService.GetBooksAsync(id, context.RequestAborted)
+                    Await context.Response.WriteAsJsonAsync(books)
+                End Function)
+
             ' Get chapter
             app.MapGet("/bible/{id}/{book}/{chapter:int}",
                 Async Function(id As String, book As String, chapter As Integer,
@@ -306,7 +318,8 @@ Namespace Server
                                                Return
                                            End If
                                            Dim lang = If(context.Request.Query("lang").FirstOrDefault(), "en")
-                                           Dim result = Await bibleService.ParseReferenceAsync(ref, lang)
+                                           Dim transId = context.Request.Query("translation").FirstOrDefault()
+                                           Dim result = Await bibleService.ParseReferenceAsync(ref, lang, transId)
                                            Await context.Response.WriteAsJsonAsync(result)
                                        End Function)
         End Sub

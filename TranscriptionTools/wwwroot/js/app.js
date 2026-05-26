@@ -596,6 +596,11 @@ function setTransLang(lang){
   localStorage.setItem('transLang',lang);
   closeAllPanels();
   if(wsRef&&wsRef.readyState===1){wsRef.send(JSON.stringify({type:'setLanguage',language:lang}))}
+  /* Reload Bible translations for the new language */
+  bibleTranslations=[];
+  bibleNavStack=[];
+  cachedBooks=[];
+  cachedBooksTransId='';
 }
 /* transLangSelect populated dynamically from LANGS array above */
 function connect(){
@@ -849,16 +854,26 @@ function toggleBible(){
   if(biblePanel.classList.contains('open')){biblePanel.classList.remove('open');return}
   closeAllPanels();
   biblePanel.classList.add('open');
-  if(bibleTranslations.length===0)loadBibleTranslations();
-  else if(!currentBibleTrans)showBookList();
+  if(bibleTranslations.length===0){loadBibleTranslations()}
+  else{showBookList()}
 }
 
 function closeBible(){biblePanel.classList.remove('open')}
 
+function getBibleLang(){
+  /* Use app translation language if set, otherwise browser language */
+  var tl=localStorage.getItem('transLang')||'';
+  if(tl){
+    for(var i=0;i<LANGS.length;i++){if(LANGS[i][0]===tl)return LANGS[i][3]}
+  }
+  return (navigator.language||'en').split('-')[0];
+}
+
 function loadBibleTranslations(){
   bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">Loading...</div>';
-  var uiLang=(navigator.language||'en').split('-')[0];
-  fetch('/bible/translations?lang='+encodeURIComponent(uiLang)).then(function(r){return r.json()}).then(function(data){
+  currentBibleTrans='';
+  var lang=getBibleLang();
+  fetch('/bible/translations?lang='+encodeURIComponent(lang)).then(function(r){return r.json()}).then(function(data){
     /* If no Bibles match the user's language, fall back to all */
     if(!data||!Array.isArray(data)||data.length===0){
       fetch('/bible/translations').then(function(r2){return r2.json()}).then(function(all){
@@ -894,8 +909,13 @@ function onBibleTransChange(val){
   currentBibleTrans=val;
   localStorage.setItem('bibleTrans',val);
   bibleNavStack=[];
+  cachedBooks=[];
+  cachedBooksTransId='';
   showBookList();
 }
+
+var cachedBooks=[];
+var cachedBooksTransId='';
 
 function showBookList(){
   bibleNavStack=[];
@@ -904,6 +924,65 @@ function showBookList(){
   bibleSearchBox.style.display='none';
   bibleContent.innerHTML='';
 
+  if(!currentBibleTrans){
+    bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:20px">'+t('bibleSelectTrans')+'</div>';
+    return;
+  }
+
+  /* Fetch book names from the server for this translation */
+  if(cachedBooksTransId===currentBibleTrans&&cachedBooks.length>0){
+    renderBookGrid(cachedBooks);
+    return;
+  }
+
+  bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">Loading...</div>';
+  fetch('/bible/'+encodeURIComponent(currentBibleTrans)+'/books').then(function(r){return r.json()}).then(function(books){
+    cachedBooks=books||[];
+    cachedBooksTransId=currentBibleTrans;
+    renderBookGrid(cachedBooks);
+  }).catch(function(){
+    /* Fallback to hardcoded English list */
+    renderBookGridFallback();
+  });
+}
+
+function renderBookGrid(books){
+  bibleContent.innerHTML='';
+  /* OT = book_number < 470 (before Matthew), NT = 470+ */
+  var otList=[];var ntList=[];
+  for(var i=0;i<books.length;i++){
+    if(books[i].number<470){otList.push(books[i])}
+    else{ntList.push(books[i])}
+  }
+
+  var ot=document.createElement('div');ot.className='bible-ot-label';ot.textContent=t('bibleOT');
+  bibleContent.appendChild(ot);
+  var otGrid=document.createElement('div');otGrid.className='bible-book-grid';
+  for(var i=0;i<otList.length;i++){
+    var btn=document.createElement('button');btn.className='bible-book-btn';
+    btn.textContent=otList[i].shortName;btn.dataset.book=otList[i].shortName;
+    btn.title=otList[i].longName;
+    btn.onclick=function(){showChapters(this.dataset.book)};
+    otGrid.appendChild(btn);
+  }
+  bibleContent.appendChild(otGrid);
+
+  var nt=document.createElement('div');nt.className='bible-nt-label';nt.style.marginTop='16px';nt.textContent=t('bibleNT');
+  bibleContent.appendChild(nt);
+  var ntGrid=document.createElement('div');ntGrid.className='bible-book-grid';
+  for(var j=0;j<ntList.length;j++){
+    var btn2=document.createElement('button');btn2.className='bible-book-btn';
+    btn2.textContent=ntList[j].shortName;btn2.dataset.book=ntList[j].shortName;
+    btn2.title=ntList[j].longName;
+    btn2.onclick=function(){showChapters(this.dataset.book)};
+    ntGrid.appendChild(btn2);
+  }
+  bibleContent.appendChild(ntGrid);
+  bibleContent.scrollTop=0;
+}
+
+function renderBookGridFallback(){
+  bibleContent.innerHTML='';
   var ot=document.createElement('div');ot.className='bible-ot-label';ot.textContent=t('bibleOT');
   bibleContent.appendChild(ot);
   var otGrid=document.createElement('div');otGrid.className='bible-book-grid';
@@ -914,7 +993,6 @@ function showBookList(){
     otGrid.appendChild(btn);
   }
   bibleContent.appendChild(otGrid);
-
   var nt=document.createElement('div');nt.className='bible-nt-label';nt.style.marginTop='16px';nt.textContent=t('bibleNT');
   bibleContent.appendChild(nt);
   var ntGrid=document.createElement('div');ntGrid.className='bible-book-grid';
@@ -932,14 +1010,17 @@ function showChapters(book){
   if(!currentBibleTrans){bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleSelectTrans')+'</div>';return}
   bibleNavStack=[{type:'books'}];
   btnBibleBack.style.display='';
-  bibleNavTitle.textContent=book;
+  /* Show long name in title if available */
+  var displayName=book;
+  for(var b=0;b<cachedBooks.length;b++){if(cachedBooks[b].shortName===book){displayName=cachedBooks[b].longName;break}}
+  bibleNavTitle.textContent=displayName;
   bibleSearchBox.style.display='none';
   bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">Loading...</div>';
 
   fetch('/bible/'+encodeURIComponent(currentBibleTrans)+'/'+encodeURIComponent(book)+'/1').then(function(r){return r.json()}).then(function(data){
-    /* We need to figure out max chapter count. Fetch chapter 1 to confirm the book exists,
-       then build a grid. Most Bibles have predictable chapter counts. */
+    /* Get chapter count from cached books data, fallback to hardcoded */
     var maxCh=getBookChapterCount(book);
+    for(var b=0;b<cachedBooks.length;b++){if(cachedBooks[b].shortName===book&&cachedBooks[b].chapters>0){maxCh=cachedBooks[b].chapters;break}}
     bibleContent.innerHTML='';
     var grid=document.createElement('div');grid.className='bible-chapter-grid';
     for(var c=1;c<=maxCh;c++){
@@ -994,7 +1075,7 @@ function bibleBack(){
 function lookupRef(){
   var input=document.getElementById('bibleRefInput').value.trim();
   if(!input||!currentBibleTrans)return;
-  fetch('/bible/parse?ref='+encodeURIComponent(input)).then(function(r){return r.json()}).then(function(ref){
+  fetch('/bible/parse?ref='+encodeURIComponent(input)+'&translation='+encodeURIComponent(currentBibleTrans)).then(function(r){return r.json()}).then(function(ref){
     if(!ref||!ref.isValid){bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">Could not parse reference</div>';return}
     if(ref.verseStart>0){
       var versePath=ref.verseStart+(ref.verseEnd>ref.verseStart?'-'+ref.verseEnd:'');
