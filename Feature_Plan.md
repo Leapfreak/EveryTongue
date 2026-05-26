@@ -25,7 +25,7 @@ Implementation plan for making Transcription Tools field-deployable by a non-tec
 | [13](#13-recommended-specifications-generator) | Recommended Specifications Generator | New | 1 |
 | [14](#14-pluggable-translation-backends) | Pluggable Translation Backends (Cloud APIs) | Scaffolded | 4 |
 | [15](#15-server-infrastructure-upgrade--kestrel) | Server Infrastructure Upgrade (Kestrel) | **Done** | 3 |
-| [16](#16-bible-integration) | Bible Integration | Partial | 4 |
+| [16](#16-bible-integration) | Bible Integration | **Done** | 4 |
 
 **[Implementation Order](#implementation-order)** | **[Development Notes](#development-notes)** | **[Notes](#notes)**
 
@@ -1473,7 +1473,7 @@ For simplicity, apply the existing local glossary (Feature #5) as a post-process
 
 ## 15. Server Infrastructure Upgrade — Kestrel
 
-**Status:** **DONE** — Implemented on `feature/kestrel-migration` branch (12 commits). Kestrel replaces legacy SubtitleServer as the sole server. All sub-features (a-h) complete. Legacy `Pipeline/SubtitleServer.vb` is dead code.
+**Status:** **DONE** — Implemented on `feature/kestrel-migration` branch (13 commits). Kestrel replaces legacy SubtitleServer as the sole server. All sub-features (a-h) complete. Legacy `Pipeline/SubtitleServer.vb` is dead code.
 
 **What was built:**
 - `Server/KestrelHost.vb` — Kestrel hosted in-process on background thread, full DI container
@@ -1767,18 +1767,18 @@ Include a `metrics-snapshot.json` in the diagnostics ZIP:
 
 ## 16. Bible Integration
 
-**Status:** Partially implemented on `feature/kestrel-migration` branch.
+**Status:** Implemented on `feature/kestrel-migration` branch. Sub-features (a)-(e) complete. (f)-(h) not started.
 
 **What's done:**
 - **(a) Bible Data Source** — `Services/Bible/BibleService.vb` scans `Bibles/{lang_code}/` for SQLite files. Reads ISO language codes from DB `info` table. Tested with KJV+ (en), BCI (ca), NVIC'17 (es). Configurable path via `ServerOptions.BiblesDirectory`. Strips markup tags (`<S>`, `<J>`, `<pb/>`).
-- **(b) Bible API Endpoints** — All working: `/bible/translations`, `/bible/{id}/{book}/{chapter}`, `/bible/{id}/{book}/{chapter}/{verses}`, `/bible/search`, `/bible/parse`
+- **(b) Bible API Endpoints** — All working with `WriteAsJsonAsync()`: `/bible/translations?lang=`, `/bible/{id}/{book}/{chapter}`, `/bible/{id}/{book}/{chapter}/{verses}`, `/bible/search?q=&translation=&max=`, `/bible/parse?ref=`
 - **(c) Reference Parser** — BookAliases dictionary (English names/abbreviations), regex pattern matching for chapter:verse format. `DetectReferencesInText()` method coded.
-- **(e) Reference Detection** — `DetectReferencesInText()` coded in BibleService but NOT yet wired into WebSocket commit messages.
+- **(d) Phone Client Bible Tab** — Full-screen Bible panel with: book grid (OT/NT sections), chapter grid, verse display, quick reference input ("John 3:16" + Go), full-text search (200 results), translation selector filtered by phone language, back navigation stack, i18n for all 8 languages.
+- **(e) WebSocket Integration** — `SubtitleService.BroadcastCommit` calls `DetectReferencesInText()`, includes `refs` array in commit JSON. `CommittedEntry.BibleRefs` stores refs for history replay. Phone client renders detected references as tappable blue links that open the verse in the Bible panel.
 
 **What's NOT done:**
-- **(d) Phone Client Bible Tab** — No Bible browsing/search UI on the phone client yet
-- **(e) WebSocket integration** — Reference detection exists but not wired to enrich commit messages with `bible_refs`
 - **(f) Offline Bible Bundles** — No download/management UI
+- **(g)/(h) Copyright/licensing and public domain translation sourcing** — Not started
 
 **Original problem description (kept for context):**
 
@@ -2018,18 +2018,17 @@ These features require zero new SubtitleServer endpoints. They deliver immediate
 9. **Multi-Language UI expansion (#9)** — add 10 locale files for Agape's European footprint. Can run in parallel with other work (requires volunteer translators)
 10. **Session Export (#10)** — multi-format transcript output. Multiplies the value of each session
 
-### Phase 3 — Kestrel Migration (#15)
+### Phase 3 — Kestrel Migration (#15) ✅ DONE
 
-Do this AFTER 10 features are shipped and battle-tested. The migration is focused: no feature pressure, just infrastructure. By this point the architecture's limitations are well-understood from real field use.
+~~Do this AFTER 10 features are shipped and battle-tested.~~ Completed early on `feature/kestrel-migration` branch (12 commits).
 
-Delivers:
+Delivered:
 - Unified routing (no HTTP/HTTPS duplication)
-- Response compression (150KB → 25KB per page load)
+- Response compression (Brotli + Gzip, ~63% reduction)
 - Static file caching with ETags
 - Extracted web client (`wwwroot/` — no more HTML-in-VB-strings)
 - Server load monitoring and capacity dashboard (section 15h)
-
-**Why wait:** Kestrel delivers zero user-visible value on its own — the 300-person church won't notice it. Shipping 10 features first maintains momentum and gives the congregation real improvements. When the migration happens, it's a clean refactor with no feature pressure.
+- DI container with all services (subtitle, Bible, translation, TTS, audio, metrics)
 
 ### Phase 4 — Features that benefit from Kestrel
 
@@ -2040,7 +2039,7 @@ These features either require new HTTP endpoints (easier on Kestrel) or benefit 
 13. **Glossary Enrichment Pipeline (#11B)** — depends on #11A for suggestion data. Desktop-side review UI
 14. **Pluggable Translation Backends (#14)** — pure VB.NET abstraction layer, no server needed. But pairs well with Kestrel for status/config API endpoints
 15. **Server-Side TTS (#6)** — Python sidecar + cached audio served via Kestrel static files. High value but high complexity
-16. **Bible Integration (#16)** — REST API with parameterized routes. The only feature that truly *requires* Kestrel's routing (impractical with manual string matching)
+16. **Bible Integration (#16)** ✅ — REST API with parameterized routes, phone client Bible tab with browse/search/quick-ref, tappable Bible reference links in subtitles
 
 ### Phase 5 — Maximum Portability
 
