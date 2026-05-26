@@ -3,6 +3,7 @@ Imports System.IO.Compression
 Imports System.Net.Http
 Imports System.Text.Json
 Imports System.Text.RegularExpressions
+Imports TranscriptionTools.Services.Tts
 
 Namespace Models
 
@@ -100,7 +101,8 @@ Namespace Models
                 CheckModelAsync(),
                 CheckSubtitleEditAsync(),
                 CheckFasterWhisperModelAsync(),
-                CheckNllbModelAsync()
+                CheckNllbModelAsync(),
+                CheckPiperAsync()
             }
             Await Task.WhenAll(tasks)
             Return tasks.Select(Function(t) t.Result).ToList()
@@ -369,7 +371,7 @@ Namespace Models
             Dim args = "-m pip install"
             If File.Exists(nllbReq) Then args &= $" -r ""{nllbReq}"""
             If File.Exists(liveReq) Then args &= $" -r ""{liveReq}"""
-            args &= " --no-warn-script-location"
+            args &= " edge-tts --no-warn-script-location"
 
             If Not File.Exists(nllbReq) AndAlso Not File.Exists(liveReq) Then
                 Throw New FileNotFoundException("No requirements.txt files found")
@@ -392,7 +394,7 @@ Namespace Models
             Try
                 Dim psi As New Diagnostics.ProcessStartInfo With {
                     .FileName = PythonExePath(),
-                    .Arguments = "-c ""import ctranslate2; import sentencepiece; import fastapi; import uvicorn; import faster_whisper; import sounddevice""",
+                    .Arguments = "-c ""import ctranslate2; import sentencepiece; import fastapi; import uvicorn; import faster_whisper; import sounddevice; import edge_tts""",
                     .UseShellExecute = False,
                     .RedirectStandardOutput = True,
                     .RedirectStandardError = True,
@@ -513,6 +515,132 @@ Namespace Models
         End Function
 
         ' ──────────────────────────────────────────
+        '  Piper TTS (offline speech synthesis)
+        ' ──────────────────────────────────────────
+
+        Private Shared ReadOnly PiperReleaseUrl As String =
+            "https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_windows_amd64.zip"
+
+        Private Function PiperDir() As String
+            Return Path.Combine(_toolsDir, "tts-models", "piper")
+        End Function
+
+        Private Function PiperVoicesDir() As String
+            Return Path.Combine(PiperDir(), "voices")
+        End Function
+
+        Private Function PiperExePath() As String
+            Return Path.Combine(PiperDir(), "piper.exe")
+        End Function
+
+        Public Function CheckPiperAsync() As Task(Of ToolState)
+            Dim state As New ToolState With {
+                .Name = "Piper TTS",
+                .DownloadUrl = PiperReleaseUrl
+            }
+            If File.Exists(PiperExePath()) Then
+                state.Status = ToolStatus.UpToDate
+                state.InstalledVersion = "2023.11.14-2"
+            End If
+            Return Task.FromResult(state)
+        End Function
+
+        Public Async Function DownloadPiperAsync(progress As IProgress(Of (downloaded As Long, total As Long))) As Task
+            Dim ttsModelsDir = Path.Combine(_toolsDir, "tts-models")
+            If Not Directory.Exists(ttsModelsDir) Then Directory.CreateDirectory(ttsModelsDir)
+
+            Dim destDir As String = PiperDir()
+            Dim zipPath = Path.Combine(_toolsDir, "piper-temp.zip")
+            Try
+                Await DownloadFileAsync(PiperReleaseUrl, zipPath, progress)
+
+                ' Extract to tts-models/ — the zip may or may not contain a top-level directory
+                If Not Directory.Exists(destDir) Then Directory.CreateDirectory(destDir)
+                ZipFile.ExtractToDirectory(zipPath, destDir, True)
+
+                ' If the zip had a subdirectory containing piper.exe, move contents up
+                If Not File.Exists(Path.Combine(destDir, "piper.exe")) Then
+                    For Each subDir As String In Directory.GetDirectories(destDir)
+                        If File.Exists(Path.Combine(subDir, "piper.exe")) Then
+                            For Each f As String In Directory.GetFiles(subDir)
+                                File.Move(f, Path.Combine(destDir, Path.GetFileName(f)), True)
+                            Next
+                            For Each d As String In Directory.GetDirectories(subDir)
+                                Dim destSubDir = Path.Combine(destDir, Path.GetFileName(d))
+                                If Directory.Exists(destSubDir) Then Directory.Delete(destSubDir, True)
+                                Directory.Move(d, destSubDir)
+                            Next
+                            Directory.Delete(subDir, True)
+                            Exit For
+                        End If
+                    Next
+                End If
+
+                ' Create voices directory
+                Dim vDir As String = PiperVoicesDir()
+                If Not Directory.Exists(vDir) Then Directory.CreateDirectory(vDir)
+
+                SaveVersion("Piper TTS", "2023.11.14-2")
+            Finally
+                If File.Exists(zipPath) Then File.Delete(zipPath)
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Downloads a Piper voice model for the given NLLB language prefix (e.g. "fra", "deu").
+        ''' Downloads both the .onnx model and .onnx.json config from HuggingFace.
+        ''' </summary>
+        Public Async Function DownloadPiperVoiceAsync(nllbLanguage As String,
+                                                       progress As IProgress(Of (downloaded As Long, total As Long))) As Task
+            Dim voicesDir = PiperVoicesDir()
+            If Not Directory.Exists(voicesDir) Then Directory.CreateDirectory(voicesDir)
+
+            Dim modelFile = PiperBackend.GetModelFileName(nllbLanguage)
+            If modelFile Is Nothing Then
+                Throw New ArgumentException($"No Piper voice available for language: {nllbLanguage}")
+            End If
+
+            Dim baseUrl = PiperBackend.GetModelDownloadUrl(nllbLanguage)
+            If baseUrl Is Nothing Then Return
+
+            ' Download .onnx model file
+            Dim onnxPath = Path.Combine(voicesDir, modelFile)
+            If Not File.Exists(onnxPath) Then
+                Await DownloadFileAsync($"{baseUrl}.onnx", onnxPath, progress)
+            End If
+
+            ' Download .onnx.json config file (required by piper)
+            Dim jsonPath = onnxPath & ".json"
+            If Not File.Exists(jsonPath) Then
+                Await DownloadFileAsync($"{baseUrl}.onnx.json", jsonPath, Nothing)
+            End If
+        End Function
+
+        ''' <summary>
+        ''' Returns a list of NLLB language prefixes that have Piper voice models installed.
+        ''' </summary>
+        Public Function GetInstalledPiperVoices() As List(Of String)
+            Dim installed As New List(Of String)()
+            Dim voicesDir = PiperVoicesDir()
+            If Not Directory.Exists(voicesDir) Then Return installed
+
+            For Each kvp In PiperBackend.VoiceMap
+                Dim modelFile = PiperBackend.GetModelFileName(kvp.Key)
+                If modelFile IsNot Nothing AndAlso File.Exists(Path.Combine(voicesDir, modelFile)) Then
+                    installed.Add(kvp.Key)
+                End If
+            Next
+            Return installed
+        End Function
+
+        ''' <summary>
+        ''' Returns all NLLB language prefixes that have Piper voices available for download.
+        ''' </summary>
+        Public Shared Function GetAvailablePiperVoices() As List(Of String)
+            Return PiperBackend.VoiceMap.Keys.ToList()
+        End Function
+
+        ' ──────────────────────────────────────────
         '  faster-whisper Model
         ' ──────────────────────────────────────────
 
@@ -581,6 +709,8 @@ Namespace Models
                     Await DownloadNllbModelAsync(progress)
                 Case "faster-whisper Model (large-v3)"
                     Await DownloadFasterWhisperModelAsync(progress)
+                Case "Piper TTS"
+                    Await DownloadPiperAsync(progress)
             End Select
 
             ' Save the downloaded version

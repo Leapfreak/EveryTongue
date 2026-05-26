@@ -40,14 +40,14 @@ Namespace Services.Tts
         ) As Task(Of String) Implements ITtsService.SynthesiseAsync
 
             ' Check cache first
-            Dim cached = _cache.TryGet(language, commitId, _preferredCodec)
+            Dim cached = _cache.TryGet(language, commitId)
             If cached IsNot Nothing Then Return cached
 
             ' Limit concurrent TTS processes
             Await _semaphore.WaitAsync(ct)
             Try
                 ' Re-check cache after acquiring semaphore (another task may have filled it)
-                cached = _cache.TryGet(language, commitId, _preferredCodec)
+                cached = _cache.TryGet(language, commitId)
                 If cached IsNot Nothing Then Return cached
 
                 ' Try each backend in priority order

@@ -59,15 +59,17 @@ Namespace Services.Tts
 
         ''' <summary>
         ''' Check if audio already cached for this language + commit.
+        ''' Checks multiple codecs (wav, mp3) since different backends produce different formats.
         ''' </summary>
-        Public Function TryGet(language As String, commitId As Integer,
-                              codec As String) As String
-            Dim fileName = $"{language}_commit_{commitId}.{codec}"
-            Dim filePath = Path.Combine(_cacheDir, fileName)
-            If File.Exists(filePath) Then
-                Threading.Interlocked.Increment(_hitCount)
-                Return $"/tts/cache/{fileName}"
-            End If
+        Public Function TryGet(language As String, commitId As Integer) As String
+            For Each ext In {"wav", "mp3", "opus"}
+                Dim fileName = $"{language}_commit_{commitId}.{ext}"
+                Dim filePath = Path.Combine(_cacheDir, fileName)
+                If File.Exists(filePath) Then
+                    Threading.Interlocked.Increment(_hitCount)
+                    Return $"/tts/cache/{fileName}"
+                End If
+            Next
             Threading.Interlocked.Increment(_missCount)
             Return Nothing
         End Function
