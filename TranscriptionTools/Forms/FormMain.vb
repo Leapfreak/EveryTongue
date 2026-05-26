@@ -17,14 +17,22 @@ Public Class FormMain
     Private _resMgr As ResourceManager
     Private _liveRunner As LiveStreamRunner
     Private _liveTranscript As New System.Text.StringBuilder()
-    Private _subtitleServer As SubtitleServer
     Private _kestrelHost As KestrelHost
+    Private _serverPort As Integer = 0
     Private _translationService As TranslationService
     Private _translationUnloadTimer As System.Threading.Timer
     Private _pendingCommits As New List(Of String)()
     Private _simCts As CancellationTokenSource
     Private _isInitializing As Boolean = True
     Private _exitForReal As Boolean = False
+
+    ''' <summary>Resolves ISubtitleService from Kestrel DI. Returns Nothing if Kestrel isn't running.</summary>
+    Private ReadOnly Property SubtitleSvc As Services.Interfaces.ISubtitleService
+        Get
+            Return TryCast(_kestrelHost?.Services?.GetService(
+                GetType(Services.Interfaces.ISubtitleService)), Services.Interfaces.ISubtitleService)
+        End Get
+    End Property
 
     ' Supported whisper languages
     Private ReadOnly _whisperLanguages As String() = {
@@ -1558,7 +1566,8 @@ del ""%~f0""
         ' Get input language
         Dim inputLang = "auto"
         If cboLiveInputLang.SelectedItem IsNot Nothing Then inputLang = LangCodeFromDisplay(cboLiveInputLang.SelectedItem.ToString())
-        If _subtitleServer IsNot Nothing Then _subtitleServer.InputLanguage = inputLang
+        Dim svc1 = SubtitleSvc
+        If svc1 IsNot Nothing Then svc1.InputLanguage = inputLang
 
         Dim translateToEn = False
 
@@ -1605,8 +1614,8 @@ del ""%~f0""
 
         _liveRunner.Start(_config, deviceId, inputLang, translateToEn)
 
-        If _liveRunner.IsRunning AndAlso _subtitleServer IsNot Nothing Then
-            _subtitleServer.BroadcastSystemMessage("[Transcription Started]")
+        If _liveRunner.IsRunning Then
+            SubtitleSvc?.BroadcastSystemMessage("[Transcription Started]")
         End If
 
         If _liveRunner.IsRunning Then
@@ -1620,9 +1629,7 @@ del ""%~f0""
 
     Private Sub btnLiveStop_Click(sender As Object, e As EventArgs) Handles btnLiveStop.Click
         If _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning Then
-            If _subtitleServer IsNot Nothing Then
-                _subtitleServer.BroadcastSystemMessage("[Transcription Stopped]")
-            End If
+            SubtitleSvc?.BroadcastSystemMessage("[Transcription Stopped]")
             _liveRunner.Stop()
             AppendLiveText("", Drawing.Color.Gray)
             AppendLiveText("Live transcription stopped.", Drawing.Color.Yellow)
@@ -1694,10 +1701,7 @@ del ""%~f0""
                     End If
                 Case "clear"
                     AppendServerLog("Remote command: CLEAR")
-                    _subtitleServer?.BroadcastClear()
-                    Dim kSvc = TryCast(_kestrelHost?.Services?.GetService(
-                        GetType(Services.Interfaces.ISubtitleService)), Services.Interfaces.ISubtitleService)
-                    kSvc?.BroadcastClear()
+                    SubtitleSvc?.BroadcastClear()
                 Case Else
                     If command.StartsWith("setSliders:") Then
                         Dim parts = command.Substring(11).Split(","c)
@@ -1723,21 +1727,10 @@ del ""%~f0""
     End Sub
 
     Private Sub UpdateLiveRunningStatus()
-        Dim isLive = _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning
-        Dim isSim = _simCts IsNot Nothing AndAlso Not _simCts.IsCancellationRequested
-
-        If _subtitleServer IsNot Nothing Then
-            _subtitleServer.IsLiveRunning = isLive
-            _subtitleServer.IsSimulating = isSim
-        End If
-
-        ' Sync Kestrel's subtitle service state
-        Dim kSvc = TryCast(_kestrelHost?.Services?.GetService(
-            GetType(Services.Interfaces.ISubtitleService)), Services.Interfaces.ISubtitleService)
-        If kSvc IsNot Nothing Then
-            kSvc.IsLiveRunning = isLive
-            kSvc.IsSimulating = isSim
-            kSvc.InputLanguage = If(_subtitleServer?.InputLanguage, "auto")
+        Dim svc = SubtitleSvc
+        If svc IsNot Nothing Then
+            svc.IsLiveRunning = _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning
+            svc.IsSimulating = _simCts IsNot Nothing AndAlso Not _simCts.IsCancellationRequested
         End If
     End Sub
 
@@ -2046,7 +2039,8 @@ del ""%~f0""
         ' Update the UI dropdown
         SelectLiveInputLang(lang)
         ' Update subtitle server's tracked state (for status polling)
-        If _subtitleServer IsNot Nothing Then _subtitleServer.InputLanguage = lang
+        Dim svc2 = SubtitleSvc
+        If svc2 IsNot Nothing Then svc2.InputLanguage = lang
         ' Forward to live-server if running
         If _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning Then
             Dim config As New Dictionary(Of String, Object) From {{"language", lang}}
@@ -2101,7 +2095,7 @@ del ""%~f0""
         Dim sourceShort = NllbToShortCode(sourceLang)
 
         ' Check if translation is available
-        Dim targets = _subtitleServer?.GetActiveTranslationLanguages()
+        Dim targets = SubtitleSvc?.GetActiveTranslationLanguages()
         Dim activeTargets = If(targets IsNot Nothing, String.Join(",", targets), "none")
         targets?.Remove(sourceLang)
 
@@ -2118,21 +2112,21 @@ del ""%~f0""
                 _pendingCommits.Add(commitData)
             End SyncLock
             ' Send original text to source-language and non-translation clients
-            _subtitleServer?.BroadcastCommit(line, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang)
+            SubtitleSvc?.BroadcastCommit(line, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang)
             WriteDebugLog($"[BUFFERED] commit queued ({_pendingCommits.Count} pending)")
             Return
         End If
 
         ' No translation clients or service not running — send to everyone immediately
         If Not translationReady Then
-            _subtitleServer?.BroadcastCommit(line, skipTranslationClients:=False, lang:=sourceShort)
+            SubtitleSvc?.BroadcastCommit(line, skipTranslationClients:=False, lang:=sourceShort)
             Return
         End If
 
         ' Filter garbage commits — send to non-translation clients only
         If IsGarbageCommit(line) Then
             WriteDebugLog($"[FILTERED] garbage commit skipped for translation")
-            _subtitleServer?.BroadcastCommit(line, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang)
+            SubtitleSvc?.BroadcastCommit(line, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang)
             Return
         End If
 
@@ -2155,7 +2149,7 @@ del ""%~f0""
         translations(sourceLang) = line
 
         ' Re-check: translate any new languages that appeared during the await
-        Dim currentTargets = _subtitleServer?.GetActiveTranslationLanguages()
+        Dim currentTargets = SubtitleSvc?.GetActiveTranslationLanguages()
         If currentTargets IsNot Nothing Then
             Dim missing As New List(Of String)
             For Each t In currentTargets
@@ -2187,7 +2181,7 @@ del ""%~f0""
 
         ' Single atomic broadcast — sends the right text to each client based on their
         ' current language. No two-phase race condition.
-        _subtitleServer?.BroadcastCommitTranslated(line, sourceShort, translations, langTags)
+        SubtitleSvc?.BroadcastCommitTranslated(line, sourceShort, translations, langTags)
     End Sub
 
     Private Sub FlushPendingCommits()
@@ -2434,7 +2428,7 @@ del ""%~f0""
     Private _translationSetupPrompted As Boolean = False
 
     Private Sub HandleActiveLanguagesChanged(sender As Object, e As EventArgs)
-        Dim targets = _subtitleServer?.GetActiveTranslationLanguages()
+        Dim targets = SubtitleSvc?.GetActiveTranslationLanguages()
         If targets Is Nothing OrElse targets.Count = 0 Then
             ' No translation clients — reset unload timer
             ResetTranslationUnloadTimer()
@@ -2501,8 +2495,8 @@ del ""%~f0""
         _translationUnloadTimer?.Dispose()
         _translationUnloadTimer = New System.Threading.Timer(
             Sub(state)
-                Dim targets = _subtitleServer?.GetActiveTranslationLanguages()
-                If targets Is Nothing OrElse targets.Count = 0 Then
+                Dim tgts = SubtitleSvc?.GetActiveTranslationLanguages()
+                If tgts Is Nothing OrElse tgts.Count = 0 Then
                     AppendServerLog($"No translation clients for {minutes} min, unloading model...")
                     _translationService?.UnloadModelAsync().Wait()
                 End If
@@ -2605,7 +2599,7 @@ del ""%~f0""
 
         If running Then
             Dim ip = GetLocalIpAddress()
-            Dim url = $"http://{ip}:{_subtitleServer.Port}"
+            Dim url = $"http://{ip}:{_serverPort}"
             lblServerStatus.Text = "Status: Running"
             lblServerStatus.ForeColor = Drawing.Color.Green
             lblServerUrl.Text = $"URL: {url}"
@@ -2634,92 +2628,75 @@ del ""%~f0""
 
     Private Sub StartSubtitleServer()
         Dim port = CInt(nudServerPort.Value)
+        _serverPort = port
         If _config.AllowFirewall Then EnsureFirewallRule(port)
 
-        _subtitleServer = New SubtitleServer()
-        _subtitleServer.BgColor = _config.SubtitleBgColor
-        _subtitleServer.FgColor = _config.SubtitleFgColor
-        AddHandler _subtitleServer.StatusChanged, Sub(s, msg)
-                                                      AppendServerLog(msg)
-                                                      If Me.InvokeRequired Then
-                                                          Me.BeginInvoke(Sub()
-                                                                             If _subtitleServer IsNot Nothing Then
-                                                                                 lblServerClients.Text = $"Connected clients: {_subtitleServer.ConnectedClients}"
-                                                                             End If
-                                                                         End Sub)
-                                                      Else
-                                                          If _subtitleServer IsNot Nothing Then
-                                                              lblServerClients.Text = $"Connected clients: {_subtitleServer.ConnectedClients}"
-                                                          End If
-                                                      End If
-                                                  End Sub
-
-        AddHandler _subtitleServer.RemoteCommand, Sub(s, cmd)
-                                                      Me.BeginInvoke(Sub() HandleRemoteCommand(cmd))
-                                                  End Sub
-
-        AddHandler _subtitleServer.ActiveLanguagesChanged, AddressOf HandleActiveLanguagesChanged
-        AddHandler _subtitleServer.InputLanguageChanged, Sub(s, lang)
-                                                             Me.BeginInvoke(Sub() HandleInputLanguageChanged(lang))
-                                                         End Sub
-        AddHandler _subtitleServer.LogMessage, Sub(s, msg)
-                                                   WriteDebugLog(msg)
-                                               End Sub
-        _subtitleServer.TuneCallback = AddressOf GetTuneJson
-
-        Try
-            _subtitleServer.Start(port, _config.AllowFirewall)
-            UpdateServerUi(True)
-            AppendServerLog($"Subtitle server started on port {port}")
-            NavigateLivePreview(port)
-            Dim localIp = GetLocalIpAddress()
-            AppendServerLog($"Phones should open: https://{localIp}:{_subtitleServer.HttpsPort}")
-            AppendServerLog($"(Accept the certificate warning on first visit)")
-        Catch ex As Exception
-            AppendServerLog($"ERROR: {ex.Message}")
-            AppendServerLog("Tip: Try running as Administrator, or use a different port.")
-            _subtitleServer = Nothing
-        End Try
-
-        ' Start Kestrel alongside legacy server (temporary ports during migration)
-        StartKestrelHost(port)
-    End Sub
-
-    Private Sub StartKestrelHost(legacyPort As Integer)
         Try
             _kestrelHost = New KestrelHost()
             AddHandler _kestrelHost.StatusChanged, Sub(s, msg)
-                                                       AppendServerLog($"[Kestrel] {msg}")
+                                                       AppendServerLog(msg)
                                                    End Sub
 
-            ' Use temporary ports offset from legacy (legacy=5080/5081, Kestrel=5082/5083)
             Dim kestrelOptions As New ServerOptions() With {
-                .HttpPort = legacyPort + 2,
+                .HttpPort = port,
                 .AllowRemote = _config.AllowFirewall,
                 .BgColor = _config.SubtitleBgColor,
                 .FgColor = _config.SubtitleFgColor
             }
 
             _kestrelHost.Start(kestrelOptions,
-                Sub(msg) AppendServerLog($"[Kestrel] {msg}"))
+                Sub(msg) AppendServerLog(msg))
 
             ' Wire up remote command handler so /api/control routes to FormMain
             EndpointRegistration.RemoteCommandHandler = Sub(cmd)
                                                             Me.BeginInvoke(Sub() HandleRemoteCommand(cmd))
                                                         End Sub
 
-            ' Configure Kestrel's SubtitleService with callbacks from FormMain
-            Dim subtitleSvc = TryCast(_kestrelHost.Services?.GetService(
-                GetType(Services.Interfaces.ISubtitleService)), Services.Interfaces.ISubtitleService)
-            If subtitleSvc IsNot Nothing Then
-                subtitleSvc.TuneCallback = AddressOf GetTuneJson
-                subtitleSvc.IsLiveRunning = (_liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning)
-                subtitleSvc.InputLanguage = If(_subtitleServer?.InputLanguage, "auto")
+            ' Configure Kestrel's SubtitleService with events and callbacks
+            Dim svc = SubtitleSvc
+            If svc IsNot Nothing Then
+                svc.BgColor = _config.SubtitleBgColor
+                svc.FgColor = _config.SubtitleFgColor
+                svc.TuneCallback = AddressOf GetTuneJson
+                svc.IsLiveRunning = (_liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning)
+                svc.InputLanguage = "auto"
+
+                AddHandler svc.StatusChanged, Sub(s, msg)
+                                                  AppendServerLog(msg)
+                                                  If Me.InvokeRequired Then
+                                                      Me.BeginInvoke(Sub()
+                                                                         Dim sv = SubtitleSvc
+                                                                         If sv IsNot Nothing Then
+                                                                             lblServerClients.Text = $"Connected clients: {sv.ConnectedClients}"
+                                                                         End If
+                                                                     End Sub)
+                                                  Else
+                                                      lblServerClients.Text = $"Connected clients: {svc.ConnectedClients}"
+                                                  End If
+                                              End Sub
+
+                AddHandler svc.RemoteCommand, Sub(s, cmd)
+                                                  Me.BeginInvoke(Sub() HandleRemoteCommand(cmd))
+                                              End Sub
+
+                AddHandler svc.ActiveLanguagesChanged, AddressOf HandleActiveLanguagesChanged
+                AddHandler svc.InputLanguageChanged, Sub(s, lang)
+                                                         Me.BeginInvoke(Sub() HandleInputLanguageChanged(lang))
+                                                     End Sub
+                AddHandler svc.LogMessage, Sub(s, msg)
+                                               WriteDebugLog(msg)
+                                           End Sub
             End If
 
-            AppendServerLog($"Kestrel server started on HTTP:{kestrelOptions.HttpPort} HTTPS:{kestrelOptions.HttpsPort}")
+            UpdateServerUi(True)
+            AppendServerLog($"Server started on HTTP:{port} HTTPS:{port + 1}")
+            NavigateLivePreview(port)
+            Dim localIp = GetLocalIpAddress()
+            AppendServerLog($"Phones should open: https://{localIp}:{port + 1}")
+            AppendServerLog($"(Accept the certificate warning on first visit)")
         Catch ex As Exception
-            AppendServerLog($"Kestrel failed to start: {ex.Message}")
+            AppendServerLog($"ERROR: {ex.Message}")
+            AppendServerLog("Tip: Try running as Administrator, or use a different port.")
             _kestrelHost = Nothing
         End Try
     End Sub
@@ -2734,22 +2711,20 @@ del ""%~f0""
 
     Private Sub btnServerStop_Click(sender As Object, e As EventArgs) Handles btnServerStop.Click
         StopSimulation()
-        _subtitleServer?.Stop()
-        _subtitleServer = Nothing
         EndpointRegistration.RemoteCommandHandler = Nothing
         Try : _kestrelHost?.Stop() : Catch : End Try
         _kestrelHost = Nothing
+        _serverPort = 0
         UpdateServerUi(False)
-        AppendServerLog("Subtitle server stopped.")
+        AppendServerLog("Server stopped.")
     End Sub
 
     Private Sub btnServerRestart_Click(sender As Object, e As EventArgs) Handles btnServerRestart.Click
         StopSimulation()
-        _subtitleServer?.Stop()
-        _subtitleServer = Nothing
         EndpointRegistration.RemoteCommandHandler = Nothing
         Try : _kestrelHost?.Stop() : Catch : End Try
         _kestrelHost = Nothing
+        _serverPort = 0
         AppendServerLog("Restarting server...")
         btnServerStart_Click(sender, e)
     End Sub
@@ -2763,7 +2738,8 @@ del ""%~f0""
                 rtbLiveOutput.BackColor = dlg.Color
                 _config.SubtitleBgColor = ColorToHex(dlg.Color)
                 ConfigManager.Save(_config)
-                If _subtitleServer IsNot Nothing Then _subtitleServer.BgColor = _config.SubtitleBgColor
+                Dim bgSvc = SubtitleSvc
+                If bgSvc IsNot Nothing Then bgSvc.BgColor = _config.SubtitleBgColor
             End If
         End Using
     End Sub
@@ -2777,7 +2753,8 @@ del ""%~f0""
                 rtbLiveOutput.ForeColor = dlg.Color
                 _config.SubtitleFgColor = ColorToHex(dlg.Color)
                 ConfigManager.Save(_config)
-                If _subtitleServer IsNot Nothing Then _subtitleServer.FgColor = _config.SubtitleFgColor
+                Dim fgSvc = SubtitleSvc
+                If fgSvc IsNot Nothing Then fgSvc.FgColor = _config.SubtitleFgColor
             End If
         End Using
     End Sub
@@ -2810,15 +2787,15 @@ del ""%~f0""
     End Sub
 
     Private Sub btnCopyUrl_Click(sender As Object, e As EventArgs) Handles btnCopyUrl.Click
-        If _subtitleServer IsNot Nothing AndAlso _subtitleServer.IsRunning Then
-            Dim url = $"https://{GetLocalIpAddress()}:{_subtitleServer.HttpsPort}"
+        If _kestrelHost IsNot Nothing AndAlso _kestrelHost.IsRunning Then
+            Dim url = $"https://{GetLocalIpAddress()}:{_serverPort + 1}"
             Clipboard.SetText(url)
             AppendServerLog("URL copied to clipboard.")
         End If
     End Sub
 
     Private Sub btnServerSimulate_Click(sender As Object, e As EventArgs) Handles btnServerSimulate.Click
-        If _subtitleServer Is Nothing OrElse Not _subtitleServer.IsRunning Then Return
+        If _kestrelHost Is Nothing OrElse Not _kestrelHost.IsRunning Then Return
 
         _simCts = New CancellationTokenSource()
         btnServerSimulate.Enabled = False
@@ -2855,7 +2832,7 @@ del ""%~f0""
                         If ct.IsCancellationRequested Then Exit For
                         If w > 0 Then sentence.Append(" ")
                         sentence.Append(words(w))
-                        _subtitleServer?.BroadcastUpdate(sentence.ToString())
+                        SubtitleSvc?.BroadcastUpdate(sentence.ToString())
                         Await Task.Delay(rng.Next(150, 350), ct)
                     Next
                     If Not ct.IsCancellationRequested Then
@@ -2868,11 +2845,11 @@ del ""%~f0""
             Sub(t)
                 If Me.InvokeRequired Then
                     Me.BeginInvoke(Sub()
-                                       btnServerSimulate.Enabled = _subtitleServer IsNot Nothing AndAlso _subtitleServer.IsRunning
+                                       btnServerSimulate.Enabled = _kestrelHost IsNot Nothing AndAlso _kestrelHost.IsRunning
                                        btnServerSimStop.Enabled = False
                                    End Sub)
                 Else
-                    btnServerSimulate.Enabled = _subtitleServer IsNot Nothing AndAlso _subtitleServer.IsRunning
+                    btnServerSimulate.Enabled = _kestrelHost IsNot Nothing AndAlso _kestrelHost.IsRunning
                     btnServerSimStop.Enabled = False
                 End If
             End Sub)
@@ -2947,7 +2924,6 @@ del ""%~f0""
             Sub()
                 Try : _liveRunner?.ShutdownServer() : Catch : End Try
                 Try : StopTranslationService() : Catch : End Try
-                Try : _subtitleServer?.Stop() : Catch : End Try
                 Try : _kestrelHost?.Stop() : Catch : End Try
             End Sub)
         shutdownTask.Wait(10000)
