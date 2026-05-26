@@ -329,12 +329,9 @@ Namespace Server
                     .OnPrepareResponse = Sub(ctx)
                                              Dim path = ctx.Context.Request.Path.Value
                                              If path IsNot Nothing AndAlso
-                                                (path.EndsWith(".js") OrElse path.EndsWith(".css")) Then
-                                                 ' JS/CSS rarely change — cache 7 days
-                                                 ctx.Context.Response.Headers.CacheControl = "public, max-age=604800"
-                                             ElseIf path IsNot Nothing AndAlso path.EndsWith(".html") Then
-                                                 ' HTML may update more often — cache 5 min, revalidate
-                                                 ctx.Context.Response.Headers.CacheControl = "public, max-age=300, must-revalidate"
+                                                (path.EndsWith(".js") OrElse path.EndsWith(".css") OrElse path.EndsWith(".html")) Then
+                                                 ' JS/CSS/HTML — always revalidate via ETag, no stale cache
+                                                 ctx.Context.Response.Headers.CacheControl = "no-cache"
                                              Else
                                                  ' Images, fonts, etc. — cache 1 day
                                                  ctx.Context.Response.Headers.CacheControl = "public, max-age=86400"
