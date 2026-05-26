@@ -6,6 +6,7 @@ Imports System.Threading
 Imports Microsoft.Win32
 Imports TranscriptionTools.Models
 Imports TranscriptionTools.Pipeline
+Imports TranscriptionTools.Server
 
 Public Class FormMain
 
@@ -17,6 +18,7 @@ Public Class FormMain
     Private _liveRunner As LiveStreamRunner
     Private _liveTranscript As New System.Text.StringBuilder()
     Private _subtitleServer As SubtitleServer
+    Private _kestrelHost As KestrelHost
     Private _translationService As TranslationService
     Private _translationUnloadTimer As System.Threading.Timer
     Private _pendingCommits As New List(Of String)()
@@ -2663,6 +2665,34 @@ del ""%~f0""
             AppendServerLog("Tip: Try running as Administrator, or use a different port.")
             _subtitleServer = Nothing
         End Try
+
+        ' Start Kestrel alongside legacy server (temporary ports during migration)
+        StartKestrelHost(port)
+    End Sub
+
+    Private Sub StartKestrelHost(legacyPort As Integer)
+        Try
+            _kestrelHost = New KestrelHost()
+            AddHandler _kestrelHost.StatusChanged, Sub(s, msg)
+                                                       AppendServerLog($"[Kestrel] {msg}")
+                                                   End Sub
+
+            ' Use temporary ports offset from legacy (legacy=5080/5081, Kestrel=5082/5083)
+            Dim kestrelOptions As New ServerOptions() With {
+                .HttpPort = legacyPort + 2,
+                .AllowRemote = _config.AllowFirewall,
+                .BgColor = _config.SubtitleBgColor,
+                .FgColor = _config.SubtitleFgColor
+            }
+
+            _kestrelHost.Start(kestrelOptions,
+                Sub(msg) AppendServerLog($"[Kestrel] {msg}"))
+
+            AppendServerLog($"Kestrel server started on HTTP:{kestrelOptions.HttpPort} HTTPS:{kestrelOptions.HttpsPort}")
+        Catch ex As Exception
+            AppendServerLog($"Kestrel failed to start: {ex.Message}")
+            _kestrelHost = Nothing
+        End Try
     End Sub
 
     Private Sub NavigateLivePreview(port As Integer)
@@ -2677,6 +2707,8 @@ del ""%~f0""
         StopSimulation()
         _subtitleServer?.Stop()
         _subtitleServer = Nothing
+        Try : _kestrelHost?.Stop() : Catch : End Try
+        _kestrelHost = Nothing
         UpdateServerUi(False)
         AppendServerLog("Subtitle server stopped.")
     End Sub
@@ -2685,6 +2717,8 @@ del ""%~f0""
         StopSimulation()
         _subtitleServer?.Stop()
         _subtitleServer = Nothing
+        Try : _kestrelHost?.Stop() : Catch : End Try
+        _kestrelHost = Nothing
         AppendServerLog("Restarting server...")
         btnServerStart_Click(sender, e)
     End Sub
@@ -2883,6 +2917,7 @@ del ""%~f0""
                 Try : _liveRunner?.ShutdownServer() : Catch : End Try
                 Try : StopTranslationService() : Catch : End Try
                 Try : _subtitleServer?.Stop() : Catch : End Try
+                Try : _kestrelHost?.Stop() : Catch : End Try
             End Sub)
         shutdownTask.Wait(10000)
 
