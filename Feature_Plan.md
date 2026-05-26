@@ -13,7 +13,7 @@ Implementation plan for making Transcription Tools field-deployable by a non-tec
 | [3](#3-audio-level-monitor) | Audio Level Monitor | New | 1 |
 | [4](#4-diagnostic-bundle--remote-support) | Diagnostic Bundle / Remote Support | New | 1 |
 | [5](#5-glossary-management--simplified-for-non-technical-users) | Glossary Management — Simplified | Improve | 2 |
-| [6](#6-text-to-speech--server-side-engine) | Text-to-Speech — Server-Side Engine | Scaffolded | 4 |
+| [6](#6-text-to-speech--server-side-engine) | Text-to-Speech — Server-Side Engine | Done | 4 |
 | [7](#7-portable-usb-deployment) | Portable USB Deployment | New | 5 |
 | [8](#8-crash-recovery--system-wide-resilience) | Crash Recovery — System-Wide | Improve | 2 |
 | [9](#9-multi-language-operator-ui--expand-coverage) | Multi-Language Operator UI | Improve | 2 |
@@ -287,20 +287,23 @@ Critical files can get corrupted during USB transfers, incomplete downloads, or 
 
 ## 6. Text-to-Speech — Server-Side Engine
 
-**Status:** Browser-side TTS fully implemented. Server-side TTS scaffolded on `feature/kestrel-migration` branch.
+**Status:** Done on `feature/kestrel-migration` branch.
 
-**What's done (Kestrel branch):**
-- **(a) Server-Side TTS** — `TtsOrchestrator` implements `ITtsService`, selects best backend per language by priority. Three backends coded: `PiperBackend` (priority 1, local ONNX), `MmsTtsBackend` (priority 2, Python sidecar), `EdgeTtsBackend` (priority 3, cloud free). All registered in Kestrel DI.
-- **TtsCache** — Ring-buffer cache in `%APPDATA%/TranscriptionTools/tts-cache/`, keyed by `{lang}_commit_{id}.{codec}`, evicts oldest when 200 entries/lang exceeded. Hit/miss tracking.
+**What's done:**
+- **(a) Server-Side TTS** — `TtsOrchestrator` implements `ITtsService`, selects best backend per language by priority. Three backends: `PiperBackend` (priority 1, local ONNX), `MmsTtsBackend` (priority 2, Python sidecar), `EdgeTtsBackend` (priority 3, cloud free, `--file` flag for safe text passing, system Python fallback). `SemaphoreSlim(3)` concurrency limiter on synthesis.
+- **TtsCache** — Ring-buffer cache in `%APPDATA%/TranscriptionTools/tts-cache/`, keyed by `{lang}_commit_{id}.mp3`, evicts oldest when 200 entries/lang exceeded. Hit/miss tracking.
+- **`/tts/cache/{file}` endpoint** — serves cached audio with path traversal validation.
+- **Fire-and-forget TTS pipeline** — `SubtitleService` generates TTS after each `BroadcastCommit`/`BroadcastCommitTranslated`, only for languages with connected clients. Sends `{"type":"tts","id":N,"url":"...","lang":"..."}` WebSocket message to matching clients.
+- **(c) Hybrid Approach** — "Server TTS" toggle in phone settings panel. Client uses server audio when toggled on OR when browser lacks a voice for the translation language. Falls back to `speechSynthesis` otherwise. NLLB-to-BCP47 voice detection map for 20 languages.
+- **Audio queue with skip-to-live** — sequential playback via reusable `<audio>` element. Floating "N behind — tap to skip" indicator when queue ≥ 2 items. No automatic dropping.
+- **Bible Verse TTS** — per-verse speaker button and "Read All" button on chapter/verse views. Browser-first; server fallback via `requestTts` WebSocket message with hash-based cache key.
+- **Local Audio Output (NAudio)** — `TtsAudioOutput` plays cached TTS to a configurable Windows audio output device (for PA/NDI via Virtual Audio Cable). `ServerOptions.TtsOutputDevice` / `TtsOutputVolume`. `/tts/devices` endpoint lists available devices.
+- i18n for all TTS UI strings in all 8 client languages.
 
-**What's NOT done:**
-- No Piper models downloaded or tested
-- No MMS-TTS Python sidecar created
-- No Edge TTS actual API integration tested
-- **(b) Voice Model Management** — No download/management UI
-- **(c) Hybrid Approach** — No server TTS toggle in phone UI
-- **(d) Earphone Mode** — Not started
-- No `/tts/cache/{file}` endpoint or phone audio playback
+**Not done (future):**
+- **(b) Voice Model Management** — No Piper model download UI (Piper backend coded but no models shipped)
+- **(d) Earphone Mode** — No earphone prompt or auto-volume lowering
+- True NDI integration via SDK P/Invoke (Virtual Audio Cable approach works today)
 
 **What already exists (browser-side):**
 
