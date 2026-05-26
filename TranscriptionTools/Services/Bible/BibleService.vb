@@ -23,11 +23,11 @@ Namespace Services.Bible
         Private ReadOnly _logger As ILogger(Of BibleService)
         Private ReadOnly _translations As New ConcurrentDictionary(Of String, BibleTranslationEntry)()
 
-        ' Regex to strip markup tags from verse text:
-        '   <S>123</S>  Strong's numbers (KJV+)
-        '   <J>...</J>  Jesus' words (KJV+)
-        '   <pb/>       Paragraph breaks (BCI, etc.)
-        Private Shared ReadOnly TagPattern As New Regex("<S>\d+</S>|</?[SJ]>|<pb/>", RegexOptions.Compiled)
+        ' Regex to strip markup from verse text:
+        '   <S>num</S>  Strong's numbers — strip tag AND content (numbers are not readable text)
+        '   All other tags (<J>, </J>, <pb/>, <t>, </t>, <n>, </n>, etc.) — strip tag only, keep content
+        Private Shared ReadOnly StrongsPattern As New Regex("<S>\d+</S>", RegexOptions.Compiled)
+        Private Shared ReadOnly TagPattern As New Regex("<[^>]+>", RegexOptions.Compiled)
 
         ' Book name aliases for reference parsing (English)
         ' Maps display name/abbreviation -> short_name used in DB queries
@@ -263,7 +263,9 @@ Namespace Services.Bible
 
         Private Shared Function StripTags(text As String) As String
             If text Is Nothing Then Return ""
-            Return TagPattern.Replace(text, "").Trim()
+            ' First remove Strong's numbers with their content, then strip remaining tags
+            Dim result = StrongsPattern.Replace(text, "")
+            Return TagPattern.Replace(result, "").Trim()
         End Function
 
         Public Function GetTranslationsAsync(language As String, ct As CancellationToken

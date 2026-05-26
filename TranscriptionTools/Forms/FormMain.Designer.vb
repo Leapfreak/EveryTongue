@@ -904,7 +904,7 @@ Partial Class FormMain
         ' Server log
         Me.rtbServerLog = New RichTextBox()
         Me.rtbServerLog.Location = New Drawing.Point(8, 362)
-        Me.rtbServerLog.Size = New Drawing.Size(830, 299)
+        Me.rtbServerLog.Size = New Drawing.Size(830, 248)
         Me.rtbServerLog.Anchor = AnchorStyles.Top Or AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
         Me.rtbServerLog.[ReadOnly] = True
         Me.rtbServerLog.BackColor = Drawing.Color.Black

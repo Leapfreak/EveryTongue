@@ -371,23 +371,18 @@ body {
 }
 .bible-read-all-btn:active { background: #47f; color: #fff }
 
-#btnBibleStop {
-    display: none;
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
+.bible-stop-btn {
     background: #c00;
     color: #fff;
-    border: 2px solid #f44;
-    border-radius: 30px;
-    padding: 12px 30px;
-    font-size: 18px;
-    font-weight: bold;
+    border: 1px solid #f44;
+    border-radius: 6px;
+    padding: 8px 20px;
+    font-size: 15px;
     cursor: pointer;
-    z-index: 10000;
-    box-shadow: 0 4px 16px rgba(255,0,0,0.4);
+    min-width: 80px;
+    margin-left: 8px;
 }
+.bible-stop-btn:active { background: #f44 }
 
 .bible-ref-link {
     color: #47f;

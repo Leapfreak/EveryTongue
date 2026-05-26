@@ -16,6 +16,7 @@ Namespace Pipeline
 
         Private _process As Process
         Private _isRunning As Boolean = False
+        Private _restarting As Boolean = False
         Private _port As Integer = 5090
         Private _modelPath As String = ".\nllb-model"
         Private _device As String = "cuda"
@@ -23,6 +24,7 @@ Namespace Pipeline
         Private _modelLoaded As Boolean = False
         Private _restartCount As Integer = 0
         Private _cts As CancellationTokenSource
+        Private ReadOnly _lock As New Object()
 
         ' Whisper language code -> NLLB-200 language code
         Private Shared ReadOnly _langMap As New Dictionary(Of String, String) From {
@@ -49,7 +51,7 @@ Namespace Pipeline
 
         Public ReadOnly Property IsRunning As Boolean
             Get
-                Return _isRunning
+                Return _isRunning OrElse _restarting
             End Get
         End Property
 
@@ -102,16 +104,18 @@ Namespace Pipeline
         End Function
 
         Public Sub Start(port As Integer, modelPath As String, device As String, Optional glossaryPath As String = "")
-            If _isRunning Then Return
+            SyncLock _lock
+                If _isRunning OrElse _restarting Then Return
 
-            _port = port
-            _modelPath = modelPath
-            _device = device
-            _glossaryPath = glossaryPath
-            _restartCount = 0
-            _cts = New CancellationTokenSource()
+                _port = port
+                _modelPath = modelPath
+                _device = device
+                _glossaryPath = glossaryPath
+                _restartCount = 0
+                _cts = New CancellationTokenSource()
 
-            StartProcess()
+                StartProcess()
+            End SyncLock
         End Sub
 
         Private Sub KillProcessOnPort(port As Integer)
@@ -145,96 +149,107 @@ Namespace Pipeline
         End Sub
 
         Private Sub StartProcess()
-            ' Kill any leftover process from a previous session holding our port
-            KillProcessOnPort(_port)
+            SyncLock _lock
+                ' Prevent concurrent process spawning
+                If _isRunning Then Return
+                _restarting = False
 
-            Dim resolvedModelPath = Models.AppConfig.ResolvePath(_modelPath)
-            Dim serverScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "nllb-server", "server.py")
+                ' Kill any leftover process from a previous session holding our port
+                KillProcessOnPort(_port)
 
-            ' Look for embedded Python first, then system Python
-            Dim pythonPath = FindPython()
-            If String.IsNullOrEmpty(pythonPath) Then
-                RaiseEvent StatusChanged(Me, "Translation: Python not found")
-                Return
-            End If
+                Dim resolvedModelPath = Models.AppConfig.ResolvePath(_modelPath)
+                Dim serverScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "nllb-server", "server.py")
 
-            Dim glossaryArg = ""
-            If Not String.IsNullOrEmpty(_glossaryPath) Then
-                Dim resolvedGlossary = Models.AppConfig.ResolvePath(_glossaryPath)
-                If File.Exists(resolvedGlossary) Then
-                    glossaryArg = $" --glossary ""{resolvedGlossary}"""
+                ' Look for embedded Python first, then system Python
+                Dim pythonPath = FindPython()
+                If String.IsNullOrEmpty(pythonPath) Then
+                    RaiseEvent StatusChanged(Me, "Translation: Python not found")
+                    Return
                 End If
-            End If
 
-            Dim psi As New ProcessStartInfo() With {
-                .FileName = pythonPath,
-                .Arguments = $"""{serverScript}"" --port {_port} --model-path ""{resolvedModelPath}"" --device {_device}{glossaryArg} --log-dir ""{AppDomain.CurrentDomain.BaseDirectory.TrimEnd({"\"c, "/"c})}""",
-                .UseShellExecute = False,
-                .RedirectStandardOutput = True,
-                .RedirectStandardError = True,
-                .CreateNoWindow = True,
-                .StandardOutputEncoding = Encoding.UTF8,
-                .StandardErrorEncoding = Encoding.UTF8
-            }
+                Dim glossaryArg = ""
+                If Not String.IsNullOrEmpty(_glossaryPath) Then
+                    Dim resolvedGlossary = Models.AppConfig.ResolvePath(_glossaryPath)
+                    If File.Exists(resolvedGlossary) Then
+                        glossaryArg = $" --glossary ""{resolvedGlossary}"""
+                    End If
+                End If
 
-            ' Add whisper dir to PATH so ctranslate2 can find CUDA DLLs (cublas64_12.dll etc.)
-            Dim whisperDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "whisper")
-            If Directory.Exists(whisperDir) Then
-                Dim currentPath = If(Environment.GetEnvironmentVariable("PATH"), "")
-                psi.Environment("PATH") = whisperDir & ";" & currentPath
-            End If
+                Dim psi As New ProcessStartInfo() With {
+                    .FileName = pythonPath,
+                    .Arguments = $"""{serverScript}"" --port {_port} --model-path ""{resolvedModelPath}"" --device {_device}{glossaryArg} --log-dir ""{AppDomain.CurrentDomain.BaseDirectory.TrimEnd({"\"c, "/"c})}""",
+                    .UseShellExecute = False,
+                    .RedirectStandardOutput = True,
+                    .RedirectStandardError = True,
+                    .CreateNoWindow = True,
+                    .StandardOutputEncoding = Encoding.UTF8,
+                    .StandardErrorEncoding = Encoding.UTF8
+                }
 
-            Try
-                _process = New Process()
-                _process.StartInfo = psi
-                _process.EnableRaisingEvents = True
+                ' Add whisper dir to PATH so ctranslate2 can find CUDA DLLs (cublas64_12.dll etc.)
+                Dim whisperDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "whisper")
+                If Directory.Exists(whisperDir) Then
+                    Dim currentPath = If(Environment.GetEnvironmentVariable("PATH"), "")
+                    psi.Environment("PATH") = whisperDir & ";" & currentPath
+                End If
 
-                AddHandler _process.ErrorDataReceived, Sub(s, e)
-                                                           If e.Data IsNot Nothing Then
-                                                               Dim line = e.Data.Trim()
-                                                               If line.Length > 0 Then
-                                                                   RaiseEvent StatusChanged(Me, $"Translation: {line}")
+                Try
+                    _process = New Process()
+                    _process.StartInfo = psi
+                    _process.EnableRaisingEvents = True
+
+                    AddHandler _process.ErrorDataReceived, Sub(s, e)
+                                                               If e.Data IsNot Nothing Then
+                                                                   Dim line = e.Data.Trim()
+                                                                   If line.Length > 0 Then
+                                                                       RaiseEvent StatusChanged(Me, $"Translation: {line}")
+                                                                   End If
                                                                End If
-                                                           End If
-                                                       End Sub
+                                                           End Sub
 
-                AddHandler _process.Exited, Sub(s, e)
-                                                _isRunning = False
-                                                _modelLoaded = False
-                                                If _cts IsNot Nothing AndAlso Not _cts.IsCancellationRequested Then
-                                                    ' Unexpected exit — auto-restart with backoff
-                                                    _restartCount += 1
-                                                    If _restartCount <= 5 Then
-                                                        Dim delay = Math.Min(5000 * _restartCount, 30000)
-                                                        RaiseEvent StatusChanged(Me, $"Translation server crashed, restarting in {delay / 1000}s...")
-                                                        Task.Delay(delay).ContinueWith(
-                                                            Sub(t)
-                                                                If _cts IsNot Nothing AndAlso Not _cts.IsCancellationRequested Then
-                                                                    StartProcess()
-                                                                End If
-                                                            End Sub)
-                                                    Else
-                                                        RaiseEvent StatusChanged(Me, "Translation server failed too many times, giving up")
-                                                    End If
-                                                End If
-                                            End Sub
+                    AddHandler _process.Exited, Sub(s, e)
+                                                    SyncLock _lock
+                                                        _isRunning = False
+                                                        _modelLoaded = False
+                                                        If _cts IsNot Nothing AndAlso Not _cts.IsCancellationRequested Then
+                                                            _restartCount += 1
+                                                            If _restartCount <= 5 Then
+                                                                Dim delay = Math.Min(5000 * _restartCount, 30000)
+                                                                _restarting = True ' Block external Start() calls during restart delay
+                                                                RaiseEvent StatusChanged(Me, $"Translation server crashed, restarting in {delay / 1000}s...")
+                                                                Task.Delay(delay).ContinueWith(
+                                                                    Sub(t)
+                                                                        If _cts IsNot Nothing AndAlso Not _cts.IsCancellationRequested Then
+                                                                            StartProcess()
+                                                                        Else
+                                                                            _restarting = False
+                                                                        End If
+                                                                    End Sub)
+                                                            Else
+                                                                RaiseEvent StatusChanged(Me, "Translation server failed too many times, giving up")
+                                                            End If
+                                                        End If
+                                                    End SyncLock
+                                                End Sub
 
-                _process.Start()
-                _process.BeginErrorReadLine()
-                ' Drain stdout to prevent deadlock
-                Task.Run(Sub()
-                             Try : _process.StandardOutput.ReadToEnd() : Catch : End Try
-                         End Sub)
+                    _process.Start()
+                    _process.BeginErrorReadLine()
+                    ' Drain stdout to prevent deadlock
+                    Task.Run(Sub()
+                                 Try : _process.StandardOutput.ReadToEnd() : Catch : End Try
+                             End Sub)
 
-                _isRunning = True
-                RaiseEvent StatusChanged(Me, $"Translation server starting on port {_port}...")
+                    _isRunning = True
+                    RaiseEvent StatusChanged(Me, $"Translation server starting on port {_port}...")
 
-                ' Wait for health check in background
-                Task.Run(Sub() WaitForReady(_cts.Token))
-            Catch ex As Exception
-                _isRunning = False
-                RaiseEvent StatusChanged(Me, $"Translation: Failed to start: {ex.Message}")
-            End Try
+                    ' Wait for health check in background
+                    Task.Run(Sub() WaitForReady(_cts.Token))
+                Catch ex As Exception
+                    _isRunning = False
+                    _restarting = False
+                    RaiseEvent StatusChanged(Me, $"Translation: Failed to start: {ex.Message}")
+                End Try
+            End SyncLock
         End Sub
 
         Private Sub WaitForReady(ct As CancellationToken)
@@ -341,17 +356,21 @@ Namespace Pipeline
         Public Sub [Stop]()
             _cts?.Cancel()
 
-            Try
-                If _process IsNot Nothing AndAlso Not _process.HasExited Then
-                    _process.Kill(True)
-                    _process.WaitForExit(3000)
-                End If
-            Catch
-            End Try
+            SyncLock _lock
+                _restarting = False
 
-            _isRunning = False
-            _modelLoaded = False
-            _process = Nothing
+                Try
+                    If _process IsNot Nothing AndAlso Not _process.HasExited Then
+                        _process.Kill(True)
+                        _process.WaitForExit(3000)
+                    End If
+                Catch
+                End Try
+
+                _isRunning = False
+                _modelLoaded = False
+                _process = Nothing
+            End SyncLock
             RaiseEvent StatusChanged(Me, "Translation server stopped")
         End Sub
 

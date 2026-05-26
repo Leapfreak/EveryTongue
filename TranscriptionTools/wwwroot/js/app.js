@@ -1,6 +1,8 @@
 /* Transcription Tools - Subtitle Client
    ES5 compatible (except async/await for Wake Lock API) */
 
+function LOG(msg){try{console.log('[TT] '+msg)}catch(e){}}
+
 /* ── i18n ── */
 var T={};
 (function(){
@@ -245,6 +247,7 @@ function hideLangPicker(){
   document.getElementById('langPicker').classList.remove('open');
 }
 function pickLang(code){
+  LOG('pickLang: '+code);
   localStorage.setItem('transLang',code);
   localStorage.setItem('langChosen','true');
   hideLangPicker();
@@ -308,6 +311,7 @@ function createLangItem(lang){
 document.getElementById('lpSearch').oninput=function(){renderLangList(this.value)};
 
 function goHome(){
+  LOG('goHome');
   localStorage.removeItem('langChosen');
   location.reload();
 }
@@ -368,13 +372,15 @@ document.addEventListener('click',function(e){if(!panel.contains(e.target)&&!adm
 function toggleSpeak(){
   speakEnabled=!speakEnabled;
   localStorage.setItem('speak',speakEnabled);
+  LOG('toggleSpeak → '+speakEnabled);
   if(speakEnabled){btnSpeak.classList.add('active');btnSpeak.innerHTML='&#128266; '+t('readAloud')}
   else{btnSpeak.classList.remove('active');btnSpeak.innerHTML='&#128264; '+t('readAloud');synth.cancel();clearTtsQueue()}
 }
 
 function speak(text){
-  if(!speakEnabled||!synth||!text)return;
-  if(serverTtsActive)return; /* server TTS handles playback via tts message */
+  if(!speakEnabled||!synth||!text){LOG('speak SKIP: enabled='+speakEnabled+' synth='+!!synth+' text='+(text?text.substring(0,30):'(empty)'));return}
+  if(serverTtsActive){LOG('speak SKIP: serverTts active');return}
+  LOG('speak: "'+text.substring(0,50)+'"');
   var utter=new SpeechSynthesisUtterance(text);
   utter.rate=speechRate;
   if(selectedVoice){var voices=synth.getVoices();for(var i=0;i<voices.length;i++){if(voices[i].name===selectedVoice){utter.voice=voices[i];break}}}
@@ -416,12 +422,14 @@ function useServerTts(){
 function toggleServerTts(){
   serverTtsActive=!serverTtsActive;
   localStorage.setItem('serverTts',serverTtsActive);
+  LOG('toggleServerTts → '+serverTtsActive);
   var btn=document.getElementById('btnServerTts');
   if(serverTtsActive){btn.classList.add('active')}
   else{btn.classList.remove('active');clearTtsQueue()}
 }
 
 function handleTtsMessage(msg){
+  LOG('handleTtsMessage: url='+msg.url+' speakEnabled='+speakEnabled+' useServer='+useServerTts());
   if(!speakEnabled)return;
   if(!useServerTts())return;
   synth.cancel(); /* stop any browser TTS */
@@ -429,22 +437,24 @@ function handleTtsMessage(msg){
 }
 
 function enqueueTts(url){
+  LOG('enqueueTts: '+url+' queueLen='+ttsQueue.length+' playing='+ttsPlaying);
   ttsQueue.push(url);
   updateTtsSkipIndicator();
   if(!ttsPlaying)playNextTts();
 }
 
 function playNextTts(){
-  if(ttsQueue.length===0){ttsPlaying=false;updateTtsSkipIndicator();return}
+  if(ttsQueue.length===0){LOG('playNextTts: queue empty, done');ttsPlaying=false;updateTtsSkipIndicator();bibleTtsActive=false;return}
   ttsPlaying=true;
   var url=ttsQueue.shift();
+  LOG('playNextTts: playing '+url+' remaining='+ttsQueue.length);
   updateTtsSkipIndicator();
   if(!ttsAudio){ttsAudio=new Audio()}
   ttsAudio.src=url;
   ttsAudio.playbackRate=speechRate;
-  ttsAudio.onended=function(){playNextTts()};
-  ttsAudio.onerror=function(){playNextTts()};
-  ttsAudio.play().catch(function(){playNextTts()});
+  ttsAudio.onended=function(){LOG('ttsAudio ended');playNextTts()};
+  ttsAudio.onerror=function(e){LOG('ttsAudio error: '+e.type);playNextTts()};
+  ttsAudio.play().catch(function(err){LOG('ttsAudio play() rejected: '+err);playNextTts()});
 }
 
 function clearTtsQueue(){
@@ -593,6 +603,7 @@ applyScrollMode();
 var wsRef=null;
 var lastCommitId=0;
 function setTransLang(lang){
+  LOG('setTransLang: '+lang);
   localStorage.setItem('transLang',lang);
   closeAllPanels();
   if(wsRef&&wsRef.readyState===1){wsRef.send(JSON.stringify({type:'setLanguage',language:lang}))}
@@ -607,13 +618,13 @@ function connect(){
   var proto=location.protocol==='https:'?'wss:':'ws:';
   var ws=new WebSocket(proto+'//'+location.host+'/ws');
   wsRef=ws;
-  ws.onopen=function(){statusEl.textContent=t('connected');statusEl.className='connected';
+  ws.onopen=function(){LOG('WS connected');statusEl.textContent=t('connected');statusEl.className='connected';
     if(currentEl){currentEl.remove();currentEl=null}
     var lang=localStorage.getItem('transLang')||'';
     ws.send(JSON.stringify({type:'setLanguage',language:lang,lastId:lastCommitId}));
   };
-  ws.onclose=function(){statusEl.textContent=t('disconnected');statusEl.className='disconnected';wsRef=null;setTimeout(connect,2000)};
-  ws.onerror=function(){ws.close()};
+  ws.onclose=function(){LOG('WS closed');statusEl.textContent=t('disconnected');statusEl.className='disconnected';wsRef=null;setTimeout(connect,2000)};
+  ws.onerror=function(){LOG('WS error');ws.close()};
   ws.onmessage=function(e){
     try{var msg=JSON.parse(e.data);
       if(msg.type==='commit'){
@@ -621,10 +632,11 @@ function connect(){
         if(id>lastCommitId){lastCommitId=id;addCommitted(msg.text,msg.lang||'',msg.time||'',msg.refs||null)}
       }
       else if(msg.type==='update')updateCurrent(msg.text);
-      else if(msg.type==='clear'){if(currentEl){currentEl.remove();currentEl=null}while(lines.children.length>1)lines.removeChild(lines.children[1]);lastCommitId=0;clearTtsQueue();autoScroll()}
+      else if(msg.type==='clear'){LOG('WS clear');if(currentEl){currentEl.remove();currentEl=null}while(lines.children.length>1)lines.removeChild(lines.children[1]);lastCommitId=0;clearTtsQueue();autoScroll()}
       else if(msg.type==='tts'){handleTtsMessage(msg)}
       else if(msg.type==='pong'){}
-    }catch(ex){}
+      else{LOG('WS unknown msg type: '+msg.type)}
+    }catch(ex){LOG('WS parse error: '+ex)}
   }
 }
 
@@ -651,7 +663,6 @@ document.getElementById('lblColor').textContent=t('color');
 document.getElementById('btnBold').textContent=t('bold');
 document.getElementById('lblVoice').textContent=t('voice');
 document.getElementById('lblSpeed').textContent=t('speed');
-document.getElementById('lblTransLang').textContent=t('transLang');
 document.getElementById('lblScroll').textContent=t('scrollDir');
 var sdOpts=document.getElementById('scrollDir').options;sdOpts[0].textContent=t('scrollUp');sdOpts[1].textContent=t('scrollDown');
 (function(){var sd=document.getElementById('scrollDir');sd.value=scrollMode;})();
@@ -662,7 +673,6 @@ document.getElementById('btnSave').innerHTML='&#128190; '+t('saveTranscript');
 document.getElementById('lpTitle').textContent=t('chooseLang');
 document.getElementById('lpSearch').placeholder=t('searchLangs');
 document.getElementById('lpSkip').textContent=t('noTranslation');
-document.getElementById('btnBrowseLangs').innerHTML='&#127760; '+t('browseAll');
 document.getElementById('lpAdminToggle').textContent=t('adminLabel');
 document.getElementById('lpAdminPin').placeholder=t('adminPin');
 
@@ -787,6 +797,7 @@ function toggleAdmin(){
   else{closeAllPanels();adminPanel.style.display='block';pollStatus();adminPollTimer=setInterval(pollStatus,3000)}
 }
 function sendCommand(action){
+  LOG('sendCommand: '+action);
   adminStatus.textContent=t('sending');
   fetch('/api/control?action='+action).then(function(r){return r.json()}).then(function(d){
     adminStatus.textContent=action+t('cmdSent');
@@ -850,7 +861,7 @@ document.getElementById('btnBible').title=t('bible');
 var otBooks=['Gen','Exod','Lev','Num','Deut','Josh','Judg','Ruth','1Sam','2Sam','1Kgs','2Kgs','1Chr','2Chr','Ezra','Neh','Esth','Job','Ps','Prov','Eccl','Song','Isa','Jer','Lam','Ezek','Dan','Hos','Joel','Amos','Obad','Jonah','Mic','Nah','Hab','Zeph','Hag','Zech','Mal'];
 var ntBooks=['Matt','Mark','Luke','John','Acts','Rom','1Cor','2Cor','Gal','Eph','Phil','Col','1Thess','2Thess','1Tim','2Tim','Titus','Phlm','Heb','Jas','1Pet','2Pet','1John','2John','3John','Jude','Rev'];
 
-function toggleBible(){
+function toggleBible(){LOG('toggleBible');
   if(biblePanel.classList.contains('open')){biblePanel.classList.remove('open');return}
   closeAllPanels();
   biblePanel.classList.add('open');
@@ -858,7 +869,7 @@ function toggleBible(){
   else{showBookList()}
 }
 
-function closeBible(){biblePanel.classList.remove('open')}
+function closeBible(){LOG('closeBible');biblePanel.classList.remove('open')}
 
 function getBibleLang(){
   /* Use app translation language if set, otherwise browser language */
@@ -918,6 +929,7 @@ var cachedBooks=[];
 var cachedBooksTransId='';
 
 function showBookList(){
+  LOG('showBookList');
   bibleNavStack=[];
   btnBibleBack.style.display='none';
   bibleNavTitle.textContent=t('bible');
@@ -1007,6 +1019,7 @@ function renderBookGridFallback(){
 }
 
 function showChapters(book){
+  LOG('showChapters: '+book);
   if(!currentBibleTrans){bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleSelectTrans')+'</div>';return}
   bibleNavStack=[{type:'books'}];
   btnBibleBack.style.display='';
@@ -1037,6 +1050,7 @@ function showChapters(book){
 }
 
 function showVerses(book,chapter){
+  LOG('showVerses: '+book+' ch='+chapter);
   if(!currentBibleTrans){bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleSelectTrans')+'</div>';return}
   bibleNavStack=[{type:'books'},{type:'chapters',book:book}];
   btnBibleBack.style.display='';
@@ -1065,14 +1079,14 @@ function showVerses(book,chapter){
   });
 }
 
-function bibleBack(){
+function bibleBack(){LOG('bibleBack');
   if(bibleNavStack.length===0){closeBible();return}
   var prev=bibleNavStack.pop();
   if(prev.type==='books')showBookList();
   else if(prev.type==='chapters')showChapters(prev.book);
 }
 
-function lookupRef(){
+function lookupRef(){LOG('lookupRef');
   var input=document.getElementById('bibleRefInput').value.trim();
   if(!input||!currentBibleTrans)return;
   fetch('/bible/parse?ref='+encodeURIComponent(input)+'&translation='+encodeURIComponent(currentBibleTrans)).then(function(r){return r.json()}).then(function(ref){
@@ -1110,7 +1124,7 @@ function toggleBibleSearch(){
   if(sb.style.display==='flex')document.getElementById('bibleSearchInput').focus();
 }
 
-function bibleSearch(){
+function bibleSearch(){LOG('bibleSearch');
   var q=document.getElementById('bibleSearchInput').value.trim();
   if(!q||!currentBibleTrans)return;
   bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">Searching...</div>';
@@ -1179,58 +1193,130 @@ function openBibleRef(book,chapter,verseStart,verseEnd){
 
 /* ── Bible Verse TTS ── */
 var bibleTtsActive=false;
+var bibleTtsId=0;
 function speakBibleVerse(text){
+  LOG('speakBibleVerse: len='+text.length+' text="'+text.substring(0,60)+'"');
   clearTtsQueue();
+  bibleTtsId++;
   synth.cancel();
-  if(!synth||!text)return;
+  if(!synth||!text){LOG('speakBibleVerse BAIL: synth='+!!synth+' text='+(text?'yes':'empty'));return}
   bibleTtsActive=true;
+  var myId=bibleTtsId;
+  var voices=synth.getVoices();
+  LOG('speakBibleVerse: voices='+voices.length+' id='+myId);
+  if(voices.length===0){
+    /* Voices not loaded — warm up then retry */
+    LOG('speakBibleVerse: warming up voices');
+    var warm=new SpeechSynthesisUtterance('');
+    synth.speak(warm);
+    synth.cancel();
+    setTimeout(function(){
+      if(bibleTtsId!==myId){LOG('speakBibleVerse: warmup superseded');return}
+      doSpeakBible(text,myId);
+    },250);
+    return;
+  }
+  doSpeakBible(text,myId);
+}
+function doSpeakBible(text,myId){
+  LOG('doSpeakBible: id='+myId+' len='+text.length);
   var utter=new SpeechSynthesisUtterance(text);
   utter.rate=speechRate;
   if(selectedVoice){var voices=synth.getVoices();for(var i=0;i<voices.length;i++){if(voices[i].name===selectedVoice){utter.voice=voices[i];break}}}
-  utter.onend=function(){bibleTtsActive=false;hideBibleStopBtn()};
-  utter.onerror=function(){bibleTtsActive=false;hideBibleStopBtn()};
+  utter.onend=function(){LOG('doSpeakBible onend id='+myId+' current='+bibleTtsId);if(bibleTtsId===myId){bibleTtsActive=false}};
+  utter.onerror=function(e){LOG('doSpeakBible onerror id='+myId+' err='+(e&&e.error||'unknown'));if(bibleTtsId===myId){bibleTtsActive=false}};
   synth.speak(utter);
-  showBibleStopBtn();
+  LOG('doSpeakBible: synth.speak() called, speaking='+synth.speaking+' pending='+synth.pending);
 }
 
 function speakBibleVerseServer(text){
+  LOG('speakBibleVerseServer: len='+text.length+' text="'+text.substring(0,60)+'"');
   clearTtsQueue();
   synth.cancel();
   bibleTtsActive=true;
-  if(!wsRef||wsRef.readyState!==1){bibleTtsActive=false;return;}
-  /* Determine language from the Bible translation's language field */
+  if(!wsRef||wsRef.readyState!==1){LOG('speakBibleVerseServer BAIL: ws not open');bibleTtsActive=false;return}
   var lang='eng_Latn';
   for(var i=0;i<bibleTranslations.length;i++){
     if(bibleTranslations[i].id===currentBibleTrans){
       var bl=bibleTranslations[i].language||'en';
-      /* Map ISO 639-1 to NLLB-ish code for edge-tts voice selection */
       var isoToNllb={en:'eng',es:'spa',fr:'fra',de:'deu',ca:'cat',pt:'por',it:'ita',ja:'jpn',zh:'zho',ko:'kor',ar:'arb',hi:'hin',ru:'rus',nl:'nld'};
       var nllb=isoToNllb[bl.substring(0,2)];
       if(nllb)lang=nllb;
       break;
     }
   }
+  LOG('speakBibleVerseServer: sending requestTts lang='+lang);
   wsRef.send(JSON.stringify({type:'requestTts',text:text,language:lang}));
-  showBibleStopBtn();
 }
 
 function readAllVerses(){
-  /* Works for both chapter view (.bible-verse) and search results (.bible-search-text) */
+  LOG('readAllVerses called');
   var verseDivs=bibleContent.querySelectorAll('.bible-verse');
-  if(verseDivs.length===0){verseDivs=bibleContent.querySelectorAll('.bible-search-text')}
-  var allText='';
+  LOG('readAllVerses: .bible-verse count='+verseDivs.length);
+  if(verseDivs.length===0){
+    verseDivs=bibleContent.querySelectorAll('.bible-search-text');
+    LOG('readAllVerses: .bible-search-text count='+verseDivs.length);
+  }
+  /* Collect each verse as a separate string */
+  var verses=[];
   for(var i=0;i<verseDivs.length;i++){
-    /* Get only text nodes, skip .vnum span and speak button */
+    var text='';
     var nodes=verseDivs[i].childNodes;
     for(var j=0;j<nodes.length;j++){
-      if(nodes[j].nodeType===3){allText+=nodes[j].textContent}
+      if(nodes[j].nodeType===3){text+=nodes[j].textContent}
     }
-    allText+=' ';
+    text=text.trim();
+    if(text)verses.push(text);
   }
-  allText=allText.trim();
-  if(!allText)return;
-  if(useServerTts()){speakBibleVerseServer(allText)}
-  else{speakBibleVerse(allText)}
+  LOG('readAllVerses: verses='+verses.length+' useServer='+useServerTts());
+  if(verses.length===0){LOG('readAllVerses: no verses');return}
+
+  clearTtsQueue();
+  bibleTtsId++;
+  synth.cancel();
+  bibleTtsActive=true;
+
+  if(useServerTts()){
+    /* Join verses with sentence-ending pause markers for a single ordered TTS request */
+    var allText='';
+    for(var i=0;i<verses.length;i++){
+      var v=verses[i];
+      allText+=v;
+      /* Ensure sentence-ending punctuation so TTS pauses between verses */
+      if(v.length>0&&'.!?;:'.indexOf(v.charAt(v.length-1))===-1)allText+='.';
+      allText+='\n';
+    }
+    speakBibleVerseServer(allText.trim());
+  } else {
+    /* Queue each verse as a separate utterance — browser TTS pauses between them */
+    var myId=bibleTtsId;
+    var voices=synth.getVoices();
+    if(voices.length===0){
+      var warm=new SpeechSynthesisUtterance('');
+      synth.speak(warm);synth.cancel();
+      setTimeout(function(){
+        if(bibleTtsId!==myId)return;
+        queueBibleUtterances(verses,myId);
+      },250);
+    } else {
+      queueBibleUtterances(verses,myId);
+    }
+  }
+}
+
+function queueBibleUtterances(verses,myId){
+  LOG('queueBibleUtterances: '+verses.length+' verses');
+  for(var i=0;i<verses.length;i++){
+    var utter=new SpeechSynthesisUtterance(verses[i]);
+    utter.rate=speechRate;
+    if(selectedVoice){var voices=synth.getVoices();for(var v=0;v<voices.length;v++){if(voices[v].name===selectedVoice){utter.voice=voices[v];break}}}
+    if(i===verses.length-1){
+      /* Last verse — hide stop when done */
+      utter.onend=function(){LOG('readAll onend (last)');if(bibleTtsId===myId){bibleTtsActive=false}};
+      utter.onerror=function(){LOG('readAll onerror (last)');if(bibleTtsId===myId){bibleTtsActive=false}};
+    }
+    synth.speak(utter);
+  }
 }
 
 function addVerseSpeakBtn(div,text){
@@ -1240,9 +1326,9 @@ function addVerseSpeakBtn(div,text){
   btn.title=t('readVerse');
   btn.onclick=function(e){
     e.stopPropagation();
+    LOG('verseSpeakBtn clicked: "'+text.substring(0,40)+'"');
     if(useServerTts()){speakBibleVerseServer(text)}
     else{speakBibleVerse(text)}
-    showBibleStopBtn();
   };
   div.appendChild(btn);
 }
@@ -1252,32 +1338,22 @@ function addReadAllBtn(){
   var btn=document.createElement('button');btn.className='bible-read-all-btn';
   btn.id='btnReadAll';
   btn.textContent=t('readAll');
-  btn.onclick=function(){
-    readAllVerses();
-  };
+  btn.onclick=function(){readAllVerses()};
   bar.appendChild(btn);
+  var stopBtn=document.createElement('button');stopBtn.className='bible-stop-btn';
+  stopBtn.textContent=t('stop');
+  stopBtn.onclick=function(){stopBibleTts()};
+  bar.appendChild(stopBtn);
   bibleContent.insertBefore(bar,bibleContent.firstChild);
 }
-
-/* Floating stop button — created once, shown/hidden as needed */
-var btnBibleStop=document.createElement('button');
-btnBibleStop.id='btnBibleStop';
-btnBibleStop.textContent=t('stop');
-btnBibleStop.onclick=function(){stopBibleTts()};
-document.body.appendChild(btnBibleStop);
-
-function showBibleStopBtn(){
-  btnBibleStop.style.display='block';
-}
-function hideBibleStopBtn(){
-  btnBibleStop.style.display='none';
-}
 function stopBibleTts(){
+  LOG('stopBibleTts called');
   bibleTtsActive=false;
+  bibleTtsId++;
   synth.cancel();
   clearTtsQueue();
   if(ttsAudio){ttsAudio.pause();ttsAudio.src=''}
-  hideBibleStopBtn();
+  ;
 }
 
 /* Chapter counts by book (standard Protestant canon) */

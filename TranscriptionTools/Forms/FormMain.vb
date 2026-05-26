@@ -2,6 +2,7 @@ Imports System.Diagnostics
 Imports System.Globalization
 Imports System.IO
 Imports System.Resources
+Imports System.Runtime.InteropServices
 Imports System.Threading
 Imports Microsoft.Win32
 Imports TranscriptionTools.Models
@@ -9,6 +10,15 @@ Imports TranscriptionTools.Pipeline
 Imports TranscriptionTools.Server
 
 Public Class FormMain
+
+    ' Win32 helpers for RichTextBox flicker-free scrolling
+    Private Const WM_SETREDRAW As Integer = &HB
+    Private Const WM_VSCROLL As Integer = &H115
+    Private Const SB_BOTTOM As Integer = 7
+
+    <DllImport("user32.dll", CharSet:=CharSet.Auto)>
+    Private Shared Function SendMessage(hWnd As IntPtr, msg As Integer, wParam As IntPtr, lParam As IntPtr) As IntPtr
+    End Function
 
     Private _config As AppConfig
     Private _cts As CancellationTokenSource
@@ -1141,6 +1151,7 @@ del ""%~f0""
 #Region "Logging"
 
     Private _logAutoScroll As Boolean = True
+    Private Const PipelineLogMaxLines As Integer = 2000
 
     Private Sub LogToRtb(message As String, level As PipelineRunner.LogLevel)
         If rtbLog.InvokeRequired Then
@@ -1158,13 +1169,26 @@ del ""%~f0""
             Case Else : color = Drawing.Color.Black
         End Select
 
-        rtbLog.SelectionStart = rtbLog.TextLength
-        rtbLog.SelectionLength = 0
-        rtbLog.SelectionColor = color
-        rtbLog.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}")
+        SendMessage(rtbLog.Handle, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero)
+        Try
+            rtbLog.SelectionStart = rtbLog.TextLength
+            rtbLog.SelectionLength = 0
+            rtbLog.SelectionColor = color
+            rtbLog.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}")
+
+            ' Trim excess lines
+            If rtbLog.Lines.Length > PipelineLogMaxLines Then
+                Dim removeUpTo = rtbLog.GetFirstCharIndexFromLine(rtbLog.Lines.Length - PipelineLogMaxLines)
+                rtbLog.Select(0, removeUpTo)
+                rtbLog.SelectedText = ""
+            End If
+        Finally
+            SendMessage(rtbLog.Handle, WM_SETREDRAW, New IntPtr(1), IntPtr.Zero)
+            rtbLog.Invalidate()
+        End Try
 
         If _logAutoScroll Then
-            rtbLog.ScrollToCaret()
+            SendMessage(rtbLog.Handle, WM_VSCROLL, New IntPtr(SB_BOTTOM), IntPtr.Zero)
         End If
     End Sub
 
@@ -2697,17 +2721,48 @@ del ""%~f0""
         End If
     End Sub
 
+    Private ReadOnly _serverLogBuffer As New System.Collections.Concurrent.ConcurrentQueue(Of String)
+    Private _serverLogPending As Integer = 0
+    Private Const ServerLogMaxLines As Integer = 2000
+
     Private Sub AppendServerLog(text As String)
         WriteDebugLog($"[Server] {text}")
-        If rtbServerLog.InvokeRequired Then
-            rtbServerLog.BeginInvoke(Sub()
-                                         rtbServerLog.AppendText($"[{DateTime.Now:HH:mm:ss}] {text}{Environment.NewLine}")
-                                         rtbServerLog.ScrollToCaret()
-                                     End Sub)
-            Return
+        _serverLogBuffer.Enqueue($"[{DateTime.Now:HH:mm:ss}] {text}")
+
+        ' Coalesce rapid calls — only schedule one flush
+        If Interlocked.CompareExchange(_serverLogPending, 1, 0) = 0 Then
+            rtbServerLog.BeginInvoke(Sub() FlushServerLog())
         End If
-        rtbServerLog.AppendText($"[{DateTime.Now:HH:mm:ss}] {text}{Environment.NewLine}")
-        rtbServerLog.ScrollToCaret()
+    End Sub
+
+    Private Sub FlushServerLog()
+        Interlocked.Exchange(_serverLogPending, 0)
+
+        Dim lines As New System.Text.StringBuilder()
+        Dim line As String = Nothing
+        While _serverLogBuffer.TryDequeue(line)
+            lines.AppendLine(line)
+        End While
+        If lines.Length = 0 Then Return
+
+        ' Suspend drawing to prevent flicker
+        SendMessage(rtbServerLog.Handle, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero)
+        Try
+            rtbServerLog.AppendText(lines.ToString())
+
+            ' Trim excess lines to prevent memory bloat
+            If rtbServerLog.Lines.Length > ServerLogMaxLines Then
+                Dim removeUpTo = rtbServerLog.GetFirstCharIndexFromLine(rtbServerLog.Lines.Length - ServerLogMaxLines)
+                rtbServerLog.Select(0, removeUpTo)
+                rtbServerLog.SelectedText = ""
+            End If
+        Finally
+            SendMessage(rtbServerLog.Handle, WM_SETREDRAW, New IntPtr(1), IntPtr.Zero)
+            rtbServerLog.Invalidate()
+        End Try
+
+        ' Reliable scroll to bottom
+        SendMessage(rtbServerLog.Handle, WM_VSCROLL, New IntPtr(SB_BOTTOM), IntPtr.Zero)
     End Sub
 
     Private Sub btnServerStart_Click(sender As Object, e As EventArgs) Handles btnServerStart.Click
