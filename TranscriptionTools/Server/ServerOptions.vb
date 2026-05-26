@@ -32,6 +32,12 @@ Namespace Server
         ''' <summary>Volume for local TTS output (0.0 to 1.0).</summary>
         Public Property TtsOutputVolume As Single = 1.0F
 
+        ''' <summary>
+        ''' PIN required to access admin controls from the phone client.
+        ''' Empty string means admin features are hidden (no gear button shown).
+        ''' </summary>
+        Public Property AdminPin As String = ""
+
         ''' <summary>Computed HTTPS port.</summary>
         Public ReadOnly Property HttpsPort As Integer
             Get

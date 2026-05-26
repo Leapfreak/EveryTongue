@@ -100,10 +100,30 @@ Namespace Server
                                               .fgColor = serverOpts.FgColor,
                                               .wsUrl = wsUrl,
                                               .httpsEnabled = True,
+                                              .hasAdminPin = Not String.IsNullOrEmpty(serverOpts.AdminPin),
                                               .version = If(GetType(EndpointRegistration).Assembly.
                                                   GetName().Version?.ToString(), "unknown")
                                           })
                                       End Function)
+
+            ' Admin PIN verification — returns {ok:true} if PIN matches
+            app.MapGet("/api/admin/verify",
+                Function(context As HttpContext) As IResult
+                    Dim opts = context.RequestServices.
+                        GetService(Of IOptions(Of ServerOptions))
+                    Dim serverOpts = If(opts?.Value, New ServerOptions())
+                    Dim pin = context.Request.Query("pin").ToString()
+
+                    If String.IsNullOrEmpty(serverOpts.AdminPin) Then
+                        Return Results.Json(New With {.ok = False, .error = "Admin not configured"})
+                    End If
+
+                    If String.Equals(pin, serverOpts.AdminPin, StringComparison.Ordinal) Then
+                        Return Results.Json(New With {.ok = True})
+                    Else
+                        Return Results.Json(New With {.ok = False, .error = "Invalid PIN"})
+                    End If
+                End Function)
 
             ' Certificate download (DER format) — for manual trust on phones
             app.MapGet("/cert", Function(context As HttpContext) As IResult

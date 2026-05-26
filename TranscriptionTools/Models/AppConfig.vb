@@ -155,6 +155,8 @@ Namespace Models
         Public Property StartWithWindows As Boolean = False
         Public Property AllowFirewall As Boolean = False
 
+        Public Property AdminPin As String = ""
+
         Public Shared Function CreateDefault() As AppConfig
             Return New AppConfig()
         End Function

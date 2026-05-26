@@ -658,6 +658,7 @@ del ""%~f0""
         End If
         nudSubtitleSize.Value = CDec(Math.Max(nudSubtitleSize.Minimum, Math.Min(nudSubtitleSize.Maximum, _config.SubtitleFontSize)))
         chkSubtitleBold.Checked = _config.SubtitleFontBold
+        txtAdminPin.Text = If(_config.AdminPin, "")
         ApplyLiveOutputFont()
 
         ' Live sliders
@@ -715,6 +716,7 @@ del ""%~f0""
         _config.SubtitleFontFamily = If(cboSubtitleFont.SelectedItem?.ToString(), "Segoe UI")
         _config.SubtitleFontSize = CSng(nudSubtitleSize.Value)
         _config.SubtitleFontBold = chkSubtitleBold.Checked
+        _config.AdminPin = txtAdminPin.Text.Trim()
 
         ' Live sliders
         _config.LiveMaxSegmentSec = trkMaxSegment.Value
@@ -2648,7 +2650,8 @@ del ""%~f0""
                 .HttpPort = port,
                 .AllowRemote = _config.AllowFirewall,
                 .BgColor = _config.SubtitleBgColor,
-                .FgColor = _config.SubtitleFgColor
+                .FgColor = _config.SubtitleFgColor,
+                .AdminPin = If(_config.AdminPin, "")
             }
 
             _kestrelHost.Start(kestrelOptions,

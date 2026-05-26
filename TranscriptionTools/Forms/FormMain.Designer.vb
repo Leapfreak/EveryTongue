@@ -745,6 +745,16 @@ Partial Class FormMain
         Me.chkSubtitleBold.Location = New Drawing.Point(500, svy + 18)
         Me.chkSubtitleBold.AutoSize = True
 
+        Me.lblAdminPin = New Label()
+        Me.lblAdminPin.Text = "Admin PIN:"
+        Me.lblAdminPin.Location = New Drawing.Point(570, svy)
+        Me.lblAdminPin.AutoSize = True
+
+        Me.txtAdminPin = New TextBox()
+        Me.txtAdminPin.Location = New Drawing.Point(570, svy + 16)
+        Me.txtAdminPin.Size = New Drawing.Size(80, 23)
+        Me.txtAdminPin.MaxLength = 8
+
         svy += 48
 
         Me.btnSetupTranslation = New Button()
@@ -758,6 +768,7 @@ Partial Class FormMain
             Me.btnServerSimulate, Me.btnServerSimStop,
             Me.lblSubtitleBg, Me.btnSubtitleBg, Me.lblSubtitleFg, Me.btnSubtitleFg,
             Me.lblSubtitleFont, Me.cboSubtitleFont, Me.lblSubtitleSize, Me.nudSubtitleSize, Me.chkSubtitleBold,
+            Me.lblAdminPin, Me.txtAdminPin,
             Me.btnSetupTranslation})
 
         ' Connection info group
@@ -994,6 +1005,8 @@ Partial Class FormMain
     Friend WithEvents lblSubtitleSize As Label
     Friend WithEvents nudSubtitleSize As NumericUpDown
     Friend WithEvents chkSubtitleBold As CheckBox
+    Friend WithEvents lblAdminPin As Label
+    Friend WithEvents txtAdminPin As TextBox
     Friend WithEvents btnSetupTranslation As Button
 
     ' Live Translation tab
