@@ -313,6 +313,8 @@ Namespace Server
             })
 
             ' 5. Static files (wwwroot/) — serves index.html, CSS, JS
+            '    Cache headers: immutable assets (js/css) cached 7 days,
+            '    index.html cached 5 minutes (so updates propagate quickly).
             Dim wwwrootPath = IO.Path.Combine(AppContext.BaseDirectory, "wwwroot")
             If IO.Directory.Exists(wwwrootPath) Then
                 Dim fileProvider = New PhysicalFileProvider(wwwrootPath)
@@ -320,7 +322,21 @@ Namespace Server
                     .FileProvider = fileProvider
                 })
                 app.UseStaticFiles(New StaticFileOptions With {
-                    .FileProvider = fileProvider
+                    .FileProvider = fileProvider,
+                    .OnPrepareResponse = Sub(ctx)
+                                             Dim path = ctx.Context.Request.Path.Value
+                                             If path IsNot Nothing AndAlso
+                                                (path.EndsWith(".js") OrElse path.EndsWith(".css")) Then
+                                                 ' JS/CSS rarely change — cache 7 days
+                                                 ctx.Context.Response.Headers.CacheControl = "public, max-age=604800"
+                                             ElseIf path IsNot Nothing AndAlso path.EndsWith(".html") Then
+                                                 ' HTML may update more often — cache 5 min, revalidate
+                                                 ctx.Context.Response.Headers.CacheControl = "public, max-age=300, must-revalidate"
+                                             Else
+                                                 ' Images, fonts, etc. — cache 1 day
+                                                 ctx.Context.Response.Headers.CacheControl = "public, max-age=86400"
+                                             End If
+                                         End Sub
                 })
             End If
 

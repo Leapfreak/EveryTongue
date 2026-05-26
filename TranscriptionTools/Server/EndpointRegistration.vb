@@ -81,8 +81,11 @@ Namespace Server
                                        End Function)
 
             ' Client configuration — replaces {{BG_COLOR}}/{{FG_COLOR}} template injection
-            ' Client fetches this on load to configure itself
+            ' Client fetches this on load to configure itself.
+            ' Cached 60s — colors/config rarely change mid-service.
             app.MapGet("/api/config", Function(context As HttpContext) As IResult
+                                          context.Response.Headers.CacheControl = "public, max-age=60"
+
                                           Dim opts = context.RequestServices.
                                               GetService(Of IOptions(Of ServerOptions))
                                           Dim serverOpts = If(opts?.Value, New ServerOptions())
@@ -354,6 +357,7 @@ Namespace Server
                 End Function)
 
             ' Serve cached TTS audio files — /tts/cache/{filename}
+            ' Streams from disk (no full-file memory copy) with cache headers.
             app.MapGet("/tts/cache/{filename}",
                 Function(filename As String, context As HttpContext) As IResult
                     ' Validate filename — no path traversal
@@ -376,8 +380,12 @@ Namespace Server
                     If filename.EndsWith(".wav") Then contentType = "audio/wav"
                     If filename.EndsWith(".opus") Then contentType = "audio/ogg"
 
+                    ' Cache TTS audio for 1 hour — same commit/language always produces same audio
+                    context.Response.Headers.CacheControl = "public, max-age=3600"
+
+                    ' Stream from disk instead of File.ReadAllBytes
                     Return Results.File(
-                        IO.File.ReadAllBytes(filePath),
+                        New IO.FileStream(filePath, IO.FileMode.Open, IO.FileAccess.Read, IO.FileShare.Read),
                         contentType,
                         filename)
                 End Function)
