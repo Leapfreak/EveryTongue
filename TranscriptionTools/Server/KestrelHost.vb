@@ -13,6 +13,8 @@ Imports TranscriptionTools.Server.Hubs
 Imports TranscriptionTools.Server.Middleware
 Imports TranscriptionTools.Services.Infrastructure
 Imports TranscriptionTools.Services.Interfaces
+Imports Microsoft.AspNetCore.StaticFiles
+Imports Microsoft.Extensions.FileProviders
 Imports TranscriptionTools.Services.Subtitle
 
 Namespace Server
@@ -250,8 +252,17 @@ Namespace Server
                 .KeepAliveInterval = TimeSpan.FromSeconds(30)
             })
 
-            ' 5. Static files (wwwroot/) — will be configured in Phase 3
-            ' app.UseStaticFiles(New StaticFileOptions With { ... })
+            ' 5. Static files (wwwroot/) — serves index.html, CSS, JS
+            Dim wwwrootPath = IO.Path.Combine(AppContext.BaseDirectory, "wwwroot")
+            If IO.Directory.Exists(wwwrootPath) Then
+                Dim fileProvider = New PhysicalFileProvider(wwwrootPath)
+                app.UseDefaultFiles(New DefaultFilesOptions With {
+                    .FileProvider = fileProvider
+                })
+                app.UseStaticFiles(New StaticFileOptions With {
+                    .FileProvider = fileProvider
+                })
+            End If
 
             ' 6. Routing + endpoints handled by MapAllEndpoints
         End Sub

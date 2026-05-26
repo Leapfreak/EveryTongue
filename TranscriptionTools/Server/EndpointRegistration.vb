@@ -18,6 +18,7 @@ Namespace Server
         Public Sub MapAllEndpoints(app As IEndpointRouteBuilder)
             MapWebSocketEndpoint(app)
             MapCoreEndpoints(app)
+            MapControlEndpoint(app)
             ' Future phases will add:
             ' MapBibleEndpoints(app)
             ' MapTtsEndpoints(app)
@@ -91,6 +92,66 @@ Namespace Server
                                            Return Results.File(wavBytes, "audio/wav", "nosleep.wav")
                                        End Function)
 
+        End Sub
+
+        ''' <summary>
+        ''' Callback for remote control commands from /api/control.
+        ''' Set by FormMain to handle start/stop/restart/simulate/clear/setSliders.
+        ''' </summary>
+        Public RemoteCommandHandler As Action(Of String)
+
+        Private Sub MapControlEndpoint(app As IEndpointRouteBuilder)
+
+            ' Admin remote control — /api/control?action=start|stop|restart|simulate|clear|status|tune|setsliders
+            app.MapGet("/api/control", Function(context As HttpContext) As IResult
+                                           Dim subtitleService = context.RequestServices.
+                                               GetService(Of ISubtitleService)
+                                           If subtitleService Is Nothing Then
+                                               Return Results.Json(New With {.error = "service unavailable"})
+                                           End If
+
+                                           Dim action = context.Request.Query("action").FirstOrDefault()
+
+                                           ' No action = status (same as legacy)
+                                           If String.IsNullOrEmpty(action) OrElse
+                                              action.Equals("status", StringComparison.OrdinalIgnoreCase) Then
+                                               Return Results.Json(New With {
+                                                   .live = subtitleService.IsLiveRunning,
+                                                   .sim = subtitleService.IsSimulating,
+                                                   .inputLang = If(subtitleService.InputLanguage, "")
+                                               })
+                                           End If
+
+                                           Select Case action.ToLower()
+                                               Case "start", "stop", "restart", "simulate", "clear"
+                                                   RemoteCommandHandler?.Invoke(action.ToLower())
+                                                   Return Results.Json(New With {
+                                                       .ok = True,
+                                                       .action = action.ToLower()
+                                                   })
+
+                                               Case "tune"
+                                                   If subtitleService.TuneCallback IsNot Nothing Then
+                                                       Dim json = subtitleService.TuneCallback.Invoke()
+                                                       If json IsNot Nothing Then
+                                                           Return Results.Text(json, "application/json")
+                                                       End If
+                                                   End If
+                                                   Return Results.Json(New With {.error = "not available"})
+
+                                               Case "setsliders"
+                                                   Dim maxSeg = context.Request.Query("maxSeg").FirstOrDefault()
+                                                   Dim vadSilence = context.Request.Query("vadSilence").FirstOrDefault()
+                                                   If maxSeg IsNot Nothing AndAlso vadSilence IsNot Nothing Then
+                                                       RemoteCommandHandler?.Invoke($"setSliders:{maxSeg},{vadSilence}")
+                                                       Return Results.Json(New With {.ok = True})
+                                                   End If
+                                                   Return Results.Json(New With {.error = "missing params"})
+
+                                               Case Else
+                                                   Return Results.BadRequest(New With {.error = "unknown action"})
+                                           End Select
+                                       End Function)
         End Sub
 
         ''' <summary>

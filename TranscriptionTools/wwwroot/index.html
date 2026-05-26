@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+<title>Live Subtitles</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div id="status" class="disconnected">Connecting...</div>
+<div id="toolbar">
+  <button id="btnAdmin" onclick="toggleAdmin()" title="Remote Control">&#9881;</button>
+  <button id="btnSettings" onclick="togglePanel()" title="Settings">Aa</button>
+  <button id="btnWake" onclick="toggleWakeLock()" title="Keep screen on">&#128261;</button>
+  <button id="btnSpeak" onclick="toggleSpeak()" title="Read aloud">&#128264;</button>
+</div>
+<div id="adminPanel">
+  <div id="adminStatus">Checking...</div>
+  <button class="start" onclick="sendCommand('start')">&#9654; Start</button>
+  <button class="stop" onclick="sendCommand('stop')">&#9632; Stop</button>
+  <button class="restart" onclick="sendCommand('restart')">&#8635; Restart</button>
+  <button onclick="sendCommand('simulate')">&#9881; Simulate</button>
+  <button class="stop" onclick="sendCommand('clear')">&#10060; Clear</button>
+  <button onclick="requestTune()" style="border-color:#48f;color:#8af">&#9881; Tune</button>
+  <label style="color:#aaa;font-size:12px;margin-top:8px;display:block" id="lblInputLang">Input Language</label>
+  <select id="inputLangSelect" onchange="setInputLang(this.value)" style="background:#333;color:#fff;border:1px solid #555;border-radius:4px;padding:6px;font-size:14px;width:100%;margin-top:2px">
+    <option value="auto">Auto Detect</option>
+    <option value="ca">Catalan</option>
+    <option value="es">Spanish</option>
+    <option value="en">English</option>
+    <option value="fr">French</option>
+    <option value="de">German</option>
+    <option value="it">Italian</option>
+    <option value="pt">Portuguese</option>
+    <option value="nl">Dutch</option>
+    <option value="ru">Russian</option>
+    <option value="zh">Chinese</option>
+    <option value="ja">Japanese</option>
+    <option value="ko">Korean</option>
+    <option value="ar">Arabic</option>
+  </select>
+</div>
+<div id="panel">
+  <button onclick="changeFontSize(4)">A+</button>
+  <button onclick="changeFontSize(-4)">A-</button>
+  <label id="lblFont">Font</label>
+  <select id="fontSelect" onchange="changeFont(this.value)">
+    <option value="'Segoe UI',Arial,sans-serif">Segoe UI</option>
+    <option value="Arial,sans-serif">Arial</option>
+    <option value="'Courier New',monospace">Courier New</option>
+    <option value="Georgia,serif">Georgia</option>
+    <option value="'Times New Roman',serif">Times New Roman</option>
+    <option value="Verdana,sans-serif">Verdana</option>
+    <option value="'Trebuchet MS',sans-serif">Trebuchet MS</option>
+    <option value="Tahoma,sans-serif">Tahoma</option>
+  </select>
+  <label id="lblStyle">Style</label>
+  <button id="btnBold" onclick="toggleBold()" style="min-width:60px">Bold</button>
+  <label id="lblColor">Text Color</label>
+  <input type="color" id="colorPicker" onchange="changeColor(this.value)" style="width:100%;height:32px;border:1px solid #555;border-radius:4px;background:#333;cursor:pointer">
+  <label id="lblVoice">Voice</label>
+  <select id="voiceSelect" onchange="selectedVoice=this.value;localStorage.setItem('voice',this.value)"></select>
+  <label id="lblSpeed">Speed</label>
+  <select id="rateSelect" onchange="speechRate=parseFloat(this.value);localStorage.setItem('rate',this.value)">
+    <option value="0.7">Slow</option>
+    <option value="1" selected>Normal</option>
+    <option value="1.3">Fast</option>
+    <option value="1.6">Very Fast</option>
+  </select>
+  <label id="lblTransLang">Translation</label>
+  <select id="transLangSelect" onchange="setTransLang(this.value)">
+    <option value="">Original</option>
+    <option value="afr_Latn">Afrikaans</option>
+    <option value="amh_Ethi">&#4768;&#4635;&#4653;&#4763; (Amharic)</option>
+    <option value="arb_Arab">&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577; (Arabic)</option>
+    <option value="hye_Armn">&#1344;&#1377;&#1397;&#1381;&#1408;&#1381;&#1398; (Armenian)</option>
+    <option value="azj_Latn">Az&#601;rbaycan (Azerbaijani)</option>
+    <option value="eus_Latn">Euskara (Basque)</option>
+    <option value="bel_Cyrl">&#1041;&#1077;&#1083;&#1072;&#1088;&#1091;&#1089;&#1082;&#1072;&#1103; (Belarusian)</option>
+    <option value="ben_Beng">&#2476;&#2494;&#2434;&#2482;&#2494; (Bengali)</option>
+    <option value="bos_Latn">Bosanski (Bosnian)</option>
+    <option value="bul_Cyrl">&#1041;&#1098;&#1083;&#1075;&#1072;&#1088;&#1089;&#1082;&#1080; (Bulgarian)</option>
+    <option value="cat_Latn">Catal&#224;</option>
+    <option value="ces_Latn">&#268;e&#353;tina (Czech)</option>
+    <option value="zho_Hans">&#20013;&#25991; (Chinese)</option>
+    <option value="hrv_Latn">Hrvatski (Croatian)</option>
+    <option value="dan_Latn">Dansk (Danish)</option>
+    <option value="nld_Latn">Nederlands (Dutch)</option>
+    <option value="eng_Latn">English</option>
+    <option value="est_Latn">Eesti (Estonian)</option>
+    <option value="fin_Latn">Suomi (Finnish)</option>
+    <option value="fra_Latn">Fran&#231;ais (French)</option>
+    <option value="glg_Latn">Galego (Galician)</option>
+    <option value="kat_Geor">&#4325;&#4304;&#4320;&#4311;&#4323;&#4314;&#4312; (Georgian)</option>
+    <option value="deu_Latn">Deutsch (German)</option>
+    <option value="ell_Grek">&#917;&#955;&#955;&#951;&#957;&#953;&#954;&#940; (Greek)</option>
+    <option value="guj_Gujr">&#2711;&#2753;&#2716;&#2736;&#2750;&#2724;&#2752; (Gujarati)</option>
+    <option value="hat_Latn">Krey&#242;l Ayisyen (Haitian Creole)</option>
+    <option value="hau_Latn">Hausa</option>
+    <option value="heb_Hebr">&#1506;&#1489;&#1512;&#1497;&#1514; (Hebrew)</option>
+    <option value="hin_Deva">&#2361;&#2367;&#2344;&#2381;&#2342;&#2368; (Hindi)</option>
+    <option value="hun_Latn">Magyar (Hungarian)</option>
+    <option value="isl_Latn">&#205;slenska (Icelandic)</option>
+    <option value="ind_Latn">Bahasa Indonesia (Indonesian)</option>
+    <option value="ita_Latn">Italiano (Italian)</option>
+    <option value="jpn_Jpan">&#26085;&#26412;&#35486; (Japanese)</option>
+    <option value="jav_Latn">Basa Jawa (Javanese)</option>
+    <option value="kan_Knda">&#3221;&#3240;&#3277;&#3240;&#3233; (Kannada)</option>
+    <option value="kaz_Cyrl">&#1178;&#1072;&#1079;&#1072;&#1179; (Kazakh)</option>
+    <option value="khm_Khmr">&#6017;&#6098;&#6040;&#6082;&#6042; (Khmer)</option>
+    <option value="kor_Hang">&#54620;&#44397;&#50612; (Korean)</option>
+    <option value="lao_Laoo">&#3749;&#3762;&#3751; (Lao)</option>
+    <option value="lvs_Latn">Latvie&#353;u (Latvian)</option>
+    <option value="lit_Latn">Lietuvi&#371; (Lithuanian)</option>
+    <option value="ltz_Latn">L&#235;tzebuergesch (Luxembourgish)</option>
+    <option value="mkd_Cyrl">&#1052;&#1072;&#1082;&#1077;&#1076;&#1086;&#1085;&#1089;&#1082;&#1080; (Macedonian)</option>
+    <option value="zsm_Latn">Bahasa Melayu (Malay)</option>
+    <option value="mal_Mlym">&#3374;&#3378;&#3375;&#3390;&#3379;&#3330; (Malayalam)</option>
+    <option value="mlt_Latn">Malti (Maltese)</option>
+    <option value="mri_Latn">Te Reo M&#257;ori (Maori)</option>
+    <option value="mar_Deva">&#2350;&#2352;&#2366;&#2336;&#2368; (Marathi)</option>
+    <option value="khk_Cyrl">&#1052;&#1086;&#1085;&#1075;&#1086;&#1083; (Mongolian)</option>
+    <option value="mya_Mymr">&#4121;&#4156;&#4116;&#4154;&#4121;&#4140; (Myanmar)</option>
+    <option value="npi_Deva">&#2344;&#2375;&#2346;&#2366;&#2354;&#2368; (Nepali)</option>
+    <option value="nob_Latn">Norsk (Norwegian)</option>
+    <option value="pes_Arab">&#1601;&#1575;&#1585;&#1587;&#1740; (Persian)</option>
+    <option value="pol_Latn">Polski (Polish)</option>
+    <option value="por_Latn">Portugu&#234;s (Portuguese)</option>
+    <option value="pan_Guru">&#2602;&#2672;&#2588;&#2622;&#2604;&#2624; (Punjabi)</option>
+    <option value="ron_Latn">Rom&#226;n&#259; (Romanian)</option>
+    <option value="rus_Cyrl">&#1056;&#1091;&#1089;&#1089;&#1082;&#1080;&#1081; (Russian)</option>
+    <option value="srp_Cyrl">&#1057;&#1088;&#1087;&#1089;&#1082;&#1080; (Serbian)</option>
+    <option value="sna_Latn">Shona</option>
+    <option value="snd_Arab">&#1587;&#1606;&#1068;&#1610; (Sindhi)</option>
+    <option value="sin_Sinh">&#3523;&#3538;&#3458;&#3524;&#3517; (Sinhala)</option>
+    <option value="slk_Latn">Sloven&#269;ina (Slovak)</option>
+    <option value="slv_Latn">Sloven&#353;&#269;ina (Slovenian)</option>
+    <option value="som_Latn">Soomaali (Somali)</option>
+    <option value="spa_Latn">Espa&#241;ol (Spanish)</option>
+    <option value="sun_Latn">Basa Sunda (Sundanese)</option>
+    <option value="swh_Latn">Kiswahili (Swahili)</option>
+    <option value="swe_Latn">Svenska (Swedish)</option>
+    <option value="tgl_Latn">Tagalog (Filipino)</option>
+    <option value="tgk_Cyrl">&#1058;&#1086;&#1207;&#1080;&#1082;&#1251; (Tajik)</option>
+    <option value="tam_Taml">&#2980;&#2990;&#3007;&#2996;&#3021; (Tamil)</option>
+    <option value="tat_Cyrl">&#1058;&#1072;&#1090;&#1072;&#1088; (Tatar)</option>
+    <option value="tel_Telu">&#3108;&#3142;&#3122;&#3137;&#3095;&#3137; (Telugu)</option>
+    <option value="tha_Thai">&#3616;&#3634;&#3625;&#3634;&#3652;&#3607;&#3618; (Thai)</option>
+    <option value="tur_Latn">T&#252;rk&#231;e (Turkish)</option>
+    <option value="tuk_Latn">T&#252;rkmen (Turkmen)</option>
+    <option value="ukr_Cyrl">&#1059;&#1082;&#1088;&#1072;&#1111;&#1085;&#1089;&#1100;&#1082;&#1072; (Ukrainian)</option>
+    <option value="urd_Arab">&#1575;&#1585;&#1583;&#1608; (Urdu)</option>
+    <option value="uzn_Latn">O&#8216;zbek (Uzbek)</option>
+    <option value="vie_Latn">Ti&#7871;ng Vi&#7879;t (Vietnamese)</option>
+    <option value="cym_Latn">Cymraeg (Welsh)</option>
+    <option value="yor_Latn">Yor&#249;b&#225; (Yoruba)</option>
+    <option value="zul_Latn">isiZulu (Zulu)</option>
+  </select>
+  <label id="lblScroll">Scroll Direction</label>
+  <select id="scrollDir" onchange="setScrollDir(this.value)">
+    <option value="up">Bottom-up (newest at bottom)</option>
+    <option value="down">Top-down (newest at top)</option>
+  </select>
+  <label id="lblTags">Tags</label>
+  <select id="tagMode" onchange="setTagMode(this.value)">
+    <option value="off">Off</option>
+    <option value="lang">Language</option>
+    <option value="time">Time</option>
+    <option value="both">Language + Time</option>
+  </select>
+  <button id="btnSave" onclick="saveTranscript()" style="width:100%;margin-top:12px">&#128190; Save Transcript</button>
+</div>
+<div id="container"><div id="lines"><div id="spacer"></div></div></div>
+<script src="/js/app.js"></script>
+</body>
+</html>
