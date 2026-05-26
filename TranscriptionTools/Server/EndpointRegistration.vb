@@ -7,6 +7,7 @@ Imports Microsoft.Extensions.Options
 Imports TranscriptionTools.Server.Hubs
 Imports TranscriptionTools.Services.Infrastructure
 Imports TranscriptionTools.Services.Interfaces
+Imports TranscriptionTools.Services.Audio
 Imports TranscriptionTools.Services.Tts
 
 Namespace Server
@@ -344,6 +345,13 @@ Namespace Server
         End Sub
 
         Private Sub MapTtsEndpoints(app As IEndpointRouteBuilder)
+
+            ' List available audio output devices
+            app.MapGet("/tts/devices",
+                Function(context As HttpContext) As IResult
+                    Dim devices = TtsAudioOutput.GetOutputDevices()
+                    Return Results.Ok(devices)
+                End Function)
 
             ' Serve cached TTS audio files — /tts/cache/{filename}
             app.MapGet("/tts/cache/{filename}",

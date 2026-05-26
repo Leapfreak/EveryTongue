@@ -152,6 +152,25 @@ Namespace Server
                 subtitleSvc.TtsService = ttsSvc
             End If
 
+            ' Wire TTS audio output for local PA/NDI playback
+            Dim ttsCache = app.Services.GetService(Of TtsCache)()
+            If subtitleSvc IsNot Nothing AndAlso ttsCache IsNot Nothing Then
+                subtitleSvc.TtsCacheDirectory = ttsCache.CacheDirectory
+            End If
+
+            If subtitleSvc IsNot Nothing AndAlso options.TtsOutputDevice >= 0 Then
+                Dim ttsOutput As New TtsAudioOutput(
+                    LoggerFactory.Create(Sub(b) b.SetMinimumLevel(LogLevel.Information).
+                        AddProvider(If(logCallback IsNot Nothing,
+                            DirectCast(New CallbackLoggerProvider(logCallback), ILoggerProvider),
+                            DirectCast(Microsoft.Extensions.Logging.Abstractions.NullLoggerProvider.Instance, ILoggerProvider)))).
+                        CreateLogger(Of TtsAudioOutput)())
+                ttsOutput.DeviceNumber = options.TtsOutputDevice
+                ttsOutput.Volume = options.TtsOutputVolume
+                ttsOutput.Start()
+                subtitleSvc.TtsAudioOutput = ttsOutput
+            End If
+
             ' ── Middleware pipeline (order matters) ──
             ConfigureMiddleware(app)
 
@@ -294,6 +313,13 @@ Namespace Server
         End Sub
 
         Public Sub Dispose() Implements IDisposable.Dispose
+            ' Stop TTS audio output before shutting down
+            Try
+                Dim subtitleSvc = TryCast(_app?.Services?.GetService(GetType(ISubtitleService)), SubtitleService)
+                subtitleSvc?.TtsAudioOutput?.Dispose()
+            Catch
+            End Try
+
             [Stop]()
             _app?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(3))
             _cts?.Dispose()

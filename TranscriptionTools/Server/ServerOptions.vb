@@ -23,6 +23,15 @@ Namespace Server
         Public Property BgColor As String = "#000000"
         Public Property FgColor As String = "#FFFFFF"
 
+        ''' <summary>
+        ''' Audio output device number for local TTS playback (-1 = disabled, 0+ = device index).
+        ''' Use TtsAudioOutput.GetOutputDevices() to list available devices.
+        ''' </summary>
+        Public Property TtsOutputDevice As Integer = -1
+
+        ''' <summary>Volume for local TTS output (0.0 to 1.0).</summary>
+        Public Property TtsOutputVolume As Single = 1.0F
+
         ''' <summary>Computed HTTPS port.</summary>
         Public ReadOnly Property HttpsPort As Integer
             Get

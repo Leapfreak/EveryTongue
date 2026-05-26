@@ -329,6 +329,36 @@ body {
     margin-top: 2px;
 }
 
+.bible-verse-speak {
+    float: right;
+    background: #222;
+    color: #888;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 14px;
+    cursor: pointer;
+    margin-left: 8px;
+}
+.bible-verse-speak:active { color: #4f4; border-color: #4f4 }
+
+.bible-read-all-bar {
+    text-align: center;
+    padding: 8px 0;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #333;
+}
+.bible-read-all-btn {
+    background: #222;
+    color: #ccc;
+    border: 1px solid #47f;
+    border-radius: 6px;
+    padding: 8px 20px;
+    font-size: 14px;
+    cursor: pointer;
+}
+.bible-read-all-btn:active { background: #47f; color: #fff }
+
 .bible-ref-link {
     color: #47f;
     text-decoration: underline;

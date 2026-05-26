@@ -6,6 +6,7 @@ Imports System.Threading
 Imports Microsoft.Extensions.Logging
 Imports Microsoft.Extensions.Options
 Imports TranscriptionTools.Server
+Imports TranscriptionTools.Services.Audio
 Imports TranscriptionTools.Services.Interfaces
 Imports TranscriptionTools.Services.Models
 
@@ -60,6 +61,12 @@ Namespace Services.Subtitle
 
         ''' <summary>Set after DI resolution to enable server-side TTS generation.</summary>
         Public Property TtsService As ITtsService
+
+        ''' <summary>Set after DI resolution to enable local TTS audio output.</summary>
+        Public Property TtsAudioOutput As TtsAudioOutput
+
+        ''' <summary>TTS cache directory for local audio output file path resolution.</summary>
+        Public Property TtsCacheDirectory As String
 
         ' ── Client management ──
 
@@ -121,6 +128,38 @@ Namespace Services.Subtitle
                         Dim lang = If(langProp.GetString(), "auto")
                         RaiseEvent LogMessage(Me, $"[SUBTITLE] INPUT LANG CHANGE -> '{lang}'")
                         RaiseEvent InputLanguageChanged(Me, lang)
+
+                    ElseIf typeStr = "requestTts" Then
+                        ' Client requests TTS for arbitrary text (e.g. Bible verse)
+                        Dim textProp As JsonElement = Nothing
+                        Dim langProp2 As JsonElement = Nothing
+                        If Not root.TryGetProperty("text", textProp) Then Return
+                        If Not root.TryGetProperty("language", langProp2) Then Return
+                        Dim ttsText = textProp.GetString()
+                        Dim ttsLang = langProp2.GetString()
+                        If TtsService IsNot Nothing AndAlso
+                           Not String.IsNullOrEmpty(ttsText) AndAlso
+                           Not String.IsNullOrEmpty(ttsLang) Then
+                            Dim capturedId = clientId
+                            Task.Run(Async Function()
+                                         Try
+                                             ' Use a hash-based cache key (not commit ID)
+                                             Dim hashId = Math.Abs(ttsText.GetHashCode()) Mod 1000000
+                                             Dim url = Await TtsService.SynthesiseAsync(
+                                                 ttsText, ttsLang, -hashId, CancellationToken.None)
+                                             If url IsNot Nothing Then
+                                                 ' Send tts response to requesting client only
+                                                 Dim info As ClientConnection = Nothing
+                                                 If _clients.TryGetValue(capturedId, info) Then
+                                                     Dim json = $"{{""type"":""tts"",""id"":-1,""url"":{EscapeJson(url)},""lang"":{EscapeJson(ttsLang)}}}"
+                                                     Dim buf = Encoding.UTF8.GetBytes(json)
+                                                     TrySendToClient(info, buf)
+                                                 End If
+                                             End If
+                                         Catch
+                                         End Try
+                                     End Function)
+                        End If
 
                     ElseIf typeStr = "ping" Then
                         Dim info As ClientConnection = Nothing
@@ -541,6 +580,11 @@ Namespace Services.Subtitle
             Next
 
             CleanupDeadClients(deadKeys)
+
+            ' Also play to local audio output if configured
+            If TtsAudioOutput IsNot Nothing AndAlso TtsAudioOutput.IsRunning Then
+                TtsAudioOutput.EnqueueFromUrl(url, TtsCacheDirectory)
+            End If
         End Sub
 
         Private Sub CleanupDeadClients(deadKeys As List(Of String))

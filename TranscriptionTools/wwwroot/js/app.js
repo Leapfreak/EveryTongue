@@ -22,7 +22,7 @@ var T={};
         bold:'Bold',font:'Font',style:'Style',voice:'Voice',speed:'Speed',color:'Text Color',
         slow:'Slow',normal:'Normal',fast:'Fast',vfast:'Very Fast',
         start:'Start',stop:'Stop',restart:'Restart',simulate:'Simulate',clear:'Clear',
-        saveTranscript:'Save Transcript',transLang:'Translation',remote:'Remote Control',settings:'Settings',readAloud:'Read aloud',keepScreen:'Keep screen on',scrollDir:'Scroll Direction',scrollUp:'Bottom-up (newest at bottom)',scrollDown:'Top-down (newest at top)',tags:'Tags',tagOff:'Off',tagLang:'Language',tagTime:'Time',tagBoth:'Language + Time',bible:'Bible',bibleOT:'Old Testament',bibleNT:'New Testament',bibleSearch:'Search',bibleNoResults:'No results found',bibleSelectTrans:'Select a translation',serverTts:'Server TTS',ttsBehind:'{0} behind \u2014 tap to skip'},
+        saveTranscript:'Save Transcript',transLang:'Translation',remote:'Remote Control',settings:'Settings',readAloud:'Read aloud',keepScreen:'Keep screen on',scrollDir:'Scroll Direction',scrollUp:'Bottom-up (newest at bottom)',scrollDown:'Top-down (newest at top)',tags:'Tags',tagOff:'Off',tagLang:'Language',tagTime:'Time',tagBoth:'Language + Time',bible:'Bible',bibleOT:'Old Testament',bibleNT:'New Testament',bibleSearch:'Search',bibleNoResults:'No results found',bibleSelectTrans:'Select a translation',serverTts:'Server TTS',ttsBehind:'{0} behind \u2014 tap to skip',readAll:'Read All',readVerse:'Read'},
     es:{connecting:'Conectando...',connected:'Conectado',disconnected:'Desconectado - reconectando...',
         wakeTitle:'Mantener Pantalla',wakeDesc:'Se necesita conexi\u00f3n segura (configuraci\u00f3n \u00fanica):',
         stepTap:'Toca el bot\u00f3n de abajo',stepWarn:'Ver\u00e1s una advertencia \u2014 es normal',
@@ -38,7 +38,7 @@ var T={};
         bold:'Negrita',font:'Fuente',style:'Estilo',voice:'Voz',speed:'Velocidad',color:'Color de texto',
         slow:'Lento',normal:'Normal',fast:'R\u00e1pido',vfast:'Muy R\u00e1pido',
         start:'Iniciar',stop:'Detener',restart:'Reiniciar',simulate:'Simular',clear:'Limpiar',
-        saveTranscript:'Guardar Transcripci\u00f3n',transLang:'Traducci\u00f3n',remote:'Control Remoto',settings:'Ajustes',readAloud:'Leer en voz alta',keepScreen:'Mantener pantalla',scrollDir:'Direcci\u00f3n de desplazamiento',scrollUp:'Abajo-arriba (reciente abajo)',scrollDown:'Arriba-abajo (reciente arriba)',tags:'Etiquetas',tagOff:'Desactivado',tagLang:'Idioma',tagTime:'Hora',tagBoth:'Idioma + Hora',bible:'Biblia',bibleOT:'Antiguo Testamento',bibleNT:'Nuevo Testamento',bibleSearch:'Buscar',bibleNoResults:'Sin resultados',bibleSelectTrans:'Selecciona una traducci\u00f3n',serverTts:'TTS del servidor',ttsBehind:'{0} atr\u00e1s \u2014 toca para saltar'},
+        saveTranscript:'Guardar Transcripci\u00f3n',transLang:'Traducci\u00f3n',remote:'Control Remoto',settings:'Ajustes',readAloud:'Leer en voz alta',keepScreen:'Mantener pantalla',scrollDir:'Direcci\u00f3n de desplazamiento',scrollUp:'Abajo-arriba (reciente abajo)',scrollDown:'Arriba-abajo (reciente arriba)',tags:'Etiquetas',tagOff:'Desactivado',tagLang:'Idioma',tagTime:'Hora',tagBoth:'Idioma + Hora',bible:'Biblia',bibleOT:'Antiguo Testamento',bibleNT:'Nuevo Testamento',bibleSearch:'Buscar',bibleNoResults:'Sin resultados',bibleSelectTrans:'Selecciona una traducci\u00f3n',serverTts:'TTS del servidor',ttsBehind:'{0} atr\u00e1s \u2014 toca para saltar',readAll:'Leer todo',readVerse:'Leer'},
     fr:{connecting:'Connexion...',connected:'Connect\u00e9',disconnected:'D\u00e9connect\u00e9 - reconnexion...',
         wakeTitle:'\u00c9cran Allum\u00e9',wakeDesc:'Connexion s\u00e9curis\u00e9e requise (une seule fois) :',
         stepTap:'Appuyez sur le bouton ci-dessous',stepWarn:'Un avertissement s\'affichera \u2014 c\'est normal',
@@ -54,7 +54,7 @@ var T={};
         bold:'Gras',font:'Police',style:'Style',voice:'Voix',speed:'Vitesse',color:'Couleur du texte',
         slow:'Lent',normal:'Normal',fast:'Rapide',vfast:'Tr\u00e8s Rapide',
         start:'D\u00e9marrer',stop:'Arr\u00eater',restart:'Red\u00e9marrer',simulate:'Simuler',clear:'Effacer',
-        saveTranscript:'Enregistrer',transLang:'Traduction',remote:'T\u00e9l\u00e9commande',settings:'Param\u00e8tres',readAloud:'Lire \u00e0 voix haute',keepScreen:'\u00c9cran allum\u00e9',scrollDir:'Direction du d\u00e9filement',scrollUp:'Bas en haut (r\u00e9cent en bas)',scrollDown:'Haut en bas (r\u00e9cent en haut)',tags:'\u00c9tiquettes',tagOff:'D\u00e9sactiv\u00e9',tagLang:'Langue',tagTime:'Heure',tagBoth:'Langue + Heure',bible:'Bible',bibleOT:'Old Testament',bibleNT:'New Testament',bibleSearch:'Search',bibleNoResults:'No results found',bibleSelectTrans:'Select a translation',serverTts:'TTS serveur',ttsBehind:'{0} en retard \u2014 appuyez pour sauter'},
+        saveTranscript:'Enregistrer',transLang:'Traduction',remote:'T\u00e9l\u00e9commande',settings:'Param\u00e8tres',readAloud:'Lire \u00e0 voix haute',keepScreen:'\u00c9cran allum\u00e9',scrollDir:'Direction du d\u00e9filement',scrollUp:'Bas en haut (r\u00e9cent en bas)',scrollDown:'Haut en bas (r\u00e9cent en haut)',tags:'\u00c9tiquettes',tagOff:'D\u00e9sactiv\u00e9',tagLang:'Langue',tagTime:'Heure',tagBoth:'Langue + Heure',bible:'Bible',bibleOT:'Old Testament',bibleNT:'New Testament',bibleSearch:'Search',bibleNoResults:'No results found',bibleSelectTrans:'Select a translation',serverTts:'TTS serveur',ttsBehind:'{0} en retard \u2014 appuyez pour sauter',readAll:'Tout lire',readVerse:'Lire'},
     de:{connecting:'Verbinde...',connected:'Verbunden',disconnected:'Getrennt - verbinde erneut...',
         wakeTitle:'Bildschirm An',wakeDesc:'Sichere Verbindung erforderlich (einmalig):',
         stepTap:'Tippen Sie auf den Button unten',stepWarn:'Sie sehen eine Warnung \u2014 das ist normal',
@@ -70,7 +70,7 @@ var T={};
         bold:'Fett',font:'Schrift',style:'Stil',voice:'Stimme',speed:'Geschwindigkeit',color:'Textfarbe',
         slow:'Langsam',normal:'Normal',fast:'Schnell',vfast:'Sehr Schnell',
         start:'Starten',stop:'Stoppen',restart:'Neustarten',simulate:'Simulieren',clear:'L\u00f6schen',
-        saveTranscript:'Speichern',transLang:'\u00dcbersetzung',remote:'Fernsteuerung',settings:'Einstellungen',readAloud:'Vorlesen',keepScreen:'Bildschirm an',scrollDir:'Scrollrichtung',scrollUp:'Unten nach oben (neueste unten)',scrollDown:'Oben nach unten (neueste oben)',tags:'Tags',tagOff:'Aus',tagLang:'Sprache',tagTime:'Zeit',tagBoth:'Sprache + Zeit',bible:'Bibel',bibleOT:'Altes Testament',bibleNT:'Neues Testament',bibleSearch:'Suchen',bibleNoResults:'Keine Ergebnisse',bibleSelectTrans:'W\u00e4hle eine \u00dcbersetzung',serverTts:'Server-TTS',ttsBehind:'{0} zur\u00fcck \u2014 tippen zum \u00fcberspringen'},
+        saveTranscript:'Speichern',transLang:'\u00dcbersetzung',remote:'Fernsteuerung',settings:'Einstellungen',readAloud:'Vorlesen',keepScreen:'Bildschirm an',scrollDir:'Scrollrichtung',scrollUp:'Unten nach oben (neueste unten)',scrollDown:'Oben nach unten (neueste oben)',tags:'Tags',tagOff:'Aus',tagLang:'Sprache',tagTime:'Zeit',tagBoth:'Sprache + Zeit',bible:'Bibel',bibleOT:'Altes Testament',bibleNT:'Neues Testament',bibleSearch:'Suchen',bibleNoResults:'Keine Ergebnisse',bibleSelectTrans:'W\u00e4hle eine \u00dcbersetzung',serverTts:'Server-TTS',ttsBehind:'{0} zur\u00fcck \u2014 tippen zum \u00fcberspringen',readAll:'Alles vorlesen',readVerse:'Vorlesen'},
     ca:{connecting:'Connectant...',connected:'Connectat',disconnected:'Desconnectat - reconnectant...',
         wakeTitle:'Mantenir Pantalla',wakeDesc:'Cal connexi\u00f3 segura (configuraci\u00f3 \u00fanica):',
         stepTap:'Toca el bot\u00f3 de sota',stepWarn:'Veur\u00e0s un av\u00eds \u2014 \u00e9s normal',
@@ -86,7 +86,7 @@ var T={};
         bold:'Negreta',font:'Tipus de lletra',style:'Estil',voice:'Veu',speed:'Velocitat',color:'Color del text',
         slow:'Lent',normal:'Normal',fast:'R\u00e0pid',vfast:'Molt R\u00e0pid',
         start:'Iniciar',stop:'Aturar',restart:'Reiniciar',simulate:'Simular',clear:'Netejar',
-        saveTranscript:'Desar Transcripci\u00f3',transLang:'Traducci\u00f3',remote:'Control Remot',settings:'Ajustos',readAloud:'Llegir en veu alta',keepScreen:'Mantenir pantalla',scrollDir:'Direcci\u00f3 de despla\u00e7ament',scrollUp:'Baix a dalt (recent a baix)',scrollDown:'Dalt a baix (recent a dalt)',tags:'Etiquetes',tagOff:'Desactivat',tagLang:'Idioma',tagTime:'Hora',tagBoth:'Idioma + Hora',bible:'B\u00edblia',bibleOT:'Antic Testament',bibleNT:'Nou Testament',bibleSearch:'Cercar',bibleNoResults:'Sense resultats',bibleSelectTrans:'Selecciona una traducci\u00f3',serverTts:'TTS del servidor',ttsBehind:'{0} endarrere \u2014 toca per saltar'},
+        saveTranscript:'Desar Transcripci\u00f3',transLang:'Traducci\u00f3',remote:'Control Remot',settings:'Ajustos',readAloud:'Llegir en veu alta',keepScreen:'Mantenir pantalla',scrollDir:'Direcci\u00f3 de despla\u00e7ament',scrollUp:'Baix a dalt (recent a baix)',scrollDown:'Dalt a baix (recent a dalt)',tags:'Etiquetes',tagOff:'Desactivat',tagLang:'Idioma',tagTime:'Hora',tagBoth:'Idioma + Hora',bible:'B\u00edblia',bibleOT:'Antic Testament',bibleNT:'Nou Testament',bibleSearch:'Cercar',bibleNoResults:'Sense resultats',bibleSelectTrans:'Selecciona una traducci\u00f3',serverTts:'TTS del servidor',ttsBehind:'{0} endarrere \u2014 toca per saltar',readAll:'Llegir-ho tot',readVerse:'Llegir'},
     pt:{connecting:'Conectando...',connected:'Conectado',disconnected:'Desconectado - reconectando...',
         wakeTitle:'Manter Tela Ligada',wakeDesc:'Conex\u00e3o segura necess\u00e1ria (apenas uma vez):',
         stepTap:'Toque no bot\u00e3o abaixo',stepWarn:'Voc\u00ea ver\u00e1 um aviso \u2014 isso \u00e9 normal',
@@ -102,7 +102,7 @@ var T={};
         bold:'Negrito',font:'Fonte',style:'Estilo',voice:'Voz',speed:'Velocidade',color:'Cor do texto',
         slow:'Lento',normal:'Normal',fast:'R\u00e1pido',vfast:'Muito R\u00e1pido',
         start:'Iniciar',stop:'Parar',restart:'Reiniciar',simulate:'Simular',clear:'Limpar',
-        saveTranscript:'Salvar Transcri\u00e7\u00e3o',transLang:'Tradu\u00e7\u00e3o',remote:'Controle Remoto',settings:'Configura\u00e7\u00f5es',readAloud:'Ler em voz alta',keepScreen:'Manter tela ligada',scrollDir:'Dire\u00e7\u00e3o de rolagem',scrollUp:'Baixo para cima (recente embaixo)',scrollDown:'Cima para baixo (recente em cima)',tags:'Etiquetas',tagOff:'Desativado',tagLang:'Idioma',tagTime:'Hora',tagBoth:'Idioma + Hora',bible:'B\u00edblia',bibleOT:'Antigo Testamento',bibleNT:'Novo Testamento',bibleSearch:'Pesquisar',bibleNoResults:'Sem resultados',bibleSelectTrans:'Selecione uma tradu\u00e7\u00e3o',serverTts:'TTS do servidor',ttsBehind:'{0} atr\u00e1s \u2014 toque para pular'},
+        saveTranscript:'Salvar Transcri\u00e7\u00e3o',transLang:'Tradu\u00e7\u00e3o',remote:'Controle Remoto',settings:'Configura\u00e7\u00f5es',readAloud:'Ler em voz alta',keepScreen:'Manter tela ligada',scrollDir:'Dire\u00e7\u00e3o de rolagem',scrollUp:'Baixo para cima (recente embaixo)',scrollDown:'Cima para baixo (recente em cima)',tags:'Etiquetas',tagOff:'Desativado',tagLang:'Idioma',tagTime:'Hora',tagBoth:'Idioma + Hora',bible:'B\u00edblia',bibleOT:'Antigo Testamento',bibleNT:'Novo Testamento',bibleSearch:'Pesquisar',bibleNoResults:'Sem resultados',bibleSelectTrans:'Selecione uma tradu\u00e7\u00e3o',serverTts:'TTS do servidor',ttsBehind:'{0} atr\u00e1s \u2014 toque para pular',readAll:'Ler tudo',readVerse:'Ler'},
     ja:{connecting:'\u63a5\u7d9a\u4e2d...',connected:'\u63a5\u7d9a\u6e08\u307f',disconnected:'\u5207\u65ad - \u518d\u63a5\u7d9a\u4e2d...',
         wakeTitle:'\u753b\u9762\u3092\u70b9\u706f',wakeDesc:'\u5b89\u5168\u306a\u63a5\u7d9a\u304c\u5fc5\u8981\u3067\u3059\uff08\u521d\u56de\u306e\u307f\uff09:',
         stepTap:'\u4e0b\u306e\u30dc\u30bf\u30f3\u3092\u30bf\u30c3\u30d7',stepWarn:'\u8b66\u544a\u304c\u8868\u793a\u3055\u308c\u307e\u3059 \u2014 \u6b63\u5e38\u3067\u3059',
@@ -118,7 +118,7 @@ var T={};
         bold:'\u592a\u5b57',font:'\u30d5\u30a9\u30f3\u30c8',style:'\u30b9\u30bf\u30a4\u30eb',voice:'\u97f3\u58f0',speed:'\u901f\u5ea6',color:'\u6587\u5b57\u8272',
         slow:'\u9045\u3044',normal:'\u666e\u901a',fast:'\u901f\u3044',vfast:'\u3068\u3066\u3082\u901f\u3044',
         start:'\u958b\u59cb',stop:'\u505c\u6b62',restart:'\u518d\u958b',simulate:'\u30b7\u30df\u30e5\u30ec\u30fc\u30b7\u30e7\u30f3',clear:'\u30af\u30ea\u30a2',
-        saveTranscript:'\u4fdd\u5b58',transLang:'\u7ffb\u8a33',remote:'\u30ea\u30e2\u30fc\u30c8',settings:'\u8a2d\u5b9a',readAloud:'\u8aad\u307f\u4e0a\u3052',keepScreen:'\u753b\u9762\u70b9\u706f',scrollDir:'\u30b9\u30af\u30ed\u30fc\u30eb\u65b9\u5411',scrollUp:'\u4e0b\u304b\u3089\u4e0a (\u6700\u65b0\u304c\u4e0b)',scrollDown:'\u4e0a\u304b\u3089\u4e0b (\u6700\u65b0\u304c\u4e0a)',tags:'\u30bf\u30b0',tagOff:'\u30aa\u30d5',tagLang:'\u8a00\u8a9e',tagTime:'\u6642\u523b',tagBoth:'\u8a00\u8a9e + \u6642\u523b',bible:'\u8056\u66f8',bibleOT:'\u65e7\u7d04\u8056\u66f8',bibleNT:'\u65b0\u7d04\u8056\u66f8',bibleSearch:'\u691c\u7d22',bibleNoResults:'\u7d50\u679c\u306a\u3057',bibleSelectTrans:'\u7ffb\u8a33\u3092\u9078\u629e',serverTts:'\u30b5\u30fc\u30d0\u30fcTTS',ttsBehind:'{0}\u904e\u53bb \u2014 \u30bf\u30c3\u30d7\u3067\u30b9\u30ad\u30c3\u30d7'},
+        saveTranscript:'\u4fdd\u5b58',transLang:'\u7ffb\u8a33',remote:'\u30ea\u30e2\u30fc\u30c8',settings:'\u8a2d\u5b9a',readAloud:'\u8aad\u307f\u4e0a\u3052',keepScreen:'\u753b\u9762\u70b9\u706f',scrollDir:'\u30b9\u30af\u30ed\u30fc\u30eb\u65b9\u5411',scrollUp:'\u4e0b\u304b\u3089\u4e0a (\u6700\u65b0\u304c\u4e0b)',scrollDown:'\u4e0a\u304b\u3089\u4e0b (\u6700\u65b0\u304c\u4e0a)',tags:'\u30bf\u30b0',tagOff:'\u30aa\u30d5',tagLang:'\u8a00\u8a9e',tagTime:'\u6642\u523b',tagBoth:'\u8a00\u8a9e + \u6642\u523b',bible:'\u8056\u66f8',bibleOT:'\u65e7\u7d04\u8056\u66f8',bibleNT:'\u65b0\u7d04\u8056\u66f8',bibleSearch:'\u691c\u7d22',bibleNoResults:'\u7d50\u679c\u306a\u3057',bibleSelectTrans:'\u7ffb\u8a33\u3092\u9078\u629e',serverTts:'\u30b5\u30fc\u30d0\u30fcTTS',ttsBehind:'{0}\u904e\u53bb \u2014 \u30bf\u30c3\u30d7\u3067\u30b9\u30ad\u30c3\u30d7',readAll:'\u3059\u3079\u3066\u8aad\u3080',readVerse:'\u8aad\u3080'},
     zh:{connecting:'\u8fde\u63a5\u4e2d...',connected:'\u5df2\u8fde\u63a5',disconnected:'\u5df2\u65ad\u5f00 - \u91cd\u65b0\u8fde\u63a5...',
         wakeTitle:'\u4fdd\u6301\u5c4f\u5e55\u5e38\u4eae',wakeDesc:'\u9700\u8981\u5b89\u5168\u8fde\u63a5\uff08\u4ec5\u9700\u4e00\u6b21\uff09:',
         stepTap:'\u70b9\u51fb\u4e0b\u65b9\u6309\u94ae',stepWarn:'\u60a8\u5c06\u770b\u5230\u8b66\u544a\u9875\u9762 \u2014 \u8fd9\u662f\u6b63\u5e38\u7684',
@@ -134,7 +134,7 @@ var T={};
         bold:'\u7c97\u4f53',font:'\u5b57\u4f53',style:'\u6837\u5f0f',voice:'\u8bed\u97f3',speed:'\u901f\u5ea6',color:'\u6587\u5b57\u989c\u8272',
         slow:'\u6162',normal:'\u6b63\u5e38',fast:'\u5feb',vfast:'\u975e\u5e38\u5feb',
         start:'\u5f00\u59cb',stop:'\u505c\u6b62',restart:'\u91cd\u542f',simulate:'\u6a21\u62df',clear:'\u6e05\u9664',
-        saveTranscript:'\u4fdd\u5b58',transLang:'\u7ffb\u8bd1',remote:'\u8fdc\u7a0b\u63a7\u5236',settings:'\u8bbe\u7f6e',readAloud:'\u6717\u8bfb',keepScreen:'\u4fdd\u6301\u5c4f\u5e55',scrollDir:'\u6eda\u52a8\u65b9\u5411',scrollUp:'\u4ece\u4e0b\u5f80\u4e0a (\u6700\u65b0\u5728\u4e0b)',scrollDown:'\u4ece\u4e0a\u5f80\u4e0b (\u6700\u65b0\u5728\u4e0a)',tags:'\u6807\u7b7e',tagOff:'\u5173\u95ed',tagLang:'\u8bed\u8a00',tagTime:'\u65f6\u95f4',tagBoth:'\u8bed\u8a00 + \u65f6\u95f4',bible:'\u5723\u7ecf',bibleOT:'\u65e7\u7ea6',bibleNT:'\u65b0\u7ea6',bibleSearch:'\u641c\u7d22',bibleNoResults:'\u6ca1\u6709\u7ed3\u679c',bibleSelectTrans:'\u9009\u62e9\u8bd1\u672c',serverTts:'\u670d\u52a1\u5668TTS',ttsBehind:'{0}\u6761\u843d\u540e \u2014 \u70b9\u51fb\u8df3\u8fc7'}
+        saveTranscript:'\u4fdd\u5b58',transLang:'\u7ffb\u8bd1',remote:'\u8fdc\u7a0b\u63a7\u5236',settings:'\u8bbe\u7f6e',readAloud:'\u6717\u8bfb',keepScreen:'\u4fdd\u6301\u5c4f\u5e55',scrollDir:'\u6eda\u52a8\u65b9\u5411',scrollUp:'\u4ece\u4e0b\u5f80\u4e0a (\u6700\u65b0\u5728\u4e0b)',scrollDown:'\u4ece\u4e0a\u5f80\u4e0b (\u6700\u65b0\u5728\u4e0a)',tags:'\u6807\u7b7e',tagOff:'\u5173\u95ed',tagLang:'\u8bed\u8a00',tagTime:'\u65f6\u95f4',tagBoth:'\u8bed\u8a00 + \u65f6\u95f4',bible:'\u5723\u7ecf',bibleOT:'\u65e7\u7ea6',bibleNT:'\u65b0\u7ea6',bibleSearch:'\u641c\u7d22',bibleNoResults:'\u6ca1\u6709\u7ed3\u679c',bibleSelectTrans:'\u9009\u62e9\u8bd1\u672c',serverTts:'\u670d\u52a1\u5668TTS',ttsBehind:'{0}\u6761\u843d\u540e \u2014 \u70b9\u51fb\u8df3\u8fc7',readAll:'\u5168\u90e8\u6717\u8bfb',readVerse:'\u6717\u8bfb'}
   };
   if(lang.indexOf('zh')===0)T=tr.zh;
   else T=tr[lc]||tr.en;
@@ -740,8 +740,10 @@ function showVerses(book,chapter){
       var num=document.createElement('span');num.className='vnum';num.textContent=v.verse;
       div.appendChild(num);
       div.appendChild(document.createTextNode(' '+v.text));
+      addVerseSpeakBtn(div,v.text);
       bibleContent.appendChild(div);
     }
+    addReadAllBtn();
     bibleContent.scrollTop=0;
   }).catch(function(){
     bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">Failed to load</div>';
@@ -774,8 +776,10 @@ function lookupRef(){
           var div=document.createElement('div');div.className='bible-verse';
           var num=document.createElement('span');num.className='vnum';num.textContent=v.verse;
           div.appendChild(num);div.appendChild(document.createTextNode(' '+v.text));
+          addVerseSpeakBtn(div,v.text);
           bibleContent.appendChild(div);
         }
+        addReadAllBtn();
       }).catch(function(){});
     }else{
       showVerses(ref.book,ref.chapter);
@@ -847,11 +851,77 @@ function openBibleRef(book,chapter,verseStart,verseEnd){
       var div=document.createElement('div');div.className='bible-verse';
       var num=document.createElement('span');num.className='vnum';num.textContent=v.verse;
       div.appendChild(num);div.appendChild(document.createTextNode(' '+v.text));
+      addVerseSpeakBtn(div,v.text);
       bibleContent.appendChild(div);
     }
+    addReadAllBtn();
   }).catch(function(){
     bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">Failed to load</div>';
   });
+}
+
+/* ── Bible Verse TTS ── */
+function speakBibleVerse(text){
+  clearTtsQueue();
+  synth.cancel();
+  if(!synth||!text)return;
+  var utter=new SpeechSynthesisUtterance(text);
+  utter.rate=speechRate;
+  if(selectedVoice){var voices=synth.getVoices();for(var i=0;i<voices.length;i++){if(voices[i].name===selectedVoice){utter.voice=voices[i];break}}}
+  synth.speak(utter);
+}
+
+function speakBibleVerseServer(text){
+  clearTtsQueue();
+  synth.cancel();
+  if(!wsRef||wsRef.readyState!==1)return;
+  /* Determine language from the Bible translation's language field */
+  var lang='eng_Latn';
+  for(var i=0;i<bibleTranslations.length;i++){
+    if(bibleTranslations[i].id===currentBibleTrans){
+      var bl=bibleTranslations[i].language||'en';
+      /* Map ISO 639-1 to NLLB-ish code for edge-tts voice selection */
+      var isoToNllb={en:'eng',es:'spa',fr:'fra',de:'deu',ca:'cat',pt:'por',it:'ita',ja:'jpn',zh:'zho',ko:'kor',ar:'arb',hi:'hin',ru:'rus',nl:'nld'};
+      var nllb=isoToNllb[bl.substring(0,2)];
+      if(nllb)lang=nllb;
+      break;
+    }
+  }
+  wsRef.send(JSON.stringify({type:'requestTts',text:text,language:lang}));
+}
+
+function readAllVerses(){
+  var verseDivs=bibleContent.querySelectorAll('.bible-verse');
+  var allText='';
+  for(var i=0;i<verseDivs.length;i++){
+    allText+=verseDivs[i].textContent+' ';
+  }
+  allText=allText.trim();
+  if(!allText)return;
+  if(useServerTts()){speakBibleVerseServer(allText)}
+  else{speakBibleVerse(allText)}
+}
+
+function addVerseSpeakBtn(div,text){
+  var btn=document.createElement('button');
+  btn.className='bible-verse-speak';
+  btn.innerHTML='&#128264;';
+  btn.title=t('readVerse');
+  btn.onclick=function(e){
+    e.stopPropagation();
+    if(useServerTts()){speakBibleVerseServer(text)}
+    else{speakBibleVerse(text)}
+  };
+  div.appendChild(btn);
+}
+
+function addReadAllBtn(){
+  var bar=document.createElement('div');bar.className='bible-read-all-bar';
+  var btn=document.createElement('button');btn.className='bible-read-all-btn';
+  btn.innerHTML='&#128264; '+t('readAll');
+  btn.onclick=function(){readAllVerses()};
+  bar.appendChild(btn);
+  bibleContent.insertBefore(bar,bibleContent.firstChild);
 }
 
 /* Chapter counts by book (standard Protestant canon) */
