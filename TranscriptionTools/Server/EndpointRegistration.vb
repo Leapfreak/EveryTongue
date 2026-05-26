@@ -19,11 +19,8 @@ Namespace Server
             MapWebSocketEndpoint(app)
             MapCoreEndpoints(app)
             MapControlEndpoint(app)
-            ' Future phases will add:
-            ' MapBibleEndpoints(app)
-            ' MapTtsEndpoints(app)
-            ' MapAudioEndpoints(app)
-            ' MapFeedbackEndpoints(app)
+            MapBibleEndpoints(app)
+            MapAudioEndpoints(app)
         End Sub
 
         Private Sub MapWebSocketEndpoint(app As IEndpointRouteBuilder)
@@ -152,6 +149,149 @@ Namespace Server
                                                    Return Results.BadRequest(New With {.error = "unknown action"})
                                            End Select
                                        End Function)
+        End Sub
+
+        Private Sub MapBibleEndpoints(app As IEndpointRouteBuilder)
+
+            ' List available translations
+            app.MapGet("/bible/translations", Async Function(context As HttpContext) As Task(Of IResult)
+                                                  Dim bibleService = context.RequestServices.
+                                                      GetService(Of IBibleService)
+                                                  If bibleService Is Nothing Then
+                                                      Return Results.Json(New With {.error = "Bible service not available"})
+                                                  End If
+                                                  Dim lang = context.Request.Query("lang").FirstOrDefault()
+                                                  Dim translations = Await bibleService.GetTranslationsAsync(
+                                                      If(lang, ""), context.RequestAborted)
+                                                  Return Results.Ok(translations)
+                                              End Function)
+
+            ' Get chapter
+            app.MapGet("/bible/{id}/{book}/{chapter:int}",
+                Async Function(id As String, book As String, chapter As Integer,
+                               context As HttpContext) As Task(Of IResult)
+                    Dim bibleService = context.RequestServices.GetService(Of IBibleService)
+                    If bibleService Is Nothing Then
+                        Return Results.Json(New With {.error = "Bible service not available"})
+                    End If
+                    Dim result = Await bibleService.GetChapterAsync(
+                        id, book, chapter, context.RequestAborted)
+                    Return Results.Ok(result)
+                End Function)
+
+            ' Get verse or verse range
+            app.MapGet("/bible/{id}/{book}/{chapter:int}/{verses}",
+                Async Function(id As String, book As String, chapter As Integer,
+                               verses As String, context As HttpContext) As Task(Of IResult)
+                    Dim bibleService = context.RequestServices.GetService(Of IBibleService)
+                    If bibleService Is Nothing Then
+                        Return Results.Json(New With {.error = "Bible service not available"})
+                    End If
+                    Dim parts = verses.Split("-"c)
+                    Dim vStart = Integer.Parse(parts(0))
+                    Dim vEnd = If(parts.Length > 1, Integer.Parse(parts(1)), -1)
+                    Dim result = Await bibleService.GetVersesAsync(
+                        id, book, chapter, vStart, vEnd, context.RequestAborted)
+                    Return Results.Ok(result)
+                End Function)
+
+            ' Full-text search
+            app.MapGet("/bible/search", Async Function(context As HttpContext) As Task(Of IResult)
+                                            Dim bibleService = context.RequestServices.
+                                                GetService(Of IBibleService)
+                                            If bibleService Is Nothing Then
+                                                Return Results.Json(New With {.error = "Bible service not available"})
+                                            End If
+                                            Dim q = context.Request.Query("q").FirstOrDefault()
+                                            Dim transId = context.Request.Query("translation").FirstOrDefault()
+                                            If String.IsNullOrEmpty(q) OrElse String.IsNullOrEmpty(transId) Then
+                                                Return Results.BadRequest(New With {.error = "q and translation required"})
+                                            End If
+                                            Dim maxResults = 50
+                                            Dim maxStr = context.Request.Query("max").FirstOrDefault()
+                                            If maxStr IsNot Nothing Then Integer.TryParse(maxStr, maxResults)
+                                            Dim searchResults = Await bibleService.SearchAsync(
+                                                q, transId, maxResults, context.RequestAborted)
+                                            Return Results.Ok(searchResults)
+                                        End Function)
+
+            ' Parse human-readable reference
+            app.MapGet("/bible/parse", Async Function(context As HttpContext) As Task(Of IResult)
+                                           Dim bibleService = context.RequestServices.
+                                               GetService(Of IBibleService)
+                                           If bibleService Is Nothing Then
+                                               Return Results.Json(New With {.error = "Bible service not available"})
+                                           End If
+                                           Dim ref = context.Request.Query("ref").FirstOrDefault()
+                                           If String.IsNullOrEmpty(ref) Then
+                                               Return Results.BadRequest(New With {.error = "ref parameter required"})
+                                           End If
+                                           Dim lang = If(context.Request.Query("lang").FirstOrDefault(), "en")
+                                           Dim result = Await bibleService.ParseReferenceAsync(ref, lang)
+                                           Return Results.Ok(result)
+                                       End Function)
+        End Sub
+
+        Private Sub MapAudioEndpoints(app As IEndpointRouteBuilder)
+
+            ' List NDI sources
+            app.MapGet("/audio/ndi/sources",
+                Async Function(context As HttpContext) As Task(Of IResult)
+                    Dim audioService = context.RequestServices.
+                        GetService(Of IAudioStreamService)
+                    If audioService Is Nothing Then
+                        Return Results.Json(New With {.error = "Audio service not available"})
+                    End If
+                    Dim sources = Await audioService.GetNdiSourcesAsync(context.RequestAborted)
+                    Return Results.Ok(sources)
+                End Function)
+
+            ' Stream audio file (with range support)
+            app.MapGet("/audio/file/{**path}",
+                Async Function(path As String, context As HttpContext) As Task
+                    Dim audioService = context.RequestServices.
+                        GetService(Of IAudioStreamService)
+                    If audioService Is Nothing Then
+                        context.Response.StatusCode = 503
+                        Return
+                    End If
+
+                    ' Parse Range header
+                    Dim rangeStart As Long = 0
+                    Dim rangeEnd As Long = -1
+                    Dim rangeHeader = context.Request.Headers("Range").FirstOrDefault()
+                    If rangeHeader IsNot Nothing AndAlso rangeHeader.StartsWith("bytes=") Then
+                        Dim rangeParts = rangeHeader.Substring(6).Split("-"c)
+                        If rangeParts.Length >= 1 Then Long.TryParse(rangeParts(0), rangeStart)
+                        If rangeParts.Length >= 2 AndAlso rangeParts(1).Length > 0 Then
+                            Long.TryParse(rangeParts(1), rangeEnd)
+                        End If
+                    End If
+
+                    Dim result = Await audioService.GetFileStreamAsync(
+                        path, rangeStart, rangeEnd, context.RequestAborted)
+                    If result Is Nothing Then
+                        context.Response.StatusCode = 404
+                        Return
+                    End If
+
+                    ' Set headers
+                    context.Response.ContentType = result.ContentType
+                    context.Response.Headers("Accept-Ranges") = "bytes"
+
+                    If rangeHeader IsNot Nothing Then
+                        context.Response.StatusCode = 206
+                        Dim length = result.RangeEnd - result.RangeStart + 1
+                        context.Response.Headers("Content-Range") =
+                            $"bytes {result.RangeStart}-{result.RangeEnd}/{result.TotalLength}"
+                        context.Response.ContentLength = length
+                    Else
+                        context.Response.ContentLength = result.TotalLength
+                    End If
+
+                    Await result.Stream.CopyToAsync(context.Response.Body, context.RequestAborted)
+                    result.Stream.Dispose()
+                End Function)
         End Sub
 
         ''' <summary>
