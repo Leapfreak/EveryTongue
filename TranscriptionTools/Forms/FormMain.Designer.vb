@@ -111,6 +111,15 @@ Partial Class FormMain
         Me.btnBrowseOutputRoot = New Button()
         Me.lblYtdlpFormat = New Label()
         Me.txtYtdlpFormat = New TextBox()
+        Me.lblPathSubtitleEdit = New Label()
+        Me.txtPathSubtitleEdit = New TextBox()
+        Me.btnBrowseSubtitleEdit = New Button()
+        Me.lblPathGlossary = New Label()
+        Me.txtPathGlossary = New TextBox()
+        Me.btnBrowseGlossary = New Button()
+        Me.lblPathBibles = New Label()
+        Me.txtPathBibles = New TextBox()
+        Me.btnBrowseBibles = New Button()
         Me.btnVerifyPaths = New Button()
 
         ' ==============================================
@@ -404,8 +413,8 @@ Partial Class FormMain
         ' ============================================
         Me.grpPaths.Text = "Tool Paths"
         Me.grpPaths.Location = New Drawing.Point(8, 6)
-        Me.grpPaths.Size = New Drawing.Size(830, 516)
-        Me.grpPaths.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
+        Me.grpPaths.Size = New Drawing.Size(830, 660)
+        Me.grpPaths.Anchor = AnchorStyles.Top Or AnchorStyles.Left
 
         Dim py = 22
         Dim pathRows = {
@@ -417,7 +426,10 @@ Partial Class FormMain
             (Me.lblPathModelAudio, Me.txtPathModelAudio, Me.btnBrowseModelAudio, "Audio File model (.bin):"),
             (Me.lblPathFasterWhisper, Me.txtPathFasterWhisper, Me.btnBrowseFasterWhisper, "faster-whisper model (folder):"),
             (Me.lblPathNllbModel, Me.txtPathNllbModel, Me.btnBrowseNllbModel, "NLLB translation model (folder):"),
-            (Me.lblPathOutputRoot, Me.txtPathOutputRoot, Me.btnBrowseOutputRoot, "Default output root:")
+            (Me.lblPathOutputRoot, Me.txtPathOutputRoot, Me.btnBrowseOutputRoot, "Default output root:"),
+            (Me.lblPathSubtitleEdit, Me.txtPathSubtitleEdit, Me.btnBrowseSubtitleEdit, "SubtitleEdit.exe:"),
+            (Me.lblPathGlossary, Me.txtPathGlossary, Me.btnBrowseGlossary, "Translation glossary (.json):"),
+            (Me.lblPathBibles, Me.txtPathBibles, Me.btnBrowseBibles, "Bibles directory:")
         }
 
         For Each row In pathRows
@@ -445,15 +457,19 @@ Partial Class FormMain
         Me.grpPaths.Controls.AddRange({Me.lblYtdlpFormat, Me.txtYtdlpFormat})
 
         Me.btnVerifyPaths.Text = "Verify All Paths"
-        Me.btnVerifyPaths.Location = New Drawing.Point(8, 530)
+        Me.btnVerifyPaths.Location = New Drawing.Point(8, 674)
         Me.btnVerifyPaths.Size = New Drawing.Size(150, 30)
 
         Me.lnkDownloadModels = New LinkLabel()
         Me.lnkDownloadModels.Text = "Download whisper models..."
-        Me.lnkDownloadModels.Location = New Drawing.Point(170, 537)
+        Me.lnkDownloadModels.Location = New Drawing.Point(170, 681)
         Me.lnkDownloadModels.AutoSize = True
 
-        Me.tabPagePaths.Controls.AddRange({Me.grpPaths, Me.btnVerifyPaths, Me.lnkDownloadModels})
+        Me.pnlPathsScroll = New Panel()
+        Me.pnlPathsScroll.Dock = DockStyle.Fill
+        Me.pnlPathsScroll.AutoScroll = True
+        Me.pnlPathsScroll.Controls.AddRange({Me.grpPaths, Me.btnVerifyPaths, Me.lnkDownloadModels})
+        Me.tabPagePaths.Controls.Add(Me.pnlPathsScroll)
 
         ' ============================================
         ' TAB 4 LAYOUT: Settings
@@ -745,15 +761,75 @@ Partial Class FormMain
         Me.chkSubtitleBold.Location = New Drawing.Point(500, svy + 18)
         Me.chkSubtitleBold.AutoSize = True
 
+        svy += 48
+
         Me.lblAdminPin = New Label()
         Me.lblAdminPin.Text = "Admin PIN:"
-        Me.lblAdminPin.Location = New Drawing.Point(570, svy)
+        Me.lblAdminPin.Location = New Drawing.Point(10, svy)
         Me.lblAdminPin.AutoSize = True
 
         Me.txtAdminPin = New TextBox()
-        Me.txtAdminPin.Location = New Drawing.Point(570, svy + 16)
-        Me.txtAdminPin.Size = New Drawing.Size(80, 23)
+        Me.txtAdminPin.Location = New Drawing.Point(10, svy + 16)
+        Me.txtAdminPin.Size = New Drawing.Size(100, 23)
         Me.txtAdminPin.MaxLength = 8
+
+        Me.lblLiveServerPort = New Label()
+        Me.lblLiveServerPort.Text = "Live Port:"
+        Me.lblLiveServerPort.Location = New Drawing.Point(130, svy)
+        Me.lblLiveServerPort.AutoSize = True
+
+        Me.nudLiveServerPort = New NumericUpDown()
+        Me.nudLiveServerPort.Location = New Drawing.Point(130, svy + 16)
+        Me.nudLiveServerPort.Size = New Drawing.Size(80, 23)
+        Me.nudLiveServerPort.Minimum = 1024
+        Me.nudLiveServerPort.Maximum = 65535
+        Me.nudLiveServerPort.Value = 5091
+
+        Me.lblTranslationPort = New Label()
+        Me.lblTranslationPort.Text = "Translation Port:"
+        Me.lblTranslationPort.Location = New Drawing.Point(230, svy)
+        Me.lblTranslationPort.AutoSize = True
+
+        Me.nudTranslationPort = New NumericUpDown()
+        Me.nudTranslationPort.Location = New Drawing.Point(230, svy + 16)
+        Me.nudTranslationPort.Size = New Drawing.Size(80, 23)
+        Me.nudTranslationPort.Minimum = 1024
+        Me.nudTranslationPort.Maximum = 65535
+        Me.nudTranslationPort.Value = 5090
+
+        Me.lblTransDevice = New Label()
+        Me.lblTransDevice.Text = "Device:"
+        Me.lblTransDevice.Location = New Drawing.Point(330, svy)
+        Me.lblTransDevice.AutoSize = True
+
+        Me.cboTransDevice = New ComboBox()
+        Me.cboTransDevice.Location = New Drawing.Point(330, svy + 16)
+        Me.cboTransDevice.Size = New Drawing.Size(90, 23)
+        Me.cboTransDevice.DropDownStyle = ComboBoxStyle.DropDownList
+        Me.cboTransDevice.Items.AddRange({"cuda", "cpu"})
+        Me.cboTransDevice.SelectedIndex = 0
+
+        Me.lblTransUnload = New Label()
+        Me.lblTransUnload.Text = "Unload (min):"
+        Me.lblTransUnload.Location = New Drawing.Point(440, svy)
+        Me.lblTransUnload.AutoSize = True
+
+        Me.nudTransUnload = New NumericUpDown()
+        Me.nudTransUnload.Location = New Drawing.Point(440, svy + 16)
+        Me.nudTransUnload.Size = New Drawing.Size(60, 23)
+        Me.nudTransUnload.Minimum = 0
+        Me.nudTransUnload.Maximum = 1440
+        Me.nudTransUnload.Value = 10
+
+        Me.chkTransEnabled = New CheckBox()
+        Me.chkTransEnabled.Text = "Translation Enabled"
+        Me.chkTransEnabled.Location = New Drawing.Point(520, svy + 18)
+        Me.chkTransEnabled.AutoSize = True
+
+        Me.chkAllowFirewall = New CheckBox()
+        Me.chkAllowFirewall.Text = "Allow Firewall"
+        Me.chkAllowFirewall.Location = New Drawing.Point(680, svy + 18)
+        Me.chkAllowFirewall.AutoSize = True
 
         svy += 48
 
@@ -762,19 +838,22 @@ Partial Class FormMain
         Me.btnSetupTranslation.Location = New Drawing.Point(10, svy + 2)
         Me.btnSetupTranslation.Size = New Drawing.Size(240, 28)
 
-        Me.grpServerSettings.Size = New Drawing.Size(830, 196)
+        Me.grpServerSettings.Size = New Drawing.Size(830, svy + 40)
         Me.grpServerSettings.Controls.AddRange({Me.lblServerPort, Me.nudServerPort,
             Me.btnServerStart, Me.btnServerStop, Me.btnServerRestart,
             Me.btnServerSimulate, Me.btnServerSimStop,
             Me.lblSubtitleBg, Me.btnSubtitleBg, Me.lblSubtitleFg, Me.btnSubtitleFg,
             Me.lblSubtitleFont, Me.cboSubtitleFont, Me.lblSubtitleSize, Me.nudSubtitleSize, Me.chkSubtitleBold,
             Me.lblAdminPin, Me.txtAdminPin,
+            Me.lblLiveServerPort, Me.nudLiveServerPort, Me.lblTranslationPort, Me.nudTranslationPort,
+            Me.lblTransDevice, Me.cboTransDevice, Me.lblTransUnload, Me.nudTransUnload,
+            Me.chkTransEnabled, Me.chkAllowFirewall,
             Me.btnSetupTranslation})
 
         ' Connection info group
         Me.grpServerInfo = New GroupBox()
         Me.grpServerInfo.Text = "Connection Info"
-        Me.grpServerInfo.Location = New Drawing.Point(8, 208)
+        Me.grpServerInfo.Location = New Drawing.Point(8, 256)
         Me.grpServerInfo.Size = New Drawing.Size(830, 100)
         Me.grpServerInfo.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
 
@@ -806,7 +885,7 @@ Partial Class FormMain
 
         ' Server log
         Me.rtbServerLog = New RichTextBox()
-        Me.rtbServerLog.Location = New Drawing.Point(8, 314)
+        Me.rtbServerLog.Location = New Drawing.Point(8, 362)
         Me.rtbServerLog.Size = New Drawing.Size(830, 299)
         Me.rtbServerLog.Anchor = AnchorStyles.Top Or AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
         Me.rtbServerLog.[ReadOnly] = True
@@ -959,6 +1038,16 @@ Partial Class FormMain
     Friend WithEvents lblPathNllbModel As Label
     Friend WithEvents txtPathNllbModel As TextBox
     Friend WithEvents btnBrowseNllbModel As Button
+    Friend WithEvents lblPathSubtitleEdit As Label
+    Friend WithEvents txtPathSubtitleEdit As TextBox
+    Friend WithEvents btnBrowseSubtitleEdit As Button
+    Friend WithEvents lblPathGlossary As Label
+    Friend WithEvents txtPathGlossary As TextBox
+    Friend WithEvents btnBrowseGlossary As Button
+    Friend WithEvents lblPathBibles As Label
+    Friend WithEvents txtPathBibles As TextBox
+    Friend WithEvents btnBrowseBibles As Button
+    Friend WithEvents pnlPathsScroll As Panel
     Friend WithEvents btnVerifyPaths As Button
     Friend WithEvents lnkDownloadModels As LinkLabel
 
@@ -1008,6 +1097,16 @@ Partial Class FormMain
     Friend WithEvents lblAdminPin As Label
     Friend WithEvents txtAdminPin As TextBox
     Friend WithEvents btnSetupTranslation As Button
+    Friend WithEvents lblLiveServerPort As Label
+    Friend WithEvents nudLiveServerPort As NumericUpDown
+    Friend WithEvents lblTranslationPort As Label
+    Friend WithEvents nudTranslationPort As NumericUpDown
+    Friend WithEvents lblTransDevice As Label
+    Friend WithEvents cboTransDevice As ComboBox
+    Friend WithEvents lblTransUnload As Label
+    Friend WithEvents nudTransUnload As NumericUpDown
+    Friend WithEvents chkTransEnabled As CheckBox
+    Friend WithEvents chkAllowFirewall As CheckBox
 
     ' Live Translation tab
     Friend WithEvents grpLiveInput As GroupBox

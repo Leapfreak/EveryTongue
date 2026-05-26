@@ -623,6 +623,9 @@ del ""%~f0""
         txtPathNllbModel.Text = _config.TranslationModelPath
         txtPathOutputRoot.Text = _config.PathOutputRoot
         txtYtdlpFormat.Text = _config.YtdlpFormat
+        txtPathSubtitleEdit.Text = _config.PathSubtitleEdit
+        txtPathGlossary.Text = _config.TranslationGlossaryPath
+        txtPathBibles.Text = _config.BiblesDirectory
 
         ' Settings tab
         SelectComboByValue(cboUiLanguage, _config.UiLanguage, _uiLocales)
@@ -659,6 +662,15 @@ del ""%~f0""
         nudSubtitleSize.Value = CDec(Math.Max(nudSubtitleSize.Minimum, Math.Min(nudSubtitleSize.Maximum, _config.SubtitleFontSize)))
         chkSubtitleBold.Checked = _config.SubtitleFontBold
         txtAdminPin.Text = If(_config.AdminPin, "")
+
+        ' Server / Translation settings
+        nudLiveServerPort.Value = Math.Max(nudLiveServerPort.Minimum, Math.Min(nudLiveServerPort.Maximum, _config.LiveServerPort))
+        nudTranslationPort.Value = Math.Max(nudTranslationPort.Minimum, Math.Min(nudTranslationPort.Maximum, _config.TranslationPort))
+        SelectComboItem(cboTransDevice, _config.TranslationDevice)
+        nudTransUnload.Value = Math.Max(nudTransUnload.Minimum, Math.Min(nudTransUnload.Maximum, _config.TranslationUnloadMinutes))
+        chkTransEnabled.Checked = _config.TranslationEnabled
+        chkAllowFirewall.Checked = _config.AllowFirewall
+
         ApplyLiveOutputFont()
 
         ' Live sliders
@@ -673,6 +685,18 @@ del ""%~f0""
 
     Private Sub SaveUiToConfig()
         If _config Is Nothing OrElse _isInitializing Then Return
+
+        ' Snapshot old values for change detection
+        Dim oldValues As New Dictionary(Of String, String)
+        For Each prop In GetType(AppConfig).GetProperties(Reflection.BindingFlags.Public Or Reflection.BindingFlags.Instance)
+            If Not prop.CanRead Then Continue For
+            Try
+                Dim val = prop.GetValue(_config)
+                oldValues(prop.Name) = If(val?.ToString(), "")
+            Catch
+            End Try
+        Next
+
         ' Paths
         _config.PathWhisper = txtPathWhisper.Text
         _config.PathYtdlp = txtPathYtdlp.Text
@@ -684,6 +708,9 @@ del ""%~f0""
         _config.TranslationModelPath = txtPathNllbModel.Text
         _config.PathOutputRoot = txtPathOutputRoot.Text
         _config.YtdlpFormat = txtYtdlpFormat.Text
+        _config.PathSubtitleEdit = txtPathSubtitleEdit.Text
+        _config.TranslationGlossaryPath = txtPathGlossary.Text
+        _config.BiblesDirectory = txtPathBibles.Text
 
         ' Settings
         If cboUiLanguage.SelectedIndex >= 0 AndAlso cboUiLanguage.SelectedIndex < _uiLocales.Length Then
@@ -718,9 +745,32 @@ del ""%~f0""
         _config.SubtitleFontBold = chkSubtitleBold.Checked
         _config.AdminPin = txtAdminPin.Text.Trim()
 
+        ' Server / Translation settings
+        _config.LiveServerPort = CInt(nudLiveServerPort.Value)
+        _config.TranslationPort = CInt(nudTranslationPort.Value)
+        If cboTransDevice.SelectedItem IsNot Nothing Then _config.TranslationDevice = cboTransDevice.SelectedItem.ToString()
+        _config.TranslationUnloadMinutes = CInt(nudTransUnload.Value)
+        _config.TranslationEnabled = chkTransEnabled.Checked
+        _config.AllowFirewall = chkAllowFirewall.Checked
+
         ' Live sliders
         _config.LiveMaxSegmentSec = trkMaxSegment.Value
         _config.LiveVadSilenceMs = trkVadSilence.Value
+
+        ' Log any changes before saving
+        For Each prop In GetType(AppConfig).GetProperties(Reflection.BindingFlags.Public Or Reflection.BindingFlags.Instance)
+            If Not prop.CanRead Then Continue For
+            Try
+                Dim newVal = If(prop.GetValue(_config)?.ToString(), "")
+                Dim oldVal As String = ""
+                oldValues.TryGetValue(prop.Name, oldVal)
+                If Not String.Equals(oldVal, newVal, StringComparison.Ordinal) Then
+                    Dim displayNew = If(prop.Name.IndexOf("Pin", StringComparison.OrdinalIgnoreCase) >= 0, "****", newVal)
+                    WriteDebugLog($"[Config] {prop.Name}: {oldVal} -> {displayNew}")
+                End If
+            Catch
+            End Try
+        Next
 
         ConfigManager.Save(_config)
     End Sub
@@ -1210,12 +1260,12 @@ del ""%~f0""
             dlg.Filter = "Executable files|*.exe|All files|*.*"
             If Not String.IsNullOrWhiteSpace(textBox.Text) Then
                 Try
-                    dlg.InitialDirectory = Path.GetDirectoryName(textBox.Text)
+                    dlg.InitialDirectory = Path.GetDirectoryName(AppConfig.ResolvePath(textBox.Text))
                 Catch
                 End Try
             End If
             If dlg.ShowDialog() = DialogResult.OK Then
-                textBox.Text = dlg.FileName
+                textBox.Text = ToRelativePath(dlg.FileName)
             End If
         End Using
     End Sub
@@ -1225,12 +1275,12 @@ del ""%~f0""
             dlg.Filter = filter
             If Not String.IsNullOrWhiteSpace(textBox.Text) Then
                 Try
-                    dlg.InitialDirectory = Path.GetDirectoryName(textBox.Text)
+                    dlg.InitialDirectory = Path.GetDirectoryName(AppConfig.ResolvePath(textBox.Text))
                 Catch
                 End Try
             End If
             If dlg.ShowDialog() = DialogResult.OK Then
-                textBox.Text = dlg.FileName
+                textBox.Text = ToRelativePath(dlg.FileName)
             End If
         End Using
     End Sub
@@ -1245,10 +1295,18 @@ del ""%~f0""
                 End Try
             End If
             If dlg.ShowDialog() = DialogResult.OK Then
-                textBox.Text = dlg.SelectedPath
+                textBox.Text = ToRelativePath(dlg.SelectedPath)
             End If
         End Using
     End Sub
+
+    Private Shared Function ToRelativePath(fullPath As String) As String
+        Dim baseDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar) & Path.DirectorySeparatorChar
+        If fullPath.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase) Then
+            Return ".\" & fullPath.Substring(baseDir.Length)
+        End If
+        Return fullPath
+    End Function
 
     Private Sub btnBrowseWhisper_Click(sender As Object, e As EventArgs) Handles btnBrowseWhisper.Click
         BrowseForExe(txtPathWhisper)
@@ -1287,6 +1345,18 @@ del ""%~f0""
         BrowseForFolder(txtPathNllbModel)
     End Sub
 
+    Private Sub btnBrowseSubtitleEdit_Click(sender As Object, e As EventArgs) Handles btnBrowseSubtitleEdit.Click
+        BrowseForExe(txtPathSubtitleEdit)
+    End Sub
+
+    Private Sub btnBrowseGlossary_Click(sender As Object, e As EventArgs) Handles btnBrowseGlossary.Click
+        BrowseForFile(txtPathGlossary, "JSON files|*.json|All files|*.*")
+    End Sub
+
+    Private Sub btnBrowseBibles_Click(sender As Object, e As EventArgs) Handles btnBrowseBibles.Click
+        BrowseForFolder(txtPathBibles)
+    End Sub
+
 #End Region
 
 #Region "Paths Verification"
@@ -1304,10 +1374,13 @@ del ""%~f0""
             ("Audio File Model", txtPathModelAudio.Text),
             ("faster-whisper Model", txtPathFasterWhisper.Text),
             ("NLLB Translation Model", txtPathNllbModel.Text),
-            ("Output root", txtPathOutputRoot.Text)
+            ("Output root", txtPathOutputRoot.Text),
+            ("SubtitleEdit", txtPathSubtitleEdit.Text),
+            ("Translation Glossary", txtPathGlossary.Text),
+            ("Bibles directory", txtPathBibles.Text)
         }
 
-        Dim folderChecks = {"Output root", "faster-whisper Model", "NLLB Translation Model"}
+        Dim folderChecks = {"Output root", "faster-whisper Model", "NLLB Translation Model", "Bibles directory"}
         For Each chk In checks
             Dim exists As Boolean
             If folderChecks.Contains(chk.Item1) Then
@@ -2622,8 +2695,12 @@ del ""%~f0""
     End Sub
 
     Private Sub AppendServerLog(text As String)
+        WriteDebugLog($"[Server] {text}")
         If rtbServerLog.InvokeRequired Then
-            rtbServerLog.BeginInvoke(Sub() AppendServerLog(text))
+            rtbServerLog.BeginInvoke(Sub()
+                                         rtbServerLog.AppendText($"[{DateTime.Now:HH:mm:ss}] {text}{Environment.NewLine}")
+                                         rtbServerLog.ScrollToCaret()
+                                     End Sub)
             Return
         End If
         rtbServerLog.AppendText($"[{DateTime.Now:HH:mm:ss}] {text}{Environment.NewLine}")
@@ -2652,7 +2729,7 @@ del ""%~f0""
                 .BgColor = _config.SubtitleBgColor,
                 .FgColor = _config.SubtitleFgColor,
                 .AdminPin = If(_config.AdminPin, ""),
-                .BiblesDirectory = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Bibles")
+                .BiblesDirectory = AppConfig.ResolvePath(If(_config.BiblesDirectory, ".\Bibles"))
             }
 
             _kestrelHost.Start(kestrelOptions,

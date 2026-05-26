@@ -133,6 +133,10 @@ Namespace Server
             ' ── Logging ──
             ConfigureLogging(builder, logCallback)
 
+            ' ── JSON serialization — camelCase for all endpoints ──
+            builder.Services.Configure(Of Microsoft.AspNetCore.Http.Json.JsonOptions)(
+                Sub(j) j.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase)
+
             ' ── Services (Dependency Injection) ──
             ConfigureServices(builder.Services, options, certService)
 

@@ -37,7 +37,7 @@ Namespace Server
         Private Sub MapCoreEndpoints(app As IEndpointRouteBuilder)
 
             ' Health check — returns status of all subsystems
-            app.MapGet("/api/health", Function(context As HttpContext) As IResult
+            app.MapGet("/api/health", Function(context As HttpContext) As Task
                                           Dim ver = GetType(EndpointRegistration).Assembly.
                                               GetName().Version
                                           Dim version = If(ver?.ToString(), "unknown")
@@ -60,7 +60,7 @@ Namespace Server
                                               TimeSpan.FromSeconds(metricsSvc.UptimeSeconds).ToString("hh\:mm\:ss"),
                                               "00:00:00")
 
-                                          Return Results.Ok(New With {
+                                          Return context.Response.WriteAsJsonAsync(New With {
                                               .status = overall,
                                               .checks = checks,
                                               .uptime = uptime,
@@ -71,19 +71,19 @@ Namespace Server
                 ExcludeFromDescription()
 
             ' Metrics — detailed runtime statistics
-            app.MapGet("/api/metrics", Function(context As HttpContext) As IResult
+            app.MapGet("/api/metrics", Function(context As HttpContext) As Task
                                            Dim metricsSvc = context.RequestServices.
                                                GetService(Of IMetricsService)
                                            If metricsSvc Is Nothing Then
-                                               Return Results.Json(New With {.error = "Metrics not available"})
+                                               Return context.Response.WriteAsJsonAsync(New With {.error = "Metrics not available"})
                                            End If
-                                           Return Results.Ok(metricsSvc.GetSnapshot())
+                                           Return context.Response.WriteAsJsonAsync(metricsSvc.GetSnapshot())
                                        End Function)
 
             ' Client configuration — replaces {{BG_COLOR}}/{{FG_COLOR}} template injection
             ' Client fetches this on load to configure itself.
             ' Cached 60s — colors/config rarely change mid-service.
-            app.MapGet("/api/config", Function(context As HttpContext) As IResult
+            app.MapGet("/api/config", Function(context As HttpContext) As Task
                                           context.Response.Headers.CacheControl = "public, max-age=60"
 
                                           Dim opts = context.RequestServices.
@@ -95,7 +95,7 @@ Namespace Server
                                           Dim host = context.Request.Host.ToString()
                                           Dim wsUrl = $"{scheme}://{host}/ws"
 
-                                          Return Results.Ok(New With {
+                                          Return context.Response.WriteAsJsonAsync(New With {
                                               .bgColor = serverOpts.BgColor,
                                               .fgColor = serverOpts.FgColor,
                                               .wsUrl = wsUrl,
@@ -309,14 +309,15 @@ Namespace Server
 
             ' List NDI sources
             app.MapGet("/audio/ndi/sources",
-                Async Function(context As HttpContext) As Task(Of IResult)
+                Async Function(context As HttpContext) As Task
                     Dim audioService = context.RequestServices.
                         GetService(Of IAudioStreamService)
                     If audioService Is Nothing Then
-                        Return Results.Json(New With {.error = "Audio service not available"})
+                        Await context.Response.WriteAsJsonAsync(New With {.error = "Audio service not available"})
+                        Return
                     End If
                     Dim sources = Await audioService.GetNdiSourcesAsync(context.RequestAborted)
-                    Return Results.Ok(sources)
+                    Await context.Response.WriteAsJsonAsync(sources)
                 End Function)
 
             ' Stream audio file (with range support)
@@ -371,9 +372,9 @@ Namespace Server
 
             ' List available audio output devices
             app.MapGet("/tts/devices",
-                Function(context As HttpContext) As IResult
+                Function(context As HttpContext) As Task
                     Dim devices = TtsAudioOutput.GetOutputDevices()
-                    Return Results.Ok(devices)
+                    Return context.Response.WriteAsJsonAsync(devices)
                 End Function)
 
             ' Serve cached TTS audio files — /tts/cache/{filename}

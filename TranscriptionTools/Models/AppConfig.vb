@@ -157,6 +157,8 @@ Namespace Models
 
         Public Property AdminPin As String = "1234"
 
+        Public Property BiblesDirectory As String = ".\Bibles"
+
         Public Shared Function CreateDefault() As AppConfig
             Return New AppConfig()
         End Function

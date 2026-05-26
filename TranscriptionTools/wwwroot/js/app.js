@@ -879,7 +879,7 @@ function populateBibleData(data){
     var saved=localStorage.getItem('bibleTrans');
     if(saved){for(var j=0;j<data.length;j++){if(data[j].id===saved){bibleTransSelect.value=saved;break}}}
     currentBibleTrans=bibleTransSelect.value;
-    localStorage.setItem('bibleTrans',currentBibleTrans);
+    if(currentBibleTrans)localStorage.setItem('bibleTrans',currentBibleTrans);
   }
   showBookList();
 }
@@ -923,6 +923,7 @@ function showBookList(){
 }
 
 function showChapters(book){
+  if(!currentBibleTrans){bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleSelectTrans')+'</div>';return}
   bibleNavStack=[{type:'books'}];
   btnBibleBack.style.display='';
   bibleNavTitle.textContent=book;
@@ -949,6 +950,7 @@ function showChapters(book){
 }
 
 function showVerses(book,chapter){
+  if(!currentBibleTrans){bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleSelectTrans')+'</div>';return}
   bibleNavStack=[{type:'books'},{type:'chapters',book:book}];
   btnBibleBack.style.display='';
   bibleNavTitle.textContent=book+' '+chapter;
