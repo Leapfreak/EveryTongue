@@ -34,6 +34,10 @@ Partial Class FormMain
     Private tslClients As ToolStripStatusLabel
     Private tslSpring As ToolStripStatusLabel
     Private tslLiveStatus As ToolStripStatusLabel
+    Private tslElapsed As ToolStripStatusLabel
+    Private tslLogToggle As ToolStripStatusLabel
+    Private _liveElapsedTimer As Timer
+    Private _liveStartTime As DateTime
 
     ' ── Workspace tab pages ──────────────────────────────────────────
     Private tabPageTranslate As TabPage
@@ -165,6 +169,15 @@ Partial Class FormMain
 
         ' ── Default to Live workspace ──────────────────────────────
         SwitchWorkspace(tabPageLive, btnNavLive)
+
+        ' ── Portable mode detection ────────────────────────────────
+        Dim flagPath = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "portable.flag")
+        If IO.File.Exists(flagPath) Then
+            tslServerStatus.Text = "Portable | " & tslServerStatus.Text
+            ' Disable start-with-windows in portable mode
+            chkStartWithWindows.Enabled = False
+            chkStartWithWindows.Checked = False
+        End If
 
         Me.ResumeLayout(True)
     End Sub
@@ -464,9 +477,23 @@ Partial Class FormMain
             .BorderSides = ToolStripStatusLabelBorderSides.Right}
         tslSpring = New ToolStripStatusLabel("") With {
             .Spring = True}
-        tslLiveStatus = New ToolStripStatusLabel("Ready")
+        tslLiveStatus = New ToolStripStatusLabel("Ready") With {
+            .BorderSides = ToolStripStatusLabelBorderSides.Right}
+        tslElapsed = New ToolStripStatusLabel("") With {
+            .BorderSides = ToolStripStatusLabelBorderSides.Right}
+        tslLogToggle = New ToolStripStatusLabel("Log") With {
+            .IsLink = True,
+            .LinkBehavior = LinkBehavior.HoverUnderline}
+        AddHandler tslLogToggle.Click, Sub(s, e) ToggleLogPanel()
 
-        statusMain.Items.AddRange({tslServerStatus, tslClients, tslSpring, tslLiveStatus})
+        statusMain.Items.AddRange({tslServerStatus, tslClients, tslSpring, tslLiveStatus, tslElapsed, tslLogToggle})
+
+        ' Elapsed timer (ticks every second when live is running)
+        _liveElapsedTimer = New Timer() With {.Interval = 1000}
+        AddHandler _liveElapsedTimer.Tick, Sub(s, e)
+                                                Dim elapsed = DateTime.Now - _liveStartTime
+                                                tslElapsed.Text = elapsed.ToString("hh\:mm\:ss")
+                                            End Sub
     End Sub
 
     ' ═══════════════════════════════════════════════════════════════
@@ -1052,13 +1079,21 @@ Partial Class FormMain
         Dim clients = If(svc?.ConnectedClients, 0)
         tslClients.Text = $"Clients: {clients}"
 
-        ' Live status
+        ' Live status + elapsed timer
         If _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning Then
             tslLiveStatus.Text = "Live: Running"
             tslLiveStatus.ForeColor = Color.Green
+            If Not _liveElapsedTimer.Enabled Then
+                _liveStartTime = DateTime.Now
+                _liveElapsedTimer.Start()
+            End If
         Else
             tslLiveStatus.Text = "Ready"
             tslLiveStatus.ForeColor = Color.Gray
+            If _liveElapsedTimer.Enabled Then
+                _liveElapsedTimer.Stop()
+                tslElapsed.Text = ""
+            End If
         End If
     End Sub
 
@@ -1119,6 +1154,42 @@ Partial Class FormMain
                     _activeNavButton.ForeColor = Color.White
                 End If
         End Select
+
+        ' Theme the log panel
+        If rtbUnifiedLog IsNot Nothing Then
+            Select Case theme.ToLower()
+                Case "light"
+                    rtbUnifiedLog.BackColor = Color.FromArgb(250, 250, 250)
+                    rtbUnifiedLog.ForeColor = Color.FromArgb(30, 30, 30)
+                Case "dark"
+                    rtbUnifiedLog.BackColor = Color.FromArgb(30, 30, 30)
+                    rtbUnifiedLog.ForeColor = Color.FromArgb(200, 200, 200)
+                Case Else
+                    rtbUnifiedLog.BackColor = Color.FromArgb(30, 30, 30)
+                    rtbUnifiedLog.ForeColor = Color.FromArgb(200, 200, 200)
+            End Select
+        End If
+
+        ' Theme the translate workspace
+        If txtTransInput IsNot Nothing Then
+            Select Case theme.ToLower()
+                Case "dark"
+                    txtTransInput.BackColor = Color.FromArgb(45, 45, 48)
+                    txtTransInput.ForeColor = Color.FromArgb(220, 220, 220)
+                    txtTransOutput.BackColor = Color.FromArgb(45, 45, 48)
+                    txtTransOutput.ForeColor = Color.FromArgb(220, 220, 220)
+                Case "light"
+                    txtTransInput.BackColor = Color.White
+                    txtTransInput.ForeColor = Color.Black
+                    txtTransOutput.BackColor = Color.White
+                    txtTransOutput.ForeColor = Color.Black
+                Case Else
+                    txtTransInput.BackColor = SystemColors.Window
+                    txtTransInput.ForeColor = SystemColors.WindowText
+                    txtTransOutput.BackColor = SystemColors.Window
+                    txtTransOutput.ForeColor = SystemColors.WindowText
+            End Select
+        End If
 
         ' Update theme menu checkmarks
         If mnuViewThemeSystem IsNot Nothing Then
