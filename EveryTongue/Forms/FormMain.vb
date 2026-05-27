@@ -2834,6 +2834,7 @@ del ""%~f0""
             UpdateServerUi(True)
             AppendServerLog($"Server started on HTTP:{port} HTTPS:{port + 1}")
             NavigateLivePreview(port)
+            NavigateBibleView()
             Dim localIp = GetLocalIpAddress()
             AppendServerLog($"Phones should open: https://{localIp}:{port + 1}")
             AppendServerLog($"(Accept the certificate warning on first visit)")

@@ -34,9 +34,24 @@ Partial Class FormMain
     Private tslSpring As ToolStripStatusLabel
     Private tslLiveStatus As ToolStripStatusLabel
 
-    ' ── Stub tab pages ──────────────────────────────────────────────
+    ' ── Workspace tab pages ──────────────────────────────────────────
     Private tabPageTranslate As TabPage
     Private tabPageBibleWs As TabPage
+
+    ' ── Translate workspace controls ──────────────────────────────
+    Private cboTransSource As ComboBox
+    Private cboTransTarget As ComboBox
+    Private txtTransInput As TextBox
+    Private txtTransOutput As TextBox
+    Private btnTranslate As Button
+    Private btnTransSwap As Button
+    Private btnTransCopy As Button
+    Private btnTransClear As Button
+    Private lblTransStatus As Label
+
+    ' ── Bible workspace controls ──────────────────────────────────
+    Private wvBible As Microsoft.Web.WebView2.WinForms.WebView2
+    Private lblBibleStatus As Label
 
     ' ── Menu items (kept as fields for localization/enable toggling) ─
     Private mnuFile As ToolStripMenuItem
@@ -94,29 +109,9 @@ Partial Class FormMain
     Private Sub InitializeShell()
         Me.SuspendLayout()
 
-        ' ── Create stub tab pages ──────────────────────────────────
-        tabPageTranslate = New TabPage() With {
-            .Text = "Translate", .Padding = New Padding(8)}
-        Dim lblTransStub As New Label() With {
-            .Text = "Text Translation" & vbCrLf & vbCrLf &
-                    "Coming soon",
-            .Dock = DockStyle.Fill,
-            .TextAlign = ContentAlignment.MiddleCenter,
-            .Font = New Font("Segoe UI", 14),
-            .ForeColor = Color.Gray}
-        tabPageTranslate.Controls.Add(lblTransStub)
-
-        tabPageBibleWs = New TabPage() With {
-            .Text = "Bible", .Padding = New Padding(8)}
-        Dim lblBibleStub As New Label() With {
-            .Text = "Bible" & vbCrLf & vbCrLf &
-                    "Coming soon",
-            .Dock = DockStyle.Fill,
-            .TextAlign = ContentAlignment.MiddleCenter,
-            .Font = New Font("Segoe UI", 14),
-            .ForeColor = Color.Gray}
-        tabPageBibleWs.Controls.Add(lblBibleStub)
-
+        ' ── Create workspace tab pages ────────────────────────────
+        BuildTranslateWorkspace()
+        BuildBibleWorkspace()
         tabMain.TabPages.Add(tabPageTranslate)
         tabMain.TabPages.Add(tabPageBibleWs)
 
@@ -428,6 +423,236 @@ Partial Class FormMain
         tslLiveStatus = New ToolStripStatusLabel("Ready")
 
         statusMain.Items.AddRange({tslServerStatus, tslClients, tslSpring, tslLiveStatus})
+    End Sub
+
+    ' ═══════════════════════════════════════════════════════════════
+    ' Translate Workspace
+    ' ═══════════════════════════════════════════════════════════════
+    Private Sub BuildTranslateWorkspace()
+        tabPageTranslate = New TabPage() With {.Text = "Translate", .Padding = New Padding(8)}
+
+        ' ── Top bar: language selectors ───────────────────────────
+        Dim pnlTop As New Panel() With {
+            .Dock = DockStyle.Top, .Height = 45}
+
+        Dim lblFrom As New Label() With {
+            .Text = "From:", .Location = New Drawing.Point(0, 4), .AutoSize = True,
+            .Font = New Font("Segoe UI", 10)}
+
+        cboTransSource = New ComboBox() With {
+            .Location = New Drawing.Point(50, 1), .Size = New Drawing.Size(200, 24),
+            .DropDownStyle = ComboBoxStyle.DropDown,
+            .AutoCompleteMode = AutoCompleteMode.SuggestAppend,
+            .AutoCompleteSource = AutoCompleteSource.ListItems}
+
+        btnTransSwap = New Button() With {
+            .Text = ChrW(&H21C4), .Location = New Drawing.Point(260, 0),
+            .Size = New Drawing.Size(34, 26), .FlatStyle = FlatStyle.Flat,
+            .Font = New Font("Segoe UI", 12)}
+        btnTransSwap.FlatAppearance.BorderSize = 0
+        AddHandler btnTransSwap.Click, Sub(s, e) SwapTranslateLanguages()
+
+        Dim lblTo As New Label() With {
+            .Text = "To:", .Location = New Drawing.Point(304, 4), .AutoSize = True,
+            .Font = New Font("Segoe UI", 10)}
+
+        cboTransTarget = New ComboBox() With {
+            .Location = New Drawing.Point(334, 1), .Size = New Drawing.Size(200, 24),
+            .DropDownStyle = ComboBoxStyle.DropDown,
+            .AutoCompleteMode = AutoCompleteMode.SuggestAppend,
+            .AutoCompleteSource = AutoCompleteSource.ListItems}
+
+        btnTranslate = New Button() With {
+            .Text = "Translate", .Location = New Drawing.Point(548, 0),
+            .Size = New Drawing.Size(90, 26),
+            .Font = New Font("Segoe UI", 9, Drawing.FontStyle.Bold)}
+        AddHandler btnTranslate.Click, Sub(s, e) RunTranslateAsync()
+
+        pnlTop.Controls.AddRange({lblFrom, cboTransSource, btnTransSwap, lblTo, cboTransTarget, btnTranslate})
+
+        ' ── Middle: split input/output ────────────────────────────
+        Dim split As New SplitContainer() With {
+            .Dock = DockStyle.Fill,
+            .Orientation = Orientation.Vertical,
+            .SplitterWidth = 6}
+
+        txtTransInput = New TextBox() With {
+            .Dock = DockStyle.Fill, .Multiline = True,
+            .ScrollBars = ScrollBars.Vertical,
+            .Font = New Font("Segoe UI", 11),
+            .AcceptsReturn = True}
+
+        txtTransOutput = New TextBox() With {
+            .Dock = DockStyle.Fill, .Multiline = True,
+            .ScrollBars = ScrollBars.Vertical,
+            .Font = New Font("Segoe UI", 11),
+            .[ReadOnly] = True}
+
+        split.Panel1.Controls.Add(txtTransInput)
+        split.Panel2.Controls.Add(txtTransOutput)
+
+        ' ── Bottom bar: copy / clear / status ─────────────────────
+        Dim pnlBottom As New Panel() With {
+            .Dock = DockStyle.Bottom, .Height = 34}
+
+        btnTransCopy = New Button() With {
+            .Text = "Copy", .Location = New Drawing.Point(0, 4),
+            .Size = New Drawing.Size(70, 26)}
+        AddHandler btnTransCopy.Click, Sub(s, e)
+                                            If Not String.IsNullOrEmpty(txtTransOutput.Text) Then
+                                                Clipboard.SetText(txtTransOutput.Text)
+                                            End If
+                                        End Sub
+
+        btnTransClear = New Button() With {
+            .Text = "Clear", .Location = New Drawing.Point(78, 4),
+            .Size = New Drawing.Size(70, 26)}
+        AddHandler btnTransClear.Click, Sub(s, e)
+                                             txtTransInput.Clear()
+                                             txtTransOutput.Clear()
+                                         End Sub
+
+        lblTransStatus = New Label() With {
+            .Text = "", .Location = New Drawing.Point(160, 8),
+            .AutoSize = True, .ForeColor = Color.Gray}
+
+        pnlBottom.Controls.AddRange({btnTransCopy, btnTransClear, lblTransStatus})
+
+        ' ── Populate language dropdowns ───────────────────────────
+        For Each lang In _whisperLanguages
+            If lang = "auto" Then Continue For
+            Dim display = LangDisplayName(lang)
+            cboTransSource.Items.Add(display)
+            cboTransTarget.Items.Add(display)
+        Next
+        ' Default: Auto Detect source, English target
+        cboTransSource.Items.Insert(0, LangDisplayName("auto"))
+        cboTransSource.SelectedIndex = 0
+        For i = 0 To cboTransTarget.Items.Count - 1
+            If cboTransTarget.Items(i).ToString().StartsWith("English") Then
+                cboTransTarget.SelectedIndex = i
+                Exit For
+            End If
+        Next
+
+        ' ── Assemble ──────────────────────────────────────────────
+        tabPageTranslate.Controls.Add(split)      ' Fill
+        tabPageTranslate.Controls.Add(pnlBottom)  ' Bottom
+        tabPageTranslate.Controls.Add(pnlTop)     ' Top
+    End Sub
+
+    Private Sub SwapTranslateLanguages()
+        If cboTransSource.SelectedIndex < 0 OrElse cboTransTarget.SelectedIndex < 0 Then Return
+        Dim srcText = cboTransSource.Text
+        Dim tgtText = cboTransTarget.Text
+        ' Don't swap if source is "Auto Detect"
+        If srcText.StartsWith("Auto") Then Return
+        cboTransSource.Text = tgtText
+        cboTransTarget.Text = srcText
+        ' Also swap the text content
+        Dim tmp = txtTransInput.Text
+        txtTransInput.Text = txtTransOutput.Text
+        txtTransOutput.Text = tmp
+    End Sub
+
+    Private Async Sub RunTranslateAsync()
+        Dim inputText = txtTransInput.Text.Trim()
+        If String.IsNullOrEmpty(inputText) Then Return
+
+        Dim sourceLang = LangCodeFromDisplay(cboTransSource.Text)
+        Dim targetLang = LangCodeFromDisplay(cboTransTarget.Text)
+
+        btnTranslate.Enabled = False
+        lblTransStatus.Text = "Translating..."
+        lblTransStatus.ForeColor = Color.FromArgb(0, 122, 204)
+        txtTransOutput.Text = ""
+
+        Try
+            Dim port = _config.TranslationPort
+            Using client As New System.Net.Http.HttpClient()
+                client.Timeout = TimeSpan.FromSeconds(30)
+                Dim url = $"http://127.0.0.1:{port}/translate"
+
+                Dim bodyObj As New Dictionary(Of String, Object) From {
+                    {"text", inputText},
+                    {"source_lang", sourceLang},
+                    {"target_langs", New String() {targetLang}}
+                }
+                Dim bodyJson = System.Text.Json.JsonSerializer.Serialize(bodyObj)
+                Dim content As New System.Net.Http.StringContent(
+                    bodyJson, System.Text.Encoding.UTF8, "application/json")
+
+                Dim response = Await client.PostAsync(url, content)
+                If response.IsSuccessStatusCode Then
+                    Dim json = Await response.Content.ReadAsStringAsync()
+                    Dim doc = System.Text.Json.JsonDocument.Parse(json)
+                    Dim root = doc.RootElement
+
+                    Dim translationsEl As System.Text.Json.JsonElement
+                    Dim resultEl As System.Text.Json.JsonElement
+                    If root.TryGetProperty("translations", translationsEl) Then
+                        If translationsEl.TryGetProperty(targetLang, resultEl) Then
+                            txtTransOutput.Text = resultEl.GetString()
+                        End If
+                    End If
+                    lblTransStatus.Text = "Done"
+                    lblTransStatus.ForeColor = Color.Green
+                Else
+                    lblTransStatus.Text = $"Error: {response.StatusCode}"
+                    lblTransStatus.ForeColor = Color.Red
+                End If
+            End Using
+        Catch ex As System.Net.Http.HttpRequestException
+            lblTransStatus.Text = "Translation server not running"
+            lblTransStatus.ForeColor = Color.Red
+        Catch ex As TaskCanceledException
+            lblTransStatus.Text = "Request timed out"
+            lblTransStatus.ForeColor = Color.Red
+        Catch ex As Exception
+            lblTransStatus.Text = $"Error: {ex.Message}"
+            lblTransStatus.ForeColor = Color.Red
+        Finally
+            btnTranslate.Enabled = True
+        End Try
+    End Sub
+
+    ' ═══════════════════════════════════════════════════════════════
+    ' Bible Workspace
+    ' ═══════════════════════════════════════════════════════════════
+    Private Sub BuildBibleWorkspace()
+        tabPageBibleWs = New TabPage() With {.Text = "Bible", .Padding = New Padding(0)}
+
+        ' Status label shown when server isn't running
+        lblBibleStatus = New Label() With {
+            .Text = "Waiting for server to start...",
+            .Dock = DockStyle.Fill,
+            .TextAlign = ContentAlignment.MiddleCenter,
+            .Font = New Font("Segoe UI", 14),
+            .ForeColor = Color.Gray}
+
+        ' WebView2 for the Bible UI
+        wvBible = New Microsoft.Web.WebView2.WinForms.WebView2()
+        CType(wvBible, ComponentModel.ISupportInitialize).BeginInit()
+        wvBible.Dock = DockStyle.Fill
+        wvBible.Visible = False
+        CType(wvBible, ComponentModel.ISupportInitialize).EndInit()
+
+        tabPageBibleWs.Controls.Add(wvBible)
+        tabPageBibleWs.Controls.Add(lblBibleStatus)
+    End Sub
+
+    ''' <summary>
+    ''' Navigates the Bible WebView2 to the server's Bible tab.
+    ''' Called after the server starts.
+    ''' </summary>
+    Private Sub NavigateBibleView()
+        If wvBible Is Nothing OrElse _serverPort = 0 Then Return
+        Try
+            wvBible.Source = New Uri($"http://127.0.0.1:{_serverPort}/#bible")
+            wvBible.Visible = True
+            lblBibleStatus.Visible = False
+        Catch
+        End Try
     End Sub
 
     ' ═══════════════════════════════════════════════════════════════
