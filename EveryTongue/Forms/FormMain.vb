@@ -219,6 +219,9 @@ Public Class FormMain
             If _config.StartWithWindows Then RegisterStartup() Else UnregisterStartup()
         End If
 
+        ' Build shell chrome (menu, toolbar, nav rail, status bar)
+        InitializeShell()
+
         ' Auto-start subtitle server after form is fully shown
         AddHandler Me.Shown, Sub(s, ev) StartSubtitleServer()
     End Sub
@@ -1515,12 +1518,15 @@ del ""%~f0""
         Me.BackColor = backColor
         Me.ForeColor = foreColor
         ApplyThemeToControls(Me, backColor, foreColor, controlBack)
+        ApplyShellTheme(theme)
     End Sub
 
     Private Sub ApplyThemeToControls(parent As Control, backColor As Drawing.Color, foreColor As Drawing.Color, controlBack As Drawing.Color)
         For Each ctrl As Control In parent.Controls
             ' Skip live output — uses subtitle colors
             If ctrl Is rtbLiveOutput Then Continue For
+            ' Skip nav rail — themed by ApplyShellTheme
+            If ctrl Is pnlNavRail Then Continue For
 
             ctrl.ForeColor = foreColor
 
@@ -1827,6 +1833,7 @@ del ""%~f0""
         If svc IsNot Nothing Then
             svc.IsLiveRunning = _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning
         End If
+        UpdateShellStatus()
     End Sub
 
     Private Sub btnLiveSave_Click(sender As Object, e As EventArgs) Handles btnLiveSave.Click
@@ -2704,6 +2711,8 @@ del ""%~f0""
             lblServerUrl.Text = "URL: (not running)"
             lblServerClients.Text = "Connected clients: 0"
         End If
+
+        UpdateShellStatus()
     End Sub
 
     Private ReadOnly _serverLogBuffer As New System.Collections.Concurrent.ConcurrentQueue(Of String)
@@ -2801,9 +2810,11 @@ del ""%~f0""
                                                                          If sv IsNot Nothing Then
                                                                              lblServerClients.Text = $"Connected clients: {sv.ConnectedClients}"
                                                                          End If
+                                                                         UpdateShellStatus()
                                                                      End Sub)
                                                   Else
                                                       lblServerClients.Text = $"Connected clients: {svc.ConnectedClients}"
+                                                      UpdateShellStatus()
                                                   End If
                                               End Sub
 
