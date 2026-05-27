@@ -13,6 +13,7 @@ Namespace Services.Subtitle
         Public Property RemoteEndpoint As String = ""
         Public Property ConnectedAt As DateTime = DateTime.Now
         Public Property LastMessageAt As DateTime = DateTime.Now
+        Public Property IsPreview As Boolean = False
         Public Property MessagesSent As Long = 0
         Public Property MessagesDropped As Long = 0
 

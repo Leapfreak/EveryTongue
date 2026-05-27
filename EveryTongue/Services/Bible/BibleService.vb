@@ -273,10 +273,16 @@ Namespace Services.Bible
 
         Public Function GetTranslationsAsync(language As String, ct As CancellationToken
         ) As Task(Of IReadOnlyList(Of BibleTranslation)) Implements IBibleService.GetTranslationsAsync
+            _logger.LogInformation("Bible: GetTranslationsAsync called with language=""{Lang}"", total translations={Count}",
+                If(language, "(null)"), _translations.Count)
+            For Each kvp In _translations
+                _logger.LogDebug("Bible: translation {Id} has language=""{Lang}""", kvp.Key, kvp.Value.Info.Language)
+            Next
             Dim result = _translations.Values.
                 Where(Function(e) String.IsNullOrEmpty(language) OrElse
                                   e.Info.Language.Equals(language, StringComparison.OrdinalIgnoreCase)).
                 Select(Function(e) e.Info).ToList()
+            _logger.LogInformation("Bible: filtered to {Count} translation(s) for language=""{Lang}""", result.Count, If(language, "(null)"))
             Return Task.FromResult(DirectCast(result, IReadOnlyList(Of BibleTranslation)))
         End Function
 

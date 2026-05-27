@@ -37,11 +37,21 @@ Namespace Server.Hubs
             Dim userAgent = If(context.Request.Headers("User-Agent").FirstOrDefault(), "")
             Dim remoteEp = context.Connection.RemoteIpAddress?.ToString()
 
+            ' Check both the WebSocket query string and the Referer header for preview flag.
+            ' The Referer fallback handles cases where app.js is served from browser cache
+            ' and doesn't forward the preview param to the WebSocket URL.
+            Dim isPreview = context.Request.Query.ContainsKey("preview")
+            If Not isPreview Then
+                Dim referer = If(context.Request.Headers("Referer").FirstOrDefault(), "")
+                isPreview = referer.Contains("preview")
+            End If
+
             Dim client As New ClientConnection() With {
                 .Id = clientId,
                 .WebSocket = ws,
                 .UserAgent = userAgent,
-                .RemoteEndpoint = remoteEp
+                .RemoteEndpoint = remoteEp,
+                .IsPreview = isPreview
             }
 
             _subtitleService.AddClient(client)

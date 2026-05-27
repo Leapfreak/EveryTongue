@@ -33,6 +33,7 @@ Public Class FormMain
     Private _translationUnloadTimer As System.Threading.Timer
     Private _pendingCommits As New List(Of String)()
     Private _isInitializing As Boolean = True
+    Private _isSyncingUi As Boolean = False
     Private _exitForReal As Boolean = False
 
     ''' <summary>Resolves ISubtitleService from Kestrel DI. Returns Nothing if Kestrel isn't running.</summary>
@@ -117,10 +118,10 @@ Public Class FormMain
 
         ' Load config
         _config = ConfigManager.Load()
+        WriteDebugLog($"[STARTUP] Config loaded: Language={_config.Language}, OutputLanguage={_config.OutputLanguage}, BiblesDirectory={_config.BiblesDirectory}, Theme={_config.Theme}, UiLanguage={_config.UiLanguage}")
 
         ' Populate dropdowns
         PopulateLanguageDropdowns()
-        PopulateUiLanguageDropdown()
 
         ' Bind config to UI
         LoadConfigToUi()
@@ -180,18 +181,6 @@ Public Class FormMain
                                                    End Sub)
                      End Try
                  End Sub)
-
-        ' Context menu for live output
-        Dim cms As New ContextMenuStrip()
-        cms.Items.Add("Copy", Nothing, Sub(s2, e2)
-                                            If rtbLiveOutput.SelectionLength > 0 Then
-                                                Clipboard.SetText(rtbLiveOutput.SelectedText)
-                                            Else
-                                                Clipboard.SetText(rtbLiveOutput.Text)
-                                            End If
-                                        End Sub)
-        cms.Items.Add("Clear", Nothing, Sub(s2, e2) rtbLiveOutput.Clear())
-        rtbLiveOutput.ContextMenuStrip = cms
 
         ' Apply theme
         ApplyTheme(_config.Theme)
@@ -427,56 +416,21 @@ del ""%~f0""
 
     Private Async Sub CheckDependenciesAsync(Optional manualCheck As Boolean = False)
         Try
-        If manualCheck Then
-            btnCheckToolUpdates.Enabled = False
-            btnCheckToolUpdates.Text = GetString("Msg_Checking")
-            Cursor = Cursors.WaitCursor
-        End If
+            Dim toolsDir = AppDomain.CurrentDomain.BaseDirectory
+            Dim mgr As New Models.DependencyManager(_config, toolsDir)
 
-        Dim toolsDir = AppDomain.CurrentDomain.BaseDirectory
-        Dim mgr As New Models.DependencyManager(_config, toolsDir)
+            Dim states = Await mgr.CheckAllToolsAsync()
+            Dim missing = mgr.GetMissingTools(states)
+            Dim updatable = mgr.GetUpdatableTools(states)
 
-        Dim states = Await mgr.CheckAllToolsAsync()
-        Dim missing = mgr.GetMissingTools(states)
-        Dim updatable = mgr.GetUpdatableTools(states)
-
-        If missing.Count > 0 Then
-            Dim names = String.Join(vbCrLf, missing.Select(Function(s) "  - " & s.Name))
-            Dim result = MessageBox.Show(
-                GetString("Msg_MissingTools") & vbCrLf & vbCrLf &
-                names & vbCrLf & vbCrLf &
-                GetString("Msg_DownloadNow"),
-                GetString("Msg_MissingDeps"),
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning)
-            If result = DialogResult.Yes Then
-                Await DownloadToolsAsync(mgr, missing)
+            If missing.Count > 0 OrElse updatable.Count > 0 OrElse manualCheck Then
+                ' Open the Download Manager instead of nagging with MessageBoxes
+                OpenDownloadManager()
             End If
-        ElseIf updatable.Count > 0 Then
-            Dim names = String.Join(vbCrLf, updatable.Select(Function(s) $"  - {s.Name}  ({s.InstalledVersion} -> {s.LatestVersion})"))
-            Dim result = MessageBox.Show(
-                GetString("Msg_UpdatesAvailable") & vbCrLf & vbCrLf &
-                names & vbCrLf & vbCrLf &
-                GetString("Msg_UpdateNow"),
-                GetString("Msg_UpdatesTitle"),
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Information)
-            If result = DialogResult.Yes Then
-                Await DownloadToolsAsync(mgr, updatable)
-            End If
-        ElseIf manualCheck Then
-            MessageBox.Show(GetString("Msg_AllUpToDate"), GetString("Msg_ToolCheck"), MessageBoxButtons.OK, MessageBoxIcon.Information)
-        End If
 
         Catch ex As Exception
             If manualCheck Then
-                MessageBox.Show($"{GetString("Msg_ErrorCheckingDeps")} {ex.Message}", GetString("Msg_Error"), MessageBoxButtons.OK, MessageBoxIcon.Error)
-            End If
-        Finally
-            If manualCheck Then
-                btnCheckToolUpdates.Enabled = True
-                btnCheckToolUpdates.Text = GetString("Btn_CheckToolUpdates")
-                Cursor = Cursors.Default
+                WriteDebugLog($"[ERROR] CheckDependenciesAsync: {ex.Message}")
             End If
         End Try
 
@@ -597,15 +551,20 @@ del ""%~f0""
                  End Sub)
     End Sub
 
-    Private Sub btnCheckToolUpdates_Click(sender As Object, e As EventArgs) Handles btnCheckToolUpdates.Click
-        CheckDependenciesAsync(manualCheck:=True)
-    End Sub
-
-    Private Sub btnDownloadManager_Click(sender As Object, e As EventArgs) Handles btnDownloadManager.Click
-        Dim biblesDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Bibles")
-        Using dlg As New Forms.FormDownloadManager(_config, biblesDir)
-            dlg.ShowDialog(Me)
-        End Using
+    Private Sub OpenDownloadManager()
+        Try
+            Dim biblesDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Bibles")
+            Using dlg As New Forms.FormDownloadManager(_config, biblesDir)
+                dlg.ShowDialog(Me)
+                If dlg.PathsUpdated Then
+                    UpdateConfigPaths(AppDomain.CurrentDomain.BaseDirectory)
+                End If
+            End Using
+        Catch ex As Exception
+            WriteDebugLog($"[ERROR] OpenDownloadManager: {ex}")
+            MessageBox.Show($"Error opening Download Manager: {ex.Message}", "Error",
+                MessageBoxButtons.OK, MessageBoxIcon.Error)
+        End Try
     End Sub
 
     Private Sub PopulateLanguageDropdowns()
@@ -642,35 +601,23 @@ del ""%~f0""
         End If
     End Sub
 
-    Private Sub PopulateUiLanguageDropdown()
-        cboUiLanguage.Items.Clear()
-        For Each uiLoc In _uiLocales
-            cboUiLanguage.Items.Add(uiLoc.Name)
-        Next
-    End Sub
+    ' (PopulateUiLanguageDropdown removed — managed by FormOptions)
 
 #Region "Config <-> UI Binding"
 
     Private Sub LoadConfigToUi()
-        ' Paths tab
-        txtPathWhisper.Text = _config.PathWhisper
-        txtPathYtdlp.Text = _config.PathYtdlp
-        txtPathFfmpeg.Text = _config.PathFfmpeg
-        txtPathFfprobe.Text = _config.PathFfprobe
-        txtPathModel.Text = _config.PathModel
-        txtPathModelAudio.Text = _config.PathModelAudio
-        txtPathFasterWhisper.Text = _config.PathFasterWhisperModel
-        txtPathNllbModel.Text = _config.TranslationModelPath
-        txtPathOutputRoot.Text = _config.PathOutputRoot
-        txtYtdlpFormat.Text = _config.YtdlpFormat
-        txtPathSubtitleEdit.Text = _config.PathSubtitleEdit
-        txtPathGlossary.Text = _config.TranslationGlossaryPath
-        txtPathBibles.Text = _config.BiblesDirectory
+        _isSyncingUi = True
+        Try
+            LoadConfigToUiCore()
+        Finally
+            _isSyncingUi = False
+        End Try
+    End Sub
 
-        ' Settings tab
-        SelectComboByValue(cboUiLanguage, _config.UiLanguage, _uiLocales)
-        SelectComboItem(cboTheme, _config.Theme)
-        chkStartWithWindows.Checked = _config.StartWithWindows
+    Private Sub LoadConfigToUiCore()
+        WriteDebugLog($"[CONFIG] LoadConfigToUiCore: Language={_config.Language}, OutputLanguage={_config.OutputLanguage}, BiblesDirectory={_config.BiblesDirectory}, Theme={_config.Theme}, UiLanguage={_config.UiLanguage}")
+
+        ' (Paths and Settings tabs removed — managed by FormOptions)
 
         ' Output formats
         chkSrt.Checked = _config.OutputSrt
@@ -684,35 +631,9 @@ del ""%~f0""
         SelectComboItem(cboInputLanguage, _config.Language)
         SelectComboItem(cboOutputLanguage, _config.OutputLanguage)
 
-        ' Subtitle Server
-        nudServerPort.Value = Math.Max(nudServerPort.Minimum, Math.Min(nudServerPort.Maximum, _config.SubtitleServerPort))
+        ' Ensure subtitle color config defaults
         If String.IsNullOrEmpty(_config.SubtitleBgColor) OrElse Not _config.SubtitleBgColor.StartsWith("#") Then _config.SubtitleBgColor = "#000000"
         If String.IsNullOrEmpty(_config.SubtitleFgColor) OrElse Not _config.SubtitleFgColor.StartsWith("#") Then _config.SubtitleFgColor = "#FFFFFF"
-        Try : btnSubtitleBg.BackColor = ColorTranslator.FromHtml(_config.SubtitleBgColor) : Catch : btnSubtitleBg.BackColor = Drawing.Color.Black : End Try
-        Try : btnSubtitleFg.BackColor = ColorTranslator.FromHtml(_config.SubtitleFgColor) : Catch : btnSubtitleFg.BackColor = Drawing.Color.White : End Try
-        ' Apply subtitle colors to live output textbox
-        Try : rtbLiveOutput.BackColor = ColorTranslator.FromHtml(_config.SubtitleBgColor) : Catch : rtbLiveOutput.BackColor = Drawing.Color.Black : End Try
-        Try : rtbLiveOutput.ForeColor = ColorTranslator.FromHtml(_config.SubtitleFgColor) : Catch : rtbLiveOutput.ForeColor = Drawing.Color.White : End Try
-
-        ' Apply subtitle font settings
-        If Not String.IsNullOrWhiteSpace(_config.SubtitleFontFamily) Then
-            Dim idx = cboSubtitleFont.Items.IndexOf(_config.SubtitleFontFamily)
-            If idx >= 0 Then cboSubtitleFont.SelectedIndex = idx
-        End If
-        nudSubtitleSize.Value = CDec(Math.Max(nudSubtitleSize.Minimum, Math.Min(nudSubtitleSize.Maximum, _config.SubtitleFontSize)))
-        chkSubtitleBold.Checked = _config.SubtitleFontBold
-        txtAdminPin.Text = If(_config.AdminPin, "")
-
-        ' Server / Translation settings
-        nudLiveServerPort.Value = Math.Max(nudLiveServerPort.Minimum, Math.Min(nudLiveServerPort.Maximum, _config.LiveServerPort))
-        nudTranslationPort.Value = Math.Max(nudTranslationPort.Minimum, Math.Min(nudTranslationPort.Maximum, _config.TranslationPort))
-        SelectComboItem(cboTransDevice, _config.TranslationDevice)
-        nudTransUnload.Value = Math.Max(nudTransUnload.Minimum, Math.Min(nudTransUnload.Maximum, _config.TranslationUnloadMinutes))
-        chkTransEnabled.Checked = _config.TranslationEnabled
-        chkAllowFirewall.Checked = _config.AllowFirewall
-        txtTtsBackends.Text = If(_config.TtsBackends, "")
-
-        ApplyLiveOutputFont()
 
         ' Live sliders
         Dim segVal = Math.Max(trkMaxSegment.Minimum, Math.Min(trkMaxSegment.Maximum, _config.LiveMaxSegmentSec))
@@ -725,7 +646,7 @@ del ""%~f0""
     End Sub
 
     Private Sub SaveUiToConfig()
-        If _config Is Nothing OrElse _isInitializing Then Return
+        If _config Is Nothing OrElse _isInitializing OrElse _isSyncingUi Then Return
 
         ' Snapshot old values for change detection
         Dim oldValues As New Dictionary(Of String, String)
@@ -738,27 +659,7 @@ del ""%~f0""
             End Try
         Next
 
-        ' Paths
-        _config.PathWhisper = txtPathWhisper.Text
-        _config.PathYtdlp = txtPathYtdlp.Text
-        _config.PathFfmpeg = txtPathFfmpeg.Text
-        _config.PathFfprobe = txtPathFfprobe.Text
-        _config.PathModel = txtPathModel.Text
-        _config.PathModelAudio = txtPathModelAudio.Text
-        _config.PathFasterWhisperModel = txtPathFasterWhisper.Text
-        _config.TranslationModelPath = txtPathNllbModel.Text
-        _config.PathOutputRoot = txtPathOutputRoot.Text
-        _config.YtdlpFormat = txtYtdlpFormat.Text
-        _config.PathSubtitleEdit = txtPathSubtitleEdit.Text
-        _config.TranslationGlossaryPath = txtPathGlossary.Text
-        _config.BiblesDirectory = txtPathBibles.Text
-
-        ' Settings
-        If cboUiLanguage.SelectedIndex >= 0 AndAlso cboUiLanguage.SelectedIndex < _uiLocales.Length Then
-            _config.UiLanguage = _uiLocales(cboUiLanguage.SelectedIndex).Code
-        End If
-        If cboTheme.SelectedItem IsNot Nothing Then _config.Theme = cboTheme.SelectedItem.ToString()
-        _config.StartWithWindows = chkStartWithWindows.Checked
+        ' (Paths, Settings, and Server config managed by FormOptions — not read from hidden controls)
 
         ' Output formats
         _config.OutputSrt = chkSrt.Checked
@@ -775,25 +676,7 @@ del ""%~f0""
         If cboOutputLanguage.SelectedItem IsNot Nothing Then
             _config.OutputLanguage = cboOutputLanguage.SelectedItem.ToString()
         End If
-
-        ' Subtitle Server
-        _config.SubtitleServerPort = CInt(nudServerPort.Value)
-        ' Subtitle colors are saved directly from color dialog handlers, not here
-
-        ' Subtitle font
-        _config.SubtitleFontFamily = If(cboSubtitleFont.SelectedItem?.ToString(), "Segoe UI")
-        _config.SubtitleFontSize = CSng(nudSubtitleSize.Value)
-        _config.SubtitleFontBold = chkSubtitleBold.Checked
-        _config.AdminPin = txtAdminPin.Text.Trim()
-
-        ' Server / Translation settings
-        _config.LiveServerPort = CInt(nudLiveServerPort.Value)
-        _config.TranslationPort = CInt(nudTranslationPort.Value)
-        If cboTransDevice.SelectedItem IsNot Nothing Then _config.TranslationDevice = cboTransDevice.SelectedItem.ToString()
-        _config.TranslationUnloadMinutes = CInt(nudTransUnload.Value)
-        _config.TranslationEnabled = chkTransEnabled.Checked
-        _config.AllowFirewall = chkAllowFirewall.Checked
-        _config.TtsBackends = txtTtsBackends.Text.Trim()
+        WriteDebugLog($"[CONFIG] SaveUiToConfig: Language={_config.Language}, OutputLanguage={_config.OutputLanguage}")
 
         ' Live sliders
         _config.LiveMaxSegmentSec = trkMaxSegment.Value
@@ -827,15 +710,6 @@ del ""%~f0""
         If cbo.Items.Count > 0 Then cbo.SelectedIndex = 0
     End Sub
 
-    Private Sub SelectComboByValue(cbo As ComboBox, code As String, locales As (Code As String, Name As String)())
-        For i = 0 To locales.Length - 1
-            If locales(i).Code.Equals(code, StringComparison.OrdinalIgnoreCase) Then
-                If i < cbo.Items.Count Then cbo.SelectedIndex = i
-                Return
-            End If
-        Next
-        If cbo.Items.Count > 0 Then cbo.SelectedIndex = 0
-    End Sub
 
 #End Region
 
@@ -844,8 +718,6 @@ del ""%~f0""
     Private Sub ApplyLocale()
         Try
             tabPageJob.Text = GetString("Tab_Main")
-            tabPagePaths.Text = GetString("Tab_Paths")
-            tabPageSettings.Text = GetString("Tab_Settings")
             tabPageLive.Text = GetString("Tab_Live")
             tabPageHelp.Text = GetString("Tab_Help")
 
@@ -869,26 +741,8 @@ del ""%~f0""
             btnOpenSubtitleEdit.Text = GetString("Btn_SubtitleEdit")
             lnkPreviewSrt.Text = GetString("Lnk_PreviewSrt")
 
-            lblPathWhisper.Text = GetString("Lbl_PathWhisper")
-            lblPathYtdlp.Text = GetString("Lbl_PathYtdlp")
-            lblPathFfmpeg.Text = GetString("Lbl_PathFfmpeg")
-            lblPathFfprobe.Text = GetString("Lbl_PathFfprobe")
-            lblPathModel.Text = GetString("Lbl_PathModel")
-            lblPathModelAudio.Text = GetString("Lbl_PathModelAudio")
-            lblPathOutputRoot.Text = GetString("Lbl_PathOutputRoot")
-            lblYtdlpFormat.Text = GetString("Lbl_YtdlpFormat")
-            btnVerifyPaths.Text = GetString("Btn_VerifyPaths")
-            lnkDownloadModels.Text = GetString("Lnk_DownloadModels")
-            grpPaths.Text = GetString("Grp_Paths")
-
             btnClearLog.Text = GetString("Btn_ClearLog")
             btnCopyLog.Text = GetString("Btn_CopyLog")
-
-            grpSettings.Text = GetString("Grp_AppSettings")
-            lblUiLanguage.Text = GetString("Lbl_UiLanguage")
-            lblTheme.Text = GetString("Lbl_Theme")
-            btnResetSettings.Text = GetString("Btn_ResetSettings")
-            btnCheckToolUpdates.Text = GetString("Btn_CheckToolUpdates")
 
             ' Live tab
             grpLiveInput.Text = GetString("Grp_LiveInput")
@@ -899,8 +753,6 @@ del ""%~f0""
             btnLiveStart.Text = GetString("Btn_LiveStart")
             btnLiveStop.Text = GetString("Btn_LiveStop")
             btnLiveSave.Text = GetString("Btn_LiveSave")
-            tabPageLiveClients.Text = GetString("Tab_LiveOutput")
-            tabPageLiveLog.Text = GetString("Tab_LiveLog")
 
             ' Subtitle Server tab
             tabPageServer.Text = GetString("Tab_Server")
@@ -1365,129 +1217,7 @@ del ""%~f0""
         Return fullPath
     End Function
 
-    Private Sub btnBrowseWhisper_Click(sender As Object, e As EventArgs) Handles btnBrowseWhisper.Click
-        BrowseForExe(txtPathWhisper)
-    End Sub
-
-
-    Private Sub btnBrowseYtdlp_Click(sender As Object, e As EventArgs) Handles btnBrowseYtdlp.Click
-        BrowseForExe(txtPathYtdlp)
-    End Sub
-
-    Private Sub btnBrowseFfmpeg_Click(sender As Object, e As EventArgs) Handles btnBrowseFfmpeg.Click
-        BrowseForExe(txtPathFfmpeg)
-    End Sub
-
-    Private Sub btnBrowseFfprobe_Click(sender As Object, e As EventArgs) Handles btnBrowseFfprobe.Click
-        BrowseForExe(txtPathFfprobe)
-    End Sub
-
-    Private Sub btnBrowseModel_Click(sender As Object, e As EventArgs) Handles btnBrowseModel.Click
-        BrowseForFile(txtPathModel, "Model files|*.bin|All files|*.*")
-    End Sub
-
-    Private Sub btnBrowseModelAudio_Click(sender As Object, e As EventArgs) Handles btnBrowseModelAudio.Click
-        BrowseForFile(txtPathModelAudio, "Model files|*.bin|All files|*.*")
-    End Sub
-
-    Private Sub btnBrowseOutputRoot_Click(sender As Object, e As EventArgs) Handles btnBrowseOutputRoot.Click
-        BrowseForFolder(txtPathOutputRoot)
-    End Sub
-
-    Private Sub btnBrowseFasterWhisper_Click(sender As Object, e As EventArgs) Handles btnBrowseFasterWhisper.Click
-        BrowseForFolder(txtPathFasterWhisper)
-    End Sub
-
-    Private Sub btnBrowseNllbModel_Click(sender As Object, e As EventArgs) Handles btnBrowseNllbModel.Click
-        BrowseForFolder(txtPathNllbModel)
-    End Sub
-
-    Private Sub btnBrowseSubtitleEdit_Click(sender As Object, e As EventArgs) Handles btnBrowseSubtitleEdit.Click
-        BrowseForExe(txtPathSubtitleEdit)
-    End Sub
-
-    Private Sub btnBrowseGlossary_Click(sender As Object, e As EventArgs) Handles btnBrowseGlossary.Click
-        BrowseForFile(txtPathGlossary, "JSON files|*.json|All files|*.*")
-    End Sub
-
-    Private Sub btnBrowseBibles_Click(sender As Object, e As EventArgs) Handles btnBrowseBibles.Click
-        BrowseForFolder(txtPathBibles)
-    End Sub
-
-#End Region
-
-#Region "Paths Verification"
-
-    Private Sub btnVerifyPaths_Click(sender As Object, e As EventArgs) Handles btnVerifyPaths.Click
-        Dim results As New List(Of String)
-        Dim allOk = True
-
-        Dim checks = {
-            ("whisper-cli", txtPathWhisper.Text),
-            ("yt-dlp", txtPathYtdlp.Text),
-            ("ffmpeg", txtPathFfmpeg.Text),
-            ("ffprobe", txtPathFfprobe.Text),
-            ("YouTube Model", txtPathModel.Text),
-            ("Audio File Model", txtPathModelAudio.Text),
-            ("faster-whisper Model", txtPathFasterWhisper.Text),
-            ("NLLB Translation Model", txtPathNllbModel.Text),
-            ("Output root", txtPathOutputRoot.Text),
-            ("SubtitleEdit", txtPathSubtitleEdit.Text),
-            ("Translation Glossary", txtPathGlossary.Text),
-            ("Bibles directory", txtPathBibles.Text)
-        }
-
-        Dim folderChecks = {"Output root", "faster-whisper Model", "NLLB Translation Model", "Bibles directory"}
-        For Each chk In checks
-            Dim exists As Boolean
-            If folderChecks.Contains(chk.Item1) Then
-                exists = Directory.Exists(AppConfig.ResolvePath(chk.Item2))
-            Else
-                exists = File.Exists(AppConfig.ResolvePath(chk.Item2))
-            End If
-
-            Dim status = If(exists, "OK", "NOT FOUND")
-            If Not exists Then allOk = False
-            results.Add($"{chk.Item1}: {status} - {chk.Item2}")
-        Next
-
-        Dim icon = If(allOk, MessageBoxIcon.Information, MessageBoxIcon.Warning)
-        MessageBox.Show(String.Join(Environment.NewLine, results), GetString("Msg_PathVerification"), MessageBoxButtons.OK, icon)
-    End Sub
-
-    Private Sub lnkDownloadModels_LinkClicked(sender As Object, e As LinkLabelLinkClickedEventArgs) Handles lnkDownloadModels.LinkClicked
-        Process.Start(New ProcessStartInfo("https://huggingface.co/ggerganov/whisper.cpp/tree/main") With {.UseShellExecute = True})
-    End Sub
-
-#End Region
-
-#Region "Settings Events"
-
-    Private Sub cboUiLanguage_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cboUiLanguage.SelectedIndexChanged
-        If _config Is Nothing Then Return
-        If cboUiLanguage.SelectedIndex >= 0 AndAlso cboUiLanguage.SelectedIndex < _uiLocales.Length Then
-            Dim code = _uiLocales(cboUiLanguage.SelectedIndex).Code
-            _config.UiLanguage = code
-            Thread.CurrentThread.CurrentUICulture = New CultureInfo(code)
-            ApplyLocale()
-            ApplyToolTips()
-            LoadHelpContent(code)
-            SaveUiToConfig()
-        End If
-    End Sub
-
-    Private Sub cboTheme_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cboTheme.SelectedIndexChanged
-        If cboTheme.SelectedItem IsNot Nothing Then
-            ApplyTheme(cboTheme.SelectedItem.ToString())
-            SaveUiToConfig()
-        End If
-    End Sub
-
-    Private Sub chkStartWithWindows_CheckedChanged(sender As Object, e As EventArgs) Handles chkStartWithWindows.CheckedChanged
-        If _isInitializing Then Return
-        If chkStartWithWindows.Checked Then RegisterStartup() Else UnregisterStartup()
-        SaveUiToConfig()
-    End Sub
+    ' (Browse, Verify Paths, Settings event handlers removed — managed by FormOptions)
 
     Private Sub cboModel_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cboModel.SelectedIndexChanged
         If _config Is Nothing OrElse cboModel.SelectedItem Is Nothing Then Return
@@ -1496,27 +1226,11 @@ del ""%~f0""
         Dim fullPath = Path.Combine(If(modelDir, ""), cboModel.SelectedItem.ToString())
 
         Select Case cboMode.SelectedIndex
-            Case 0 ' Audio File mode
-                _config.PathModelAudio = fullPath
-                txtPathModelAudio.Text = fullPath
-            Case 3 ' YouTube / Subtitles mode
-                _config.PathModel = fullPath
-                txtPathModel.Text = fullPath
-            Case Else ' YouTube / Download Only, YouTube / Audio Only - no model needed
-                Return
+            Case 0 : _config.PathModelAudio = fullPath
+            Case 3 : _config.PathModel = fullPath
+            Case Else : Return
         End Select
-
         ConfigManager.Save(_config)
-    End Sub
-
-    Private Sub btnResetSettings_Click(sender As Object, e As EventArgs) Handles btnResetSettings.Click
-        Dim result = MessageBox.Show(GetString("Msg_ResetAll"),
-                                      GetString("Msg_ResetAllTitle"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning)
-        If result = DialogResult.Yes Then
-            ConfigManager.Reset()
-            _config = New AppConfig()
-            LoadConfigToUi()
-        End If
     End Sub
 
 #End Region
@@ -1524,6 +1238,7 @@ del ""%~f0""
 #Region "Theme"
 
     Private Sub ApplyTheme(theme As String)
+        WriteDebugLog($"[THEME] ApplyTheme called with theme=""{theme}""")
         Dim backColor, foreColor, controlBack As Drawing.Color
 
         Select Case theme.ToLower()
@@ -1549,8 +1264,6 @@ del ""%~f0""
 
     Private Sub ApplyThemeToControls(parent As Control, backColor As Drawing.Color, foreColor As Drawing.Color, controlBack As Drawing.Color)
         For Each ctrl As Control In parent.Controls
-            ' Skip live output — uses subtitle colors
-            If ctrl Is rtbLiveOutput Then Continue For
             ' Skip nav rail — themed by ApplyShellTheme
             If ctrl Is pnlNavRail Then Continue For
 
@@ -1726,16 +1439,12 @@ del ""%~f0""
 
         _liveRunner = New LiveStreamRunner()
 
-        ' In-progress line refinement (show in app only, not broadcast to subtitle clients)
+        ' In-progress line refinement (log only, not broadcast to subtitle clients)
         AddHandler _liveRunner.OutputLineUpdated, Sub(s, line)
-                                                      If rtbLiveOutput.InvokeRequired Then
-                                                          rtbLiveOutput.BeginInvoke(Sub() ReplaceLiveLastLine(line))
-                                                      Else
-                                                          ReplaceLiveLastLine(line)
-                                                      End If
+                                                      WriteDebugLog($"[Live] >>> UPDATE: {line}")
                                                   End Sub
 
-        ' Committed final line - finalize the in-progress line with a newline
+        ' Committed final line
         AddHandler _liveRunner.OutputLineCommitted, Sub(s, line)
                                                         ' Accumulate transcript text (strip lang prefix)
                                                         Dim textOnly = line
@@ -1743,27 +1452,22 @@ del ""%~f0""
                                                         If ti > 0 Then textOnly = line.Substring(ti + 1)
                                                         _liveTranscript.AppendLine(textOnly)
 
+                                                        WriteDebugLog($"[Live] >>> COMMIT: {line}")
                                                         TranslateAndBroadcastAsync(line)
-                                                        If rtbLiveOutput.InvokeRequired Then
-                                                            rtbLiveOutput.BeginInvoke(Sub() CommitLiveLine())
-                                                        Else
-                                                            CommitLiveLine()
-                                                        End If
                                                     End Sub
 
         AddHandler _liveRunner.ErrorReceived, Sub(s, line)
-                                                  If rtbLiveOutput.InvokeRequired Then
-                                                      rtbLiveOutput.BeginInvoke(Sub() AppendLiveText(line, Drawing.Color.Gray))
-                                                  Else
-                                                      AppendLiveText(line, Drawing.Color.Gray)
+                                                  ' Skip lines already handled by OutputLineUpdated/Committed
+                                                  If Not line.StartsWith(">>> UPDATE:") AndAlso
+                                                     Not line.StartsWith(">>> COMMIT") AndAlso
+                                                     Not line.StartsWith(">>> SENTENCE-COMMIT") AndAlso
+                                                     Not line.Contains("ASGI callable returned without completing response") Then
+                                                      WriteDebugLog($"[Live] {line}")
                                                   End If
                                               End Sub
 
-        AppendLiveText($"Starting live transcription (device {deviceId}, lang={inputLang})...", Drawing.Color.Yellow)
-        AppendLiveText($"faster-whisper + Silero VAD (port {_config.LiveServerPort})", Drawing.Color.Gray)
-        Dim fgColor As Drawing.Color = Drawing.Color.White
-        Try : fgColor = ColorTranslator.FromHtml(_config.SubtitleFgColor) : Catch : End Try
-        AppendLiveText("", fgColor)
+        AppendServerLog($"Live transcription starting (device {deviceId}, lang={inputLang})...")
+        WriteDebugLog($"[Live] faster-whisper + Silero VAD (port {_config.LiveServerPort})")
 
         _liveRunner.Start(_config, deviceId, inputLang, translateToEn)
 
@@ -1777,6 +1481,7 @@ del ""%~f0""
             btnTuneStats.Enabled = True
             grpLiveInput.Enabled = False
             UpdateLiveRunningStatus()
+            ShowLogPanel()
         End If
     End Sub
 
@@ -1784,8 +1489,7 @@ del ""%~f0""
         If _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning Then
             SubtitleSvc?.BroadcastSystemMessage("[Transcription Stopped]")
             _liveRunner.Stop()
-            AppendLiveText("", Drawing.Color.Gray)
-            AppendLiveText("Live transcription stopped.", Drawing.Color.Yellow)
+            AppendServerLog("Live transcription stopped.")
         End If
 
         btnLiveStart.Enabled = True
@@ -1892,18 +1596,6 @@ del ""%~f0""
                 MessageBox.Show($"{GetString("Msg_TranscriptSaved")}{Environment.NewLine}{dlg.FileName}", GetString("Msg_Saved"), MessageBoxButtons.OK, MessageBoxIcon.Information)
             End If
         End Using
-    End Sub
-
-    Private Sub tabLiveOutput_SelectedIndexChanged(sender As Object, e As EventArgs) Handles tabLiveOutput.SelectedIndexChanged
-        If tabLiveOutput.SelectedTab Is tabPageLiveLog Then
-            ' Defer refresh until after tab switch completes and control is laid out
-            BeginInvoke(Sub()
-                            rtbLiveOutput.SelectionStart = rtbLiveOutput.TextLength
-                            rtbLiveOutput.SelectionLength = 0
-                            rtbLiveOutput.ScrollToCaret()
-                            rtbLiveOutput.Refresh()
-                        End Sub)
-        End If
     End Sub
 
     Private Async Sub btnTuneStats_Click(sender As Object, e As EventArgs) Handles btnTuneStats.Click
@@ -2187,37 +1879,7 @@ del ""%~f0""
             Dim config As New Dictionary(Of String, Object) From {{"language", lang}}
             Task.Run(Function() _liveRunner.UpdateConfigAsync(config))
         End If
-        WriteDebugLog($"[INPUT LANG] Changed to '{lang}' via client")
-        AppendLiveText($"Input language changed to: {lang}", Drawing.Color.Yellow)
-    End Sub
-
-    Private Sub AppendLiveText(text As String, color As Drawing.Color)
-        WriteDebugLog($"[Live] {text}")
-        AppendUnifiedLog("Live", text, color)
-        rtbLiveOutput.SelectionStart = rtbLiveOutput.TextLength
-        rtbLiveOutput.SelectionLength = 0
-        rtbLiveOutput.SelectionColor = color
-        rtbLiveOutput.AppendText(text & Environment.NewLine)
-        rtbLiveOutput.ScrollToCaret()
-    End Sub
-
-    Private Sub CommitLiveLine()
-        ' Recolor the last line to commit color (bright) and add newline
-        Dim rtb = rtbLiveOutput
-        Dim txt = rtb.Text
-        Dim lastNewline = txt.LastIndexOf(vbLf)
-        Dim lineStart = If(lastNewline >= 0, lastNewline + 1, 0)
-        If lineStart < txt.Length Then
-            rtb.SelectionStart = lineStart
-            rtb.SelectionLength = txt.Length - lineStart
-            Dim commitColor As Drawing.Color = Drawing.Color.White
-            Try : commitColor = ColorTranslator.FromHtml(_config.SubtitleFgColor) : Catch : End Try
-            rtb.SelectionColor = commitColor
-            rtb.SelectionStart = rtb.TextLength
-            rtb.SelectionLength = 0
-        End If
-        rtb.AppendText(Environment.NewLine)
-        rtb.ScrollToCaret()
+        WriteDebugLog($"[Live] Input language changed to '{lang}' via client")
     End Sub
 
 
@@ -2553,6 +2215,36 @@ del ""%~f0""
             IO.File.AppendAllText(logPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {msg}{Environment.NewLine}")
         Catch
         End Try
+
+        ' Also send to the unified log panel in the UI
+        Try
+            Dim frm = TryCast(Application.OpenForms.OfType(Of FormMain)().FirstOrDefault(), FormMain)
+            If frm IsNot Nothing Then
+                ' Route to appropriate source category for log filtering
+                Dim source = "Debug"
+                If msg.StartsWith("[Server]") Then
+                    source = "Server"
+                ElseIf msg.StartsWith("[Live]") Then
+                    source = "Live"
+                End If
+
+                ' Source-aware colors (visible on both light and dark backgrounds)
+                Dim color As Drawing.Color
+                If msg.Contains("[ERROR]") Then
+                    color = Drawing.Color.Red
+                ElseIf msg.Contains("[WARN]") Then
+                    color = Drawing.Color.Orange
+                Else
+                    Select Case source
+                        Case "Server" : color = Drawing.Color.FromArgb(0, 120, 180)   ' blue
+                        Case "Live" : color = Drawing.Color.FromArgb(0, 140, 80)       ' green
+                        Case Else : color = Drawing.Color.FromArgb(100, 100, 100)      ' grey
+                    End Select
+                End If
+                frm.AppendUnifiedLog(source, msg, color)
+            End If
+        Catch
+        End Try
     End Sub
 
     Private Function GetCurrentSourceNllbLang() As String
@@ -2593,8 +2285,31 @@ del ""%~f0""
         StartTranslationService()
     End Sub
 
+    Private _translationStarting As Boolean = False
+
     Private Sub StartTranslationService()
-        If Not _config.TranslationEnabled Then Return
+        If Not _config.TranslationEnabled Then
+            WriteDebugLog("[TRANSLATE] StartTranslationService: TranslationEnabled=False, skipping")
+            Return
+        End If
+
+        ' Already running or in the process of starting — nothing to do
+        If _translationService IsNot Nothing AndAlso _translationService.IsRunning Then
+            WriteDebugLog("[TRANSLATE] StartTranslationService: already running, skipping")
+            Return
+        End If
+        If _translationStarting Then
+            WriteDebugLog("[TRANSLATE] StartTranslationService: already starting, skipping")
+            Return
+        End If
+        _translationStarting = True
+
+        ' Stop any existing (non-running) service first to clean up
+        If _translationService IsNot Nothing Then
+            WriteDebugLog("[TRANSLATE] StartTranslationService: stopping existing service before creating new one")
+            _translationService.Stop()
+            _translationService = Nothing
+        End If
 
         ' Append session header (keep previous logs)
         Try
@@ -2615,11 +2330,14 @@ del ""%~f0""
         Dim device = _config.TranslationDevice
         Dim glossaryPath = _config.TranslationGlossaryPath
 
+        WriteDebugLog($"[TRANSLATE] StartTranslationService: port={port}, device={device}, modelPath={modelPath}")
         _translationService.Start(port, modelPath, device, glossaryPath)
+        _translationStarting = False
         AppendServerLog("Translation service starting...")
     End Sub
 
     Private Sub StopTranslationService()
+        _translationStarting = False
         _translationUnloadTimer?.Dispose()
         _translationUnloadTimer = Nothing
         _translationService?.Stop()
@@ -2669,23 +2387,6 @@ del ""%~f0""
         End If
     End Sub
 
-    Private Sub ReplaceLiveLastLine(text As String)
-        ' Find the start of the last line and replace it
-        Dim rtb = rtbLiveOutput
-        Dim txt = rtb.Text
-        Dim lastNewline = txt.LastIndexOf(vbLf)
-        If lastNewline >= 0 Then
-            rtb.SelectionStart = lastNewline + 1
-            rtb.SelectionLength = txt.Length - lastNewline - 1
-        Else
-            rtb.SelectionStart = 0
-            rtb.SelectionLength = txt.Length
-        End If
-        ' Updates shown in dim color (interim/in-progress)
-        rtb.SelectionColor = Drawing.Color.FromArgb(120, 120, 120)
-        rtb.SelectedText = text
-        rtb.ScrollToCaret()
-    End Sub
 
     Private Sub UpdateDeviceCombo(devices As List(Of String))
         ' Prefer saved device from config, fall back to current selection
@@ -2763,10 +2464,6 @@ del ""%~f0""
     Private Sub AppendServerLog(text As String)
         WriteDebugLog($"[Server] {text}")
 
-        ' Feed unified log panel
-        Dim logColor = If(text.StartsWith("ERROR"), Drawing.Color.Red, Drawing.Color.FromArgb(0, 200, 255))
-        AppendUnifiedLog("Server", text, logColor)
-
         _serverLogBuffer.Enqueue($"[{DateTime.Now:HH:mm:ss}] {text}")
 
         ' Coalesce rapid calls — only schedule one flush
@@ -2821,13 +2518,31 @@ del ""%~f0""
                                                        AppendServerLog(msg)
                                                    End Sub
 
+            Dim resolvedBiblesDir = AppConfig.ResolvePath(If(_config.BiblesDirectory, ".\Bibles"))
+            WriteDebugLog($"[BIBLE] Server startup: config.BiblesDirectory={_config.BiblesDirectory}, resolved={resolvedBiblesDir}, exists={IO.Directory.Exists(resolvedBiblesDir)}")
+            If IO.Directory.Exists(resolvedBiblesDir) Then
+                Try
+                    Dim dbFiles = IO.Directory.GetFiles(resolvedBiblesDir, "*.db", IO.SearchOption.AllDirectories)
+                    Dim sqliteFiles = IO.Directory.GetFiles(resolvedBiblesDir, "*.sqlite", IO.SearchOption.AllDirectories)
+                    WriteDebugLog($"[BIBLE] Found {dbFiles.Length} .db files and {sqliteFiles.Length} .sqlite files in {resolvedBiblesDir}")
+                    For Each f In dbFiles
+                        WriteDebugLog($"[BIBLE]   DB: {f}")
+                    Next
+                    For Each f In sqliteFiles
+                        WriteDebugLog($"[BIBLE]   SQLite: {f}")
+                    Next
+                Catch ex As Exception
+                    WriteDebugLog($"[BIBLE] Error listing files: {ex.Message}")
+                End Try
+            End If
+
             Dim kestrelOptions As New ServerOptions() With {
                 .HttpPort = port,
                 .AllowRemote = _config.AllowFirewall,
                 .BgColor = _config.SubtitleBgColor,
                 .FgColor = _config.SubtitleFgColor,
                 .AdminPin = If(_config.AdminPin, ""),
-                .BiblesDirectory = AppConfig.ResolvePath(If(_config.BiblesDirectory, ".\Bibles")),
+                .BiblesDirectory = resolvedBiblesDir,
                 .TtsBackends = If(_config.TtsBackends, "")
             }
 
@@ -2893,7 +2608,8 @@ del ""%~f0""
 
     Private Sub NavigateLivePreview(port As Integer)
         Try
-            wvLiveClients.Source = New Uri($"http://127.0.0.1:{port}/")
+            Dim bust = DateTime.Now.Ticks
+            wvLiveClients.Source = New Uri($"http://127.0.0.1:{port}/?preview=1&_cb={bust}")
         Catch ex As Exception
             AppendServerLog($"Live preview: {ex.Message}")
         End Try
@@ -2923,7 +2639,6 @@ del ""%~f0""
             dlg.FullOpen = True
             If dlg.ShowDialog() = DialogResult.OK Then
                 btnSubtitleBg.BackColor = dlg.Color
-                rtbLiveOutput.BackColor = dlg.Color
                 _config.SubtitleBgColor = ColorToHex(dlg.Color)
                 ConfigManager.Save(_config)
                 Dim bgSvc = SubtitleSvc
@@ -2938,7 +2653,6 @@ del ""%~f0""
             dlg.FullOpen = True
             If dlg.ShowDialog() = DialogResult.OK Then
                 btnSubtitleFg.BackColor = dlg.Color
-                rtbLiveOutput.ForeColor = dlg.Color
                 _config.SubtitleFgColor = ColorToHex(dlg.Color)
                 ConfigManager.Save(_config)
                 Dim fgSvc = SubtitleSvc
@@ -2960,25 +2674,61 @@ del ""%~f0""
     End Sub
 
     Private Sub ApplyLiveOutputFont()
-        If rtbLiveOutput Is Nothing OrElse nudSubtitleSize Is Nothing OrElse cboSubtitleFont Is Nothing OrElse chkSubtitleBold Is Nothing Then Return
-        Dim fontName = If(cboSubtitleFont.SelectedItem?.ToString(), "Segoe UI")
-        Dim fontSize = CSng(nudSubtitleSize.Value)
-        Dim style = If(chkSubtitleBold.Checked, Drawing.FontStyle.Bold, Drawing.FontStyle.Regular)
-        rtbLiveOutput.Font = New Drawing.Font(fontName, fontSize, style)
-
+        If nudSubtitleSize Is Nothing OrElse cboSubtitleFont Is Nothing OrElse chkSubtitleBold Is Nothing Then Return
         If Not _isInitializing Then
-            _config.SubtitleFontFamily = fontName
-            _config.SubtitleFontSize = fontSize
+            _config.SubtitleFontFamily = If(cboSubtitleFont.SelectedItem?.ToString(), "Segoe UI")
+            _config.SubtitleFontSize = CSng(nudSubtitleSize.Value)
             _config.SubtitleFontBold = chkSubtitleBold.Checked
             ConfigManager.Save(_config)
         End If
     End Sub
 
     Private Sub btnCopyUrl_Click(sender As Object, e As EventArgs) Handles btnCopyUrl.Click
+        CopyPhoneUrl()
+    End Sub
+
+    Private Sub CopyPhoneUrl()
         If _kestrelHost IsNot Nothing AndAlso _kestrelHost.IsRunning Then
             Dim url = $"https://{GetLocalIpAddress()}:{_serverPort + 1}"
             Clipboard.SetText(url)
             AppendServerLog("URL copied to clipboard.")
+        End If
+    End Sub
+
+    Private Sub VerifyAllPaths()
+        Dim sb As New Text.StringBuilder()
+        Dim allOk = True
+
+        Dim checks As (Label As String, Path As String, IsDir As Boolean)() = {
+            ("Whisper", Models.AppConfig.ResolvePath(_config.PathWhisper), False),
+            ("Whisper Model", Models.AppConfig.ResolvePath(_config.PathModel), False),
+            ("Audio Model", Models.AppConfig.ResolvePath(_config.PathModelAudio), False),
+            ("FFmpeg", Models.AppConfig.ResolvePath(_config.PathFfmpeg), False),
+            ("FFprobe", Models.AppConfig.ResolvePath(_config.PathFfprobe), False),
+            ("yt-dlp", Models.AppConfig.ResolvePath(_config.PathYtdlp), False),
+            ("Bibles", Models.AppConfig.ResolvePath(_config.BiblesDirectory), True)
+        }
+
+        For Each item In checks
+            Dim resolved = item.Path
+            Dim exists = If(item.IsDir, IO.Directory.Exists(resolved), IO.File.Exists(resolved))
+            If String.IsNullOrWhiteSpace(resolved) Then
+                sb.AppendLine($"  NOT SET: {item.Label}")
+                allOk = False
+            ElseIf Not exists Then
+                sb.AppendLine($"  MISSING: {item.Label} → {resolved}")
+                allOk = False
+            Else
+                sb.AppendLine($"  OK: {item.Label}")
+            End If
+        Next
+
+        If allOk Then
+            MessageBox.Show("All paths verified successfully." & Environment.NewLine & Environment.NewLine & sb.ToString(),
+                "Verify Paths", MessageBoxButtons.OK, MessageBoxIcon.Information)
+        Else
+            MessageBox.Show("Some paths are missing or not set:" & Environment.NewLine & Environment.NewLine & sb.ToString(),
+                "Verify Paths", MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End If
     End Sub
 

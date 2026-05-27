@@ -40,6 +40,9 @@ body {
     display: flex;
     flex-direction: column;
     min-height: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+    width: 100%;
     padding-bottom: env(safe-area-inset-bottom, 24px);
 }
 #spacer { flex: 1 }
@@ -356,8 +359,13 @@ body {
 .bible-read-all-bar {
     text-align: center;
     padding: 8px 0;
-    margin-bottom: 8px;
+    margin: -12px -12px 8px;
+    padding: 12px 12px 8px;
     border-bottom: 1px solid #333;
+    position: sticky;
+    top: -12px;
+    background: #111;
+    z-index: 5;
 }
 .bible-read-all-btn {
     background: #222;

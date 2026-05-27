@@ -648,8 +648,11 @@ function setTransLang(lang){
 }
 /* transLangSelect populated dynamically from LANGS array above */
 function connect(){
+  if(wsRef&&wsRef.readyState<2){return}
   var proto=location.protocol==='https:'?'wss:':'ws:';
-  var ws=new WebSocket(proto+'//'+location.host+'/ws');
+  var wsUrl=proto+'//'+location.host+'/ws';
+  if(location.search.indexOf('preview')!==-1){wsUrl+='?preview=1'}
+  var ws=new WebSocket(wsUrl);
   wsRef=ws;
   ws.onopen=function(){LOG('WS connected');statusEl.textContent=t('connected');statusEl.className='connected';
     if(currentEl){currentEl.remove();currentEl=null}
@@ -757,8 +760,15 @@ var rOpts=rateSelect.options;rOpts[0].textContent=t('slow');rOpts[1].textContent
     }
   }).catch(function(){});
   connect();
-  /* Always show language picker on page load */
-  showLangPicker()
+  /* Preview mode (embedded WebView2) — use full width, hide chrome */
+  if(location.search.indexOf('preview')!==-1){
+    document.getElementById('lines').style.maxWidth='none';
+    document.getElementById('toolbar').style.display='none';
+    document.getElementById('status').style.display='none';
+  }
+  /* Show language picker on page load — skip if desktop app passed ?bibleLang= */
+  var _qs=new URLSearchParams(window.location.search);
+  if(!_qs.get('bibleLang')){showLangPicker()}
 })();
 
 /* ── Keep screen on (Wake Lock) ── */
@@ -898,6 +908,12 @@ function toggleBible(){LOG('toggleBible');
 }
 
 function closeBible(){LOG('closeBible');biblePanel.classList.remove('open')}
+
+/* Auto-open Bible panel when loaded from desktop app with ?bibleLang= */
+(function(){
+  var params=new URLSearchParams(window.location.search);
+  if(params.get('bibleLang')){toggleBible()}
+})();
 
 function getBibleLang(){
   /* 1. Check URL param from desktop app (e.g. ?bibleLang=es) */

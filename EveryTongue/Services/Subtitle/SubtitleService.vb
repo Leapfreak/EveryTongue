@@ -44,7 +44,7 @@ Namespace Services.Subtitle
 
         Public ReadOnly Property ConnectedClients As Integer Implements ISubtitleService.ConnectedClients
             Get
-                Return _clients.Count
+                Return _clients.Values.Where(Function(c) Not c.IsPreview).Count()
             End Get
         End Property
 
@@ -70,8 +70,10 @@ Namespace Services.Subtitle
 
         Public Function AddClient(client As ClientConnection) As Boolean Implements ISubtitleService.AddClient
             If _clients.TryAdd(client.Id, client) Then
-                Dim shortUa = ParseUserAgent(client.UserAgent)
-                RaiseEvent StatusChanged(Me, $"Client connected: {client.RemoteEndpoint} — {shortUa} ({_clients.Count} total)")
+                If Not client.IsPreview Then
+                    Dim shortUa = ParseUserAgent(client.UserAgent)
+                    RaiseEvent StatusChanged(Me, $"Client connected: {client.RemoteEndpoint} — {shortUa} ({ConnectedClients} clients)")
+                End If
                 Return True
             End If
             Return False
@@ -80,7 +82,9 @@ Namespace Services.Subtitle
         Public Function RemoveClient(clientId As String) As Boolean Implements ISubtitleService.RemoveClient
             Dim removed As ClientConnection = Nothing
             If _clients.TryRemove(clientId, removed) Then
-                RaiseEvent StatusChanged(Me, $"Client disconnected: {removed.RemoteEndpoint} ({_clients.Count} total)")
+                If Not removed.IsPreview Then
+                    RaiseEvent StatusChanged(Me, $"Client disconnected: {removed.RemoteEndpoint} ({ConnectedClients} clients)")
+                End If
                 RaiseEvent ActiveLanguagesChanged(Me, EventArgs.Empty)
                 Return True
             End If
@@ -605,7 +609,7 @@ Namespace Services.Subtitle
                 End If
             Next
             If deadKeys.Count > 0 Then
-                RaiseEvent StatusChanged(Me, $"Clients: {_clients.Count}")
+                RaiseEvent StatusChanged(Me, $"Clients: {ConnectedClients}")
                 RaiseEvent ActiveLanguagesChanged(Me, EventArgs.Empty)
             End If
         End Sub

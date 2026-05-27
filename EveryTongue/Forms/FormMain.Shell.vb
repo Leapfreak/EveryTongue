@@ -1,112 +1,22 @@
-' FormMain.Shell.vb — UI shell: menu bar, toolbar, nav rail, status bar
-' Phase 1 of the UI redesign — wraps existing tab content in new navigation chrome.
-' All existing functionality is preserved; tabs become hidden workspaces.
+' FormMain.Shell.vb — UI shell event wiring and logic
+' All controls are created in FormMain.Designer.vb / InitializeComponent().
+' This file wires event handlers and contains shell logic only.
 
 Imports System.Drawing
 Imports System.IO.Compression
 
 Partial Class FormMain
 
-    ' ── Shell controls ──────────────────────────────────────────────
-    Private menuMain As MenuStrip
-    Private pnlNavRail As Panel
-    Private pnlContent As Panel
-    Private statusMain As StatusStrip
-
-    ' ── Nav rail ────────────────────────────────────────────────────
-    Private btnNavLive As Button
-    Private btnNavTranscribe As Button
-    Private btnNavTranslate As Button
-    Private btnNavBible As Button
+    ' ── Runtime state (not controls) ──────────────────────────────────
     Private _activeNavButton As Button
-
-    ' ── Toolbar buttons ─────────────────────────────────────────────
-
-    ' ── Status bar labels ───────────────────────────────────────────
-    Private tslServerStatus As ToolStripStatusLabel
-    Private tslClients As ToolStripStatusLabel
-    Private tslSpring As ToolStripStatusLabel
-    Private tslLiveStatus As ToolStripStatusLabel
-    Private tslElapsed As ToolStripStatusLabel
-    Private tslLogToggle As ToolStripStatusLabel
-    Private _liveElapsedTimer As Timer
     Private _liveStartTime As DateTime
-
-    ' ── Workspace tab pages ──────────────────────────────────────────
-    Private tabPageTranslate As TabPage
-    Private tabPageBibleWs As TabPage
-
-    ' ── Translate workspace controls ──────────────────────────────
-    Private cboTransSource As ComboBox
-    Private cboTransTarget As ComboBox
-    Private txtTransInput As TextBox
-    Private txtTransOutput As TextBox
-    Private btnTranslate As Button
-    Private btnTransSwap As Button
-    Private btnTransCopy As Button
-    Private btnTransClear As Button
-    Private lblTransStatus As Label
-
-    ' ── Bible workspace controls ──────────────────────────────────
-    Private wvBible As Microsoft.Web.WebView2.WinForms.WebView2
-    Private lblBibleStatus As Label
-
-    ' ── QR Code window ────────────────────────────────────────────
     Private _formQr As FormQrCode
-
-    ' ── Log panel ─────────────────────────────────────────────────
-    Private pnlLogPanel As Panel
-    Private splitterLog As Splitter
-    Private rtbUnifiedLog As RichTextBox
-    Private cboLogFilter As ComboBox
-    Private btnLogClear As Button
-    Private btnLogCopy As Button
     Private _logPanelVisible As Boolean = False
-    Private ReadOnly _unifiedLogBuffer As New System.Collections.Concurrent.ConcurrentQueue(Of (Source As String, Text As String, Color As Drawing.Color))
+    Private ReadOnly _unifiedLogBuffer As New System.Collections.Concurrent.ConcurrentQueue(Of (Time As DateTime, Source As String, Text As String, Color As Drawing.Color))
+    Private ReadOnly _unifiedLogEntries As New List(Of (Time As DateTime, Source As String, Text As String, Color As Drawing.Color))
     Private _unifiedLogPending As Integer = 0
     Private Const UnifiedLogMaxLines As Integer = 3000
-
-    ' ── Menu items (kept as fields for localization/enable toggling) ─
-    Private mnuFile As ToolStripMenuItem
-    Private mnuFileNewSession As ToolStripMenuItem
-    Private mnuFileExportDiag As ToolStripMenuItem
-    Private mnuFileExit As ToolStripMenuItem
-
-    Private mnuTools As ToolStripMenuItem
-    Private mnuToolsTranscribe As ToolStripMenuItem
-    Private mnuToolsTranslate As ToolStripMenuItem
-    Private mnuToolsBible As ToolStripMenuItem
-    Private mnuToolsGlossary As ToolStripMenuItem
-    Private mnuToolsLocalization As ToolStripMenuItem
-    Private mnuToolsDownloadMgr As ToolStripMenuItem
-    Private mnuToolsCheckDeps As ToolStripMenuItem
-    Private mnuToolsVerifyPaths As ToolStripMenuItem
-    Private mnuToolsVerifyIntegrity As ToolStripMenuItem
-    Private mnuToolsOptions As ToolStripMenuItem
-    Private mnuToolsPaths As ToolStripMenuItem
-    Private mnuToolsServer As ToolStripMenuItem
-
-    Private mnuSession As ToolStripMenuItem
-    Private mnuSessionStart As ToolStripMenuItem
-    Private mnuSessionStop As ToolStripMenuItem
-    Private mnuSessionQR As ToolStripMenuItem
-    Private mnuSessionCopyUrl As ToolStripMenuItem
-
-    Private mnuView As ToolStripMenuItem
-    Private mnuViewLogPanel As ToolStripMenuItem
-    Private mnuViewTheme As ToolStripMenuItem
-    Private mnuViewThemeSystem As ToolStripMenuItem
-    Private mnuViewThemeLight As ToolStripMenuItem
-    Private mnuViewThemeDark As ToolStripMenuItem
-    Private mnuViewFullScreen As ToolStripMenuItem
-
-    Private mnuHelpMenu As ToolStripMenuItem
-    Private mnuHelpQuickStart As ToolStripMenuItem
-    Private mnuHelpShortcuts As ToolStripMenuItem
-    Private mnuHelpHardware As ToolStripMenuItem
-    Private mnuHelpSpecSheet As ToolStripMenuItem
-    Private mnuHelpUpdates As ToolStripMenuItem
-    Private mnuHelpAbout As ToolStripMenuItem
+    Private _lastLogFilter As String = "All"
 
     ' ── Constants ───────────────────────────────────────────────────
     Private Const NavRailWidth As Integer = 80
@@ -116,217 +26,77 @@ Partial Class FormMain
     Private Shared ReadOnly NavHoverColor As Color = Color.FromArgb(51, 51, 52)
     Private Shared ReadOnly NavAccentBar As Color = Color.FromArgb(0, 122, 204)
 
+    Private _isFullScreen As Boolean = False
+    Private _previousWindowState As FormWindowState
+    Private _previousBorderStyle As FormBorderStyle
+
     ' ═══════════════════════════════════════════════════════════════
     ' InitializeShell — called from Form_Load after InitializeComponent
     ' ═══════════════════════════════════════════════════════════════
     Private Sub InitializeShell()
-        Me.SuspendLayout()
+        ' ── Title and icon (runtime) ─────────────────────────────
+        Dim ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version
+        Me.Text = $"Every Tongue v{ver.Major}.{ver.Minor}.{ver.Build}"
+        Me.Icon = Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath)
+        trayIcon.Icon = Me.Icon
 
-        ' ── Create workspace tab pages ────────────────────────────
-        BuildTranslateWorkspace()
-        BuildBibleWorkspace()
-        tabMain.TabPages.Add(tabPageTranslate)
-        tabMain.TabPages.Add(tabPageBibleWs)
+        ' ── Populate font combo (runtime data) ────────────────────
+        For Each fam In Drawing.FontFamily.Families
+            cboSubtitleFont.Items.Add(fam.Name)
+        Next
 
-        ' ── Hide tab headers ───────────────────────────────────────
-        tabMain.Appearance = TabAppearance.FlatButtons
-        tabMain.ItemSize = New Size(0, 1)
-        tabMain.SizeMode = TabSizeMode.Fixed
-        tabMain.Dock = DockStyle.Fill
+        ' ── Send labels to back (z-order fix) ────────────────────
+        lblMode.SendToBack()
+        For Each grp As Control In {grpInput, grpLiveInput, grpServerSettings}
+            For Each child As Control In grp.Controls
+                If TypeOf child Is Label Then child.SendToBack()
+            Next
+        Next
 
-        ' ── Build shell components ─────────────────────────────────
-        BuildMenuBar()
-        BuildNavRail()
-        BuildStatusBar()
-        BuildLogPanel()
+        ' ── Set nav button images (runtime font rendering) ────────
+        btnNavLive.Image = RenderFontIcon(ChrW(&HE720), 24, NavForeColor)
+        btnNavTranscribe.Image = RenderFontIcon(ChrW(&HE8D4), 24, NavForeColor)
+        btnNavTranslate.Image = RenderFontIcon(ChrW(&HE774), 24, NavForeColor)
+        btnNavBible.Image = RenderFontIcon(ChrW(&HE736), 24, NavForeColor)
 
-        ' ── Restructure form layout ────────────────────────────────
-        Me.Controls.Remove(tabMain)
-
-        pnlContent = New Panel()
-        pnlContent.Dock = DockStyle.Fill
-        pnlContent.Controls.Add(tabMain)      ' Fill — innermost
-        pnlContent.Controls.Add(pnlNavRail)   ' Left — beside tabMain
-        pnlContent.Controls.Add(splitterLog)   ' Bottom splitter (hidden)
-        pnlContent.Controls.Add(pnlLogPanel)   ' Bottom log panel (hidden)
-
-        Me.Controls.Add(pnlContent)
-        Me.Controls.Add(statusMain)
-        Me.Controls.Add(menuMain)
-        Me.MainMenuStrip = menuMain
-
-        ' ── Keyboard shortcuts ─────────────────────────────────────
-        AddHandler Me.KeyDown, AddressOf ShellKeyDown
-
-        ' ── Default to Live workspace ──────────────────────────────
-        SwitchWorkspace(tabPageLive, btnNavLive)
-
-        ' ── Portable mode detection ────────────────────────────────
-        Dim flagPath = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "portable.flag")
-        If IO.File.Exists(flagPath) Then
-            tslServerStatus.Text = "Portable | " & tslServerStatus.Text
-            ' Disable start-with-windows in portable mode
-            chkStartWithWindows.Enabled = False
-            chkStartWithWindows.Checked = False
-        End If
-
-        Me.ResumeLayout(True)
-    End Sub
-
-    Private Sub ShellKeyDown(sender As Object, e As KeyEventArgs)
-        If e.Control Then
-            Select Case e.KeyCode
-                Case Keys.D1 : SwitchWorkspace(tabPageLive, btnNavLive) : e.Handled = True
-                Case Keys.D2 : SwitchWorkspace(tabPageJob, btnNavTranscribe) : e.Handled = True
-                Case Keys.D3 : SwitchWorkspace(tabPageTranslate, btnNavTranslate) : e.Handled = True
-                Case Keys.D4 : SwitchWorkspace(tabPageBibleWs, btnNavBible) : e.Handled = True
-            End Select
-        End If
-    End Sub
-
-    ' ═══════════════════════════════════════════════════════════════
-    ' Menu Bar
-    ' ═══════════════════════════════════════════════════════════════
-    Private Sub BuildMenuBar()
-        menuMain = New MenuStrip()
-        menuMain.RenderMode = ToolStripRenderMode.Professional
-
-        ' ── File ───────────────────────────────────────────────────
-        mnuFile = New ToolStripMenuItem("&File")
-
-        mnuFileNewSession = New ToolStripMenuItem("New Session...")
-        mnuFileNewSession.ShortcutKeys = Keys.Control Or Keys.N
+        ' ── Wire menu event handlers ─────────────────────────────
         AddHandler mnuFileNewSession.Click, Sub(s, e) LaunchSessionWizard()
-
-        mnuFileExportDiag = New ToolStripMenuItem("Export Diagnostics...")
         AddHandler mnuFileExportDiag.Click, Sub(s, e) ExportDiagnosticsAsync()
-
-        mnuFileExit = New ToolStripMenuItem("E&xit")
-        mnuFileExit.ShortcutKeys = Keys.Alt Or Keys.F4
         AddHandler mnuFileExit.Click, Sub(s, e) ExitApplication()
 
-        mnuFile.DropDownItems.AddRange({
-            mnuFileNewSession,
-            New ToolStripSeparator(),
-            mnuFileExportDiag,
-            New ToolStripSeparator(),
-            mnuFileExit})
-
-        ' ── Tools ──────────────────────────────────────────────────
-        mnuTools = New ToolStripMenuItem("&Tools")
-
-        mnuToolsTranscribe = New ToolStripMenuItem("Transcribe File/URL...")
         AddHandler mnuToolsTranscribe.Click, Sub(s, e) SwitchWorkspace(tabPageJob, btnNavTranscribe)
-
-        mnuToolsTranslate = New ToolStripMenuItem("Translate Text...")
         AddHandler mnuToolsTranslate.Click, Sub(s, e) SwitchWorkspace(tabPageTranslate, btnNavTranslate)
-
-        mnuToolsBible = New ToolStripMenuItem("Bible Lookup...")
-        AddHandler mnuToolsBible.Click, Sub(s, e) SwitchWorkspace(tabPageBibleWs, btnNavBible)
-
-        mnuToolsGlossary = New ToolStripMenuItem("Glossary Editor...")
+        AddHandler mnuToolsBible.Click, Sub(s, e)
+                                            SwitchWorkspace(tabPageBibleWs, btnNavBible)
+                                            NavigateBibleView()
+                                        End Sub
         AddHandler mnuToolsGlossary.Click, Sub(s, e)
                                                 Using dlg As New FormFilterEditor(AppDomain.CurrentDomain.BaseDirectory, _config.LiveServerPort, _config.TranslationPort, _resMgr)
                                                     dlg.ShowDialog(Me)
                                                 End Using
                                             End Sub
-
-        mnuToolsLocalization = New ToolStripMenuItem("Localization Editor...")
-        mnuToolsLocalization.Enabled = False
-
-        mnuToolsDownloadMgr = New ToolStripMenuItem("Download Manager")
-        AddHandler mnuToolsDownloadMgr.Click, Sub(s, e) btnDownloadManager.PerformClick()
-
-        mnuToolsCheckDeps = New ToolStripMenuItem("Check Dependencies")
+        AddHandler mnuToolsDownloadMgr.Click, Sub(s, e) OpenDownloadManager()
         AddHandler mnuToolsCheckDeps.Click, Sub(s, e) CheckDependenciesAsync()
-
-        mnuToolsVerifyPaths = New ToolStripMenuItem("Verify Paths")
-        AddHandler mnuToolsVerifyPaths.Click, Sub(s, e) btnVerifyPaths.PerformClick()
-
-        mnuToolsVerifyIntegrity = New ToolStripMenuItem("Verify File Integrity")
-        mnuToolsVerifyIntegrity.Enabled = False
-
-        mnuToolsPaths = New ToolStripMenuItem("Tool Paths...")
+        AddHandler mnuToolsVerifyPaths.Click, Sub(s, e) VerifyAllPaths()
         AddHandler mnuToolsPaths.Click, Sub(s, e) ShowOptionsDialog("paths")
-
-        mnuToolsServer = New ToolStripMenuItem("Server Settings...")
         AddHandler mnuToolsServer.Click, Sub(s, e) ShowOptionsDialog("server")
-
-        mnuToolsOptions = New ToolStripMenuItem("&Options...")
-        mnuToolsOptions.ShortcutKeys = Keys.Control Or Keys.Oemcomma
         AddHandler mnuToolsOptions.Click, Sub(s, e) ShowOptionsDialog("general")
 
-        mnuTools.DropDownItems.AddRange({
-            mnuToolsTranscribe, mnuToolsTranslate, mnuToolsBible,
-            New ToolStripSeparator(),
-            mnuToolsGlossary, mnuToolsLocalization,
-            New ToolStripSeparator(),
-            mnuToolsDownloadMgr, mnuToolsCheckDeps, mnuToolsVerifyPaths,
-            mnuToolsVerifyIntegrity,
-            New ToolStripSeparator(),
-            mnuToolsPaths, mnuToolsServer,
-            New ToolStripSeparator(),
-            mnuToolsOptions})
-
-        ' ── Session ────────────────────────────────────────────────
-        mnuSession = New ToolStripMenuItem("&Session")
-
-        mnuSessionStart = New ToolStripMenuItem("Start Live")
-        mnuSessionStart.ShortcutKeys = Keys.F5
         AddHandler mnuSessionStart.Click, Sub(s, e)
                                                SwitchWorkspace(tabPageLive, btnNavLive)
                                                btnLiveStart.PerformClick()
                                            End Sub
-
-        mnuSessionStop = New ToolStripMenuItem("Stop Live")
-        mnuSessionStop.ShortcutKeys = Keys.Shift Or Keys.F5
         AddHandler mnuSessionStop.Click, Sub(s, e) btnLiveStop.PerformClick()
-
-        mnuSessionQR = New ToolStripMenuItem("Show QR Code")
         AddHandler mnuSessionQR.Click, Sub(s, e) ShowQrCode()
+        AddHandler mnuSessionCopyUrl.Click, Sub(s, e) CopyPhoneUrl()
 
-        mnuSessionCopyUrl = New ToolStripMenuItem("Copy Phone URL")
-        AddHandler mnuSessionCopyUrl.Click, Sub(s, e) btnCopyUrl.PerformClick()
-
-        mnuSession.DropDownItems.AddRange({
-            mnuSessionStart, mnuSessionStop,
-            New ToolStripSeparator(),
-            mnuSessionQR, mnuSessionCopyUrl})
-
-        ' ── View ───────────────────────────────────────────────────
-        mnuView = New ToolStripMenuItem("&View")
-
-        mnuViewLogPanel = New ToolStripMenuItem("Show Log Panel")
-        mnuViewLogPanel.ShortcutKeys = Keys.Control Or Keys.L
         AddHandler mnuViewLogPanel.Click, Sub(s, e) ToggleLogPanel()
-
-        mnuViewTheme = New ToolStripMenuItem("Theme")
-        mnuViewThemeSystem = New ToolStripMenuItem("System")
-        mnuViewThemeLight = New ToolStripMenuItem("Light")
-        mnuViewThemeDark = New ToolStripMenuItem("Dark")
         AddHandler mnuViewThemeSystem.Click, Sub(s, e) SetThemeFromMenu("System")
         AddHandler mnuViewThemeLight.Click, Sub(s, e) SetThemeFromMenu("Light")
         AddHandler mnuViewThemeDark.Click, Sub(s, e) SetThemeFromMenu("Dark")
-        mnuViewTheme.DropDownItems.AddRange({mnuViewThemeSystem, mnuViewThemeLight, mnuViewThemeDark})
-
-        mnuViewFullScreen = New ToolStripMenuItem("Full Screen")
-        mnuViewFullScreen.ShortcutKeys = Keys.F11
         AddHandler mnuViewFullScreen.Click, Sub(s, e) ToggleFullScreen()
 
-        mnuView.DropDownItems.AddRange({
-            mnuViewLogPanel,
-            New ToolStripSeparator(),
-            mnuViewTheme,
-            New ToolStripSeparator(),
-            mnuViewFullScreen})
-
-        ' ── Help ───────────────────────────────────────────────────
-        mnuHelpMenu = New ToolStripMenuItem("&Help")
-
-        mnuHelpQuickStart = New ToolStripMenuItem("Quick Start Guide")
         AddHandler mnuHelpQuickStart.Click, Sub(s, e) ShowLegacyTab(tabPageHelp)
-
-        mnuHelpShortcuts = New ToolStripMenuItem("Keyboard Shortcuts")
         AddHandler mnuHelpShortcuts.Click, Sub(s, e)
                                                 MessageBox.Show(
                                                     "Ctrl+1      Live workspace" & vbCrLf &
@@ -342,81 +112,121 @@ Partial Class FormMain
                                                     "Keyboard Shortcuts",
                                                     MessageBoxButtons.OK, MessageBoxIcon.Information)
                                             End Sub
-
-        mnuHelpHardware = New ToolStripMenuItem("Hardware Report")
-        mnuHelpHardware.Enabled = False
-
-        mnuHelpSpecSheet = New ToolStripMenuItem("Generate Spec Sheet...")
-        mnuHelpSpecSheet.Enabled = False
-
-        mnuHelpUpdates = New ToolStripMenuItem("Check for Updates")
         AddHandler mnuHelpUpdates.Click, Sub(s, e) CheckForUpdatesAsync()
-
-        mnuHelpAbout = New ToolStripMenuItem("About Every Tongue")
         AddHandler mnuHelpAbout.Click, Sub(s, e)
                                             Using dlg As New FormAbout()
                                                 dlg.ShowDialog(Me)
                                             End Using
                                         End Sub
 
-        mnuHelpMenu.DropDownItems.AddRange({
-            mnuHelpQuickStart, mnuHelpShortcuts,
-            New ToolStripSeparator(),
-            mnuHelpHardware, mnuHelpSpecSheet,
-            New ToolStripSeparator(),
-            mnuHelpUpdates, mnuHelpAbout})
-
-        menuMain.Items.AddRange({mnuFile, mnuTools, mnuSession, mnuView, mnuHelpMenu})
-    End Sub
-
-    ' ═══════════════════════════════════════════════════════════════
-    ' Toolbar
-    ' ═══════════════════════════════════════════════════════════════
-    ' ═══════════════════════════════════════════════════════════════
-    ' Nav Rail
-    ' ═══════════════════════════════════════════════════════════════
-    Private Sub BuildNavRail()
-        pnlNavRail = New Panel() With {
-            .Width = NavRailWidth,
-            .Dock = DockStyle.Left,
-            .BackColor = NavBackColor}
-
-        ' Icons from Segoe MDL2 Assets font (crisp at any size)
-        ' Add buttons in reverse order (Dock=Top stacks first-added at top)
-        btnNavBible = CreateNavButton(ChrW(&HE736), "Bible")       ' Book
-        AddHandler btnNavBible.Click, Sub(s, e) SwitchWorkspace(tabPageBibleWs, btnNavBible)
-
-        btnNavTranslate = CreateNavButton(ChrW(&HE774), "Translate") ' Globe / LocaleLanguage
-        AddHandler btnNavTranslate.Click, Sub(s, e) SwitchWorkspace(tabPageTranslate, btnNavTranslate)
-
-        btnNavTranscribe = CreateNavButton(ChrW(&HE8D4), "Transcribe") ' Page / Document
-        AddHandler btnNavTranscribe.Click, Sub(s, e) SwitchWorkspace(tabPageJob, btnNavTranscribe)
-
-        btnNavLive = CreateNavButton(ChrW(&HE720), "Live")         ' Microphone
+        ' ── Wire nav rail button handlers ────────────────────────
         AddHandler btnNavLive.Click, Sub(s, e) SwitchWorkspace(tabPageLive, btnNavLive)
+        AddHandler btnNavTranscribe.Click, Sub(s, e) SwitchWorkspace(tabPageJob, btnNavTranscribe)
+        AddHandler btnNavTranslate.Click, Sub(s, e) SwitchWorkspace(tabPageTranslate, btnNavTranslate)
+        AddHandler btnNavBible.Click, Sub(s, e)
+                                          SwitchWorkspace(tabPageBibleWs, btnNavBible)
+                                          NavigateBibleView()
+                                      End Sub
+
+        ' ── Restore log panel height from config ────────────────
+        If _config.LogPanelHeight > 50 Then pnlLogPanel.Height = _config.LogPanelHeight
+        AddHandler splitterLog.SplitterMoved, Sub(s, e)
+                                                   _config.LogPanelHeight = pnlLogPanel.Height
+                                                   SaveUiToConfig()
+                                               End Sub
+
+        ' ── Wire status bar handlers ─────────────────────────────
+        AddHandler tslLogToggle.Click, Sub(s, e) ToggleLogPanel()
+        AddHandler liveElapsedTimer.Tick, Sub(s, e)
+                                               Dim elapsed = DateTime.Now - _liveStartTime
+                                               tslElapsed.Text = elapsed.ToString("hh\:mm\:ss")
+                                           End Sub
+
+        ' ── Wire log panel handlers ──────────────────────────────
+        AddHandler cboLogFilter.SelectedIndexChanged, Sub(s, e)
+                                                           _lastLogFilter = "" ' Force re-render
+                                                           FlushUnifiedLog()
+                                                       End Sub
+        AddHandler btnLogClear.Click, Sub(s, e)
+                                           rtbUnifiedLog.Clear()
+                                           _unifiedLogEntries.Clear()
+                                           rtbUnifiedLog.Tag = 0
+                                       End Sub
+        AddHandler btnLogCopy.Click, Sub(s, e)
+                                          If rtbUnifiedLog.TextLength > 0 Then
+                                              Clipboard.SetText(rtbUnifiedLog.Text)
+                                          End If
+                                      End Sub
+
+        ' ── Wire translate workspace handlers ────────────────────
+        AddHandler btnTransSwap.Click, Sub(s, e) SwapTranslateLanguages()
+        AddHandler btnTranslate.Click, Sub(s, e) RunTranslateAsync()
+        AddHandler btnTransCopy.Click, Sub(s, e)
+                                            If Not String.IsNullOrEmpty(txtTransInput.Text) Then
+                                                Clipboard.SetText(txtTransInput.Text)
+                                            End If
+                                        End Sub
+        AddHandler btnTransClear.Click, Sub(s, e) txtTransInput.Clear()
+        AddHandler btnTransOutCopy.Click, Sub(s, e)
+                                              If Not String.IsNullOrEmpty(txtTransOutput.Text) Then
+                                                  Clipboard.SetText(txtTransOutput.Text)
+                                              End If
+                                          End Sub
+        AddHandler btnTransOutClear.Click, Sub(s, e) txtTransOutput.Clear()
+
+        ' ── Populate translate language dropdowns ─────────────────
+        For Each lang In _whisperLanguages
+            If lang = "auto" Then Continue For
+            Dim display = LangDisplayName(lang)
+            cboTransSource.Items.Add(display)
+            cboTransTarget.Items.Add(display)
+        Next
+        cboTransSource.Items.Insert(0, LangDisplayName("auto"))
+        cboTransSource.SelectedIndex = 0
+        For i = 0 To cboTransTarget.Items.Count - 1
+            If cboTransTarget.Items(i).ToString().StartsWith("English") Then
+                cboTransTarget.SelectedIndex = i
+                Exit For
+            End If
+        Next
+
+        ' ── Keyboard shortcuts ─────────────────────────────────────
+        AddHandler Me.KeyDown, AddressOf ShellKeyDown
+
+        ' ── Default to Live workspace ──────────────────────────────
+        SwitchWorkspace(tabPageLive, btnNavLive)
+
+        ' ── Portable mode detection ────────────────────────────────
+        Dim flagPath = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "portable.flag")
+        If IO.File.Exists(flagPath) Then
+            tslServerStatus.Text = "Portable | " & tslServerStatus.Text
+        End If
     End Sub
 
-    Private Function CreateNavButton(icon As String, label As String) As Button
-        Dim btn As New Button()
-        btn.FlatStyle = FlatStyle.Flat
-        btn.FlatAppearance.BorderSize = 0
-        btn.FlatAppearance.MouseOverBackColor = NavHoverColor
-        btn.FlatAppearance.MouseDownBackColor = NavSelectedColor
-        btn.Size = New Size(NavRailWidth, 65)
-        btn.Dock = DockStyle.Top
-        btn.Image = RenderFontIcon(icon, 24, NavForeColor)
-        btn.Text = label
-        btn.Font = New Font("Segoe UI", 9)
-        btn.ForeColor = NavForeColor
-        btn.BackColor = NavBackColor
-        btn.TextImageRelation = TextImageRelation.ImageAboveText
-        btn.ImageAlign = ContentAlignment.TopCenter
-        btn.TextAlign = ContentAlignment.BottomCenter
-        btn.Padding = New Padding(0, 4, 0, 4)
-        btn.Cursor = Cursors.Hand
-        btn.Margin = New Padding(0)
-        pnlNavRail.Controls.Add(btn)
-        Return btn
+    Private Sub ShellKeyDown(sender As Object, e As KeyEventArgs)
+        If e.Control Then
+            Select Case e.KeyCode
+                Case Keys.D1 : SwitchWorkspace(tabPageLive, btnNavLive) : e.Handled = True
+                Case Keys.D2 : SwitchWorkspace(tabPageJob, btnNavTranscribe) : e.Handled = True
+                Case Keys.D3 : SwitchWorkspace(tabPageTranslate, btnNavTranslate) : e.Handled = True
+                Case Keys.D4 : SwitchWorkspace(tabPageBibleWs, btnNavBible) : NavigateBibleView() : e.Handled = True
+            End Select
+        End If
+    End Sub
+
+    ' ═══════════════════════════════════════════════════════════════
+    ' Font Icon Rendering
+    ' ═══════════════════════════════════════════════════════════════
+
+    ''' <summary>Maps nav button label back to its MDL2 icon glyph.</summary>
+    Private Shared Function GetNavIcon(label As String) As String
+        Select Case label
+            Case "Live" : Return ChrW(&HE720)
+            Case "Transcribe" : Return ChrW(&HE8D4)
+            Case "Translate" : Return ChrW(&HE774)
+            Case "Bible" : Return ChrW(&HE736)
+            Case Else : Return ChrW(&HE700)
+        End Select
     End Function
 
     ''' <summary>Renders a Segoe MDL2 Assets glyph to a bitmap.</summary>
@@ -437,151 +247,8 @@ Partial Class FormMain
     End Function
 
     ' ═══════════════════════════════════════════════════════════════
-    ' Status Bar
+    ' Translate Workspace Logic
     ' ═══════════════════════════════════════════════════════════════
-    Private Sub BuildStatusBar()
-        statusMain = New StatusStrip()
-
-        tslServerStatus = New ToolStripStatusLabel("Server: Stopped") With {
-            .BorderSides = ToolStripStatusLabelBorderSides.Right}
-        tslClients = New ToolStripStatusLabel("Clients: 0") With {
-            .BorderSides = ToolStripStatusLabelBorderSides.Right}
-        tslSpring = New ToolStripStatusLabel("") With {
-            .Spring = True}
-        tslLiveStatus = New ToolStripStatusLabel("Ready") With {
-            .BorderSides = ToolStripStatusLabelBorderSides.Right}
-        tslElapsed = New ToolStripStatusLabel("") With {
-            .BorderSides = ToolStripStatusLabelBorderSides.Right}
-        tslLogToggle = New ToolStripStatusLabel("Log") With {
-            .IsLink = True,
-            .LinkBehavior = LinkBehavior.HoverUnderline}
-        AddHandler tslLogToggle.Click, Sub(s, e) ToggleLogPanel()
-
-        statusMain.Items.AddRange({tslServerStatus, tslClients, tslSpring, tslLiveStatus, tslElapsed, tslLogToggle})
-
-        ' Elapsed timer (ticks every second when live is running)
-        _liveElapsedTimer = New Timer() With {.Interval = 1000}
-        AddHandler _liveElapsedTimer.Tick, Sub(s, e)
-                                                Dim elapsed = DateTime.Now - _liveStartTime
-                                                tslElapsed.Text = elapsed.ToString("hh\:mm\:ss")
-                                            End Sub
-    End Sub
-
-    ' ═══════════════════════════════════════════════════════════════
-    ' Translate Workspace
-    ' ═══════════════════════════════════════════════════════════════
-    Private Sub BuildTranslateWorkspace()
-        tabPageTranslate = New TabPage() With {.Text = "Translate", .Padding = New Padding(8)}
-
-        ' ── Top bar: language selectors ───────────────────────────
-        Dim pnlTop As New Panel() With {
-            .Dock = DockStyle.Top, .Height = 45}
-
-        Dim lblFrom As New Label() With {
-            .Text = "From:", .Location = New Drawing.Point(0, 4), .AutoSize = True,
-            .Font = New Font("Segoe UI", 10)}
-
-        cboTransSource = New ComboBox() With {
-            .Location = New Drawing.Point(50, 1), .Size = New Drawing.Size(200, 24),
-            .DropDownStyle = ComboBoxStyle.DropDown,
-            .AutoCompleteMode = AutoCompleteMode.SuggestAppend,
-            .AutoCompleteSource = AutoCompleteSource.ListItems}
-
-        btnTransSwap = New Button() With {
-            .Text = ChrW(&H21C4), .Location = New Drawing.Point(260, 0),
-            .Size = New Drawing.Size(34, 26), .FlatStyle = FlatStyle.Flat,
-            .Font = New Font("Segoe UI", 12)}
-        btnTransSwap.FlatAppearance.BorderSize = 0
-        AddHandler btnTransSwap.Click, Sub(s, e) SwapTranslateLanguages()
-
-        Dim lblTo As New Label() With {
-            .Text = "To:", .Location = New Drawing.Point(304, 4), .AutoSize = True,
-            .Font = New Font("Segoe UI", 10)}
-
-        cboTransTarget = New ComboBox() With {
-            .Location = New Drawing.Point(334, 1), .Size = New Drawing.Size(200, 24),
-            .DropDownStyle = ComboBoxStyle.DropDown,
-            .AutoCompleteMode = AutoCompleteMode.SuggestAppend,
-            .AutoCompleteSource = AutoCompleteSource.ListItems}
-
-        btnTranslate = New Button() With {
-            .Text = "Translate", .Location = New Drawing.Point(548, 0),
-            .Size = New Drawing.Size(90, 26),
-            .Font = New Font("Segoe UI", 9, Drawing.FontStyle.Bold)}
-        AddHandler btnTranslate.Click, Sub(s, e) RunTranslateAsync()
-
-        pnlTop.Controls.AddRange({lblFrom, cboTransSource, btnTransSwap, lblTo, cboTransTarget, btnTranslate})
-
-        ' ── Middle: split input/output ────────────────────────────
-        Dim split As New SplitContainer() With {
-            .Dock = DockStyle.Fill,
-            .Orientation = Orientation.Vertical,
-            .SplitterWidth = 6}
-
-        txtTransInput = New TextBox() With {
-            .Dock = DockStyle.Fill, .Multiline = True,
-            .ScrollBars = ScrollBars.Vertical,
-            .Font = New Font("Segoe UI", 11),
-            .AcceptsReturn = True}
-
-        txtTransOutput = New TextBox() With {
-            .Dock = DockStyle.Fill, .Multiline = True,
-            .ScrollBars = ScrollBars.Vertical,
-            .Font = New Font("Segoe UI", 11),
-            .[ReadOnly] = True}
-
-        split.Panel1.Controls.Add(txtTransInput)
-        split.Panel2.Controls.Add(txtTransOutput)
-
-        ' ── Bottom bar: copy / clear / status ─────────────────────
-        Dim pnlBottom As New Panel() With {
-            .Dock = DockStyle.Bottom, .Height = 34}
-
-        btnTransCopy = New Button() With {
-            .Text = "Copy", .Location = New Drawing.Point(0, 4),
-            .Size = New Drawing.Size(70, 26)}
-        AddHandler btnTransCopy.Click, Sub(s, e)
-                                            If Not String.IsNullOrEmpty(txtTransOutput.Text) Then
-                                                Clipboard.SetText(txtTransOutput.Text)
-                                            End If
-                                        End Sub
-
-        btnTransClear = New Button() With {
-            .Text = "Clear", .Location = New Drawing.Point(78, 4),
-            .Size = New Drawing.Size(70, 26)}
-        AddHandler btnTransClear.Click, Sub(s, e)
-                                             txtTransInput.Clear()
-                                             txtTransOutput.Clear()
-                                         End Sub
-
-        lblTransStatus = New Label() With {
-            .Text = "", .Location = New Drawing.Point(160, 8),
-            .AutoSize = True, .ForeColor = Color.Gray}
-
-        pnlBottom.Controls.AddRange({btnTransCopy, btnTransClear, lblTransStatus})
-
-        ' ── Populate language dropdowns ───────────────────────────
-        For Each lang In _whisperLanguages
-            If lang = "auto" Then Continue For
-            Dim display = LangDisplayName(lang)
-            cboTransSource.Items.Add(display)
-            cboTransTarget.Items.Add(display)
-        Next
-        ' Default: Auto Detect source, English target
-        cboTransSource.Items.Insert(0, LangDisplayName("auto"))
-        cboTransSource.SelectedIndex = 0
-        For i = 0 To cboTransTarget.Items.Count - 1
-            If cboTransTarget.Items(i).ToString().StartsWith("English") Then
-                cboTransTarget.SelectedIndex = i
-                Exit For
-            End If
-        Next
-
-        ' ── Assemble ──────────────────────────────────────────────
-        tabPageTranslate.Controls.Add(split)      ' Fill
-        tabPageTranslate.Controls.Add(pnlBottom)  ' Bottom
-        tabPageTranslate.Controls.Add(pnlTop)     ' Top
-    End Sub
 
     Private Sub SwapTranslateLanguages()
         If cboTransSource.SelectedIndex < 0 OrElse cboTransTarget.SelectedIndex < 0 Then Return
@@ -601,51 +268,87 @@ Partial Class FormMain
         Dim inputText = txtTransInput.Text.Trim()
         If String.IsNullOrEmpty(inputText) Then Return
 
-        Dim sourceLang = LangCodeFromDisplay(cboTransSource.Text)
-        Dim targetLang = LangCodeFromDisplay(cboTransTarget.Text)
+        Dim sourceWhisper = LangCodeFromDisplay(cboTransSource.Text)
+        Dim targetWhisper = LangCodeFromDisplay(cboTransTarget.Text)
+
+        ' Convert whisper ISO codes to NLLB-200 codes for the translation server
+        Dim sourceLang = If(sourceWhisper = "auto", "eng_Latn",
+            Pipeline.TranslationService.WhisperToNllbLang(sourceWhisper))
+        Dim targetLang = Pipeline.TranslationService.WhisperToNllbLang(targetWhisper)
+
+        If String.IsNullOrEmpty(targetLang) Then
+            lblTransStatus.Text = $"Unsupported target language: {targetWhisper}"
+            lblTransStatus.ForeColor = Color.Red
+            Return
+        End If
 
         btnTranslate.Enabled = False
-        lblTransStatus.Text = "Translating..."
-        lblTransStatus.ForeColor = Color.FromArgb(0, 122, 204)
         txtTransOutput.Text = ""
+
+        ' Ensure translation service is running (auto-start if needed)
+        If Not Await EnsureTranslationServiceAsync() Then
+            btnTranslate.Enabled = True
+            Return
+        End If
+
+        ' Split input into sentences so the NLLB model translates each one properly
+        Dim sentences = SplitIntoSentences(inputText)
+        lblTransStatus.Text = $"Translating ({sentences.Count} segment(s))..."
+        lblTransStatus.ForeColor = Color.FromArgb(0, 122, 204)
 
         Try
             Dim port = _config.TranslationPort
             Using client As New System.Net.Http.HttpClient()
-                client.Timeout = TimeSpan.FromSeconds(30)
+                client.Timeout = TimeSpan.FromSeconds(60)
                 Dim url = $"http://127.0.0.1:{port}/translate"
+                Dim results As New System.Text.StringBuilder()
 
-                Dim bodyObj As New Dictionary(Of String, Object) From {
-                    {"text", inputText},
-                    {"source_lang", sourceLang},
-                    {"target_langs", New String() {targetLang}}
-                }
-                Dim bodyJson = System.Text.Json.JsonSerializer.Serialize(bodyObj)
-                Dim content As New System.Net.Http.StringContent(
-                    bodyJson, System.Text.Encoding.UTF8, "application/json")
-
-                Dim response = Await client.PostAsync(url, content)
-                If response.IsSuccessStatusCode Then
-                    Dim json = Await response.Content.ReadAsStringAsync()
-                    Dim doc = System.Text.Json.JsonDocument.Parse(json)
-                    Dim root = doc.RootElement
-
-                    Dim translationsEl As System.Text.Json.JsonElement
-                    Dim resultEl As System.Text.Json.JsonElement
-                    If root.TryGetProperty("translations", translationsEl) Then
-                        If translationsEl.TryGetProperty(targetLang, resultEl) Then
-                            txtTransOutput.Text = resultEl.GetString()
-                        End If
+                For idx = 0 To sentences.Count - 1
+                    Dim sentence = sentences(idx)
+                    If String.IsNullOrWhiteSpace(sentence) Then
+                        results.AppendLine()
+                        Continue For
                     End If
-                    lblTransStatus.Text = "Done"
-                    lblTransStatus.ForeColor = Color.Green
-                Else
-                    lblTransStatus.Text = $"Error: {response.StatusCode}"
-                    lblTransStatus.ForeColor = Color.Red
-                End If
+
+                    lblTransStatus.Text = $"Translating {idx + 1}/{sentences.Count}..."
+
+                    Dim bodyObj As New Dictionary(Of String, Object) From {
+                        {"text", sentence},
+                        {"source_lang", sourceLang},
+                        {"target_langs", New String() {targetLang}}
+                    }
+                    Dim bodyJson = System.Text.Json.JsonSerializer.Serialize(bodyObj)
+                    Dim content As New System.Net.Http.StringContent(
+                        bodyJson, System.Text.Encoding.UTF8, "application/json")
+
+                    Dim response = Await client.PostAsync(url, content)
+                    If response.IsSuccessStatusCode Then
+                        Dim json = Await response.Content.ReadAsStringAsync()
+                        Dim doc = System.Text.Json.JsonDocument.Parse(json)
+                        Dim root = doc.RootElement
+
+                        Dim translationsEl As System.Text.Json.JsonElement
+                        Dim resultEl As System.Text.Json.JsonElement
+                        If root.TryGetProperty("translations", translationsEl) Then
+                            If translationsEl.TryGetProperty(targetLang, resultEl) Then
+                                If results.Length > 0 Then results.Append(" ")
+                                results.Append(resultEl.GetString())
+                            End If
+                        End If
+                    Else
+                        lblTransStatus.Text = $"Error: {response.StatusCode}"
+                        lblTransStatus.ForeColor = Color.Red
+                        txtTransOutput.Text = results.ToString()
+                        Return
+                    End If
+                Next
+
+                txtTransOutput.Text = results.ToString()
+                lblTransStatus.Text = "Done"
+                lblTransStatus.ForeColor = Color.Green
             End Using
         Catch ex As System.Net.Http.HttpRequestException
-            lblTransStatus.Text = "Translation server not running"
+            lblTransStatus.Text = "Translation server connection failed — try again"
             lblTransStatus.ForeColor = Color.Red
         Catch ex As TaskCanceledException
             lblTransStatus.Text = "Request timed out"
@@ -658,40 +361,113 @@ Partial Class FormMain
         End Try
     End Sub
 
+    ''' <summary>
+    ''' Ensures the translation service is started and model loaded.
+    ''' Auto-starts the service if needed and waits for readiness.
+    ''' </summary>
+    Private Async Function EnsureTranslationServiceAsync() As Task(Of Boolean)
+        WriteDebugLog($"[TRANSLATE] EnsureTranslationServiceAsync: service={_translationService IsNot Nothing}, isRunning={_translationService?.IsRunning}, isModelLoaded={_translationService?.IsModelLoaded}, config.TranslationEnabled={_config.TranslationEnabled}")
+
+        ' Start if not running
+        If _translationService Is Nothing OrElse Not _translationService.IsRunning Then
+            Dim deps = Pipeline.TranslationService.CheckDependenciesInstalled()
+            WriteDebugLog($"[TRANSLATE] Deps check: pythonOk={deps.pythonOk}, depsOk={deps.depsOk}, modelOk={deps.modelOk}")
+            If Not deps.pythonOk OrElse Not deps.depsOk OrElse Not deps.modelOk Then
+                lblTransStatus.Text = "Translation dependencies not installed. Use Tools > Download Manager."
+                lblTransStatus.ForeColor = Color.Red
+                Return False
+            End If
+            lblTransStatus.Text = "Starting translation engine..."
+            lblTransStatus.ForeColor = Color.FromArgb(0, 122, 204)
+            WriteDebugLog("[TRANSLATE] Calling StartTranslationService...")
+            StartTranslationService()
+        End If
+
+        ' Guard against null service (e.g. TranslationEnabled=False)
+        If _translationService Is Nothing Then
+            WriteDebugLog("[TRANSLATE] Service is Nothing after start attempt — TranslationEnabled is likely False")
+            lblTransStatus.Text = "Translation is disabled in settings"
+            lblTransStatus.ForeColor = Color.Red
+            Return False
+        End If
+
+        ' Reload model if server is running but model was unloaded
+        If _translationService.IsRunning AndAlso Not _translationService.IsModelLoaded Then
+            WriteDebugLog("[TRANSLATE] Server running but model not loaded — reloading...")
+            lblTransStatus.Text = "Loading translation model..."
+            lblTransStatus.ForeColor = Color.FromArgb(0, 122, 204)
+            Try
+                Await _translationService.LoadModelAsync()
+            Catch ex As Exception
+                WriteDebugLog($"[TRANSLATE] LoadModelAsync failed: {ex.Message}")
+            End Try
+        End If
+
+        ' Wait for model to load (up to 120s)
+        If Not _translationService.IsModelLoaded Then
+            WriteDebugLog("[TRANSLATE] Waiting for model to load (up to 120s)...")
+            lblTransStatus.Text = "Waiting for translation model..."
+            lblTransStatus.ForeColor = Color.FromArgb(0, 122, 204)
+            Dim waited = 0
+            While Not _translationService.IsModelLoaded AndAlso waited < 120000
+                Await Task.Delay(500)
+                waited += 500
+            End While
+            WriteDebugLog($"[TRANSLATE] Wait complete: waited={waited}ms, isModelLoaded={_translationService.IsModelLoaded}")
+            If Not _translationService.IsModelLoaded Then
+                lblTransStatus.Text = "Translation model failed to load"
+                lblTransStatus.ForeColor = Color.Red
+                Return False
+            End If
+        End If
+
+        WriteDebugLog("[TRANSLATE] Translation service ready")
+        Return True
+    End Function
+
+    ''' <summary>Split text into sentences, preserving blank lines as empty entries.</summary>
+    Private Shared Function SplitIntoSentences(text As String) As List(Of String)
+        Dim result As New List(Of String)()
+        Dim lines = text.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None)
+        For Each line In lines
+            Dim trimmed = line.Trim()
+            If String.IsNullOrEmpty(trimmed) Then
+                result.Add("")
+                Continue For
+            End If
+            Dim sentences = System.Text.RegularExpressions.Regex.Split(
+                trimmed, "(?<=[.!?])\s+")
+            For Each s In sentences
+                Dim st = s.Trim()
+                If st.Length > 0 Then result.Add(st)
+            Next
+        Next
+        Return result
+    End Function
+
     ' ═══════════════════════════════════════════════════════════════
-    ' Bible Workspace
+    ' Bible Workspace Logic
     ' ═══════════════════════════════════════════════════════════════
-    Private Sub BuildBibleWorkspace()
-        tabPageBibleWs = New TabPage() With {.Text = "Bible", .Padding = New Padding(0)}
-
-        ' Status label shown when server isn't running
-        lblBibleStatus = New Label() With {
-            .Text = "Waiting for server to start...",
-            .Dock = DockStyle.Fill,
-            .TextAlign = ContentAlignment.MiddleCenter,
-            .Font = New Font("Segoe UI", 14),
-            .ForeColor = Color.Gray}
-
-        ' WebView2 for the Bible UI
-        wvBible = New Microsoft.Web.WebView2.WinForms.WebView2()
-        CType(wvBible, ComponentModel.ISupportInitialize).BeginInit()
-        wvBible.Dock = DockStyle.Fill
-        wvBible.Visible = False
-        CType(wvBible, ComponentModel.ISupportInitialize).EndInit()
-
-        tabPageBibleWs.Controls.Add(wvBible)
-        tabPageBibleWs.Controls.Add(lblBibleStatus)
-    End Sub
 
     ''' <summary>
     ''' Navigates the Bible WebView2 to the server's Bible tab.
     ''' Called after the server starts.
     ''' </summary>
     Private Sub NavigateBibleView()
-        If wvBible Is Nothing OrElse _serverPort = 0 Then Return
+        WriteDebugLog($"[BIBLE] NavigateBibleView called — wvBible={wvBible IsNot Nothing}, _serverPort={_serverPort}")
+        If wvBible Is Nothing OrElse _serverPort = 0 Then
+            WriteDebugLog("[BIBLE] NavigateBibleView aborted: wvBible or port is not ready")
+            Return
+        End If
         Try
-            Dim lang = If(_config?.Language, "en")
-            wvBible.Source = New Uri($"http://127.0.0.1:{_serverPort}/?bibleLang={lang}#bible")
+            Dim rawLang = _config?.OutputLanguage
+            Dim lang = If(rawLang, "en")
+            If String.IsNullOrEmpty(lang) OrElse lang = "auto" Then lang = "en"
+            WriteDebugLog($"[BIBLE] NavigateBibleView: rawOutputLang={rawLang}, resolvedLang={lang}, configInputLang={_config?.Language}, configBiblesDir={_config?.BiblesDirectory}")
+            Dim bust = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+            Dim url = $"http://127.0.0.1:{_serverPort}/?bibleLang={lang}&preview=1&_cb={bust}"
+            WriteDebugLog($"[BIBLE] Navigating to: {url}")
+            wvBible.Source = New Uri(url)
             wvBible.Visible = True
             lblBibleStatus.Visible = False
         Catch ex As Exception
@@ -702,71 +478,25 @@ Partial Class FormMain
     ' ═══════════════════════════════════════════════════════════════
     ' Unified Log Panel
     ' ═══════════════════════════════════════════════════════════════
-    Private Sub BuildLogPanel()
-        pnlLogPanel = New Panel() With {
-            .Dock = DockStyle.Bottom,
-            .Height = 180,
-            .Visible = False}
-
-        splitterLog = New Splitter() With {
-            .Dock = DockStyle.Bottom,
-            .Height = 4,
-            .BackColor = Color.FromArgb(200, 200, 200),
-            .Visible = False}
-
-        ' Toolbar row
-        Dim pnlLogToolbar As New Panel() With {
-            .Dock = DockStyle.Top, .Height = 28}
-
-        Dim lblLogTitle As New Label() With {
-            .Text = "Output", .Location = New Drawing.Point(4, 5),
-            .AutoSize = True, .Font = New Font("Segoe UI", 9, Drawing.FontStyle.Bold)}
-
-        cboLogFilter = New ComboBox() With {
-            .Location = New Drawing.Point(70, 2), .Size = New Drawing.Size(100, 22),
-            .DropDownStyle = ComboBoxStyle.DropDownList}
-        cboLogFilter.Items.AddRange({"All", "Pipeline", "Server", "Debug"})
-        cboLogFilter.SelectedIndex = 0
-
-        btnLogClear = New Button() With {
-            .Text = "Clear", .Location = New Drawing.Point(180, 1),
-            .Size = New Drawing.Size(55, 24), .FlatStyle = FlatStyle.Flat}
-        btnLogClear.FlatAppearance.BorderSize = 1
-        AddHandler btnLogClear.Click, Sub(s, e) rtbUnifiedLog.Clear()
-
-        btnLogCopy = New Button() With {
-            .Text = "Copy", .Location = New Drawing.Point(240, 1),
-            .Size = New Drawing.Size(55, 24), .FlatStyle = FlatStyle.Flat}
-        btnLogCopy.FlatAppearance.BorderSize = 1
-        AddHandler btnLogCopy.Click, Sub(s, e)
-                                          If rtbUnifiedLog.TextLength > 0 Then
-                                              Clipboard.SetText(rtbUnifiedLog.Text)
-                                          End If
-                                      End Sub
-
-        pnlLogToolbar.Controls.AddRange({lblLogTitle, cboLogFilter, btnLogClear, btnLogCopy})
-
-        ' Log RTB
-        rtbUnifiedLog = New RichTextBox() With {
-            .Dock = DockStyle.Fill,
-            .[ReadOnly] = True,
-            .BackColor = Color.FromArgb(30, 30, 30),
-            .ForeColor = Color.FromArgb(200, 200, 200),
-            .Font = New Font("Consolas", 9.5F),
-            .ScrollBars = RichTextBoxScrollBars.Vertical,
-            .WordWrap = False}
-
-        pnlLogPanel.Controls.Add(rtbUnifiedLog)
-        pnlLogPanel.Controls.Add(pnlLogToolbar)
-    End Sub
 
     Private Sub ToggleLogPanel()
         _logPanelVisible = Not _logPanelVisible
+        ApplyLogPanelState()
+    End Sub
+
+    Friend Sub ShowLogPanel()
+        If _logPanelVisible Then Return
+        _logPanelVisible = True
+        ApplyLogPanelState()
+    End Sub
+
+    Private Sub ApplyLogPanelState()
         pnlLogPanel.Visible = _logPanelVisible
         splitterLog.Visible = _logPanelVisible
         mnuViewLogPanel.Checked = _logPanelVisible
         If _logPanelVisible Then
             mnuViewLogPanel.Text = "Hide Log Panel"
+            FlushUnifiedLog()
         Else
             mnuViewLogPanel.Text = "Show Log Panel"
         End If
@@ -775,14 +505,16 @@ Partial Class FormMain
     ''' <summary>
     ''' Appends a message to the unified log panel. Thread-safe.
     ''' </summary>
-    Private Sub AppendUnifiedLog(source As String, text As String, color As Drawing.Color)
+    Friend Sub AppendUnifiedLog(source As String, text As String, color As Drawing.Color)
         If rtbUnifiedLog Is Nothing Then Return
 
-        _unifiedLogBuffer.Enqueue((source, text, color))
+        _unifiedLogBuffer.Enqueue((DateTime.Now, source, text, color))
 
         If Threading.Interlocked.CompareExchange(_unifiedLogPending, 1, 0) = 0 Then
             If rtbUnifiedLog.IsHandleCreated Then
                 rtbUnifiedLog.BeginInvoke(Sub() FlushUnifiedLog())
+            Else
+                Threading.Interlocked.Exchange(_unifiedLogPending, 0)
             End If
         End If
     End Sub
@@ -797,30 +529,40 @@ Partial Class FormMain
             filter = If(cboLogFilter.SelectedItem, "All").ToString()
         End If
 
+        ' Drain queue into backing list
+        Dim entry As (Time As DateTime, Source As String, Text As String, Color As Drawing.Color) = (DateTime.MinValue, "", "", Color.White)
+        While _unifiedLogBuffer.TryDequeue(entry)
+            _unifiedLogEntries.Add(entry)
+        End While
+
+        ' Trim backing list
+        If _unifiedLogEntries.Count > UnifiedLogMaxLines Then
+            _unifiedLogEntries.RemoveRange(0, _unifiedLogEntries.Count - UnifiedLogMaxLines)
+        End If
+
+        ' If filter changed, do a full re-render
+        If filter <> _lastLogFilter Then
+            _lastLogFilter = filter
+            RenderUnifiedLog(filter)
+            Return
+        End If
+
+        ' Append only new entries
         SendMessage(rtbUnifiedLog.Handle, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero)
         Try
-            Dim entry As (Source As String, Text As String, Color As Drawing.Color) = ("", "", Color.White)
-            While _unifiedLogBuffer.TryDequeue(entry)
-                ' Apply filter
-                If filter <> "All" AndAlso Not entry.Source.Equals(filter, StringComparison.OrdinalIgnoreCase) Then
-                    Continue While
+            For i = Math.Max(0, _unifiedLogEntries.Count - 500) To _unifiedLogEntries.Count - 1
+                Dim e = _unifiedLogEntries(i)
+                ' Only append entries that haven't been rendered yet
+                ' We track rendered count via rtbUnifiedLog.Tag
+                Dim rendered = If(TypeOf rtbUnifiedLog.Tag Is Integer, CInt(rtbUnifiedLog.Tag), 0)
+                If i < rendered Then Continue For
+
+                If filter <> "All" AndAlso Not e.Source.Equals(filter, StringComparison.OrdinalIgnoreCase) Then
+                    Continue For
                 End If
-
-                rtbUnifiedLog.SelectionStart = rtbUnifiedLog.TextLength
-                rtbUnifiedLog.SelectionLength = 0
-                rtbUnifiedLog.SelectionColor = Color.FromArgb(100, 100, 100)
-                rtbUnifiedLog.AppendText($"[{entry.Source}] ")
-                rtbUnifiedLog.SelectionStart = rtbUnifiedLog.TextLength
-                rtbUnifiedLog.SelectionColor = entry.Color
-                rtbUnifiedLog.AppendText($"{entry.Text}{Environment.NewLine}")
-            End While
-
-            ' Trim excess
-            If rtbUnifiedLog.Lines.Length > UnifiedLogMaxLines Then
-                Dim removeUpTo = rtbUnifiedLog.GetFirstCharIndexFromLine(rtbUnifiedLog.Lines.Length - UnifiedLogMaxLines)
-                rtbUnifiedLog.Select(0, removeUpTo)
-                rtbUnifiedLog.SelectedText = ""
-            End If
+                AppendLogEntry(e)
+            Next
+            rtbUnifiedLog.Tag = _unifiedLogEntries.Count
         Finally
             SendMessage(rtbUnifiedLog.Handle, WM_SETREDRAW, New IntPtr(1), IntPtr.Zero)
             rtbUnifiedLog.Invalidate()
@@ -829,25 +571,81 @@ Partial Class FormMain
         SendMessage(rtbUnifiedLog.Handle, WM_VSCROLL, New IntPtr(SB_BOTTOM), IntPtr.Zero)
     End Sub
 
+    ''' <summary>Re-renders the entire unified log for the given filter.</summary>
+    Private Sub RenderUnifiedLog(filter As String)
+        SendMessage(rtbUnifiedLog.Handle, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero)
+        Try
+            rtbUnifiedLog.Clear()
+            For Each e In _unifiedLogEntries
+                If filter <> "All" AndAlso Not e.Source.Equals(filter, StringComparison.OrdinalIgnoreCase) Then
+                    Continue For
+                End If
+                AppendLogEntry(e)
+            Next
+            rtbUnifiedLog.Tag = _unifiedLogEntries.Count
+        Finally
+            SendMessage(rtbUnifiedLog.Handle, WM_SETREDRAW, New IntPtr(1), IntPtr.Zero)
+            rtbUnifiedLog.Invalidate()
+        End Try
+        SendMessage(rtbUnifiedLog.Handle, WM_VSCROLL, New IntPtr(SB_BOTTOM), IntPtr.Zero)
+    End Sub
+
+    Private Sub AppendLogEntry(entry As (Time As DateTime, Source As String, Text As String, Color As Drawing.Color))
+        rtbUnifiedLog.SelectionStart = rtbUnifiedLog.TextLength
+        rtbUnifiedLog.SelectionLength = 0
+        rtbUnifiedLog.SelectionColor = Color.FromArgb(150, 150, 150)
+        rtbUnifiedLog.AppendText($"{entry.Time:HH:mm:ss} ")
+        rtbUnifiedLog.SelectionStart = rtbUnifiedLog.TextLength
+        rtbUnifiedLog.SelectionColor = Color.FromArgb(120, 120, 120)
+        rtbUnifiedLog.AppendText($"[{entry.Source}] ")
+        rtbUnifiedLog.SelectionStart = rtbUnifiedLog.TextLength
+        rtbUnifiedLog.SelectionColor = entry.Color
+        rtbUnifiedLog.AppendText($"{entry.Text}{Environment.NewLine}")
+    End Sub
+
     ' ═══════════════════════════════════════════════════════════════
     ' Workspace Switching
     ' ═══════════════════════════════════════════════════════════════
+    Private Sub GetNavThemeColors(ByRef inactiveBg As Color, ByRef inactiveFg As Color, ByRef activeBg As Color, ByRef hoverBg As Color)
+        Select Case If(_config?.Theme, "System").ToLower()
+            Case "light"
+                inactiveBg = Color.FromArgb(240, 240, 240)
+                inactiveFg = Color.FromArgb(60, 60, 60)
+                activeBg = Color.FromArgb(0, 122, 204)
+                hoverBg = Color.FromArgb(220, 220, 220)
+            Case "dark"
+                inactiveBg = NavBackColor
+                inactiveFg = NavForeColor
+                activeBg = NavSelectedColor
+                hoverBg = NavHoverColor
+            Case Else
+                inactiveBg = SystemColors.Control
+                inactiveFg = SystemColors.ControlText
+                activeBg = Color.FromArgb(0, 122, 204)
+                hoverBg = SystemColors.ControlLight
+        End Select
+    End Sub
+
     Private Sub SwitchWorkspace(tabPage As TabPage, navButton As Button)
-        ' Update tab
         If tabMain.SelectedTab IsNot tabPage Then
             tabMain.SelectedTab = tabPage
         End If
 
-        ' Update nav rail selection
+        Dim inactiveBg, inactiveFg, activeBg, hoverBg As Color
+        GetNavThemeColors(inactiveBg, inactiveFg, activeBg, hoverBg)
+
         If _activeNavButton IsNot Nothing Then
-            _activeNavButton.BackColor = NavBackColor
-            _activeNavButton.ForeColor = NavForeColor
+            _activeNavButton.BackColor = inactiveBg
+            _activeNavButton.ForeColor = inactiveFg
+            _activeNavButton.FlatAppearance.MouseOverBackColor = hoverBg
+            _activeNavButton.Image = RenderFontIcon(GetNavIcon(_activeNavButton.Text), 24, inactiveFg)
         End If
 
-        navButton.BackColor = NavSelectedColor
+        navButton.BackColor = activeBg
         navButton.ForeColor = Color.White
+        navButton.FlatAppearance.MouseOverBackColor = activeBg
+        navButton.Image = RenderFontIcon(GetNavIcon(navButton.Text), 24, Color.White)
         _activeNavButton = navButton
-
     End Sub
 
     ''' <summary>
@@ -855,10 +653,14 @@ Partial Class FormMain
     ''' that doesn't have a nav rail button yet.
     ''' </summary>
     Private Sub ShowLegacyTab(tabPage As TabPage)
-        ' Deselect nav rail
         If _activeNavButton IsNot Nothing Then
-            _activeNavButton.BackColor = NavBackColor
-            _activeNavButton.ForeColor = NavForeColor
+            Dim inactiveBg, inactiveFg, activeBg, hoverBg As Color
+            GetNavThemeColors(inactiveBg, inactiveFg, activeBg, hoverBg)
+
+            _activeNavButton.BackColor = inactiveBg
+            _activeNavButton.ForeColor = inactiveFg
+            _activeNavButton.FlatAppearance.MouseOverBackColor = hoverBg
+            _activeNavButton.Image = RenderFontIcon(GetNavIcon(_activeNavButton.Text), 24, inactiveFg)
             _activeNavButton = Nothing
         End If
 
@@ -870,7 +672,6 @@ Partial Class FormMain
     ' ═══════════════════════════════════════════════════════════════
 
     Private Sub LaunchSessionWizard()
-        ' Gather current audio devices from the live device combo
         Dim devices As New List(Of String)
         For Each item In cboLiveDevice.Items
             Dim text = item.ToString()
@@ -879,7 +680,6 @@ Partial Class FormMain
 
         Using dlg As New FormSessionWizard(_config, devices.ToArray(), _whisperLanguages, _langNames)
             If dlg.ShowDialog(Me) = DialogResult.OK AndAlso dlg.StartSession Then
-                ' Reload config into UI, switch to Live, start session
                 LoadConfigToUi()
                 SwitchWorkspace(tabPageLive, btnNavLive)
                 btnLiveStart.PerformClick()
@@ -891,7 +691,6 @@ Partial Class FormMain
         Using dlg As New FormOptions(_config, _uiLocales)
             dlg.SelectCategory(category)
             If dlg.ShowDialog(Me) = DialogResult.OK AndAlso dlg.ConfigChanged Then
-                ' Re-apply settings that affect the running UI
                 LoadConfigToUi()
                 ApplyTheme(_config.Theme)
                 If _config.StartWithWindows Then RegisterStartup() Else UnregisterStartup()
@@ -930,7 +729,6 @@ Partial Class FormMain
             Try
                 Using zipStream As New IO.FileStream(dlg.FileName, IO.FileMode.Create)
                     Using archive As New IO.Compression.ZipArchive(zipStream, IO.Compression.ZipArchiveMode.Create)
-                        ' System info
                         Dim infoEntry = archive.CreateEntry("system_info.txt")
                         Using writer As New IO.StreamWriter(infoEntry.Open())
                             writer.WriteLine($"Every Tongue Diagnostics — {DateTime.Now:yyyy-MM-dd HH:mm:ss}")
@@ -951,13 +749,11 @@ Partial Class FormMain
                             For Each prop In GetType(Models.AppConfig).GetProperties(Reflection.BindingFlags.Public Or Reflection.BindingFlags.Instance)
                                 If Not prop.CanRead Then Continue For
                                 Dim val = prop.GetValue(_config)
-                                ' Mask sensitive values
                                 Dim displayVal = If(prop.Name.IndexOf("Pin", StringComparison.OrdinalIgnoreCase) >= 0, "****", val?.ToString())
                                 writer.WriteLine($"  {prop.Name} = {displayVal}")
                             Next
                         End Using
 
-                        ' Server log
                         If rtbServerLog.TextLength > 0 Then
                             Dim logEntry = archive.CreateEntry("server_log.txt")
                             Using writer As New IO.StreamWriter(logEntry.Open())
@@ -965,7 +761,6 @@ Partial Class FormMain
                             End Using
                         End If
 
-                        ' Pipeline log
                         If rtbLog.TextLength > 0 Then
                             Dim logEntry = archive.CreateEntry("pipeline_log.txt")
                             Using writer As New IO.StreamWriter(logEntry.Open())
@@ -973,7 +768,6 @@ Partial Class FormMain
                             End Using
                         End If
 
-                        ' Debug log file
                         Dim debugLogPath = GetPipelineLogPath()
                         If IO.File.Exists(debugLogPath) Then
                             archive.CreateEntryFromFile(debugLogPath, "debug_log.txt")
@@ -991,13 +785,10 @@ Partial Class FormMain
     End Sub
 
     Private Sub SetThemeFromMenu(theme As String)
-        cboTheme.SelectedItem = theme
-        ' cboTheme change handler already calls ApplyTheme and saves config
+        _config.Theme = theme
+        Models.ConfigManager.Save(_config)
+        ApplyTheme(theme)
     End Sub
-
-    Private _isFullScreen As Boolean = False
-    Private _previousWindowState As FormWindowState
-    Private _previousBorderStyle As FormBorderStyle
 
     Private Sub ToggleFullScreen()
         If _isFullScreen Then
@@ -1020,12 +811,10 @@ Partial Class FormMain
 
     ''' <summary>
     ''' Updates the status bar with current server and live session state.
-    ''' Called from existing status update points.
     ''' </summary>
     Private Sub UpdateShellStatus()
         If statusMain Is Nothing Then Return
 
-        ' Server status
         If _kestrelHost IsNot Nothing AndAlso _kestrelHost.IsRunning Then
             tslServerStatus.Text = $"Server: Running :{_serverPort}"
             tslServerStatus.ForeColor = Color.Green
@@ -1034,24 +823,22 @@ Partial Class FormMain
             tslServerStatus.ForeColor = Color.Gray
         End If
 
-        ' Client count
         Dim svc = SubtitleSvc
         Dim clients = If(svc?.ConnectedClients, 0)
         tslClients.Text = $"Clients: {clients}"
 
-        ' Live status + elapsed timer
         If _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning Then
             tslLiveStatus.Text = "Live: Running"
             tslLiveStatus.ForeColor = Color.Green
-            If Not _liveElapsedTimer.Enabled Then
+            If Not liveElapsedTimer.Enabled Then
                 _liveStartTime = DateTime.Now
-                _liveElapsedTimer.Start()
+                liveElapsedTimer.Start()
             End If
         Else
             tslLiveStatus.Text = "Ready"
             tslLiveStatus.ForeColor = Color.Gray
-            If _liveElapsedTimer.Enabled Then
-                _liveElapsedTimer.Stop()
+            If liveElapsedTimer.Enabled Then
+                liveElapsedTimer.Stop()
                 tslElapsed.Text = ""
             End If
         End If
@@ -1059,9 +846,9 @@ Partial Class FormMain
 
     ''' <summary>
     ''' Applies shell-specific theming to the nav rail and status bar.
-    ''' Called after the base ApplyTheme runs.
     ''' </summary>
     Private Sub ApplyShellTheme(theme As String)
+        WriteDebugLog($"[THEME] ApplyShellTheme called with theme=""{theme}"", pnlNavRail={pnlNavRail IsNot Nothing}, activeBtn={_activeNavButton?.Text}")
         If pnlNavRail Is Nothing Then Return
 
         Select Case theme.ToLower()
@@ -1075,11 +862,14 @@ Partial Class FormMain
                             btn.BackColor = pnlNavRail.BackColor
                         End If
                         btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(220, 220, 220)
+                        btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(200, 200, 200)
+                        btn.Image = RenderFontIcon(GetNavIcon(btn.Text), 24, btn.ForeColor)
                     End If
                 Next
                 If _activeNavButton IsNot Nothing Then
                     _activeNavButton.BackColor = Color.FromArgb(0, 122, 204)
                     _activeNavButton.ForeColor = Color.White
+                    _activeNavButton.Image = RenderFontIcon(GetNavIcon(_activeNavButton.Text), 24, Color.White)
                 End If
             Case "dark"
                 pnlNavRail.BackColor = NavBackColor
@@ -1091,11 +881,14 @@ Partial Class FormMain
                             btn.BackColor = NavBackColor
                         End If
                         btn.FlatAppearance.MouseOverBackColor = NavHoverColor
+                        btn.FlatAppearance.MouseDownBackColor = NavSelectedColor
+                        btn.Image = RenderFontIcon(GetNavIcon(btn.Text), 24, NavForeColor)
                     End If
                 Next
                 If _activeNavButton IsNot Nothing Then
                     _activeNavButton.BackColor = NavSelectedColor
                     _activeNavButton.ForeColor = Color.White
+                    _activeNavButton.Image = RenderFontIcon(GetNavIcon(_activeNavButton.Text), 24, Color.White)
                 End If
             Case Else ' System
                 pnlNavRail.BackColor = SystemColors.Control
@@ -1107,11 +900,14 @@ Partial Class FormMain
                             btn.BackColor = SystemColors.Control
                         End If
                         btn.FlatAppearance.MouseOverBackColor = SystemColors.ControlLight
+                        btn.FlatAppearance.MouseDownBackColor = SystemColors.ControlDark
+                        btn.Image = RenderFontIcon(GetNavIcon(btn.Text), 24, SystemColors.ControlText)
                     End If
                 Next
                 If _activeNavButton IsNot Nothing Then
                     _activeNavButton.BackColor = Color.FromArgb(0, 122, 204)
                     _activeNavButton.ForeColor = Color.White
+                    _activeNavButton.Image = RenderFontIcon(GetNavIcon(_activeNavButton.Text), 24, Color.White)
                 End If
         End Select
 

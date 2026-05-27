@@ -10,7 +10,7 @@ Namespace Pipeline
 
         Public Event StatusChanged As EventHandler(Of String)
 
-        Private Shared ReadOnly _httpClient As New HttpClient() With {
+        Private ReadOnly _httpClient As New HttpClient() With {
             .Timeout = TimeSpan.FromMinutes(5)
         }
 
@@ -157,8 +157,15 @@ Namespace Pipeline
                 If _isRunning Then Return
                 _restarting = False
 
+                ' Cancel any previous WaitForReady background tasks
+                _cts?.Cancel()
+                _cts = New CancellationTokenSource()
+                Dim ct = _cts.Token
+
                 ' Kill any leftover process from a previous session holding our port
                 KillProcessOnPort(_port)
+                ' Brief pause to let the port be released by the OS
+                Thread.Sleep(500)
 
                 Dim resolvedModelPath = Models.AppConfig.ResolvePath(_modelPath)
                 Dim serverScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "nllb-server", "server.py")
@@ -216,10 +223,10 @@ Namespace Pipeline
                                                         _modelLoaded = False
                                                         If _cts IsNot Nothing AndAlso Not _cts.IsCancellationRequested Then
                                                             _restartCount += 1
-                                                            If _restartCount <= 5 Then
-                                                                Dim delay = Math.Min(5000 * _restartCount, 30000)
-                                                                _restarting = True ' Block external Start() calls during restart delay
-                                                                RaiseEvent StatusChanged(Me, $"Translation server crashed, restarting in {delay / 1000}s...")
+                                                            If _restartCount <= 3 Then
+                                                                Dim delay = Math.Min(5000 * _restartCount, 15000)
+                                                                _restarting = True
+                                                                RaiseEvent StatusChanged(Me, $"Translation server exited, restarting in {delay / 1000}s...")
                                                                 Task.Delay(delay).ContinueWith(
                                                                     Sub(t)
                                                                         If _cts IsNot Nothing AndAlso Not _cts.IsCancellationRequested Then
@@ -238,15 +245,16 @@ Namespace Pipeline
                     _process.Start()
                     _process.BeginErrorReadLine()
                     ' Drain stdout to prevent deadlock
+                    Dim proc = _process
                     Task.Run(Sub()
-                                 Try : _process.StandardOutput.ReadToEnd() : Catch ex As Exception : Debug.WriteLine($"[Translation] stdout drain failed: {ex.Message}") : End Try
+                                 Try : proc.StandardOutput.ReadToEnd() : Catch : End Try
                              End Sub)
 
                     _isRunning = True
                     RaiseEvent StatusChanged(Me, $"Translation server starting on port {_port}...")
 
-                    ' Wait for health check in background
-                    Task.Run(Sub() WaitForReady(_cts.Token))
+                    ' Wait for health check in background — use the current CTS token
+                    Task.Run(Sub() WaitForReady(ct))
                 Catch ex As Exception
                     _isRunning = False
                     _restarting = False
@@ -260,14 +268,24 @@ Namespace Pipeline
             While DateTime.UtcNow < deadline AndAlso Not ct.IsCancellationRequested
                 Try
                     Thread.Sleep(1000)
-                    Dim response = _httpClient.GetAsync($"http://127.0.0.1:{_port}/health", ct).Result
-                    If response.IsSuccessStatusCode Then
-                        RaiseEvent StatusChanged(Me, "Translation server ready, loading model...")
-                        LoadModelAsync().Wait()
-                        Return
-                    End If
+                    If ct.IsCancellationRequested Then Return
+                    Using cts = CancellationTokenSource.CreateLinkedTokenSource(ct)
+                        cts.CancelAfter(5000)
+                        Dim response = _httpClient.GetAsync($"http://127.0.0.1:{_port}/health", cts.Token).Result
+                        If response.IsSuccessStatusCode Then
+                            If ct.IsCancellationRequested Then Return
+                            RaiseEvent StatusChanged(Me, "Translation server ready, loading model...")
+                            Try
+                                LoadModelAsync().Wait()
+                            Catch
+                            End Try
+                            Return
+                        End If
+                    End Using
+                Catch ex As OperationCanceledException
+                    Return
                 Catch ex As Exception
-                    Debug.WriteLine($"[Translation] health check failed: {ex.Message}")
+                    If ct.IsCancellationRequested Then Return
                 End Try
             End While
             If Not ct.IsCancellationRequested Then

@@ -35,6 +35,7 @@ whisper.cpp/
 
 ## Claude Code
 .claude/
+CLAUDE.md
 
 ## OS files
 Thumbs.db
@@ -42,3 +43,4 @@ ehthumbs.db
 Desktop.ini
 .DS_Store
 *.log
+publish/

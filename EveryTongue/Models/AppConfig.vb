@@ -167,6 +167,8 @@ Namespace Models
 
         Public Property BiblesDirectory As String = ".\Bibles"
 
+        Public Property LogPanelHeight As Integer = 250
+
         Public Shared Function CreateDefault() As AppConfig
             Return New AppConfig()
         End Function

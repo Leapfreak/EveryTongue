@@ -4,226 +4,152 @@ Imports EveryTongue.Services.Tts
 
 Namespace Forms
 
-    Public Class FormDownloadManager
-        Inherits Form
+    Partial Public Class FormDownloadManager
 
         Private ReadOnly _mgr As DependencyManager
         Private ReadOnly _biblesDir As String
+        Private ReadOnly _config As AppConfig
         Private _downloading As Boolean = False
 
-        ' Controls — Piper engine
-        Private WithEvents grpPiper As GroupBox
-        Private lblPiperStatus As Label
-        Private WithEvents btnDownloadPiper As Button
-
-        ' Controls — Voice models
-        Private grpVoices As GroupBox
-        Private lvVoices As ListView
-        Private WithEvents btnDownloadVoices As Button
-        Private WithEvents btnRemoveVoices As Button
-
-        ' Controls — MMS-TTS
-        Private grpMmsTts As GroupBox
-        Private lblMmsTtsStatus As Label
-        Private WithEvents btnInstallMmsTts As Button
-
-        ' Controls — Bibles
-        Private grpBibles As GroupBox
-        Private lvBibles As ListView
-        Private WithEvents btnOpenBiblesFolder As Button
-
-        ' Controls — Progress
-        Private pbProgress As ProgressBar
-        Private lblProgress As Label
-        Private WithEvents btnClose As Button
+        Public Property PathsUpdated As Boolean = False
 
         Public Sub New(config As AppConfig, biblesDir As String)
+            _config = config
             _biblesDir = If(String.IsNullOrEmpty(biblesDir),
                 Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Bibles"), biblesDir)
             Dim toolsDir = AppDomain.CurrentDomain.BaseDirectory
             _mgr = New DependencyManager(config, toolsDir)
-            InitializeForm()
-            LoadState()
+            InitializeComponent()
         End Sub
 
-        Private Sub InitializeForm()
-            Me.Text = "Download Manager"
-            Me.ClientSize = New Drawing.Size(630, 620)
-            Me.StartPosition = FormStartPosition.CenterParent
-            Me.FormBorderStyle = FormBorderStyle.FixedDialog
-            Me.MaximizeBox = False
-            Me.MinimizeBox = False
-
-            Dim y = 12
-
-            ' ── Piper TTS Engine ──
-            grpPiper = New GroupBox() With {
-                .Text = "Piper TTS Engine (offline speech synthesis — Tier 1)",
-                .Location = New Drawing.Point(12, y),
-                .Size = New Drawing.Size(606, 55)
-            }
-
-            lblPiperStatus = New Label() With {
-                .Text = "Checking...",
-                .Location = New Drawing.Point(10, 24),
-                .Size = New Drawing.Size(380, 18)
-            }
-
-            btnDownloadPiper = New Button() With {
-                .Text = "Download",
-                .Location = New Drawing.Point(480, 19),
-                .Size = New Drawing.Size(115, 28)
-            }
-
-            grpPiper.Controls.AddRange({lblPiperStatus, btnDownloadPiper})
-            y += 62
-
-            ' ── TTS Voice Models ──
-            grpVoices = New GroupBox() With {
-                .Text = "Piper Voice Models (select languages to download)",
-                .Location = New Drawing.Point(12, y),
-                .Size = New Drawing.Size(606, 220)
-            }
-
-            lvVoices = New ListView() With {
-                .Location = New Drawing.Point(10, 20),
-                .Size = New Drawing.Size(586, 155),
-                .View = View.Details,
-                .CheckBoxes = True,
-                .FullRowSelect = True,
-                .GridLines = True
-            }
-            lvVoices.Columns.Add("Language", 160)
-            lvVoices.Columns.Add("Voice Model", 270)
-            lvVoices.Columns.Add("Status", 130)
-
-            btnDownloadVoices = New Button() With {
-                .Text = "Download Selected",
-                .Location = New Drawing.Point(10, 182),
-                .Size = New Drawing.Size(140, 28)
-            }
-
-            btnRemoveVoices = New Button() With {
-                .Text = "Remove Selected",
-                .Location = New Drawing.Point(160, 182),
-                .Size = New Drawing.Size(140, 28)
-            }
-
-            grpVoices.Controls.AddRange({lvVoices, btnDownloadVoices, btnRemoveVoices})
-            y += 228
-
-            ' ── MMS-TTS (optional tier 2) ──
-            grpMmsTts = New GroupBox() With {
-                .Text = "MMS-TTS — 1100+ languages via PyTorch (optional — Tier 2)",
-                .Location = New Drawing.Point(12, y),
-                .Size = New Drawing.Size(606, 55)
-            }
-
-            lblMmsTtsStatus = New Label() With {
-                .Text = "Checking...",
-                .Location = New Drawing.Point(10, 24),
-                .Size = New Drawing.Size(380, 18)
-            }
-
-            btnInstallMmsTts = New Button() With {
-                .Text = "Install",
-                .Location = New Drawing.Point(480, 19),
-                .Size = New Drawing.Size(115, 28)
-            }
-
-            grpMmsTts.Controls.AddRange({lblMmsTtsStatus, btnInstallMmsTts})
-            y += 62
-
-            ' ── Bible Translations ──
-            grpBibles = New GroupBox() With {
-                .Text = "Bible Translations (installed)",
-                .Location = New Drawing.Point(12, y),
-                .Size = New Drawing.Size(606, 120)
-            }
-
-            lvBibles = New ListView() With {
-                .Location = New Drawing.Point(10, 20),
-                .Size = New Drawing.Size(586, 55),
-                .View = View.Details,
-                .FullRowSelect = True,
-                .GridLines = True
-            }
-            lvBibles.Columns.Add("Translation", 160)
-            lvBibles.Columns.Add("Language", 100)
-            lvBibles.Columns.Add("File", 300)
-
-            btnOpenBiblesFolder = New Button() With {
-                .Text = "Open Bibles Folder",
-                .Location = New Drawing.Point(10, 82),
-                .Size = New Drawing.Size(150, 28)
-            }
-
-            Dim lblBibleHint As New Label() With {
-                .Text = "Add .SQLite3 Bible files to language subfolders (e.g. Bibles\en\KJV+.SQLite3)",
-                .Location = New Drawing.Point(170, 87),
-                .Size = New Drawing.Size(420, 18),
-                .ForeColor = Drawing.SystemColors.GrayText
-            }
-
-            grpBibles.Controls.AddRange({lvBibles, btnOpenBiblesFolder, lblBibleHint})
-            y += 128
-
-            ' ── Progress ──
-            pbProgress = New ProgressBar() With {
-                .Location = New Drawing.Point(12, y),
-                .Size = New Drawing.Size(606, 20)
-            }
-            y += 26
-
-            lblProgress = New Label() With {
-                .Text = "Ready",
-                .Location = New Drawing.Point(12, y),
-                .Size = New Drawing.Size(490, 18)
-            }
-
-            btnClose = New Button() With {
-                .Text = "Close",
-                .Location = New Drawing.Point(528, y - 4),
-                .Size = New Drawing.Size(90, 28),
-                .DialogResult = DialogResult.OK
-            }
-
-            Me.Controls.AddRange({grpPiper, grpVoices, grpMmsTts, grpBibles,
-                pbProgress, lblProgress, btnClose})
-            Me.AcceptButton = btnClose
+        Protected Overrides Sub OnShown(e As EventArgs)
+            MyBase.OnShown(e)
+            LoadStateAsync()
         End Sub
 
-        Private Sub LoadState()
-            ' ── Piper engine status ──
-            Dim piperState = _mgr.CheckPiperAsync().Result
-            If piperState.Status = ToolStatus.UpToDate Then
-                lblPiperStatus.Text = $"Installed (v{piperState.InstalledVersion})"
-                btnDownloadPiper.Text = "Installed"
-                btnDownloadPiper.Enabled = False
-            Else
-                lblPiperStatus.Text = "Not installed — required for offline TTS"
-                btnDownloadPiper.Text = "Download (~15 MB)"
-                btnDownloadPiper.Enabled = True
+        Private Async Sub LoadStateAsync()
+            lblProgress.Text = "Checking components..."
+            btnDownloadAll.Enabled = False
+            btnRefresh.Enabled = False
+
+            Try
+                ' Check all core tools asynchronously
+                Dim states = Await _mgr.CheckAllToolsAsync()
+
+                ' Also check Python and its deps
+                Dim pythonState = Await _mgr.CheckPythonEmbedAsync()
+                Dim pythonDepsState = Await _mgr.CheckPythonDepsStateAsync()
+
+                lvTools.Items.Clear()
+
+                ' Add core tools
+                For Each st In states
+                    Dim cat = GetCategory(st.Name)
+                    Dim item As New ListViewItem(st.Name)
+                    item.SubItems.Add(cat)
+                    Select Case st.Status
+                        Case ToolStatus.UpToDate
+                            item.SubItems.Add("Installed")
+                            item.SubItems.Add(If(st.InstalledVersion, ""))
+                            item.ForeColor = Drawing.Color.DarkGreen
+                        Case ToolStatus.Installed
+                            item.SubItems.Add("Installed")
+                            item.SubItems.Add(If(st.InstalledVersion, ""))
+                            item.ForeColor = Drawing.Color.DarkGreen
+                        Case ToolStatus.UpdateAvailable
+                            item.SubItems.Add("Update Available")
+                            item.SubItems.Add($"{st.InstalledVersion} -> {st.LatestVersion}")
+                            item.ForeColor = Drawing.Color.DarkOrange
+                        Case ToolStatus.Missing
+                            item.SubItems.Add("Not Installed")
+                            item.SubItems.Add("")
+                            item.ForeColor = Drawing.Color.Red
+                        Case ToolStatus.CheckFailed
+                            item.SubItems.Add("Check Failed")
+                            item.SubItems.Add("")
+                            item.ForeColor = Drawing.Color.Gray
+                    End Select
+                    item.Tag = st
+                    lvTools.Items.Add(item)
+                Next
+
+                ' Add Python Embedded
+                Dim pyItem As New ListViewItem("Python Embedded")
+                pyItem.SubItems.Add("Runtime")
+                If pythonState.Status = ToolStatus.UpToDate Then
+                    pyItem.SubItems.Add("Installed")
+                    pyItem.SubItems.Add("3.12")
+                    pyItem.ForeColor = Drawing.Color.DarkGreen
+                Else
+                    pyItem.SubItems.Add("Not Installed")
+                    pyItem.SubItems.Add("")
+                    pyItem.ForeColor = Drawing.Color.Red
+                End If
+                pyItem.Tag = pythonState
+                lvTools.Items.Add(pyItem)
+
+                ' Add Python Packages
+                Dim pkgItem As New ListViewItem("Python Packages")
+                pkgItem.SubItems.Add("Runtime")
+                If pythonDepsState.Status = ToolStatus.UpToDate Then
+                    pkgItem.SubItems.Add("Installed")
+                    pkgItem.SubItems.Add("")
+                    pkgItem.ForeColor = Drawing.Color.DarkGreen
+                Else
+                    pkgItem.SubItems.Add("Not Installed")
+                    pkgItem.SubItems.Add("")
+                    pkgItem.ForeColor = Drawing.Color.Red
+                End If
+                pkgItem.Tag = pythonDepsState
+                lvTools.Items.Add(pkgItem)
+
+                ' Pre-check missing items and enable button if any are actionable
+                Dim hasActionable = False
+                For Each item As ListViewItem In lvTools.Items
+                    Dim s = TryCast(item.Tag, ToolState)
+                    If s IsNot Nothing AndAlso (s.Status = ToolStatus.Missing OrElse s.Status = ToolStatus.UpdateAvailable) Then
+                        item.Checked = True
+                        hasActionable = True
+                    End If
+                Next
+                btnDownloadAll.Enabled = hasActionable
+
+            Catch ex As Exception
+                lblProgress.Text = $"Error checking: {ex.Message}"
+            End Try
+
+            btnRefresh.Enabled = True
+
+            ' Load TTS voices
+            LoadVoices()
+
+            ' Load MMS-TTS status
+            LoadMmsTtsStatus()
+
+            ' Load Bibles
+            LoadBibles()
+
+            If lblProgress.Text = "Checking components..." Then
+                lblProgress.Text = "Ready"
             End If
+        End Sub
 
-            ' ── Voice models ──
+        Private Sub LoadVoices()
             Dim installedVoices = _mgr.GetInstalledPiperVoices()
             lvVoices.Items.Clear()
             For Each kvp In PiperBackend.VoiceMap.OrderBy(Function(k) GetLanguageDisplayName(k.Key))
                 Dim modelFile = PiperBackend.GetModelFileName(kvp.Key)
                 Dim installed = installedVoices.Contains(kvp.Key)
-
                 Dim item As New ListViewItem(GetLanguageDisplayName(kvp.Key))
                 item.SubItems.Add(If(modelFile, ""))
                 item.SubItems.Add(If(installed, "Installed", "Not installed"))
                 item.Tag = kvp.Key
-                If installed Then
-                    item.ForeColor = Drawing.Color.DarkGreen
-                End If
+                If installed Then item.ForeColor = Drawing.Color.DarkGreen
                 lvVoices.Items.Add(item)
             Next
+        End Sub
 
-            ' ── MMS-TTS status ──
+        Private Sub LoadMmsTtsStatus()
             Dim mmsTtsInstalled = MmsTtsBackend.CheckDepsInstalled()
             If mmsTtsInstalled Then
                 lblMmsTtsStatus.Text = "Installed — covers languages not in Piper"
@@ -234,9 +160,6 @@ Namespace Forms
                 btnInstallMmsTts.Text = "Install (~200 MB)"
                 btnInstallMmsTts.Enabled = True
             End If
-
-            ' ── Bibles ──
-            LoadBibles()
         End Sub
 
         Private Sub LoadBibles()
@@ -257,45 +180,114 @@ Namespace Forms
             Next
         End Sub
 
-        ' ── Event handlers ──
+        Private Shared Function GetCategory(name As String) As String
+            Select Case name
+                Case "yt-dlp", "FFmpeg", "Subtitle Edit"
+                    Return "Tool"
+                Case "Whisper Model (ggml-large-v3)", "faster-whisper Model (large-v3)"
+                    Return "AI Model"
+                Case "NLLB Translation Model"
+                    Return "AI Model"
+                Case "Piper TTS"
+                    Return "TTS"
+                Case Else
+                    Return "Other"
+            End Select
+        End Function
 
-        Private Async Sub btnDownloadPiper_Click(sender As Object, e As EventArgs) Handles btnDownloadPiper.Click
+        ' ── Download All Missing ──
+
+        Private Async Sub btnDownloadAll_Click(sender As Object, e As EventArgs) Handles btnDownloadAll.Click
             If _downloading Then Return
+
+            ' Collect checked items that need downloading
+            Dim toDownload As New List(Of ToolState)()
+            Dim needPython = False
+            Dim needPythonDeps = False
+
+            For Each item As ListViewItem In lvTools.CheckedItems
+                Dim st = TryCast(item.Tag, ToolState)
+                If st Is Nothing Then Continue For
+                If st.Status = ToolStatus.UpToDate OrElse st.Status = ToolStatus.Installed Then Continue For
+
+                If st.Name = "Python Embedded" Then
+                    needPython = True
+                ElseIf st.Name = "Python Packages" Then
+                    needPythonDeps = True
+                Else
+                    toDownload.Add(st)
+                End If
+            Next
+
+            If toDownload.Count = 0 AndAlso Not needPython AndAlso Not needPythonDeps Then
+                lblProgress.Text = "Select one or more components to download."
+                Return
+            End If
+
             _downloading = True
-            btnDownloadPiper.Enabled = False
-            SetButtonsEnabled(False)
+            SetAllButtonsEnabled(False)
 
             Try
-                lblProgress.Text = "Downloading Piper TTS engine..."
-                pbProgress.Value = 0
+                Dim total = toDownload.Count + If(needPython, 1, 0) + If(needPythonDeps, 1, 0)
+                Dim current = 0
 
-                Dim progress As New Progress(Of (downloaded As Long, total As Long))(
-                    Sub(p)
-                        If p.total > 0 Then
-                            pbProgress.Value = CInt(Math.Min(p.downloaded * 100 \ p.total, 100))
-                            lblProgress.Text = $"Downloading Piper... {(p.downloaded / 1048576.0):F1} / {(p.total / 1048576.0):F1} MB"
-                        End If
-                    End Sub)
+                ' Download tools/models
+                For Each tool In toDownload
+                    current += 1
+                    lblProgress.Text = $"Downloading {tool.Name} ({current}/{total})..."
+                    pbProgress.Value = 0
 
-                Await _mgr.DownloadPiperAsync(progress)
+                    Dim progress As New Progress(Of (downloaded As Long, total As Long))(
+                        Sub(p)
+                            If p.total > 0 Then
+                                pbProgress.Value = CInt(Math.Min(p.downloaded * 100 \ p.total, 100))
+                            End If
+                        End Sub)
 
-                lblPiperStatus.Text = "Installed (v2023.11.14-2)"
-                btnDownloadPiper.Text = "Installed"
-                lblProgress.Text = "Piper TTS engine installed successfully"
+                    Await _mgr.DownloadToolAsync(tool, progress)
+                Next
+
+                ' Python
+                If needPython Then
+                    current += 1
+                    lblProgress.Text = $"Installing Python Embedded ({current}/{total})..."
+                    pbProgress.Value = 0
+                    pbProgress.Style = ProgressBarStyle.Marquee
+                    Await _mgr.DownloadPythonEmbedAsync(Nothing)
+                    pbProgress.Style = ProgressBarStyle.Continuous
+                End If
+
+                If needPythonDeps OrElse needPython Then
+                    current += 1
+                    lblProgress.Text = $"Installing Python packages ({current}/{total})..."
+                    pbProgress.Style = ProgressBarStyle.Marquee
+                    Await _mgr.InstallPythonDepsAsync(Nothing)
+                    pbProgress.Style = ProgressBarStyle.Continuous
+                End If
+
                 pbProgress.Value = 100
+                lblProgress.Text = $"Downloaded {total} component(s) successfully"
+                PathsUpdated = True
+
             Catch ex As Exception
+                pbProgress.Style = ProgressBarStyle.Continuous
                 lblProgress.Text = $"Error: {ex.Message}"
-                btnDownloadPiper.Enabled = True
             Finally
                 _downloading = False
-                SetButtonsEnabled(True)
+                SetAllButtonsEnabled(True)
+                LoadStateAsync()
             End Try
         End Sub
+
+        Private Sub btnRefresh_Click(sender As Object, e As EventArgs) Handles btnRefresh.Click
+            LoadStateAsync()
+        End Sub
+
+        ' ── Voice Downloads ──
 
         Private Async Sub btnDownloadVoices_Click(sender As Object, e As EventArgs) Handles btnDownloadVoices.Click
             If _downloading Then Return
 
-            ' Collect uninstalled checked items
             Dim toDownload As New List(Of String)()
             For Each item As ListViewItem In lvVoices.CheckedItems
                 If item.SubItems(2).Text <> "Installed" Then
@@ -304,25 +296,19 @@ Namespace Forms
             Next
 
             If toDownload.Count = 0 Then
-                MessageBox.Show("Select one or more uninstalled voices to download.",
-                    "Download Voices", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                lblProgress.Text = "Select one or more uninstalled voices to download."
                 Return
             End If
 
-            ' Check engine first
+            ' Check Piper engine first
             Dim piperState = Await _mgr.CheckPiperAsync()
             If piperState.Status <> ToolStatus.UpToDate Then
-                Dim result = MessageBox.Show(
-                    "The Piper TTS engine is not installed. Download it first?",
-                    "Download Voices", MessageBoxButtons.YesNo, MessageBoxIcon.Question)
-                If result = DialogResult.Yes Then
-                    btnDownloadPiper_Click(Nothing, Nothing)
-                End If
+                lblProgress.Text = "Piper TTS engine must be installed first. Use 'Download All Missing'."
                 Return
             End If
 
             _downloading = True
-            SetButtonsEnabled(False)
+            SetAllButtonsEnabled(False)
 
             Try
                 For i = 0 To toDownload.Count - 1
@@ -343,12 +329,12 @@ Namespace Forms
 
                 lblProgress.Text = $"Downloaded {toDownload.Count} voice(s) successfully"
                 pbProgress.Value = 100
-                LoadState()
             Catch ex As Exception
                 lblProgress.Text = $"Error: {ex.Message}"
             Finally
                 _downloading = False
-                SetButtonsEnabled(True)
+                SetAllButtonsEnabled(True)
+                LoadVoices()
             End Try
         End Sub
 
@@ -361,8 +347,7 @@ Namespace Forms
             Next
 
             If toRemove.Count = 0 Then
-                MessageBox.Show("Select one or more installed voices to remove.",
-                    "Remove Voices", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                lblProgress.Text = "Select one or more installed voices to remove."
                 Return
             End If
 
@@ -390,8 +375,10 @@ Namespace Forms
             Next
 
             lblProgress.Text = $"Removed {removed} voice(s)"
-            LoadState()
+            LoadVoices()
         End Sub
+
+        ' ── MMS-TTS Install ──
 
         Private Async Sub btnInstallMmsTts_Click(sender As Object, e As EventArgs) Handles btnInstallMmsTts.Click
             If _downloading Then Return
@@ -399,13 +386,12 @@ Namespace Forms
             Dim result = MessageBox.Show(
                 "Install MMS-TTS (Meta's offline speech synthesis)?" & vbCrLf & vbCrLf &
                 "This will download CPU-only PyTorch (~200 MB) and the transformers library." & vbCrLf &
-                "MMS-TTS covers 1100+ languages for when Piper doesn't have a voice." & vbCrLf & vbCrLf &
-                "Requires Python Embedded to be installed (from tool updates).",
+                "MMS-TTS covers 1100+ languages for when Piper doesn't have a voice.",
                 "Install MMS-TTS", MessageBoxButtons.YesNo, MessageBoxIcon.Question)
             If result <> DialogResult.Yes Then Return
 
             _downloading = True
-            SetButtonsEnabled(False)
+            SetAllButtonsEnabled(False)
             btnInstallMmsTts.Enabled = False
 
             Try
@@ -421,7 +407,7 @@ Namespace Forms
                 If MmsTtsBackend.CheckDepsInstalled() Then
                     lblMmsTtsStatus.Text = "Installed — covers languages not in Piper"
                     btnInstallMmsTts.Text = "Installed"
-                    lblProgress.Text = "MMS-TTS installed successfully. Restart app to activate."
+                    lblProgress.Text = "MMS-TTS installed successfully"
                 Else
                     lblProgress.Text = "Installation may have failed — check Python is installed"
                     btnInstallMmsTts.Enabled = True
@@ -432,9 +418,11 @@ Namespace Forms
                 btnInstallMmsTts.Enabled = True
             Finally
                 _downloading = False
-                SetButtonsEnabled(True)
+                SetAllButtonsEnabled(True)
             End Try
         End Sub
+
+        ' ── Bibles ──
 
         Private Sub btnOpenBiblesFolder_Click(sender As Object, e As EventArgs) Handles btnOpenBiblesFolder.Click
             If Not Directory.Exists(_biblesDir) Then
@@ -447,9 +435,14 @@ Namespace Forms
             })
         End Sub
 
-        Private Sub SetButtonsEnabled(enabled As Boolean)
+        ' ── Helpers ──
+
+        Private Sub SetAllButtonsEnabled(enabled As Boolean)
+            btnDownloadAll.Enabled = enabled
+            btnRefresh.Enabled = enabled
             btnDownloadVoices.Enabled = enabled
             btnRemoveVoices.Enabled = enabled
+            btnInstallMmsTts.Enabled = enabled
             btnClose.Enabled = enabled
         End Sub
 
@@ -488,6 +481,7 @@ Namespace Forms
                 Case Else : Return nllbCode
             End Select
         End Function
+
     End Class
 
 End Namespace

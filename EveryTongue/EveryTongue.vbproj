@@ -12,6 +12,7 @@
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
     <NoWarn>MSB3277;NU5118</NoWarn>
+    <PublishDir>bin\Publish\</PublishDir>
   </PropertyGroup>
 
   <ItemGroup>
