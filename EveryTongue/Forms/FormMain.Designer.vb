@@ -946,7 +946,7 @@ Partial Class FormMain
         Me.trayMenu = New ContextMenuStrip()
         Me.trayMenuShow = New ToolStripMenuItem("Show")
         Me.trayMenuExit = New ToolStripMenuItem("Exit")
-        Me.trayMenu.Items.AddRange({Me.trayMenuShow, Me.trayMenuExit})
+        Me.trayMenu.Items.AddRange({Me.trayMenuShow, New ToolStripSeparator(), Me.trayMenuExit})
 
         Me.trayIcon = New NotifyIcon()
         Me.trayIcon.Icon = Me.Icon

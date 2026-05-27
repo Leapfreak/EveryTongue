@@ -415,7 +415,7 @@ body {
     display: none;
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: #111;
+    background: #000;
     z-index: 50;
     flex-direction: column;
     overflow: hidden;
@@ -436,7 +436,7 @@ body {
     flex-shrink: 0;
 }
 .lp-logo img {
-    max-width: 280px;
+    width: 100%;
     height: auto;
 }
 .lp-title {
