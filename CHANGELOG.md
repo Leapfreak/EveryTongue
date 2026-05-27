@@ -47,7 +47,7 @@
 - Font controls crashed during InitializeComponent (null check guard added)
 
 ### Removed
-- Unit test project (TranscriptionTools.Tests)
+- Unit test project (EveryTongue.Tests)
 
 ## v1.0.3 - 2026-04-15
 

@@ -1,6 +1,6 @@
 # Agape Deployment Feature Plan
 
-Implementation plan for making Transcription Tools field-deployable by a non-technical international organisation. Features ordered by priority — each section covers what exists today, what needs to change, and how to build it.
+Implementation plan for making Every Tongue field-deployable by a non-technical international organisation. Features ordered by priority — each section covers what exists today, what needs to change, and how to build it.
 
 ---
 
@@ -50,7 +50,7 @@ Implementation plan for making Transcription Tools field-deployable by a non-tec
 - Add i18n string: `Btn_ShowQR` = "Show QR Code" across all supported locales
 
 **Files to modify:**
-- `TranscriptionTools.vbproj` — add QRCoder package
+- `EveryTongue.vbproj` — add QRCoder package
 - `FormMain.vb` — add button, QR generation logic, floating window
 - `Strings.*.resx` — add QR button label
 
@@ -183,8 +183,8 @@ Critical files can get corrupted during USB transfers, incomplete downloads, or 
   "generated": "2026-05-24T12:00:00Z",
   "version": "1.3.2",
   "files": {
-    "TranscriptionTools.exe": { "sha256": "a1b2c3...", "size": 152064 },
-    "TranscriptionTools.dll": { "sha256": "d4e5f6...", "size": 294912 },
+    "EveryTongue.exe": { "sha256": "a1b2c3...", "size": 152064 },
+    "EveryTongue.dll": { "sha256": "d4e5f6...", "size": 294912 },
     "nllb-server/server.py": { "sha256": "g7h8i9...", "size": 18432 },
     "live-server/server.py": { "sha256": "j0k1l2...", "size": 24576 },
     "nllb-server/glossary.json": { "sha256": "m3n4o5...", "size": 4096 },
@@ -291,7 +291,7 @@ Critical files can get corrupted during USB transfers, incomplete downloads, or 
 
 **What's done:**
 - **(a) Server-Side TTS** — `TtsOrchestrator` implements `ITtsService`, selects best backend per language by priority. Three backends: `PiperBackend` (priority 1, local ONNX), `MmsTtsBackend` (priority 2, Python sidecar), `EdgeTtsBackend` (priority 3, cloud free, `--file` flag for safe text passing, system Python fallback). `SemaphoreSlim(3)` concurrency limiter on synthesis.
-- **TtsCache** — Ring-buffer cache in `%APPDATA%/TranscriptionTools/tts-cache/`, keyed by `{lang}_commit_{id}.mp3`, evicts oldest when 200 entries/lang exceeded. Hit/miss tracking.
+- **TtsCache** — Ring-buffer cache in `%APPDATA%/EveryTongue/tts-cache/`, keyed by `{lang}_commit_{id}.mp3`, evicts oldest when 200 entries/lang exceeded. Hit/miss tracking.
 - **`/tts/cache/{file}` endpoint** — serves cached audio with path traversal validation.
 - **Fire-and-forget TTS pipeline** — `SubtitleService` generates TTS after each `BroadcastCommit`/`BroadcastCommitTranslated`, only for languages with connected clients. Sends `{"type":"tts","id":N,"url":"...","lang":"..."}` WebSocket message to matching clients.
 - **(c) Hybrid Approach** — "Server TTS" toggle in phone settings panel. Client uses server audio when toggled on OR when browser lacks a voice for the translation language. Falls back to `speechSynthesis` otherwise. NLLB-to-BCP47 voice detection map for 20 languages.
@@ -344,7 +344,7 @@ The browser Speech API is device-dependent — many Android phones have poor or 
 
 **Files to modify:**
 - New directory: `tts-server/` with `server.py`, `requirements.txt`
-- `TranscriptionTools.vbproj` — embed tts-server files
+- `EveryTongue.vbproj` — embed tts-server files
 - New file: `TtsService.vb` — Python process lifecycle (follow TranslationService.vb pattern), auto-restart via watchdog (Feature #8)
 - Kestrel endpoints (Feature #15) — add `/tts/cache/{file}` static serving, `/api/tts-status` endpoint
 - `wwwroot/app.js` (after Feature #15f extraction) — audio playback, codec detection, server TTS toggle
@@ -392,7 +392,7 @@ The browser Speech API is device-dependent — many Android phones have poor or 
 
 ### d) First-Run on Foreign Laptop
 - No installation, no admin rights needed
-- Double-click `TranscriptionTools.exe` from USB
+- Double-click `EveryTongue.exe` from USB
 - Wizard detects portable mode, skips irrelevant steps
 - Firewall popup will appear (Windows always asks for new executables) — document this in the setup wizard with a screenshot/instruction
 
@@ -1757,7 +1757,7 @@ Include a `metrics-snapshot.json` in the diagnostics ZIP:
 - New file: `MetricsMiddleware.vb` — Kestrel middleware for request timing, byte counting
 - `FormMain.vb` — update server start/stop to use Kestrel host lifecycle, status bar with health indicators, expandable metrics detail panel
 - `FormMain.Designer.vb` — status bar layout, metrics panel controls
-- `TranscriptionTools.vbproj` — add `Microsoft.AspNetCore.App` framework reference (already in .NET 8 runtime, just needs the reference)
+- `EveryTongue.vbproj` — add `Microsoft.AspNetCore.App` framework reference (already in .NET 8 runtime, just needs the reference)
 - `AppConfig.vb` — server configuration (ports, cert path) compatible with Kestrel options, alert threshold overrides
 - `Diagnostics.vb` (Feature #4) — include metrics snapshot in diagnostics bundle
 - `Strings.*.resx` — alert messages, status bar labels, metrics panel labels
@@ -1985,7 +1985,7 @@ This gives baseline coverage for the majority of Agape's European footprint usin
 - `FormMain.vb` — Bible translation management UI (download, select available translations)
 - `AppConfig.vb` — selected Bible translations per language
 - `Strings.*.resx` — Bible UI labels, book names (if localised in desktop app)
-- `TranscriptionTools.vbproj` — add `Microsoft.Data.Sqlite` NuGet package
+- `EveryTongue.vbproj` — add `Microsoft.Data.Sqlite` NuGet package
 
 **Dependencies:**
 - `Microsoft.Data.Sqlite` — lightweight SQLite access for .NET (NuGet package, ~1MB)

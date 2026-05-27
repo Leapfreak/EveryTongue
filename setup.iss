@@ -1,17 +1,17 @@
-; Transcription Tools - Inno Setup Script
+; Every Tongue - Inno Setup Script
 ; Installer bundles whisper.cpp CUDA binaries from whisper-bin/
 
-#define MyAppName "Transcription Tools"
+#define MyAppName "Every Tongue"
 #define MyAppVersion GetEnv("APP_VERSION")
 #if MyAppVersion == ""
 #define MyAppVersion "0.0.0"
 #endif
 #define MyAppPublisher "Leapfreak"
-#define MyAppExeName "TranscriptionTools.exe"
-#define MyAppURL "https://github.com/Leapfreak/TranscriptionTools"
+#define MyAppExeName "EveryTongue.exe"
+#define MyAppURL "https://github.com/Leapfreak/EveryTongue"
 
 ; Source directory for published app files
-#define AppPublishDir "TranscriptionTools\bin\Publish"
+#define AppPublishDir "EveryTongue\bin\Publish"
 ; Whisper CUDA binaries (place whisper-cli.exe, DLLs here)
 #define WhisperBinDir "whisper-bin"
 
@@ -25,9 +25,9 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=Output
-OutputBaseFilename=TranscriptionTools_Setup_{#MyAppVersion}
+OutputBaseFilename=EveryTongue_Setup_{#MyAppVersion}
 LicenseFile=LICENSE
-SetupIconFile=TranscriptionTools\Resources\AppIcon.ico
+SetupIconFile=EveryTongue\Resources\AppIcon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -48,11 +48,11 @@ Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-; --- Transcription Tools application ---
-Source: "{#AppPublishDir}\TranscriptionTools.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\TranscriptionTools.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\TranscriptionTools.deps.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\TranscriptionTools.runtimeconfig.json"; DestDir: "{app}"; Flags: ignoreversion
+; --- Every Tongue application ---
+Source: "{#AppPublishDir}\EveryTongue.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\EveryTongue.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\EveryTongue.deps.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\EveryTongue.runtimeconfig.json"; DestDir: "{app}"; Flags: ignoreversion
 ; --- WebView2 (required for Live Output tab) ---
 Source: "{#AppPublishDir}\Microsoft.Web.WebView2.Core.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppPublishDir}\Microsoft.Web.WebView2.WinForms.dll"; DestDir: "{app}"; Flags: ignoreversion

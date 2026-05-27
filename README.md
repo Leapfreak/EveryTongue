@@ -1,13 +1,13 @@
-# Transcription Tools
+# Every Tongue
 
 A Windows desktop application for speech-to-text transcription with real-time live captioning, multilingual translation, and phone subtitle display. Built on [whisper.cpp](https://github.com/ggerganov/whisper.cpp) for batch processing and [faster-whisper](https://github.com/SYSTRAN/faster-whisper) with Silero VAD for live transcription.
 
 ## Download
 
-Download the latest version from the [Releases](https://github.com/Leapfreak/TranscriptionTools/releases) page:
+Download the latest version from the [Releases](https://github.com/Leapfreak/EveryTongue/releases) page:
 
-- **TranscriptionTools_Setup_x.x.x.exe** (recommended) -- Installer with Start Menu shortcuts and uninstaller
-- **TranscriptionTools_vx.x.x.zip** -- Portable version, extract and run
+- **EveryTongue_Setup_x.x.x.exe** (recommended) -- Installer with Start Menu shortcuts and uninstaller
+- **EveryTongue_vx.x.x.zip** -- Portable version, extract and run
 
 On first launch, the app will prompt you to download the required tools (whisper.cpp, yt-dlp, FFmpeg, Whisper model, and SubtitleEdit). This is a one-time setup that downloads everything automatically.
 
@@ -69,15 +69,15 @@ All other dependencies are downloaded automatically on first launch:
 ## Build from Source
 
 ```bash
-git clone https://github.com/Leapfreak/TranscriptionTools.git
-cd TranscriptionTools
+git clone https://github.com/Leapfreak/EveryTongue.git
+cd EveryTongue
 dotnet build
 ```
 
 To publish a release build:
 
 ```bash
-dotnet publish TranscriptionTools/TranscriptionTools.vbproj -c Release -o TranscriptionTools/bin/Publish
+dotnet publish EveryTongue/EveryTongue.vbproj -c Release -o EveryTongue/bin/Publish
 ```
 
 To build the installer (requires [Inno Setup 6](https://jrsoftware.org/isinfo.php)):

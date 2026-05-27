@@ -1,0 +1,93 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <RootNamespace>EveryTongue</RootNamespace>
+    <StartupObject>EveryTongue.FormMain</StartupObject>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Version>1.3.2</Version>
+    <AssemblyVersion>1.3.2.0</AssemblyVersion>
+    <FileVersion>1.3.2.0</FileVersion>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
+    <NoWarn>MSB3277;NU5118</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Import Include="System.Data" />
+    <Import Include="System.Drawing" />
+    <Import Include="System.Windows.Forms" />
+  </ItemGroup>
+
+  <!-- ASP.NET Core Kestrel (included in .NET 8 runtime, no extra download) -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="Resources\Strings.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Strings.Designer.vb</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Help\*.rtf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\nllb-server\server.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>nllb-server\server.py</Link>
+    </Content>
+    <Content Include="..\nllb-server\glossary.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>nllb-server\glossary.json</Link>
+    </Content>
+    <Content Include="..\nllb-server\requirements.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>nllb-server\requirements.txt</Link>
+    </Content>
+    <Content Include="..\live-server\server.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>live-server\server.py</Link>
+    </Content>
+    <Content Include="..\live-server\requirements.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>live-server\requirements.txt</Link>
+    </Content>
+    <Content Include="..\live-server\hallucinations.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>live-server\hallucinations.json</Link>
+    </Content>
+    <Content Include="..\nllb-server\profanity.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>nllb-server\profanity.json</Link>
+    </Content>
+    <Content Include="..\mms-tts-server\server.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>mms-tts-server\server.py</Link>
+    </Content>
+    <Content Include="..\mms-tts-server\requirements.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>mms-tts-server\requirements.txt</Link>
+    </Content>
+  </ItemGroup>
+
+  <!-- Kestrel static web content -->
+  <ItemGroup>
+    <Content Include="wwwroot\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

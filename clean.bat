@@ -2,17 +2,17 @@
 REM Clean all build artifacts, binaries, logs, and temp files from the project
 REM Safe to run before zipping/transferring source code
 
-echo Cleaning Transcription Tools source tree...
+echo Cleaning Every Tongue source tree...
 echo.
 
 REM .NET build output
-if exist "TranscriptionTools\bin" (
-    echo Removing TranscriptionTools\bin\
-    rmdir /s /q "TranscriptionTools\bin"
+if exist "EveryTongue\bin" (
+    echo Removing EveryTongue\bin\
+    rmdir /s /q "EveryTongue\bin"
 )
-if exist "TranscriptionTools\obj" (
-    echo Removing TranscriptionTools\obj\
-    rmdir /s /q "TranscriptionTools\obj"
+if exist "EveryTongue\obj" (
+    echo Removing EveryTongue\obj\
+    rmdir /s /q "EveryTongue\obj"
 )
 
 REM Visual Studio

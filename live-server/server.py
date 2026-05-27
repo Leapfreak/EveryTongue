@@ -1,5 +1,5 @@
 """
-Live Transcription Server for Transcription Tools.
+Live Transcription Server for Every Tongue.
 FastAPI server: sounddevice audio capture -> Silero VAD -> faster-whisper -> SSE events.
 """
 

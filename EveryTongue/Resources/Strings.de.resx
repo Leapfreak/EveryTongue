@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+
+  <!-- Tab labels -->
+  <data name="Tab_Main"><value>Haupt / Aufgabe</value></data>
+  <data name="Tab_Paths"><value>Pfade &amp; Werkzeuge</value></data>
+  <data name="Tab_Help"><value>Hilfe</value></data>
+  <data name="Tab_Live"><value>Live-Übersetzung</value></data>
+  <data name="Tab_Settings"><value>Einstellungen</value></data>
+
+  <!-- Main tab - Input group -->
+  <data name="Grp_Input"><value>Eingabe</value></data>
+  <data name="Lbl_Url"><value>YouTube-URL oder lokale Datei:</value></data>
+  <data name="Btn_BrowseFile"><value>Durchsuchen...</value></data>
+  <data name="Lbl_StartTime"><value>Startzeit (HH:MM:SS):</value></data>
+  <data name="Lbl_EndTime"><value>Endzeit (HH:MM:SS):</value></data>
+  <data name="Lbl_OutputDir"><value>Ausgabeordner:</value></data>
+  <data name="Btn_BrowseOutput"><value>Durchsuchen...</value></data>
+
+  <!-- Main tab - Output formats group -->
+  <data name="Grp_OutputFormats"><value>Ausgabeformate</value></data>
+
+  <!-- Main tab - Progress group -->
+  <data name="Grp_Progress"><value>Fortschritt</value></data>
+  <data name="Btn_Start"><value>Starten</value></data>
+  <data name="Btn_Cancel"><value>Abbrechen</value></data>
+  <data name="Btn_SubtitleEdit"><value>Subtitle Edit</value></data>
+  <data name="Btn_OpenOutputFolder"><value>Ausgabeordner &#246;ffnen</value></data>
+  <data name="Lnk_PreviewSrt"><value>preview.srt &#246;ffnen</value></data>
+
+
+
+
+
+  <!-- Paths tab -->
+  <data name="Lbl_PathWhisper"><value>whisper-cli.exe:</value></data>
+  <data name="Lbl_PathYtdlp"><value>yt-dlp.exe:</value></data>
+  <data name="Lbl_PathFfmpeg"><value>ffmpeg.exe:</value></data>
+  <data name="Lbl_PathFfprobe"><value>ffprobe.exe:</value></data>
+  <data name="Lbl_PathModel"><value>YouTube-Modell (.bin):</value></data>
+  <data name="Lbl_PathModelAudio"><value>Audiodatei-Modell (.bin):</value></data>
+  <data name="Lbl_PathOutputRoot"><value>Standard-Ausgabeverzeichnis:</value></data>
+  <data name="Lbl_YtdlpFormat"><value>yt-dlp-Formatzeichenfolge:</value></data>
+  <data name="Btn_VerifyPaths"><value>Alle Pfade &#252;berpr&#252;fen</value></data>
+  <data name="Lnk_DownloadModels"><value>Whisper-Modelle herunterladen...</value></data>
+
+  <!-- Log tab -->
+  <data name="Btn_ClearLog"><value>Protokoll l&#246;schen</value></data>
+  <data name="Btn_CopyLog"><value>In Zwischenablage kopieren</value></data>
+
+  <!-- Settings tab -->
+  <data name="Lbl_UiLanguage"><value>Oberfl&#228;chensprache:</value></data>
+  <data name="Lbl_Theme"><value>Design:</value></data>
+  <data name="Btn_ResetSettings"><value>Alle Einstellungen zur&#252;cksetzen</value></data>
+
+  <!-- Status messages -->
+  <data name="Msg_Done"><value>Fertig!</value></data>
+  <data name="Msg_Cancelled"><value>Abgebrochen.</value></data>
+  <data name="Msg_Ready"><value>Bereit</value></data>
+
+  <!-- Error messages -->
+  <data name="Err_ToolNotFound"><value>Werkzeug am angegebenen Pfad nicht gefunden. Bitte &#252;berpr&#252;fen Sie die Registerkarte Pfade.</value></data>
+  <data name="Err_DownloadFailed"><value>Video-Download fehlgeschlagen.</value></data>
+  <data name="Err_TrimFailed"><value>Video-Zuschnitt fehlgeschlagen.</value></data>
+  <data name="Err_AudioExtractFailed"><value>Audioextraktion fehlgeschlagen.</value></data>
+  <data name="Err_DurationFailed"><value>Audiodauer konnte nicht ermittelt werden.</value></data>
+  <data name="Err_ChunkFailed"><value>Audio-Fragmentierung fehlgeschlagen.</value></data>
+  <data name="Err_WhisperFailed"><value>Whisper-Transkription fehlgeschlagen.</value></data>
+  <data name="Err_MergeFailed"><value>SRT-Zusammenf&#252;hrung fehlgeschlagen.</value></data>
+  <data name="Err_NoInput"><value>Bitte geben Sie eine YouTube-URL ein oder suchen Sie nach einer lokalen Datei.</value></data>
+
+  <!-- Tooltips -->
+  <data name="Tip_Url"><value>Geben Sie eine YouTube-URL oder den Pfad zu einer lokalen Video-/Audiodatei ein</value></data>
+  <data name="Lbl_Mode"><value>Modus:</value></data>
+  <data name="Lbl_AudioFile"><value>Audiodatei:</value></data>
+  <data name="Btn_BrowseAudio"><value>Audio suchen...</value></data>
+  <data name="Lbl_InputLanguage"><value>Eingabesprache:</value></data>
+  <data name="Lbl_OutputLanguage"><value>Ausgabesprache:</value></data>
+  <data name="Tip_InputLanguage"><value>Im Audio gesprochene Sprache (auto zur Erkennung).</value></data>
+  <data name="Tip_OutputLanguage"><value>Sprache der Untertitel (auto = wie Eingabe, en = ins Englische &#252;bersetzen).</value></data>
+  <data name="Lbl_Model"><value>Model:</value></data>
+
+  <!-- Paths tab - group -->
+  <data name="Grp_Paths"><value>Werkzeugpfade</value></data>
+
+  <!-- Settings tab - group -->
+  <data name="Grp_AppSettings"><value>Anwendungseinstellungen</value></data>
+  <data name="Btn_CheckToolUpdates"><value>Nach Updates suchen</value></data>
+
+  <!-- Live tab -->
+  <data name="Grp_LiveInput"><value>Live-&#220;bersetzungseinstellungen</value></data>
+  <data name="Lbl_LiveDevice"><value>Audioger&#228;t:</value></data>
+  <data name="Btn_RefreshDevices"><value>Aktualisieren</value></data>
+  <data name="Lbl_LiveInputLang"><value>Eingabesprache:</value></data>
+  <data name="Btn_LiveStart"><value>Starten</value></data>
+  <data name="Btn_LiveStop"><value>Stoppen</value></data>
+  <data name="Btn_LiveSave"><value>Transkript speichern...</value></data>
+
+  <!-- Subtitle Server tab -->
+  <data name="Tab_Server"><value>Untertitel-Server</value></data>
+  <data name="Grp_ServerSettings"><value>Servereinstellungen</value></data>
+  <data name="Lbl_ServerPort"><value>Port:</value></data>
+  <data name="Btn_ServerStart"><value>Server starten</value></data>
+  <data name="Btn_ServerStop"><value>Server stoppen</value></data>
+  <data name="Btn_ServerRestart"><value>Server neustarten</value></data>
+  <data name="Btn_Simulate"><value>Simulieren</value></data>
+  <data name="Btn_SimStop"><value>Sim. stoppen</value></data>
+  <data name="Lbl_SubtitleBg"><value>Hintergrund:</value></data>
+  <data name="Lbl_SubtitleFg"><value>Textfarbe:</value></data>
+  <data name="Grp_ServerInfo"><value>Verbindungsinfo</value></data>
+  <data name="Btn_CopyUrl"><value>URL kopieren</value></data>
+
+  <!-- MessageBox messages -->
+  <data name="Msg_Checking"><value>&#220;berpr&#252;fung...</value></data>
+  <data name="Msg_MissingTools"><value>Die folgenden ben&#246;tigten Werkzeuge fehlen:</value></data>
+  <data name="Msg_DownloadNow"><value>M&#246;chten Sie sie jetzt herunterladen?</value></data>
+  <data name="Msg_MissingDeps"><value>Fehlende Abh&#228;ngigkeiten</value></data>
+  <data name="Msg_UpdatesAvailable"><value>Werkzeug-Updates sind verf&#252;gbar:</value></data>
+  <data name="Msg_UpdateNow"><value>M&#246;chten Sie sie jetzt aktualisieren?</value></data>
+  <data name="Msg_UpdatesTitle"><value>Updates verf&#252;gbar</value></data>
+  <data name="Msg_AllUpToDate"><value>Alle Werkzeuge sind aktuell.</value></data>
+  <data name="Msg_ToolCheck"><value>Werkzeug&#252;berpr&#252;fung</value></data>
+  <data name="Msg_ErrorCheckingDeps"><value>Fehler bei der Abh&#228;ngigkeitspr&#252;fung:</value></data>
+  <data name="Msg_DownloadComplete"><value>Alle Werkzeuge wurden erfolgreich heruntergeladen!</value></data>
+  <data name="Msg_DownloadCompleteTitle"><value>Download abgeschlossen</value></data>
+  <data name="Msg_DownloadFailed"><value>Download fehlgeschlagen:</value></data>
+  <data name="Msg_DownloadError"><value>Download-Fehler</value></data>
+  <data name="Msg_PipelineError"><value>Verarbeitungsfehler</value></data>
+  <data name="Msg_UnexpectedError"><value>Unerwarteter Fehler</value></data>
+  <data name="Msg_NoSrtFound"><value>Keine SRT-Datei im Ausgabeordner gefunden.</value></data>
+  <data name="Msg_SubtitleEditNotFound"><value>SubtitleEdit.exe nicht gefunden:</value></data>
+  <data name="Msg_PathVerification"><value>Pfad&#252;berpr&#252;fung</value></data>
+  <data name="Msg_ResetAll"><value>ALLE Einstellungen zur&#252;cksetzen? Dies kann nicht r&#252;ckg&#228;ngig gemacht werden.</value></data>
+  <data name="Msg_ResetAllTitle"><value>Einstellungen zur&#252;cksetzen</value></data>
+  <data name="Msg_TranscriptSaved"><value>Transkript gespeichert unter:</value></data>
+  <data name="Msg_Saved"><value>Gespeichert</value></data>
+  <data name="Msg_CleanUp"><value>Aufr&#228;umen</value></data>
+  <data name="Msg_Error"><value>Fehler</value></data>
+  <data name="Msg_NewVersionAvailable"><value>Eine neue Version ist verf&#252;gbar:</value></data>
+  <data name="Msg_DownloadUpdate"><value>M&#246;chten Sie die Download-Seite besuchen?</value></data>
+  <data name="Msg_UpdateAvailable"><value>Update verf&#252;gbar</value></data>
+  <data name="Msg_LiveDepsMissing"><value>Die Abh&#228;ngigkeiten f&#252;r die Live-Transkription sind nicht installiert.
+
+F&#252;hren Sie die Abh&#228;ngigkeitspr&#252;fung auf der Registerkarte Einstellungen aus, um alle erforderlichen Komponenten herunterzuladen.</value></data>
+  <data name="Msg_DepsMissing"><value>Fehlende Abh&#228;ngigkeiten</value></data>
+  <data name="Tab_LiveOutput"><value>Live-Ausgabe</value></data>
+  <data name="Tab_LiveLog"><value>Protokoll</value></data>
+  <data name="Btn_LiveSaveLog"><value>Protokoll Speichern...</value></data>
+  <data name="Btn_LiveClearLog"><value>Protokoll Löschen</value></data>
+
+  <!-- Filter Editor -->
+  <data name="Btn_Filters"><value>Filter...</value></data>
+  <data name="FE_Title"><value>Filter-Editor</value></data>
+  <data name="FE_Tab_Hallucinations"><value>Halluzinationen</value></data>
+  <data name="FE_Tab_Profanity"><value>Obszönitätsfilter</value></data>
+  <data name="FE_Tab_Glossary"><value>Glossar</value></data>
+  <data name="FE_Desc_Hallucinations"><value>Phrasen, die Whisper halluziniert (z.B. 'Thanks for watching'). Groß-/Kleinschreibung wird ignoriert.</value></data>
+  <data name="FE_Desc_Profanity"><value>Wörter, die in der Übersetzung durch [...] ersetzt werden. Verwendet NLLB-Codes (z.B. eng_Latn).</value></data>
+  <data name="FE_Desc_Glossary"><value>Glossareinträge (wenn der Quelltext den Auslöser enthält, werden falsche Wörter in der Übersetzung korrigiert):</value></data>
+  <data name="FE_Language"><value>Sprache:</value></data>
+  <data name="FE_AddLanguage"><value>Sprache hinzufügen...</value></data>
+  <data name="FE_Add"><value>Hinzufügen</value></data>
+  <data name="FE_RemoveSelected"><value>Auswahl entfernen</value></data>
+  <data name="FE_AddEntry"><value>Eintrag hinzufügen</value></data>
+  <data name="FE_RemoveEntry"><value>Eintrag entfernen</value></data>
+  <data name="FE_SelectedEntry"><value>Ausgewählter Eintrag</value></data>
+  <data name="FE_Trigger"><value>Auslöser:</value></data>
+  <data name="FE_SourceLangs"><value>Quellsprachen:</value></data>
+  <data name="FE_Comment"><value>Kommentar:</value></data>
+  <data name="FE_Fixes"><value>Korrekturen (Zielsprache -> falsches Wort -> richtiges Wort):</value></data>
+  <data name="FE_AddFix"><value>Korrektur hinzufügen</value></data>
+  <data name="FE_RemoveFix"><value>Korrektur entfernen</value></data>
+  <data name="FE_SaveReload"><value>Speichern und neu laden</value></data>
+  <data name="FE_Cancel"><value>Abbrechen</value></data>
+  <data name="FE_Saved"><value>Gespeichert und Neuladen angefordert.</value></data>
+  <data name="FE_DiscardChanges"><value>Nicht gespeicherte Änderungen verwerfen?</value></data>
+  <data name="FE_PromptLangCode"><value>Sprachcode eingeben (z.B. en, es, ca, fr):</value></data>
+  <data name="FE_PromptNllbCode"><value>NLLB-Sprachcode eingeben (z.B. eng_Latn, spa_Latn):</value></data>
+  <data name="FE_ColTrigger"><value>Auslöser</value></data>
+  <data name="FE_ColSourceLangs"><value>Quellsprachen</value></data>
+  <data name="FE_ColComment"><value>Kommentar</value></data>
+  <data name="FE_ColTargetLang"><value>Zielsprache</value></data>
+  <data name="FE_ColWrong"><value>Falsches Wort</value></data>
+  <data name="FE_ColRight"><value>Richtiges Wort</value></data>
+</root>

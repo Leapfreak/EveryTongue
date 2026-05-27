@@ -1,5 +1,5 @@
 """
-NLLB-200 Translation Sidecar for Transcription Tools.
+NLLB-200 Translation Sidecar for Every Tongue.
 FastAPI REST server wrapping CTranslate2 for real-time multi-target translation.
 """
 

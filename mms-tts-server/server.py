@@ -1,5 +1,5 @@
 """
-MMS-TTS Sidecar for Transcription Tools.
+MMS-TTS Sidecar for Every Tongue.
 FastAPI REST server wrapping Meta's MMS-TTS (VITS) for offline speech synthesis.
 Models auto-download from HuggingFace on first use per language (~100 MB each).
 """

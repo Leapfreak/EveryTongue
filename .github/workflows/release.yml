@@ -22,7 +22,7 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Publish
-        run: dotnet publish TranscriptionTools/TranscriptionTools.vbproj -c Release -o TranscriptionTools/bin/Publish
+        run: dotnet publish EveryTongue/EveryTongue.vbproj -c Release -o EveryTongue/bin/Publish
 
       - name: Download whisper.cpp CUDA binaries
         shell: pwsh
@@ -51,7 +51,7 @@ jobs:
         run: |
           $version = "${{ github.ref_name }}".TrimStart("v")
           $json = @{ app = $version; whisper = "1.8.4-cuda12.4-v2" } | ConvertTo-Json
-          Set-Content -Path "TranscriptionTools/bin/Publish/component-versions.json" -Value $json
+          Set-Content -Path "EveryTongue/bin/Publish/component-versions.json" -Value $json
 
       - name: Install Inno Setup
         run: choco install innosetup -y
@@ -71,20 +71,20 @@ jobs:
           # App-only zip (everything except whisper/ subdir)
           $appStage = "app-stage"
           New-Item -ItemType Directory -Force -Path $appStage
-          Get-ChildItem "TranscriptionTools/bin/Publish" -Exclude "whisper" | Copy-Item -Destination $appStage -Recurse -Force
-          Compress-Archive -Path "$appStage/*" -DestinationPath "Output/TranscriptionTools_App_${{ github.ref_name }}.zip"
+          Get-ChildItem "EveryTongue/bin/Publish" -Exclude "whisper" | Copy-Item -Destination $appStage -Recurse -Force
+          Compress-Archive -Path "$appStage/*" -DestinationPath "Output/EveryTongue_App_${{ github.ref_name }}.zip"
 
           # Whisper-only zip
-          Compress-Archive -Path whisper-bin/* -DestinationPath "Output/TranscriptionTools_Whisper_${{ github.ref_name }}.zip"
+          Compress-Archive -Path whisper-bin/* -DestinationPath "EveryTongue_Whisper_${{ github.ref_name }}.zip"
 
           # Manifest
           $manifest = @{
             app = $version
             whisper = $whisperVersion
             files = @{
-              app = "TranscriptionTools_App_${{ github.ref_name }}.zip"
-              whisper = "TranscriptionTools_Whisper_${{ github.ref_name }}.zip"
-              installer = "TranscriptionTools_Setup_${version}.exe"
+              app = "EveryTongue_App_${{ github.ref_name }}.zip"
+              whisper = "EveryTongue_Whisper_${{ github.ref_name }}.zip"
+              installer = "EveryTongue_Setup_${version}.exe"
             }
           } | ConvertTo-Json
           Set-Content -Path "Output/manifest.json" -Value $manifest
@@ -96,7 +96,7 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            Output/TranscriptionTools_Setup_*.exe
-            Output/TranscriptionTools_App_${{ github.ref_name }}.zip
-            Output/TranscriptionTools_Whisper_${{ github.ref_name }}.zip
+            Output/EveryTongue_Setup_*.exe
+            Output/EveryTongue_App_${{ github.ref_name }}.zip
+            EveryTongue_Whisper_${{ github.ref_name }}.zip
             Output/manifest.json

@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+
+  <!-- Tab labels -->
+  <data name="Tab_Main"><value>&#12513;&#12452;&#12531; / &#12472;&#12519;&#12502;</value></data>
+  <data name="Tab_Paths"><value>&#12497;&#12473;&#12392;&#12484;&#12540;&#12523;</value></data>
+  <data name="Tab_Help"><value>&#12504;&#12523;&#12503;</value></data>
+  <data name="Tab_Live"><value>ライブ翻訳</value></data>
+  <data name="Tab_Settings"><value>&#35373;&#23450;</value></data>
+
+  <!-- Main tab - Input group -->
+  <data name="Grp_Input"><value>&#20837;&#21147;</value></data>
+  <data name="Lbl_Url"><value>YouTube URL &#12414;&#12383;&#12399;&#12525;&#12540;&#12459;&#12523;&#12501;&#12449;&#12452;&#12523;&#65306;</value></data>
+  <data name="Btn_BrowseFile"><value>&#21442;&#29031;...</value></data>
+  <data name="Lbl_StartTime"><value>&#38283;&#22987;&#26178;&#21051; (HH:MM:SS)&#65306;</value></data>
+  <data name="Lbl_EndTime"><value>&#32066;&#20102;&#26178;&#21051; (HH:MM:SS)&#65306;</value></data>
+  <data name="Lbl_OutputDir"><value>&#20986;&#21147;&#12501;&#12457;&#12523;&#12480;&#65306;</value></data>
+  <data name="Btn_BrowseOutput"><value>&#21442;&#29031;...</value></data>
+
+  <!-- Main tab - Output formats group -->
+  <data name="Grp_OutputFormats"><value>&#20986;&#21147;&#24418;&#24335;</value></data>
+
+  <!-- Main tab - Progress group -->
+  <data name="Grp_Progress"><value>&#36914;&#25431;</value></data>
+  <data name="Btn_Start"><value>&#38283;&#22987;</value></data>
+  <data name="Btn_Cancel"><value>&#12461;&#12515;&#12531;&#12475;&#12523;</value></data>
+  <data name="Btn_SubtitleEdit"><value>Subtitle Edit</value></data>
+  <data name="Btn_OpenOutputFolder"><value>&#20986;&#21147;&#12501;&#12457;&#12523;&#12480;&#12434;&#38283;&#12367;</value></data>
+  <data name="Lnk_PreviewSrt"><value>preview.srt &#12434;&#38283;&#12367;</value></data>
+
+
+
+
+
+  <!-- Paths tab -->
+  <data name="Lbl_PathWhisper"><value>whisper-cli.exe&#65306;</value></data>
+  <data name="Lbl_PathYtdlp"><value>yt-dlp.exe&#65306;</value></data>
+  <data name="Lbl_PathFfmpeg"><value>ffmpeg.exe&#65306;</value></data>
+  <data name="Lbl_PathFfprobe"><value>ffprobe.exe&#65306;</value></data>
+  <data name="Lbl_PathModel"><value>YouTube &#12514;&#12487;&#12523; (.bin)&#65306;</value></data>
+  <data name="Lbl_PathModelAudio"><value>&#12458;&#12540;&#12487;&#12451;&#12458;&#12501;&#12449;&#12452;&#12523;&#12514;&#12487;&#12523; (.bin)&#65306;</value></data>
+  <data name="Lbl_PathOutputRoot"><value>&#12487;&#12501;&#12457;&#12523;&#12488;&#20986;&#21147;&#12523;&#12540;&#12488;&#65306;</value></data>
+  <data name="Lbl_YtdlpFormat"><value>yt-dlp &#12501;&#12457;&#12540;&#12510;&#12483;&#12488;&#25991;&#23383;&#21015;&#65306;</value></data>
+  <data name="Btn_VerifyPaths"><value>&#12377;&#12409;&#12390;&#12398;&#12497;&#12473;&#12434;&#26908;&#35388;</value></data>
+  <data name="Lnk_DownloadModels"><value>whisper&#12514;&#12487;&#12523;&#12434;&#12480;&#12454;&#12531;&#12525;&#12540;&#12489;...</value></data>
+
+  <!-- Log tab -->
+  <data name="Btn_ClearLog"><value>&#12525;&#12464;&#12434;&#12463;&#12522;&#12450;</value></data>
+  <data name="Btn_CopyLog"><value>&#12463;&#12522;&#12483;&#12503;&#12508;&#12540;&#12489;&#12395;&#12467;&#12500;&#12540;</value></data>
+
+  <!-- Settings tab -->
+  <data name="Lbl_UiLanguage"><value>UI &#35328;&#35486;&#65306;</value></data>
+  <data name="Lbl_Theme"><value>&#12486;&#12540;&#12510;&#65306;</value></data>
+  <data name="Btn_ResetSettings"><value>&#12377;&#12409;&#12390;&#12398;&#35373;&#23450;&#12434;&#12522;&#12475;&#12483;&#12488;</value></data>
+
+  <!-- Status messages -->
+  <data name="Msg_Done"><value>&#23436;&#20102;&#65281;</value></data>
+  <data name="Msg_Cancelled"><value>&#12461;&#12515;&#12531;&#12475;&#12523;&#12375;&#12414;&#12375;&#12383;&#12290;</value></data>
+  <data name="Msg_Ready"><value>&#28310;&#20633;&#23436;&#20102;</value></data>
+
+  <!-- Error messages -->
+  <data name="Err_ToolNotFound"><value>&#25351;&#23450;&#12373;&#12428;&#12383;&#12497;&#12473;&#12395;&#12484;&#12540;&#12523;&#12364;&#35211;&#12388;&#12363;&#12426;&#12414;&#12379;&#12435;&#12290;&#12497;&#12473;&#12479;&#12502;&#12434;&#30906;&#35469;&#12375;&#12390;&#12367;&#12384;&#12373;&#12356;&#12290;</value></data>
+  <data name="Err_DownloadFailed"><value>&#21205;&#30011;&#12398;&#12480;&#12454;&#12531;&#12525;&#12540;&#12489;&#12395;&#22833;&#25943;&#12375;&#12414;&#12375;&#12383;&#12290;</value></data>
+  <data name="Err_TrimFailed"><value>&#21205;&#30011;&#12398;&#12488;&#12522;&#12511;&#12531;&#12464;&#12395;&#22833;&#25943;&#12375;&#12414;&#12375;&#12383;&#12290;</value></data>
+  <data name="Err_AudioExtractFailed"><value>&#38899;&#22768;&#12398;&#25277;&#20986;&#12395;&#22833;&#25943;&#12375;&#12414;&#12375;&#12383;&#12290;</value></data>
+  <data name="Err_DurationFailed"><value>&#38899;&#22768;&#12398;&#20877;&#29983;&#26178;&#38291;&#12434;&#29305;&#23450;&#12391;&#12365;&#12414;&#12379;&#12435;&#12391;&#12375;&#12383;&#12290;</value></data>
+  <data name="Err_ChunkFailed"><value>&#38899;&#22768;&#12398;&#12481;&#12515;&#12531;&#12463;&#20998;&#21106;&#12395;&#22833;&#25943;&#12375;&#12414;&#12375;&#12383;&#12290;</value></data>
+  <data name="Err_WhisperFailed"><value>Whisper &#25991;&#23383;&#36215;&#12371;&#12375;&#12395;&#22833;&#25943;&#12375;&#12414;&#12375;&#12383;&#12290;</value></data>
+  <data name="Err_MergeFailed"><value>SRT &#12398;&#32080;&#21512;&#12395;&#22833;&#25943;&#12375;&#12414;&#12375;&#12383;&#12290;</value></data>
+  <data name="Err_NoInput"><value>YouTube URL &#12434;&#20837;&#21147;&#12377;&#12427;&#12363;&#12289;&#12525;&#12540;&#12459;&#12523;&#12501;&#12449;&#12452;&#12523;&#12434;&#21442;&#29031;&#12375;&#12390;&#12367;&#12384;&#12373;&#12356;&#12290;</value></data>
+
+  <!-- Tooltips -->
+  <data name="Tip_Url"><value>YouTube URL &#12414;&#12383;&#12399;&#12525;&#12540;&#12459;&#12523;&#12398;&#21205;&#30011;/&#38899;&#22768;&#12501;&#12449;&#12452;&#12523;&#12398;&#12497;&#12473;&#12434;&#20837;&#21147;&#12375;&#12390;&#12367;&#12384;&#12373;&#12356;</value></data>
+  <data name="Lbl_Mode"><value>&#12514;&#12540;&#12489;&#65306;</value></data>
+  <data name="Lbl_AudioFile"><value>&#12458;&#12540;&#12487;&#12451;&#12458;&#12501;&#12449;&#12452;&#12523;&#65306;</value></data>
+  <data name="Btn_BrowseAudio"><value>&#38899;&#22768;&#12434;&#21442;&#29031;...</value></data>
+  <data name="Lbl_InputLanguage"><value>&#20837;&#21147;&#35328;&#35486;&#65306;</value></data>
+  <data name="Lbl_OutputLanguage"><value>&#20986;&#21147;&#35328;&#35486;&#65306;</value></data>
+  <data name="Tip_InputLanguage"><value>&#38899;&#22768;&#12398;&#35328;&#35486;&#65288;auto&#12391;&#33258;&#21205;&#26908;&#20986;&#65289;&#12290;</value></data>
+  <data name="Tip_OutputLanguage"><value>&#23383;&#24149;&#12398;&#35328;&#35486;&#65288;auto = &#20837;&#21147;&#12392;&#21516;&#12376;&#12289;en = &#33521;&#35486;&#12395;&#32763;&#35379;&#65289;&#12290;</value></data>
+  <data name="Lbl_Model"><value>Model:</value></data>
+
+  <!-- Paths tab - group -->
+  <data name="Grp_Paths"><value>&#12484;&#12540;&#12523;&#12497;&#12473;</value></data>
+
+  <!-- Settings tab - group -->
+  <data name="Grp_AppSettings"><value>&#12450;&#12503;&#12522;&#12465;&#12540;&#12471;&#12519;&#12531;&#35373;&#23450;</value></data>
+  <data name="Btn_CheckToolUpdates"><value>&#26356;&#26032;&#12434;&#30906;&#35469;</value></data>
+
+  <!-- Live tab -->
+  <data name="Grp_LiveInput"><value>&#12521;&#12452;&#12502;&#32763;&#35379;&#35373;&#23450;</value></data>
+  <data name="Lbl_LiveDevice"><value>&#12458;&#12540;&#12487;&#12451;&#12458;&#12487;&#12496;&#12452;&#12473;&#65306;</value></data>
+  <data name="Btn_RefreshDevices"><value>&#26356;&#26032;</value></data>
+  <data name="Lbl_LiveInputLang"><value>&#20837;&#21147;&#35328;&#35486;&#65306;</value></data>
+  <data name="Btn_LiveStart"><value>&#38283;&#22987;</value></data>
+  <data name="Btn_LiveStop"><value>&#20572;&#27490;</value></data>
+  <data name="Btn_LiveSave"><value>&#25991;&#23383;&#36215;&#12371;&#12375;&#12434;&#20445;&#23384;...</value></data>
+
+  <!-- Subtitle Server tab -->
+  <data name="Tab_Server"><value>&#23383;&#24149;&#12469;&#12540;&#12496;&#12540;</value></data>
+  <data name="Grp_ServerSettings"><value>&#12469;&#12540;&#12496;&#12540;&#35373;&#23450;</value></data>
+  <data name="Lbl_ServerPort"><value>&#12509;&#12540;&#12488;&#65306;</value></data>
+  <data name="Btn_ServerStart"><value>&#12469;&#12540;&#12496;&#12540;&#38283;&#22987;</value></data>
+  <data name="Btn_ServerStop"><value>&#12469;&#12540;&#12496;&#12540;&#20572;&#27490;</value></data>
+  <data name="Btn_ServerRestart"><value>&#12469;&#12540;&#12496;&#12540;&#20877;&#36215;&#21205;</value></data>
+  <data name="Btn_Simulate"><value>&#12471;&#12511;&#12517;&#12524;&#12540;&#12488;</value></data>
+  <data name="Btn_SimStop"><value>&#12471;&#12511;&#12517;&#20572;&#27490;</value></data>
+  <data name="Lbl_SubtitleBg"><value>&#32972;&#26223;&#65306;</value></data>
+  <data name="Lbl_SubtitleFg"><value>&#25991;&#23383;&#33394;&#65306;</value></data>
+  <data name="Grp_ServerInfo"><value>&#25509;&#32154;&#24773;&#22577;</value></data>
+  <data name="Btn_CopyUrl"><value>URL&#12434;&#12467;&#12500;&#12540;</value></data>
+
+  <!-- MessageBox messages -->
+  <data name="Msg_Checking"><value>&#30906;&#35469;&#20013;...</value></data>
+  <data name="Msg_MissingTools"><value>&#20197;&#19979;&#12398;&#24517;&#38920;&#12484;&#12540;&#12523;&#12364;&#12354;&#12426;&#12414;&#12379;&#12435;&#65306;</value></data>
+  <data name="Msg_DownloadNow"><value>&#20170;&#12377;&#12368;&#12480;&#12454;&#12531;&#12525;&#12540;&#12489;&#12375;&#12414;&#12377;&#12363;&#65311;</value></data>
+  <data name="Msg_MissingDeps"><value>&#19981;&#36275;&#12375;&#12390;&#12356;&#12427;&#20381;&#23384;&#38306;&#20418;</value></data>
+  <data name="Msg_UpdatesAvailable"><value>&#12484;&#12540;&#12523;&#12398;&#26356;&#26032;&#12364;&#21033;&#29992;&#21487;&#33021;&#12391;&#12377;&#65306;</value></data>
+  <data name="Msg_UpdateNow"><value>&#20170;&#12377;&#12368;&#26356;&#26032;&#12375;&#12414;&#12377;&#12363;&#65311;</value></data>
+  <data name="Msg_UpdatesTitle"><value>&#26356;&#26032;&#21033;&#29992;&#21487;&#33021;</value></data>
+  <data name="Msg_AllUpToDate"><value>&#12377;&#12409;&#12390;&#12398;&#12484;&#12540;&#12523;&#12399;&#26368;&#26032;&#12391;&#12377;&#12290;</value></data>
+  <data name="Msg_ToolCheck"><value>&#12484;&#12540;&#12523;&#30906;&#35469;</value></data>
+  <data name="Msg_ErrorCheckingDeps"><value>&#20381;&#23384;&#38306;&#20418;&#12398;&#30906;&#35469;&#12456;&#12521;&#12540;&#65306;</value></data>
+  <data name="Msg_DownloadComplete"><value>&#12377;&#12409;&#12390;&#12398;&#12484;&#12540;&#12523;&#12364;&#27491;&#24120;&#12395;&#12480;&#12454;&#12531;&#12525;&#12540;&#12489;&#12373;&#12428;&#12414;&#12375;&#12383;&#65281;</value></data>
+  <data name="Msg_DownloadCompleteTitle"><value>&#12480;&#12454;&#12531;&#12525;&#12540;&#12489;&#23436;&#20102;</value></data>
+  <data name="Msg_DownloadFailed"><value>&#12480;&#12454;&#12531;&#12525;&#12540;&#12489;&#22833;&#25943;&#65306;</value></data>
+  <data name="Msg_DownloadError"><value>&#12480;&#12454;&#12531;&#12525;&#12540;&#12489;&#12456;&#12521;&#12540;</value></data>
+  <data name="Msg_PipelineError"><value>&#20966;&#29702;&#12456;&#12521;&#12540;</value></data>
+  <data name="Msg_UnexpectedError"><value>&#20104;&#26399;&#12375;&#12394;&#12356;&#12456;&#12521;&#12540;</value></data>
+  <data name="Msg_NoSrtFound"><value>&#20986;&#21147;&#12501;&#12457;&#12523;&#12480;&#12540;&#12395;SRT&#12501;&#12449;&#12452;&#12523;&#12364;&#35211;&#12388;&#12363;&#12426;&#12414;&#12379;&#12435;&#12290;</value></data>
+  <data name="Msg_SubtitleEditNotFound"><value>SubtitleEdit.exe&#12364;&#35211;&#12388;&#12363;&#12426;&#12414;&#12379;&#12435;&#65306;</value></data>
+  <data name="Msg_PathVerification"><value>&#12497;&#12473;&#26908;&#35388;</value></data>
+  <data name="Msg_ResetAll"><value>&#12377;&#12409;&#12390;&#12398;&#35373;&#23450;&#12434;&#12522;&#12475;&#12483;&#12488;&#12375;&#12414;&#12377;&#12363;&#65311;&#12371;&#12398;&#25805;&#20316;&#12399;&#21462;&#12426;&#28040;&#12379;&#12414;&#12379;&#12435;&#12290;</value></data>
+  <data name="Msg_ResetAllTitle"><value>&#35373;&#23450;&#12434;&#12522;&#12475;&#12483;&#12488;</value></data>
+  <data name="Msg_TranscriptSaved"><value>&#25991;&#23383;&#36215;&#12371;&#12375;&#12398;&#20445;&#23384;&#20808;&#65306;</value></data>
+  <data name="Msg_Saved"><value>&#20445;&#23384;&#28168;&#12415;</value></data>
+  <data name="Msg_CleanUp"><value>&#12463;&#12522;&#12540;&#12531;&#12450;&#12483;&#12503;</value></data>
+  <data name="Msg_Error"><value>&#12456;&#12521;&#12540;</value></data>
+  <data name="Msg_NewVersionAvailable"><value>&#26032;&#12375;&#12356;&#12496;&#12540;&#12472;&#12519;&#12531;&#12364;&#21033;&#29992;&#21487;&#33021;&#12391;&#12377;&#65306;</value></data>
+  <data name="Msg_DownloadUpdate"><value>&#12480;&#12454;&#12531;&#12525;&#12540;&#12489;&#12506;&#12540;&#12472;&#12434;&#38283;&#12365;&#12414;&#12377;&#12363;&#65311;</value></data>
+  <data name="Msg_UpdateAvailable"><value>&#26356;&#26032;&#21033;&#29992;&#21487;&#33021;</value></data>
+  <data name="Msg_LiveDepsMissing"><value>&#12521;&#12452;&#12502;&#25991;&#23383;&#36215;&#12371;&#12375;&#12398;&#20381;&#23384;&#38306;&#20418;&#12364;&#12452;&#12531;&#12473;&#12488;&#12540;&#12523;&#12373;&#12428;&#12390;&#12356;&#12414;&#12379;&#12435;&#12290;
+
+&#35373;&#23450;&#12479;&#12502;&#12363;&#12425;&#20381;&#23384;&#38306;&#20418;&#12481;&#12455;&#12483;&#12463;&#12434;&#23455;&#34892;&#12375;&#12390;&#12289;&#24517;&#35201;&#12394;&#12467;&#12531;&#12509;&#12540;&#12493;&#12531;&#12488;&#12434;&#12377;&#12409;&#12390;&#12480;&#12454;&#12531;&#12525;&#12540;&#12489;&#12375;&#12390;&#12367;&#12384;&#12373;&#12356;&#12290;</value></data>
+  <data name="Msg_DepsMissing"><value>&#20381;&#23384;&#38306;&#20418;&#12364;&#19981;&#36275;</value></data>
+  <data name="Tab_LiveOutput"><value>&#12521;&#12452;&#12502;&#20986;&#21147;</value></data>
+  <data name="Tab_LiveLog"><value>&#12525;&#12464;</value></data>
+  <data name="Btn_LiveSaveLog"><value>&#12525;&#12464;&#12434;&#20445;&#23384;...</value></data>
+  <data name="Btn_LiveClearLog"><value>&#12525;&#12464;&#12434;&#12463;&#12522;&#12450;</value></data>
+
+  <!-- Filter Editor -->
+  <data name="Btn_Filters"><value>フィルター...</value></data>
+  <data name="FE_Title"><value>フィルターエディター</value></data>
+  <data name="FE_Tab_Hallucinations"><value>幻覚</value></data>
+  <data name="FE_Tab_Profanity"><value>不適切語フィルター</value></data>
+  <data name="FE_Tab_Glossary"><value>用語集</value></data>
+  <data name="FE_Desc_Hallucinations"><value>Whisperが幻覚する定型句（例：'Thanks for watching'）。大文字小文字を区別せずに照合。</value></data>
+  <data name="FE_Desc_Profanity"><value>翻訳出力で[...]に置換される単語。NLLBコードを使用（例：eng_Latn）。</value></data>
+  <data name="FE_Desc_Glossary"><value>用語集エントリ（ソーステキストにトリガーが含まれる場合、翻訳の誤った単語を修正）：</value></data>
+  <data name="FE_Language"><value>言語：</value></data>
+  <data name="FE_AddLanguage"><value>言語を追加...</value></data>
+  <data name="FE_Add"><value>追加</value></data>
+  <data name="FE_RemoveSelected"><value>選択を削除</value></data>
+  <data name="FE_AddEntry"><value>エントリ追加</value></data>
+  <data name="FE_RemoveEntry"><value>エントリ削除</value></data>
+  <data name="FE_SelectedEntry"><value>選択されたエントリ</value></data>
+  <data name="FE_Trigger"><value>トリガー：</value></data>
+  <data name="FE_SourceLangs"><value>ソース言語：</value></data>
+  <data name="FE_Comment"><value>コメント：</value></data>
+  <data name="FE_Fixes"><value>修正（対象言語 -> 誤った語 -> 正しい語）：</value></data>
+  <data name="FE_AddFix"><value>修正を追加</value></data>
+  <data name="FE_RemoveFix"><value>修正を削除</value></data>
+  <data name="FE_SaveReload"><value>保存して再読み込み</value></data>
+  <data name="FE_Cancel"><value>キャンセル</value></data>
+  <data name="FE_Saved"><value>保存し、再読み込みを要求しました。</value></data>
+  <data name="FE_DiscardChanges"><value>未保存の変更を破棄しますか？</value></data>
+  <data name="FE_PromptLangCode"><value>言語コードを入力（例：en, es, ca, fr）：</value></data>
+  <data name="FE_PromptNllbCode"><value>NLLBコードを入力（例：eng_Latn, spa_Latn）：</value></data>
+  <data name="FE_ColTrigger"><value>トリガー</value></data>
+  <data name="FE_ColSourceLangs"><value>ソース言語</value></data>
+  <data name="FE_ColComment"><value>コメント</value></data>
+  <data name="FE_ColTargetLang"><value>対象言語</value></data>
+  <data name="FE_ColWrong"><value>誤った語</value></data>
+  <data name="FE_ColRight"><value>正しい語</value></data>
+</root>

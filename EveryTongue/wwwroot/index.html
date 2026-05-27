@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+<title>Every Tongue</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div id="status" class="disconnected">Connecting...</div>
+<div id="toolbar">
+  <button id="btnAdmin" onclick="toggleAdmin()" title="Remote Control" style="display:none">&#128737;</button>
+  <button id="btnHome" onclick="goHome()" title="Home">&#127968;</button>
+  <button id="btnSettings" onclick="togglePanel()" title="Settings">&#9881;</button>
+  <button id="btnWake" onclick="toggleWakeLock()" title="Keep screen on">&#9728;</button>
+  <button id="btnBible" onclick="toggleBible()" title="Bible">&#128214;</button>
+</div>
+<div id="adminPanel">
+  <div id="adminStatus">Checking...</div>
+  <button class="start" onclick="sendCommand('start')">&#9654; Start</button>
+  <button class="stop" onclick="sendCommand('stop')">&#9632; Stop</button>
+  <button class="restart" onclick="sendCommand('restart')">&#8635; Restart</button>
+  <button onclick="sendCommand('simulate')">&#9881; Simulate</button>
+  <button class="stop" onclick="sendCommand('clear')">&#10060; Clear</button>
+  <button onclick="requestTune()" style="border-color:#48f;color:#8af">&#9881; Tune</button>
+  <label style="color:#aaa;font-size:12px;margin-top:8px;display:block" id="lblInputLang">Input Language</label>
+  <select id="inputLangSelect" onchange="setInputLang(this.value)" style="background:#333;color:#fff;border:1px solid #555;border-radius:4px;padding:6px;font-size:14px;width:100%;margin-top:2px">
+    <option value="auto">Auto Detect</option>
+    <option value="ca">Catalan</option>
+    <option value="es">Spanish</option>
+    <option value="en">English</option>
+    <option value="fr">French</option>
+    <option value="de">German</option>
+    <option value="it">Italian</option>
+    <option value="pt">Portuguese</option>
+    <option value="nl">Dutch</option>
+    <option value="ru">Russian</option>
+    <option value="zh">Chinese</option>
+    <option value="ja">Japanese</option>
+    <option value="ko">Korean</option>
+    <option value="ar">Arabic</option>
+  </select>
+</div>
+<div id="panel">
+  <button onclick="changeFontSize(4)">A+</button>
+  <button onclick="changeFontSize(-4)">A-</button>
+  <label id="lblFont">Font</label>
+  <select id="fontSelect" onchange="changeFont(this.value)">
+    <option value="'Segoe UI',Arial,sans-serif">Segoe UI</option>
+    <option value="Arial,sans-serif">Arial</option>
+    <option value="'Courier New',monospace">Courier New</option>
+    <option value="Georgia,serif">Georgia</option>
+    <option value="'Times New Roman',serif">Times New Roman</option>
+    <option value="Verdana,sans-serif">Verdana</option>
+    <option value="'Trebuchet MS',sans-serif">Trebuchet MS</option>
+    <option value="Tahoma,sans-serif">Tahoma</option>
+  </select>
+  <label id="lblStyle">Style</label>
+  <button id="btnBold" onclick="toggleBold()" style="min-width:60px">Bold</button>
+  <label id="lblColor">Text Color</label>
+  <input type="color" id="colorPicker" onchange="changeColor(this.value)" style="width:100%;height:32px;border:1px solid #555;border-radius:4px;background:#333;cursor:pointer">
+  <label id="lblVoice">Voice</label>
+  <select id="voiceSelect" onchange="onVoiceChange(this.value)"></select>
+  <label id="lblSpeed">Speed</label>
+  <select id="rateSelect" onchange="speechRate=parseFloat(this.value);localStorage.setItem('rate',this.value)">
+    <option value="0.7">Slow</option>
+    <option value="1" selected>Normal</option>
+    <option value="1.3">Fast</option>
+    <option value="1.6">Very Fast</option>
+  </select>
+  <label id="lblSpeak">Read Aloud</label>
+  <button id="btnSpeak" onclick="toggleSpeak()" style="width:100%;min-width:60px">&#128264; Read Aloud</button>
+  <select id="transLangSelect" style="display:none"></select>
+  <label id="lblScroll">Scroll Direction</label>
+  <select id="scrollDir" onchange="setScrollDir(this.value)">
+    <option value="up">Bottom-up (newest at bottom)</option>
+    <option value="down">Top-down (newest at top)</option>
+  </select>
+  <label id="lblTags">Tags</label>
+  <select id="tagMode" onchange="setTagMode(this.value)">
+    <option value="off">Off</option>
+    <option value="lang">Language</option>
+    <option value="time">Time</option>
+    <option value="both">Language + Time</option>
+  </select>
+  <button id="btnSave" onclick="saveTranscript()" style="width:100%;margin-top:12px">&#128190; Save Transcript</button>
+</div>
+<div id="langPicker">
+  <div class="lp-inner">
+    <div class="lp-title" id="lpTitle">Choose your language</div>
+    <div id="lpDetected"></div>
+    <div class="lp-search-wrap">
+      <input id="lpSearch" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    </div>
+    <div id="lpList"></div>
+    <div class="lp-skip" id="lpSkip" onclick="pickLang('')">No translation</div>
+    <div id="lpAdmin">
+      <div class="lp-admin-toggle" id="lpAdminToggle" onclick="toggleAdminLogin()">Administrator</div>
+      <div id="lpAdminForm" style="display:none">
+        <input id="lpAdminPin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off">
+        <button id="lpAdminGo" onclick="verifyAdminPin()">OK</button>
+        <div id="lpAdminMsg"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="biblePanel">
+  <div id="bibleHeader">
+    <select id="bibleTransSelect" onchange="onBibleTransChange(this.value)"></select>
+    <input id="bibleRefInput" type="text" placeholder="John 3:16" onkeydown="if(event.key==='Enter')lookupRef()">
+    <button id="btnRefGo" onclick="lookupRef()">Go</button>
+  </div>
+  <div id="bibleNav">
+    <button id="btnBibleClose" onclick="closeBible()">&#10005;</button>
+    <button id="btnBibleBack" onclick="bibleBack()" style="display:none">&#8592;</button>
+    <span id="bibleNavTitle"></span>
+    <button id="btnBibleSearch" onclick="toggleBibleSearch()">&#128269;</button>
+  </div>
+  <div id="bibleSearchBox" style="display:none">
+    <input id="bibleSearchInput" type="text" placeholder="Search..." onkeydown="if(event.key==='Enter')bibleSearch()">
+    <button onclick="bibleSearch()">&#128269;</button>
+  </div>
+  <div id="bibleContent"></div>
+</div>
+<div id="container"><div id="lines"><div id="spacer"></div></div></div>
+<script src="/js/app.js"></script>
+</body>
+</html>

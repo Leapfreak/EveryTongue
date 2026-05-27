@@ -1,6 +1,6 @@
 # Kestrel Migration Plan
 
-Enterprise-grade architecture redesign for Transcription Tools. Replaces the current HttpListener + TcpListener/SslStream server with ASP.NET Core Kestrel hosted in-process, and establishes the foundation for Bible integration, TTS, audio streaming, pluggable translation backends, and future extensibility.
+Enterprise-grade architecture redesign for Every Tongue. Replaces the current HttpListener + TcpListener/SslStream server with ASP.NET Core Kestrel hosted in-process, and establishes the foundation for Bible integration, TTS, audio streaming, pluggable translation backends, and future extensibility.
 
 ---
 
@@ -111,8 +111,8 @@ FormMain (WinForms)
 ## Project Structure
 
 ```
-TranscriptionTools/
-  |-- TranscriptionTools.vbproj          (+ Microsoft.AspNetCore.App framework ref)
+EveryTongue/
+  |-- EveryTongue.vbproj          (+ Microsoft.AspNetCore.App framework ref)
   |-- Program.vb                         (unchanged — mutex, Application.Run)
   |
   |-- Forms/
@@ -235,7 +235,7 @@ TranscriptionTools/
 ### 1a. Project File Changes
 
 ```xml
-<!-- TranscriptionTools.vbproj -->
+<!-- EveryTongue.vbproj -->
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0-windows</TargetFramework>
