@@ -50,6 +50,9 @@ Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
+; --- License and notices ---
+Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 ; --- Every Tongue application ---
 Source: "{#AppPublishDir}\EveryTongue.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppPublishDir}\EveryTongue.dll"; DestDir: "{app}"; Flags: ignoreversion
