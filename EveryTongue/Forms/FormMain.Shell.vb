@@ -53,6 +53,9 @@ Partial Class FormMain
     Private wvBible As Microsoft.Web.WebView2.WinForms.WebView2
     Private lblBibleStatus As Label
 
+    ' ── QR Code window ────────────────────────────────────────────
+    Private _formQr As FormQrCode
+
     ' ── Log panel ─────────────────────────────────────────────────
     Private pnlLogPanel As Panel
     Private splitterLog As Splitter
@@ -174,11 +177,7 @@ Partial Class FormMain
 
         mnuFileNewSession = New ToolStripMenuItem("New Session...")
         mnuFileNewSession.ShortcutKeys = Keys.Control Or Keys.N
-        mnuFileNewSession.Enabled = False
-        AddHandler mnuFileNewSession.Click, Sub(s, e)
-                                                 MessageBox.Show("Session Wizard coming soon.", "New Session",
-                                                     MessageBoxButtons.OK, MessageBoxIcon.Information)
-                                             End Sub
+        AddHandler mnuFileNewSession.Click, Sub(s, e) LaunchSessionWizard()
 
         mnuFileExportDiag = New ToolStripMenuItem("Export Diagnostics...")
         mnuFileExportDiag.Enabled = False
@@ -265,7 +264,7 @@ Partial Class FormMain
         AddHandler mnuSessionStop.Click, Sub(s, e) btnLiveStop.PerformClick()
 
         mnuSessionQR = New ToolStripMenuItem("Show QR Code")
-        mnuSessionQR.Enabled = False
+        AddHandler mnuSessionQR.Click, Sub(s, e) ShowQrCode()
 
         mnuSessionCopyUrl = New ToolStripMenuItem("Copy Phone URL")
         AddHandler mnuSessionCopyUrl.Click, Sub(s, e) btnCopyUrl.PerformClick()
@@ -367,8 +366,8 @@ Partial Class FormMain
 
         tsbQR = New ToolStripButton("QR Code") With {
             .DisplayStyle = ToolStripItemDisplayStyle.Text,
-            .ToolTipText = "Show QR Code (coming soon)",
-            .Enabled = False}
+            .ToolTipText = "Show QR Code"}
+        AddHandler tsbQR.Click, Sub(s, e) ShowQrCode()
 
         tsbOptions = New ToolStripButton("Options") With {
             .DisplayStyle = ToolStripItemDisplayStyle.Text,
@@ -852,6 +851,24 @@ Partial Class FormMain
     ' Shell helpers
     ' ═══════════════════════════════════════════════════════════════
 
+    Private Sub LaunchSessionWizard()
+        ' Gather current audio devices from the live device combo
+        Dim devices As New List(Of String)
+        For Each item In cboLiveDevice.Items
+            Dim text = item.ToString()
+            If text <> "Detecting devices..." Then devices.Add(text)
+        Next
+
+        Using dlg As New FormSessionWizard(_config, devices.ToArray(), _whisperLanguages, _langNames)
+            If dlg.ShowDialog(Me) = DialogResult.OK AndAlso dlg.StartSession Then
+                ' Reload config into UI, switch to Live, start session
+                LoadConfigToUi()
+                SwitchWorkspace(tabPageLive, btnNavLive)
+                btnLiveStart.PerformClick()
+            End If
+        End Using
+    End Sub
+
     Private Sub ShowOptionsDialog(Optional category As String = "general")
         Using dlg As New FormOptions(_config, _uiLocales)
             dlg.SelectCategory(category)
@@ -862,6 +879,25 @@ Partial Class FormMain
                 If _config.StartWithWindows Then RegisterStartup() Else UnregisterStartup()
             End If
         End Using
+    End Sub
+
+    Private Sub ShowQrCode()
+        If _serverPort = 0 Then
+            MessageBox.Show("The server is not running. Start a live session first.",
+                "QR Code", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Return
+        End If
+
+        Dim localIp = GetLocalIpAddress()
+        Dim url = $"https://{localIp}:{_serverPort + 1}"
+
+        If _formQr Is Nothing OrElse _formQr.IsDisposed Then
+            _formQr = New FormQrCode(url)
+            _formQr.Show(Me)
+        Else
+            _formQr.UpdateUrl(url)
+            _formQr.BringToFront()
+        End If
     End Sub
 
     Private Sub SetThemeFromMenu(theme As String)
