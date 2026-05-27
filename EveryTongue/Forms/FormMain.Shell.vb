@@ -53,6 +53,18 @@ Partial Class FormMain
     Private wvBible As Microsoft.Web.WebView2.WinForms.WebView2
     Private lblBibleStatus As Label
 
+    ' ── Log panel ─────────────────────────────────────────────────
+    Private pnlLogPanel As Panel
+    Private splitterLog As Splitter
+    Private rtbUnifiedLog As RichTextBox
+    Private cboLogFilter As ComboBox
+    Private btnLogClear As Button
+    Private btnLogCopy As Button
+    Private _logPanelVisible As Boolean = False
+    Private ReadOnly _unifiedLogBuffer As New System.Collections.Concurrent.ConcurrentQueue(Of (Source As String, Text As String, Color As Drawing.Color))
+    Private _unifiedLogPending As Integer = 0
+    Private Const UnifiedLogMaxLines As Integer = 3000
+
     ' ── Menu items (kept as fields for localization/enable toggling) ─
     Private mnuFile As ToolStripMenuItem
     Private mnuFileNewSession As ToolStripMenuItem
@@ -126,6 +138,7 @@ Partial Class FormMain
         BuildToolbar()
         BuildNavRail()
         BuildStatusBar()
+        BuildLogPanel()
 
         ' ── Restructure form layout ────────────────────────────────
         Me.Controls.Remove(tabMain)
@@ -134,6 +147,8 @@ Partial Class FormMain
         pnlContent.Dock = DockStyle.Fill
         pnlContent.Controls.Add(tabMain)      ' Fill — innermost
         pnlContent.Controls.Add(pnlNavRail)   ' Left — beside tabMain
+        pnlContent.Controls.Add(splitterLog)   ' Bottom splitter (hidden)
+        pnlContent.Controls.Add(pnlLogPanel)   ' Bottom log panel (hidden)
 
         Me.Controls.Add(pnlContent)
         Me.Controls.Add(statusMain)
@@ -264,7 +279,8 @@ Partial Class FormMain
         mnuView = New ToolStripMenuItem("&View")
 
         mnuViewLogPanel = New ToolStripMenuItem("Show Log Panel")
-        mnuViewLogPanel.Enabled = False
+        mnuViewLogPanel.ShortcutKeys = Keys.Control Or Keys.L
+        AddHandler mnuViewLogPanel.Click, Sub(s, e) ToggleLogPanel()
 
         mnuViewTheme = New ToolStripMenuItem("Theme")
         mnuViewThemeSystem = New ToolStripMenuItem("System")
@@ -653,6 +669,136 @@ Partial Class FormMain
             lblBibleStatus.Visible = False
         Catch
         End Try
+    End Sub
+
+    ' ═══════════════════════════════════════════════════════════════
+    ' Unified Log Panel
+    ' ═══════════════════════════════════════════════════════════════
+    Private Sub BuildLogPanel()
+        pnlLogPanel = New Panel() With {
+            .Dock = DockStyle.Bottom,
+            .Height = 180,
+            .Visible = False}
+
+        splitterLog = New Splitter() With {
+            .Dock = DockStyle.Bottom,
+            .Height = 4,
+            .BackColor = Color.FromArgb(200, 200, 200),
+            .Visible = False}
+
+        ' Toolbar row
+        Dim pnlLogToolbar As New Panel() With {
+            .Dock = DockStyle.Top, .Height = 28}
+
+        Dim lblLogTitle As New Label() With {
+            .Text = "Output", .Location = New Drawing.Point(4, 5),
+            .AutoSize = True, .Font = New Font("Segoe UI", 9, Drawing.FontStyle.Bold)}
+
+        cboLogFilter = New ComboBox() With {
+            .Location = New Drawing.Point(70, 2), .Size = New Drawing.Size(100, 22),
+            .DropDownStyle = ComboBoxStyle.DropDownList}
+        cboLogFilter.Items.AddRange({"All", "Pipeline", "Server", "Debug"})
+        cboLogFilter.SelectedIndex = 0
+
+        btnLogClear = New Button() With {
+            .Text = "Clear", .Location = New Drawing.Point(180, 1),
+            .Size = New Drawing.Size(55, 24), .FlatStyle = FlatStyle.Flat}
+        btnLogClear.FlatAppearance.BorderSize = 1
+        AddHandler btnLogClear.Click, Sub(s, e) rtbUnifiedLog.Clear()
+
+        btnLogCopy = New Button() With {
+            .Text = "Copy", .Location = New Drawing.Point(240, 1),
+            .Size = New Drawing.Size(55, 24), .FlatStyle = FlatStyle.Flat}
+        btnLogCopy.FlatAppearance.BorderSize = 1
+        AddHandler btnLogCopy.Click, Sub(s, e)
+                                          If rtbUnifiedLog.TextLength > 0 Then
+                                              Clipboard.SetText(rtbUnifiedLog.Text)
+                                          End If
+                                      End Sub
+
+        pnlLogToolbar.Controls.AddRange({lblLogTitle, cboLogFilter, btnLogClear, btnLogCopy})
+
+        ' Log RTB
+        rtbUnifiedLog = New RichTextBox() With {
+            .Dock = DockStyle.Fill,
+            .[ReadOnly] = True,
+            .BackColor = Color.FromArgb(30, 30, 30),
+            .ForeColor = Color.FromArgb(200, 200, 200),
+            .Font = New Font("Consolas", 9.5F),
+            .ScrollBars = RichTextBoxScrollBars.Vertical,
+            .WordWrap = False}
+
+        pnlLogPanel.Controls.Add(rtbUnifiedLog)
+        pnlLogPanel.Controls.Add(pnlLogToolbar)
+    End Sub
+
+    Private Sub ToggleLogPanel()
+        _logPanelVisible = Not _logPanelVisible
+        pnlLogPanel.Visible = _logPanelVisible
+        splitterLog.Visible = _logPanelVisible
+        mnuViewLogPanel.Checked = _logPanelVisible
+        If _logPanelVisible Then
+            mnuViewLogPanel.Text = "Hide Log Panel"
+        Else
+            mnuViewLogPanel.Text = "Show Log Panel"
+        End If
+    End Sub
+
+    ''' <summary>
+    ''' Appends a message to the unified log panel. Thread-safe.
+    ''' </summary>
+    Private Sub AppendUnifiedLog(source As String, text As String, color As Drawing.Color)
+        If rtbUnifiedLog Is Nothing Then Return
+
+        _unifiedLogBuffer.Enqueue((source, text, color))
+
+        If Threading.Interlocked.CompareExchange(_unifiedLogPending, 1, 0) = 0 Then
+            If rtbUnifiedLog.IsHandleCreated Then
+                rtbUnifiedLog.BeginInvoke(Sub() FlushUnifiedLog())
+            End If
+        End If
+    End Sub
+
+    Private Sub FlushUnifiedLog()
+        Threading.Interlocked.Exchange(_unifiedLogPending, 0)
+
+        Dim filter = ""
+        If cboLogFilter.InvokeRequired Then
+            filter = CStr(cboLogFilter.Invoke(Function() If(cboLogFilter.SelectedItem, "All").ToString()))
+        Else
+            filter = If(cboLogFilter.SelectedItem, "All").ToString()
+        End If
+
+        SendMessage(rtbUnifiedLog.Handle, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero)
+        Try
+            Dim entry As (Source As String, Text As String, Color As Drawing.Color) = ("", "", Color.White)
+            While _unifiedLogBuffer.TryDequeue(entry)
+                ' Apply filter
+                If filter <> "All" AndAlso Not entry.Source.Equals(filter, StringComparison.OrdinalIgnoreCase) Then
+                    Continue While
+                End If
+
+                rtbUnifiedLog.SelectionStart = rtbUnifiedLog.TextLength
+                rtbUnifiedLog.SelectionLength = 0
+                rtbUnifiedLog.SelectionColor = Color.FromArgb(100, 100, 100)
+                rtbUnifiedLog.AppendText($"[{entry.Source}] ")
+                rtbUnifiedLog.SelectionStart = rtbUnifiedLog.TextLength
+                rtbUnifiedLog.SelectionColor = entry.Color
+                rtbUnifiedLog.AppendText($"{entry.Text}{Environment.NewLine}")
+            End While
+
+            ' Trim excess
+            If rtbUnifiedLog.Lines.Length > UnifiedLogMaxLines Then
+                Dim removeUpTo = rtbUnifiedLog.GetFirstCharIndexFromLine(rtbUnifiedLog.Lines.Length - UnifiedLogMaxLines)
+                rtbUnifiedLog.Select(0, removeUpTo)
+                rtbUnifiedLog.SelectedText = ""
+            End If
+        Finally
+            SendMessage(rtbUnifiedLog.Handle, WM_SETREDRAW, New IntPtr(1), IntPtr.Zero)
+            rtbUnifiedLog.Invalidate()
+        End Try
+
+        SendMessage(rtbUnifiedLog.Handle, WM_VSCROLL, New IntPtr(SB_BOTTOM), IntPtr.Zero)
     End Sub
 
     ' ═══════════════════════════════════════════════════════════════

@@ -1174,6 +1174,9 @@ del ""%~f0""
             Case Else : color = Drawing.Color.Black
         End Select
 
+        ' Feed unified log panel
+        AppendUnifiedLog("Pipeline", message, color)
+
         SendMessage(rtbLog.Handle, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero)
         Try
             rtbLog.SelectionStart = rtbLog.TextLength
@@ -2721,6 +2724,11 @@ del ""%~f0""
 
     Private Sub AppendServerLog(text As String)
         WriteDebugLog($"[Server] {text}")
+
+        ' Feed unified log panel
+        Dim logColor = If(text.StartsWith("ERROR"), Drawing.Color.Red, Drawing.Color.FromArgb(0, 200, 255))
+        AppendUnifiedLog("Server", text, logColor)
+
         _serverLogBuffer.Enqueue($"[{DateTime.Now:HH:mm:ss}] {text}")
 
         ' Coalesce rapid calls — only schedule one flush
