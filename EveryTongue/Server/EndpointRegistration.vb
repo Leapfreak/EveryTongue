@@ -151,13 +151,13 @@ Namespace Server
 
         ''' <summary>
         ''' Callback for remote control commands from /api/control.
-        ''' Set by FormMain to handle start/stop/restart/simulate/clear/setSliders.
+        ''' Set by FormMain to handle start/stop/restart/clear/setSliders.
         ''' </summary>
         Public RemoteCommandHandler As Action(Of String)
 
         Private Sub MapControlEndpoint(app As IEndpointRouteBuilder)
 
-            ' Admin remote control — /api/control?action=start|stop|restart|simulate|clear|status|tune|setsliders
+            ' Admin remote control — /api/control?action=start|stop|restart|clear|status|tune|setsliders
             app.MapGet("/api/control", Function(context As HttpContext) As IResult
                                            Dim subtitleService = context.RequestServices.
                                                GetService(Of ISubtitleService)
@@ -172,13 +172,12 @@ Namespace Server
                                               action.Equals("status", StringComparison.OrdinalIgnoreCase) Then
                                                Return Results.Json(New With {
                                                    .live = subtitleService.IsLiveRunning,
-                                                   .sim = subtitleService.IsSimulating,
                                                    .inputLang = If(subtitleService.InputLanguage, "")
                                                })
                                            End If
 
                                            Select Case action.ToLower()
-                                               Case "start", "stop", "restart", "simulate", "clear"
+                                               Case "start", "stop", "restart", "clear"
                                                    RemoteCommandHandler?.Invoke(action.ToLower())
                                                    Return Results.Json(New With {
                                                        .ok = True,

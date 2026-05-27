@@ -134,8 +134,6 @@
   <data name="Btn_ServerStart"><value>&#12469;&#12540;&#12496;&#12540;&#38283;&#22987;</value></data>
   <data name="Btn_ServerStop"><value>&#12469;&#12540;&#12496;&#12540;&#20572;&#27490;</value></data>
   <data name="Btn_ServerRestart"><value>&#12469;&#12540;&#12496;&#12540;&#20877;&#36215;&#21205;</value></data>
-  <data name="Btn_Simulate"><value>&#12471;&#12511;&#12517;&#12524;&#12540;&#12488;</value></data>
-  <data name="Btn_SimStop"><value>&#12471;&#12511;&#12517;&#20572;&#27490;</value></data>
   <data name="Lbl_SubtitleBg"><value>&#32972;&#26223;&#65306;</value></data>
   <data name="Lbl_SubtitleFg"><value>&#25991;&#23383;&#33394;&#65306;</value></data>
   <data name="Grp_ServerInfo"><value>&#25509;&#32154;&#24773;&#22577;</value></data>

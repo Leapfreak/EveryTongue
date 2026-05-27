@@ -168,8 +168,6 @@ Please run the dependency check from the Settings tab to download all required c
   <data name="Btn_ServerStart"><value>Start Server</value></data>
   <data name="Btn_ServerStop"><value>Stop Server</value></data>
   <data name="Btn_ServerRestart"><value>Restart Server</value></data>
-  <data name="Btn_Simulate"><value>Simulate</value></data>
-  <data name="Btn_SimStop"><value>Stop Sim</value></data>
   <data name="Lbl_SubtitleBg"><value>Background:</value></data>
   <data name="Lbl_SubtitleFg"><value>Text color:</value></data>
   <data name="Grp_ServerInfo"><value>Connection Info</value></data>

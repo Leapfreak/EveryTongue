@@ -37,7 +37,6 @@ Namespace Services.Subtitle
 
         Public Property IsRunning As Boolean = True Implements ISubtitleService.IsRunning
         Public Property IsLiveRunning As Boolean = False Implements ISubtitleService.IsLiveRunning
-        Public Property IsSimulating As Boolean = False Implements ISubtitleService.IsSimulating
         Public Property InputLanguage As String = "auto" Implements ISubtitleService.InputLanguage
         Public Property TuneCallback As Func(Of String) = Nothing Implements ISubtitleService.TuneCallback
         Public Property BgColor As String = "#000000" Implements ISubtitleService.BgColor

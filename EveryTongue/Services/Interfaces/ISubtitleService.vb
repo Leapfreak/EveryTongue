@@ -20,7 +20,6 @@ Namespace Services.Interfaces
         ReadOnly Property IsRunning As Boolean
         ReadOnly Property ConnectedClients As Integer
         Property IsLiveRunning As Boolean
-        Property IsSimulating As Boolean
         Property InputLanguage As String
         Property TuneCallback As Func(Of String)
         Property BgColor As String

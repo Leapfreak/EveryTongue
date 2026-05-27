@@ -32,7 +32,6 @@ Public Class FormMain
     Private _translationService As TranslationService
     Private _translationUnloadTimer As System.Threading.Timer
     Private _pendingCommits As New List(Of String)()
-    Private _simCts As CancellationTokenSource
     Private _isInitializing As Boolean = True
     Private _exitForReal As Boolean = False
 
@@ -884,8 +883,6 @@ del ""%~f0""
             btnServerStart.Text = GetString("Btn_ServerStart")
             btnServerStop.Text = GetString("Btn_ServerStop")
             btnServerRestart.Text = GetString("Btn_ServerRestart")
-            btnServerSimulate.Text = GetString("Btn_Simulate")
-            btnServerSimStop.Text = GetString("Btn_SimStop")
             lblSubtitleBg.Text = GetString("Lbl_SubtitleBg")
             lblSubtitleFg.Text = GetString("Lbl_SubtitleFg")
             grpServerInfo.Text = GetString("Grp_ServerInfo")
@@ -1779,8 +1776,6 @@ del ""%~f0""
 
     Private Sub HandleRemoteCommand(command As String)
         Dim isLiveActive = _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning
-        Dim isSimActive = _simCts IsNot Nothing AndAlso Not _simCts.IsCancellationRequested
-
         _isRemoteCommand = True
         Try
             Select Case command
@@ -1794,24 +1789,12 @@ del ""%~f0""
                         AppendServerLog("Remote command: STOP")
                         btnLiveStop_Click(Nothing, EventArgs.Empty)
                     End If
-                    If isSimActive Then
-                        AppendServerLog("Remote command: STOP (simulation)")
-                        btnServerSimStop_Click(Nothing, EventArgs.Empty)
-                    End If
                 Case "restart"
                     AppendServerLog("Remote command: RESTART")
                     If isLiveActive Then
                         btnLiveStop_Click(Nothing, EventArgs.Empty)
                     End If
                     btnLiveStart_Click(Nothing, EventArgs.Empty)
-                Case "simulate"
-                    If Not isSimActive Then
-                        AppendServerLog("Remote command: SIMULATE")
-                        btnServerSimulate_Click(Nothing, EventArgs.Empty)
-                    Else
-                        AppendServerLog("Remote command: STOP SIMULATE")
-                        btnServerSimStop_Click(Nothing, EventArgs.Empty)
-                    End If
                 Case "clear"
                     AppendServerLog("Remote command: CLEAR")
                     SubtitleSvc?.BroadcastClear()
@@ -1843,7 +1826,6 @@ del ""%~f0""
         Dim svc = SubtitleSvc
         If svc IsNot Nothing Then
             svc.IsLiveRunning = _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning
-            svc.IsSimulating = _simCts IsNot Nothing AndAlso Not _simCts.IsCancellationRequested
         End If
     End Sub
 
@@ -2707,7 +2689,6 @@ del ""%~f0""
         btnServerStart.Enabled = Not running
         btnServerStop.Enabled = running
         btnServerRestart.Enabled = running
-        btnServerSimulate.Enabled = running
         nudServerPort.Enabled = Not running
         btnCopyUrl.Enabled = running
 
@@ -2722,7 +2703,6 @@ del ""%~f0""
             lblServerStatus.ForeColor = Drawing.SystemColors.ControlText
             lblServerUrl.Text = "URL: (not running)"
             lblServerClients.Text = "Connected clients: 0"
-            btnServerSimStop.Enabled = False
         End If
     End Sub
 
@@ -2862,7 +2842,6 @@ del ""%~f0""
     End Sub
 
     Private Sub btnServerStop_Click(sender As Object, e As EventArgs) Handles btnServerStop.Click
-        StopSimulation()
         EndpointRegistration.RemoteCommandHandler = Nothing
         Try : _kestrelHost?.Stop() : Catch : End Try
         _kestrelHost = Nothing
@@ -2872,7 +2851,6 @@ del ""%~f0""
     End Sub
 
     Private Sub btnServerRestart_Click(sender As Object, e As EventArgs) Handles btnServerRestart.Click
-        StopSimulation()
         EndpointRegistration.RemoteCommandHandler = Nothing
         Try : _kestrelHost?.Stop() : Catch : End Try
         _kestrelHost = Nothing
@@ -2946,78 +2924,6 @@ del ""%~f0""
         End If
     End Sub
 
-    Private Sub btnServerSimulate_Click(sender As Object, e As EventArgs) Handles btnServerSimulate.Click
-        If _kestrelHost Is Nothing OrElse Not _kestrelHost.IsRunning Then Return
-
-        _simCts = New CancellationTokenSource()
-        btnServerSimulate.Enabled = False
-        btnServerSimStop.Enabled = True
-        AppendServerLog("Simulation started - sending random text...")
-        UpdateLiveRunningStatus()
-
-        Dim ct = _simCts.Token
-        Task.Run(
-            Async Function()
-                Dim rng As New Random()
-                Dim verses = {
-                    "For God so loved the world",
-                    "that he gave his one and only Son,",
-                    "that whoever believes in him",
-                    "shall not perish",
-                    "but have eternal life.",
-                    "For God did not send his Son into the world",
-                    "to condemn the world,",
-                    "but to save the world through him.",
-                    "Whoever believes in him is not condemned,",
-                    "but whoever does not believe",
-                    "stands condemned already",
-                    "because they have not believed",
-                    "in the name of God's one and only Son."
-                }
-
-                Dim verseIdx = 0
-                While Not ct.IsCancellationRequested
-                    Dim line = verses(verseIdx Mod verses.Length)
-                    Dim words = line.Split(" "c)
-                    Dim sentence As New System.Text.StringBuilder()
-                    For w = 0 To words.Length - 1
-                        If ct.IsCancellationRequested Then Exit For
-                        If w > 0 Then sentence.Append(" ")
-                        sentence.Append(words(w))
-                        SubtitleSvc?.BroadcastUpdate(sentence.ToString())
-                        Await Task.Delay(rng.Next(150, 350), ct)
-                    Next
-                    If Not ct.IsCancellationRequested Then
-                        TranslateAndBroadcastAsync(sentence.ToString())
-                        Await Task.Delay(rng.Next(800, 1500), ct)
-                    End If
-                    verseIdx += 1
-                End While
-            End Function, ct).ContinueWith(
-            Sub(t)
-                If Me.InvokeRequired Then
-                    Me.BeginInvoke(Sub()
-                                       btnServerSimulate.Enabled = _kestrelHost IsNot Nothing AndAlso _kestrelHost.IsRunning
-                                       btnServerSimStop.Enabled = False
-                                   End Sub)
-                Else
-                    btnServerSimulate.Enabled = _kestrelHost IsNot Nothing AndAlso _kestrelHost.IsRunning
-                    btnServerSimStop.Enabled = False
-                End If
-            End Sub)
-    End Sub
-
-    Private Sub btnServerSimStop_Click(sender As Object, e As EventArgs) Handles btnServerSimStop.Click
-        StopSimulation()
-        AppendServerLog("Simulation stopped.")
-    End Sub
-
-    Private Sub StopSimulation()
-        _simCts?.Cancel()
-        _simCts = Nothing
-        UpdateLiveRunningStatus()
-    End Sub
-
 #End Region
 
     Private Shared Function BuildTimeString(hh As String, mm As String, ss As String) As String
@@ -3069,7 +2975,6 @@ del ""%~f0""
 
         ' Real exit — clean up everything
         _cts?.Cancel()
-        _simCts?.Cancel()
 
         ' Shut down servers in parallel with a combined timeout
         Dim shutdownTask = Task.Run(

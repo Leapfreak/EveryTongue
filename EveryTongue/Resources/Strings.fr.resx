@@ -134,8 +134,6 @@
   <data name="Btn_ServerStart"><value>D&#233;marrer le serveur</value></data>
   <data name="Btn_ServerStop"><value>Arr&#234;ter le serveur</value></data>
   <data name="Btn_ServerRestart"><value>Red&#233;marrer le serveur</value></data>
-  <data name="Btn_Simulate"><value>Simuler</value></data>
-  <data name="Btn_SimStop"><value>Arr&#234;ter sim.</value></data>
   <data name="Lbl_SubtitleBg"><value>Arri&#232;re-plan :</value></data>
   <data name="Lbl_SubtitleFg"><value>Couleur du texte :</value></data>
   <data name="Grp_ServerInfo"><value>Informations de connexion</value></data>

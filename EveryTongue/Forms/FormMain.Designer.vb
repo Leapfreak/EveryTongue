@@ -692,18 +692,6 @@ Partial Class FormMain
         Me.btnServerRestart.Size = New Drawing.Size(110, 25)
         Me.btnServerRestart.Enabled = False
 
-        Me.btnServerSimulate = New Button()
-        Me.btnServerSimulate.Text = "Simulate"
-        Me.btnServerSimulate.Location = New Drawing.Point(480, svy + 15)
-        Me.btnServerSimulate.Size = New Drawing.Size(100, 25)
-        Me.btnServerSimulate.Enabled = False
-
-        Me.btnServerSimStop = New Button()
-        Me.btnServerSimStop.Text = "Stop Sim"
-        Me.btnServerSimStop.Location = New Drawing.Point(590, svy + 15)
-        Me.btnServerSimStop.Size = New Drawing.Size(90, 25)
-        Me.btnServerSimStop.Enabled = False
-
         svy += 48
 
         Me.lblSubtitleBg = New Label()
@@ -858,7 +846,6 @@ Partial Class FormMain
         Me.grpServerSettings.Size = New Drawing.Size(830, svy + 40)
         Me.grpServerSettings.Controls.AddRange({Me.lblServerPort, Me.nudServerPort,
             Me.btnServerStart, Me.btnServerStop, Me.btnServerRestart,
-            Me.btnServerSimulate, Me.btnServerSimStop,
             Me.lblSubtitleBg, Me.btnSubtitleBg, Me.lblSubtitleFg, Me.btnSubtitleFg,
             Me.lblSubtitleFont, Me.cboSubtitleFont, Me.lblSubtitleSize, Me.nudSubtitleSize, Me.chkSubtitleBold,
             Me.lblAdminPin, Me.txtAdminPin,
@@ -1096,8 +1083,6 @@ Partial Class FormMain
     Friend WithEvents btnServerStart As Button
     Friend WithEvents btnServerStop As Button
     Friend WithEvents btnServerRestart As Button
-    Friend WithEvents btnServerSimulate As Button
-    Friend WithEvents btnServerSimStop As Button
     Friend WithEvents grpServerInfo As GroupBox
     Friend WithEvents lblServerStatus As Label
     Friend WithEvents lblServerUrl As Label

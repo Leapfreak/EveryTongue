@@ -26,8 +26,10 @@ Namespace Services.Bible
         ' Regex to strip markup from verse text:
         '   <S>num</S>  Strong's numbers — strip tag AND content (numbers are not readable text)
         '   All other tags (<J>, </J>, <pb/>, <t>, </t>, <n>, </n>, etc.) — strip tag only, keep content
+        '   [bracketed] commentary notes — strip brackets AND content
         Private Shared ReadOnly StrongsPattern As New Regex("<S>\d+</S>", RegexOptions.Compiled)
         Private Shared ReadOnly TagPattern As New Regex("<[^>]+>", RegexOptions.Compiled)
+        Private Shared ReadOnly BracketPattern As New Regex("\[.*?\]", RegexOptions.Compiled)
 
         ' Book name aliases for reference parsing (English)
         ' Maps display name/abbreviation -> short_name used in DB queries
@@ -263,8 +265,9 @@ Namespace Services.Bible
 
         Private Shared Function StripTags(text As String) As String
             If text Is Nothing Then Return ""
-            ' First remove Strong's numbers with their content, then strip remaining tags
+            ' First remove Strong's numbers with their content, then strip remaining tags and bracketed commentary
             Dim result = StrongsPattern.Replace(text, "")
+            result = BracketPattern.Replace(result, "")
             Return TagPattern.Replace(result, "").Trim()
         End Function
 
