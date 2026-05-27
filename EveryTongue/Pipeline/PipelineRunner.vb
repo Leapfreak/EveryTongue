@@ -1,3 +1,4 @@
+Imports System.Diagnostics
 Imports System.IO
 Imports System.Threading
 Imports EveryTongue.Models
@@ -191,7 +192,8 @@ Namespace Pipeline
                     Try
                         If File.Exists(chunkPaths(i)) Then File.Delete(chunkPaths(i))
                         If File.Exists(srtPaths(i)) Then File.Delete(srtPaths(i))
-                    Catch
+                    Catch ex As Exception
+                        Debug.WriteLine($"[Pipeline] Failed to delete chunk file: {ex.Message}")
                     End Try
                 Next
                 Log("Chunk files cleaned up.")
@@ -201,7 +203,8 @@ Namespace Pipeline
             If Not _config.KeepPreview Then
                 Try
                     If File.Exists(previewPath) Then File.Delete(previewPath)
-                Catch
+                Catch ex As Exception
+                    Debug.WriteLine($"[Pipeline] Failed to delete preview file: {ex.Message}")
                 End Try
             End If
 
@@ -371,7 +374,8 @@ Namespace Pipeline
             If Not _config.KeepPreview Then
                 Try
                     If File.Exists(previewPath) Then File.Delete(previewPath)
-                Catch
+                Catch ex As Exception
+                    Debug.WriteLine($"[Pipeline] Failed to delete preview file: {ex.Message}")
                 End Try
             End If
 
@@ -499,7 +503,8 @@ Namespace Pipeline
                     Try
                         If File.Exists(chunkPaths(i)) Then File.Delete(chunkPaths(i))
                         If File.Exists(srtPaths(i)) Then File.Delete(srtPaths(i))
-                    Catch
+                    Catch ex As Exception
+                        Debug.WriteLine($"[Pipeline] Failed to delete chunk file: {ex.Message}")
                     End Try
                 Next
                 Log("Chunk files cleaned up.")
@@ -592,7 +597,8 @@ Namespace Pipeline
                 For Each proc In batchProcesses
                     Try
                         If Not proc.HasExited Then proc.Kill(True)
-                    Catch
+                    Catch ex As Exception
+                        Debug.WriteLine($"[Pipeline] Failed to kill process: {ex.Message}")
                     End Try
                     proc.Dispose()
                 Next

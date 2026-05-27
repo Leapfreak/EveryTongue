@@ -722,7 +722,8 @@ Partial Class FormMain
             wvBible.Source = New Uri($"http://127.0.0.1:{_serverPort}/#bible")
             wvBible.Visible = True
             lblBibleStatus.Visible = False
-        Catch
+        Catch ex As Exception
+            WriteDebugLog($"[ERROR] NavigateBibleView: {ex.Message}")
         End Try
     End Sub
 

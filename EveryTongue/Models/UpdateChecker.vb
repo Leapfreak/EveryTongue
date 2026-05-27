@@ -1,3 +1,4 @@
+Imports System.Diagnostics
 Imports System.Net.Http
 Imports System.Text.Json
 
@@ -81,7 +82,8 @@ Namespace Models
 
                     Return info
                 End Using
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Update] CheckForUpdatesAsync failed: {ex.Message}")
             End Try
 
             Return Nothing
@@ -114,7 +116,8 @@ Namespace Models
                         End Using
                     End If
                 Next
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Update] HasMatchingWhisperVersion failed: {ex.Message}")
             End Try
             Return False
         End Function
@@ -133,7 +136,8 @@ Namespace Models
                         Return ver.GetString()
                     End If
                 End Using
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Update] GetLocalWhisperVersion failed: {ex.Message}")
             End Try
             Return ""
         End Function
@@ -150,7 +154,8 @@ Namespace Models
                 }
                 Dim json = JsonSerializer.Serialize(versions, New JsonSerializerOptions With {.WriteIndented = True})
                 IO.File.WriteAllText(versionFile, json)
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Update] SaveLocalVersions failed: {ex.Message}")
             End Try
         End Sub
 

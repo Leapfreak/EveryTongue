@@ -19,6 +19,23 @@ Friend Module Program
             Return
         End Try
 
+        ' Catch unobserved Task exceptions so fire-and-forget failures get logged
+        AddHandler TaskScheduler.UnobservedTaskException, Sub(s, e)
+            FormMain.WriteDebugLog($"[UNOBSERVED TASK] {e.Exception}")
+            e.SetObserved()
+        End Sub
+
+        ' Catch unhandled UI-thread exceptions
+        AddHandler Application.ThreadException, Sub(s, e)
+            FormMain.WriteDebugLog($"[UI THREAD] {e.Exception}")
+        End Sub
+
+        ' Catch unhandled non-UI-thread exceptions
+        AddHandler AppDomain.CurrentDomain.UnhandledException, Sub(s, e)
+            Dim ex = TryCast(e.ExceptionObject, Exception)
+            FormMain.WriteDebugLog($"[UNHANDLED] {If(ex?.ToString(), e.ExceptionObject?.ToString())}")
+        End Sub
+
         Try
             Application.SetHighDpiMode(HighDpiMode.SystemAware)
             Application.EnableVisualStyles()

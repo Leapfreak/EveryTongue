@@ -1,6 +1,7 @@
 ' FormQrCode.vb — Floating QR code window for phone connection
 ' Phase 3 of the UI redesign — Feature #1
 
+Imports System.Diagnostics
 Imports QRCoder
 
 Public Class FormQrCode
@@ -113,7 +114,8 @@ Public Class FormQrCode
                     End Using
                 End Using
             End Using
-        Catch
+        Catch ex As Exception
+            Debug.WriteLine($"[QR] GenerateQr failed: {ex.Message}")
         End Try
     End Sub
 

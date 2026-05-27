@@ -91,7 +91,8 @@ Namespace Pipeline
                         proc.WaitForExit(10000)
                         depsOk = (proc.ExitCode = 0)
                     End Using
-                Catch
+                Catch ex As Exception
+                    Debug.WriteLine($"[Translation] dependency check failed: {ex.Message}")
                 End Try
             End If
 
@@ -138,13 +139,15 @@ Namespace Pipeline
                             If parts.Length > 0 AndAlso Integer.TryParse(parts(parts.Length - 1), pid) AndAlso pid > 0 Then
                                 Try
                                     Process.GetProcessById(pid).Kill(True)
-                                Catch
+                                Catch ex As Exception
+                                    Debug.WriteLine($"[Translation] kill process on port failed: {ex.Message}")
                                 End Try
                             End If
                         End If
                     Next
                 End Using
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Translation] port cleanup failed: {ex.Message}")
             End Try
         End Sub
 
@@ -236,7 +239,7 @@ Namespace Pipeline
                     _process.BeginErrorReadLine()
                     ' Drain stdout to prevent deadlock
                     Task.Run(Sub()
-                                 Try : _process.StandardOutput.ReadToEnd() : Catch : End Try
+                                 Try : _process.StandardOutput.ReadToEnd() : Catch ex As Exception : Debug.WriteLine($"[Translation] stdout drain failed: {ex.Message}") : End Try
                              End Sub)
 
                     _isRunning = True
@@ -263,7 +266,8 @@ Namespace Pipeline
                         LoadModelAsync().Wait()
                         Return
                     End If
-                Catch
+                Catch ex As Exception
+                    Debug.WriteLine($"[Translation] health check failed: {ex.Message}")
                 End Try
             End While
             If Not ct.IsCancellationRequested Then
@@ -312,7 +316,8 @@ Namespace Pipeline
                 Await _httpClient.PostAsync($"http://127.0.0.1:{_port}/unload", content)
                 _modelLoaded = False
                 RaiseEvent StatusChanged(Me, "Translation model unloaded")
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Translation] unload model failed: {ex.Message}")
             End Try
         End Function
 
@@ -346,7 +351,8 @@ Namespace Pipeline
                         End Using
                     End If
                 End Using
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Translation] translate request failed: {ex.Message}")
                 ' Translation failed — caller gets empty dict
             End Try
 
@@ -364,7 +370,8 @@ Namespace Pipeline
                         _process.Kill(True)
                         _process.WaitForExit(3000)
                     End If
-                Catch
+                Catch ex As Exception
+                    Debug.WriteLine($"[Translation] stop process failed: {ex.Message}")
                 End Try
 
                 _isRunning = False
@@ -392,7 +399,8 @@ Namespace Pipeline
                     proc.WaitForExit(5000)
                     If proc.ExitCode = 0 Then Return "python"
                 End Using
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Translation] system Python check failed: {ex.Message}")
             End Try
 
             Return ""

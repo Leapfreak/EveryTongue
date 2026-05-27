@@ -163,12 +163,22 @@ Public Class FormMain
         ' Enumerate audio devices in the background
         Dim pythonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "python-embed", "python.exe")
         Task.Run(Sub()
-                     Dim runner As New LiveStreamRunner()
-                     Dim devices = runner.EnumerateDevicesAsync(pythonPath)
-                     cboLiveDevice.BeginInvoke(Sub()
-                                                   UpdateDeviceCombo(devices)
-                                                   btnLiveStart.Enabled = True
-                                               End Sub)
+                     Try
+                         Dim runner As New LiveStreamRunner()
+                         Dim devices = runner.EnumerateDevicesAsync(pythonPath)
+                         cboLiveDevice.BeginInvoke(Sub()
+                                                       UpdateDeviceCombo(devices)
+                                                       btnLiveStart.Enabled = True
+                                                   End Sub)
+                     Catch ex As Exception
+                         WriteDebugLog($"[ERROR] Device enumeration failed: {ex.Message}")
+                         cboLiveDevice.BeginInvoke(Sub()
+                                                       cboLiveDevice.Items.Clear()
+                                                       cboLiveDevice.Items.Add("(Device detection failed)")
+                                                       cboLiveDevice.SelectedIndex = 0
+                                                       btnLiveStart.Enabled = True
+                                                   End Sub)
+                     End Try
                  End Sub)
 
         ' Context menu for live output
@@ -255,7 +265,8 @@ Public Class FormMain
             Using key = Registry.CurrentUser.OpenSubKey("SOFTWARE\Microsoft\Windows\CurrentVersion\Run", True)
                 key?.SetValue("EveryTongue", $"""{Application.ExecutablePath}""")
             End Using
-        Catch
+        Catch ex As Exception
+            WriteDebugLog($"[WARN] RegisterStartup failed: {ex.Message}")
         End Try
     End Sub
 
@@ -264,7 +275,8 @@ Public Class FormMain
             Using key = Registry.CurrentUser.OpenSubKey("SOFTWARE\Microsoft\Windows\CurrentVersion\Run", True)
                 key?.DeleteValue("EveryTongue", False)
             End Using
-        Catch
+        Catch ex As Exception
+            WriteDebugLog($"[WARN] UnregisterStartup failed: {ex.Message}")
         End Try
     End Sub
 
@@ -566,12 +578,22 @@ del ""%~f0""
         Dim pythonPath2 = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "python-embed", "python.exe")
         btnLiveStart.Enabled = False
         Task.Run(Sub()
-                     Dim runner As New LiveStreamRunner()
-                     Dim devices = runner.EnumerateDevicesAsync(pythonPath2)
-                     cboLiveDevice.BeginInvoke(Sub()
-                                                   UpdateDeviceCombo(devices)
-                                                   btnLiveStart.Enabled = True
-                                               End Sub)
+                     Try
+                         Dim runner As New LiveStreamRunner()
+                         Dim devices = runner.EnumerateDevicesAsync(pythonPath2)
+                         cboLiveDevice.BeginInvoke(Sub()
+                                                       UpdateDeviceCombo(devices)
+                                                       btnLiveStart.Enabled = True
+                                                   End Sub)
+                     Catch ex As Exception
+                         WriteDebugLog($"[ERROR] Re-enumerate devices failed: {ex.Message}")
+                         cboLiveDevice.BeginInvoke(Sub()
+                                                       cboLiveDevice.Items.Clear()
+                                                       cboLiveDevice.Items.Add("0: Default Device")
+                                                       cboLiveDevice.SelectedIndex = 0
+                                                       btnLiveStart.Enabled = True
+                                                   End Sub)
+                     End Try
                  End Sub)
     End Sub
 
@@ -604,7 +626,8 @@ del ""%~f0""
                     cboModel.Items.Add(Path.GetFileName(binFile))
                 Next
             End If
-        Catch
+        Catch ex As Exception
+            WriteDebugLog($"[ERROR] PopulateModelDropdown: {ex.Message}")
         End Try
 
         ' Select the model for the current mode
@@ -1633,13 +1656,24 @@ del ""%~f0""
         Dim pythonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "python-embed", "python.exe")
 
         Task.Run(Sub()
-                     Dim runner As New LiveStreamRunner()
-                     Dim devices = runner.EnumerateDevicesAsync(pythonPath)
-                     cboLiveDevice.BeginInvoke(Sub()
-                                                   UpdateDeviceCombo(devices)
-                                                   cboLiveDevice.Enabled = True
-                                                   btnRefreshDevices.Enabled = True
-                                               End Sub)
+                     Try
+                         Dim runner As New LiveStreamRunner()
+                         Dim devices = runner.EnumerateDevicesAsync(pythonPath)
+                         cboLiveDevice.BeginInvoke(Sub()
+                                                       UpdateDeviceCombo(devices)
+                                                       cboLiveDevice.Enabled = True
+                                                       btnRefreshDevices.Enabled = True
+                                                   End Sub)
+                     Catch ex As Exception
+                         WriteDebugLog($"[ERROR] Refresh devices failed: {ex.Message}")
+                         cboLiveDevice.BeginInvoke(Sub()
+                                                       cboLiveDevice.Items.Clear()
+                                                       cboLiveDevice.Items.Add("0: Default Device")
+                                                       cboLiveDevice.SelectedIndex = 0
+                                                       cboLiveDevice.Enabled = True
+                                                       btnRefreshDevices.Enabled = True
+                                                   End Sub)
+                     End Try
                  End Sub)
     End Sub
 
@@ -2034,7 +2068,8 @@ del ""%~f0""
         ' GetStatsAsync must be awaited — use .Result on background thread (TuneCallback is called from server thread)
         Try
             json = _liveRunner.GetStatsAsync().Result
-        Catch
+        Catch ex As Exception
+            WriteDebugLog($"[ERROR] GetTuneJson stats: {ex.Message}")
         End Try
         If String.IsNullOrEmpty(json) Then Return Nothing
 
@@ -2135,7 +2170,8 @@ del ""%~f0""
                        $"""wpsAvg"":{wpsAvg.ToString("F1", Globalization.CultureInfo.InvariantCulture)}," &
                        $"""tips"":[{tipsJson}]}}"
             End Using
-        Catch
+        Catch ex As Exception
+            WriteDebugLog($"[ERROR] GetTuneJson parse: {ex.Message}")
             Return Nothing
         End Try
     End Function
@@ -2157,6 +2193,7 @@ del ""%~f0""
 
     Private Sub AppendLiveText(text As String, color As Drawing.Color)
         WriteDebugLog($"[Live] {text}")
+        AppendUnifiedLog("Live", text, color)
         rtbLiveOutput.SelectionStart = rtbLiveOutput.TextLength
         rtbLiveOutput.SelectionLength = 0
         rtbLiveOutput.SelectionColor = color
@@ -2506,11 +2543,11 @@ del ""%~f0""
         Return False
     End Function
 
-    Private Shared Function GetPipelineLogPath() As String
+    Friend Shared Function GetPipelineLogPath() As String
         Return IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{DateTime.Now:yyyyMMdd}_pipeline-debug.log")
     End Function
 
-    Private Shared Sub WriteDebugLog(msg As String)
+    Friend Shared Sub WriteDebugLog(msg As String)
         Try
             Dim logPath = GetPipelineLogPath()
             IO.File.AppendAllText(logPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {msg}{Environment.NewLine}")
@@ -2690,7 +2727,8 @@ del ""%~f0""
                     If Not ip.StartsWith("127.") Then Return ip
                 End If
             Next
-        Catch
+        Catch ex As Exception
+            WriteDebugLog($"[WARN] GetLocalIpAddress: {ex.Message}")
         End Try
         Return "127.0.0.1"
     End Function

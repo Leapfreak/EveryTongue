@@ -1,3 +1,4 @@
+Imports System.Diagnostics
 Imports System.IO
 Imports System.IO.Compression
 Imports System.Net.Http
@@ -64,7 +65,8 @@ Namespace Models
                     Dim json = File.ReadAllText(path)
                     Return JsonSerializer.Deserialize(Of Dictionary(Of String, String))(json)
                 End If
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Deps] Failed to load tool versions: {ex.Message}")
             End Try
             Return New Dictionary(Of String, String)()
         End Function
@@ -74,7 +76,8 @@ Namespace Models
             Try
                 Dim json = JsonSerializer.Serialize(_versions, New JsonSerializerOptions With {.WriteIndented = True})
                 File.WriteAllText(VersionsFilePath(), json)
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Deps] Failed to save tool versions: {ex.Message}")
             End Try
         End Sub
 
@@ -155,7 +158,8 @@ Namespace Models
                         state.Status = CompareVersionTags(state.InstalledVersion, state.LatestVersion)
                     End If
                 End If
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Deps] yt-dlp check failed: {ex.Message}")
                 If state.Status = ToolStatus.Missing Then state.Status = ToolStatus.CheckFailed
             End Try
             Return state
@@ -207,7 +211,8 @@ Namespace Models
                         state.Status = ToolStatus.UpToDate
                     End If
                 End If
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Deps] FFmpeg check failed: {ex.Message}")
                 If state.Status = ToolStatus.Missing Then state.Status = ToolStatus.CheckFailed
             End Try
             Return state
@@ -288,7 +293,8 @@ Namespace Models
                         End If
                     End If
                 End If
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Deps] Subtitle Edit check failed: {ex.Message}")
                 If state.Status = ToolStatus.Missing Then state.Status = ToolStatus.CheckFailed
             End Try
             Return state
@@ -404,7 +410,8 @@ Namespace Models
                     proc.WaitForExit(10000)
                     Return proc.ExitCode = 0
                 End Using
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Deps] Python deps check failed: {ex.Message}")
                 Return False
             End Try
         End Function
@@ -426,7 +433,8 @@ Namespace Models
                         proc.WaitForExit(10000)
                         depsOk = (proc.ExitCode = 0)
                     End Using
-                Catch
+                Catch ex As Exception
+                    Debug.WriteLine($"[Deps] Live deps check failed: {ex.Message}")
                 End Try
             End If
             Dim modelDir = FasterWhisperModelDir()
@@ -463,7 +471,7 @@ Namespace Models
                     Try
                         Await proc.WaitForExitAsync(cts.Token)
                     Catch ex As OperationCanceledException
-                        Try : proc.Kill(True) : Catch : End Try
+                        Try : proc.Kill(True) : Catch killEx As Exception : Debug.WriteLine($"[Deps] Failed to kill timed-out process: {killEx.Message}") : End Try
                         Throw New TimeoutException($"Process timed out after {timeoutMs / 1000}s")
                     End Try
                 End Using
@@ -905,7 +913,7 @@ Namespace Models
                         Dim result = If(String.IsNullOrWhiteSpace(stdout), stderr, stdout)
                         Return result.Trim()
                     Catch ex As OperationCanceledException
-                        Try : proc.Kill() : Catch : End Try
+                        Try : proc.Kill() : Catch killEx As Exception : Debug.WriteLine($"[Deps] Failed to kill timed-out process: {killEx.Message}") : End Try
                         Return ""
                     End Try
                 End Using

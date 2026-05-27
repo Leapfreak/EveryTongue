@@ -1,6 +1,7 @@
 ' HardwareScanner.vb — WMI + nvidia-smi hardware detection and scoring
 ' Phase 4 — Feature #12 (Hardware Check)
 
+Imports System.Diagnostics
 Imports System.Management
 
 Namespace Services.Infrastructure
@@ -88,8 +89,8 @@ Namespace Services.Infrastructure
                         End If
                     End If
                 End Using
-            Catch
-                ' nvidia-smi not available
+            Catch ex As Exception
+                Debug.WriteLine($"[HW] nvidia-smi not available: {ex.Message}")
             End Try
 
             ' Fallback to WMI if nvidia-smi didn't work
@@ -109,7 +110,8 @@ Namespace Services.Infrastructure
                             End If
                         Next
                     End Using
-                Catch
+                Catch ex As Exception
+                    Debug.WriteLine($"[HW] WMI GPU scan failed: {ex.Message}")
                 End Try
             End If
 
@@ -148,7 +150,8 @@ Namespace Services.Infrastructure
                         Exit For
                     Next
                 End Using
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[HW] WMI CPU scan failed: {ex.Message}")
             End Try
 
             ' Score CPU by core count
@@ -177,7 +180,8 @@ Namespace Services.Infrastructure
                         Exit For
                     Next
                 End Using
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[HW] WMI RAM scan failed: {ex.Message}")
             End Try
 
             ' Score RAM
@@ -199,7 +203,8 @@ Namespace Services.Infrastructure
                 Dim appDrive = IO.Path.GetPathRoot(AppDomain.CurrentDomain.BaseDirectory)
                 Dim driveInfo As New IO.DriveInfo(appDrive)
                 info.DiskFreeMB = driveInfo.AvailableFreeSpace \ (1024 * 1024)
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[HW] Disk scan failed: {ex.Message}")
             End Try
 
             ' Score disk free space

@@ -1,3 +1,4 @@
+Imports System.Diagnostics
 Imports System.IO
 Imports System.Text.Json
 
@@ -20,7 +21,8 @@ Namespace Models
                 If cfg Is Nothing Then Return New AppConfig()
                 ApplyDefaults(cfg)
                 Return cfg
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Config] Load failed: {ex.Message}")
                 Return New AppConfig()
             End Try
         End Function
@@ -43,15 +45,16 @@ Namespace Models
                 End If
                 Dim json = JsonSerializer.Serialize(config, JsonOptions)
                 File.WriteAllText(ConfigPath, json)
-            Catch
-                ' Silently fail - logged elsewhere
+            Catch ex As Exception
+                Debug.WriteLine($"[Config] Save failed: {ex.Message}")
             End Try
         End Sub
 
         Public Shared Sub Reset()
             Try
                 If File.Exists(ConfigPath) Then File.Delete(ConfigPath)
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Config] Reset failed: {ex.Message}")
             End Try
         End Sub
     End Class

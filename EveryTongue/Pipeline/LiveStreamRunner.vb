@@ -67,7 +67,8 @@ Namespace Pipeline
                         End Using
                         If devices.Count > 0 Then Return devices
                     End If
-                Catch
+                Catch ex As Exception
+                    FormMain.WriteDebugLog($"[Live] EnumerateDevicesAsync /devices request failed: {ex.Message}")
                 End Try
             End If
 
@@ -98,7 +99,8 @@ Namespace Pipeline
                             End Using
                         End If
                     End Using
-                Catch
+                Catch ex As Exception
+                    FormMain.WriteDebugLog($"[Live] EnumerateDevicesAsync Python fallback failed: {ex.Message}")
                 End Try
             End If
 
@@ -129,7 +131,8 @@ Namespace Pipeline
                     Dim resp = _httpClient.GetAsync($"http://127.0.0.1:{_port}/health").Result
                     serverAlive = resp.IsSuccessStatusCode
                     If serverAlive Then _serverReady = True
-                Catch
+                Catch ex As Exception
+                    Debug.WriteLine($"[Live] Start health-check failed (will restart): {ex.Message}")
                 End Try
             End If
 
@@ -159,7 +162,8 @@ Namespace Pipeline
                         Dim content As New StringContent("{}", Encoding.UTF8, "application/json")
                         _httpClient.PostAsync($"http://127.0.0.1:{_port}/shutdown", content).Wait(2000)
                         _process.WaitForExit(3000)
-                    Catch
+                    Catch ex As Exception
+                        Debug.WriteLine($"[Live] KillExistingServer graceful shutdown failed: {ex.Message}")
                     End Try
 
                     ' Force kill if still alive
@@ -168,7 +172,8 @@ Namespace Pipeline
                         _process.WaitForExit(2000)
                     End If
                 End If
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Live] KillExistingServer force-kill failed: {ex.Message}")
             End Try
             _process = Nothing
         End Sub
@@ -192,13 +197,15 @@ Namespace Pipeline
                             If parts.Length > 0 AndAlso Integer.TryParse(parts(parts.Length - 1), pid) AndAlso pid > 0 Then
                                 Try
                                     Process.GetProcessById(pid).Kill(True)
-                                Catch
+                                Catch ex As Exception
+                                    Debug.WriteLine($"[Live] KillProcessOnPort could not kill PID {pid}: {ex.Message}")
                                 End Try
                             End If
                         End If
                     Next
                 End Using
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Live] KillProcessOnPort failed: {ex.Message}")
             End Try
         End Sub
 
@@ -284,7 +291,8 @@ Namespace Pipeline
                         _restartCount = 0
                         Return True
                     End If
-                Catch
+                Catch ex As Exception
+                    FormMain.WriteDebugLog($"[Live] WaitForReady health poll failed: {ex.Message}")
                 End Try
             End While
             If Not ct.IsCancellationRequested Then
@@ -375,7 +383,8 @@ Namespace Pipeline
                     Dim content As New StringContent("{}", Encoding.UTF8, "application/json")
                     shutdownClient.PostAsync($"http://127.0.0.1:{_port}/shutdown", content).Wait(3000)
                 End Using
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Live] Stop /shutdown request failed: {ex.Message}")
             End Try
 
             ' Force kill if still alive
@@ -387,7 +396,8 @@ Namespace Pipeline
                         _process.WaitForExit(2000)
                     End If
                 End If
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Live] Stop force-kill failed: {ex.Message}")
             End Try
 
             _isRunning = False
@@ -406,7 +416,8 @@ Namespace Pipeline
                     Dim content As New StringContent("{}", Encoding.UTF8, "application/json")
                     shutdownClient.PostAsync($"http://127.0.0.1:{_port}/shutdown", content).Wait(3000)
                 End Using
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Live] ShutdownServer /shutdown request failed: {ex.Message}")
             End Try
 
             ' Wait for process to exit, then force-kill if needed
@@ -417,7 +428,8 @@ Namespace Pipeline
                         _process.WaitForExit(2000)
                     End If
                 End If
-            Catch
+            Catch ex As Exception
+                Debug.WriteLine($"[Live] ShutdownServer force-kill failed: {ex.Message}")
             End Try
 
             _isRunning = False
@@ -431,7 +443,8 @@ Namespace Pipeline
                 Dim json = Text.Json.JsonSerializer.Serialize(config)
                 Dim content As New StringContent(json, Encoding.UTF8, "application/json")
                 Await _httpClient.PostAsync($"http://127.0.0.1:{_port}/config", content)
-            Catch
+            Catch ex As Exception
+                FormMain.WriteDebugLog($"[Live] UpdateConfigAsync failed: {ex.Message}")
             End Try
         End Function
 
@@ -439,7 +452,8 @@ Namespace Pipeline
             Try
                 File.WriteAllText(filePath, _transcript.ToString(), Encoding.UTF8)
                 Return True
-            Catch
+            Catch ex As Exception
+                FormMain.WriteDebugLog($"[Live] SaveTranscript failed: {ex.Message}")
                 Return False
             End Try
         End Function
@@ -460,7 +474,8 @@ Namespace Pipeline
                     proc.WaitForExit(5000)
                     If proc.ExitCode = 0 Then Return "python"
                 End Using
-            Catch
+            Catch ex As Exception
+                FormMain.WriteDebugLog($"[Live] FindPython system Python check failed: {ex.Message}")
             End Try
 
             Return ""
@@ -482,7 +497,8 @@ Namespace Pipeline
                         result.Lang = langProp.GetString()
                     End If
                 End Using
-            Catch
+            Catch ex As Exception
+                FormMain.WriteDebugLog($"[Live] ParseJsonData failed to parse SSE payload: {ex.Message}")
             End Try
             Return result
         End Function
@@ -493,7 +509,8 @@ Namespace Pipeline
                 If response.IsSuccessStatusCode Then
                     Return Await response.Content.ReadAsStringAsync()
                 End If
-            Catch
+            Catch ex As Exception
+                FormMain.WriteDebugLog($"[Live] GetStatsAsync failed: {ex.Message}")
             End Try
             Return Nothing
         End Function

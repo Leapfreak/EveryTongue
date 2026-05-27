@@ -1,6 +1,7 @@
 ' FormSessionWizard.vb — Live Session Wizard (5 steps)
 ' Phase 3 of the UI redesign — Feature #2 (Setup Wizard)
 
+Imports System.Diagnostics
 Imports EveryTongue.Models
 Imports QRCoder
 
@@ -508,7 +509,8 @@ Public Class FormSessionWizard
                     End Using
                 End Using
             End Using
-        Catch
+        Catch ex As Exception
+            Debug.WriteLine($"[Wizard] GenerateQr failed: {ex.Message}")
         End Try
     End Sub
 
@@ -612,7 +614,8 @@ Public Class FormSessionWizard
                     If Not ip.StartsWith("127.") Then Return ip
                 End If
             Next
-        Catch
+        Catch ex As Exception
+            Debug.WriteLine($"[Wizard] GetLocalIp failed: {ex.Message}")
         End Try
         Return "127.0.0.1"
     End Function

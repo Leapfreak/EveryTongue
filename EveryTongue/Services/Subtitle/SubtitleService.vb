@@ -154,7 +154,8 @@ Namespace Services.Subtitle
                                                      TrySendToClient(info, buf)
                                                  End If
                                              End If
-                                         Catch
+                                         Catch ex As Exception
+                                             System.Diagnostics.Debug.WriteLine($"[Subtitle] TTS synthesis for requestTts failed: {ex.Message}")
                                          End Try
                                      End Function)
                         End If
@@ -167,7 +168,8 @@ Namespace Services.Subtitle
                         End If
                     End If
                 End Using
-            Catch
+            Catch ex As Exception
+                System.Diagnostics.Debug.WriteLine($"[Subtitle] ProcessClientMessage failed: {ex.Message}")
             End Try
         End Sub
 
@@ -225,7 +227,8 @@ Namespace Services.Subtitle
                     If Not TrySendToClient(kvp.Value, buffer) Then
                         deadKeys.Add(kvp.Key)
                     End If
-                Catch
+                Catch ex As Exception
+                    System.Diagnostics.Debug.WriteLine($"[Subtitle] WebSocket send failed for {kvp.Key}: {ex.Message}")
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -284,7 +287,8 @@ Namespace Services.Subtitle
                     If Not TrySendToClient(kvp.Value, buffer) Then
                         deadKeys.Add(kvp.Key)
                     End If
-                Catch
+                Catch ex As Exception
+                    System.Diagnostics.Debug.WriteLine($"[Subtitle] WebSocket send failed for {kvp.Key}: {ex.Message}")
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -326,7 +330,8 @@ Namespace Services.Subtitle
                     If Not TrySendToClient(kvp.Value, buffer) Then
                         deadKeys.Add(kvp.Key)
                     End If
-                Catch
+                Catch ex As Exception
+                    System.Diagnostics.Debug.WriteLine($"[Subtitle] WebSocket send failed for {kvp.Key}: {ex.Message}")
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -394,7 +399,8 @@ Namespace Services.Subtitle
                 Finally
                     Interlocked.Exchange(client.SendBusy, 0)
                 End Try
-            Catch
+            Catch ex As Exception
+                System.Diagnostics.Debug.WriteLine($"[Subtitle] ReplayHistoryAsync failed: {ex.Message}")
             End Try
         End Function
 
@@ -423,7 +429,8 @@ Namespace Services.Subtitle
                                      CancellationToken.None).ConfigureAwait(False)
                                  Interlocked.Increment(client.MessagesSent)
                              End If
-                         Catch
+                         Catch ex As Exception
+                             System.Diagnostics.Debug.WriteLine($"[Subtitle] Async WebSocket send failed: {ex.Message}")
                          Finally
                              Interlocked.Exchange(client.SendBusy, 0)
                          End Try
@@ -438,7 +445,8 @@ Namespace Services.Subtitle
             For Each kvp In _clients
                 Try
                     If Not TrySendToClient(kvp.Value, buffer) Then deadKeys.Add(kvp.Key)
-                Catch
+                Catch ex As Exception
+                    System.Diagnostics.Debug.WriteLine($"[Subtitle] WebSocket send failed for {kvp.Key}: {ex.Message}")
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -473,7 +481,8 @@ Namespace Services.Subtitle
                 Next
                 sb.Append("]")
                 Return sb.ToString()
-            Catch
+            Catch ex As Exception
+                System.Diagnostics.Debug.WriteLine($"[Subtitle] Bible reference detection failed: {ex.Message}")
                 Return ""
             End Try
         End Function
@@ -489,7 +498,8 @@ Namespace Services.Subtitle
                 Next
                 sb.Append("]")
                 Return sb.ToString()
-            Catch
+            Catch ex As Exception
+                System.Diagnostics.Debug.WriteLine($"[Subtitle] Serializing stored Bible refs failed: {ex.Message}")
                 Return ""
             End Try
         End Function
@@ -572,7 +582,8 @@ Namespace Services.Subtitle
                             deadKeys.Add(kvp.Key)
                         End If
                     End If
-                Catch
+                Catch ex As Exception
+                    System.Diagnostics.Debug.WriteLine($"[Subtitle] WebSocket send failed for {kvp.Key}: {ex.Message}")
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -590,7 +601,7 @@ Namespace Services.Subtitle
                 Dim removed As ClientConnection = Nothing
                 If _clients.TryRemove(key, removed) Then
                     _logger.LogDebug("Cleanup dead client: {Endpoint}", removed.RemoteEndpoint)
-                    Try : removed.WebSocket?.Dispose() : Catch : End Try
+                    Try : removed.WebSocket?.Dispose() : Catch ex As Exception : System.Diagnostics.Debug.WriteLine($"[Subtitle] WebSocket dispose failed: {ex.Message}") : End Try
                 End If
             Next
             If deadKeys.Count > 0 Then
@@ -636,7 +647,8 @@ Namespace Services.Subtitle
                         Return lastIdProp.GetInt32()
                     End If
                 End Using
-            Catch
+            Catch ex As Exception
+                System.Diagnostics.Debug.WriteLine($"[Subtitle] ExtractLastId JSON parse failed: {ex.Message}")
             End Try
             Return 0
         End Function
