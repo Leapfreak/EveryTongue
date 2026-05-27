@@ -945,8 +945,9 @@ Partial Class FormMain
         ' === System Tray ===
         Me.trayMenu = New ContextMenuStrip()
         Me.trayMenuShow = New ToolStripMenuItem("Show")
+        Me.trayMenuAbout = New ToolStripMenuItem("About")
         Me.trayMenuExit = New ToolStripMenuItem("Exit")
-        Me.trayMenu.Items.AddRange({Me.trayMenuShow, New ToolStripSeparator(), Me.trayMenuExit})
+        Me.trayMenu.Items.AddRange({Me.trayMenuShow, New ToolStripSeparator(), Me.trayMenuAbout, New ToolStripSeparator(), Me.trayMenuExit})
 
         Me.trayIcon = New NotifyIcon()
         Me.trayIcon.Icon = Me.Icon
@@ -1156,5 +1157,6 @@ Partial Class FormMain
     Friend WithEvents trayIcon As NotifyIcon
     Friend WithEvents trayMenu As ContextMenuStrip
     Friend WithEvents trayMenuShow As ToolStripMenuItem
+    Friend WithEvents trayMenuAbout As ToolStripMenuItem
     Friend WithEvents trayMenuExit As ToolStripMenuItem
 End Class

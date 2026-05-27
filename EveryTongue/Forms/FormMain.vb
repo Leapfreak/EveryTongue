@@ -208,6 +208,11 @@ Public Class FormMain
         ' Wire up system tray
         AddHandler trayIcon.DoubleClick, Sub(s, ev) ShowFromTray()
         AddHandler trayMenuShow.Click, Sub(s, ev) ShowFromTray()
+        AddHandler trayMenuAbout.Click, Sub(s, ev)
+            Using dlg As New FormAbout()
+                dlg.ShowDialog(Me)
+            End Using
+        End Sub
         AddHandler trayMenuExit.Click, Sub(s, ev) ExitApplication()
 
         ' Apply saved startup preference (first-run setup happens after dependency download)
