@@ -76,7 +76,7 @@ body {
 }
 #toolbar button.active { color: #4f4; border-color: #4f4 }
 #toolbar button.recording { color: #f44; border-color: #f44 }
-#btnHome { color: #6cf; border-color: #48a }
+#btnHome { border-color: #48a }
 #btnSettings { color: #aaa; border-color: #666 }
 #btnWake { color: #fc4; border-color: #a84 }
 #btnBible { color: #c8a2ff; border-color: #846 }
