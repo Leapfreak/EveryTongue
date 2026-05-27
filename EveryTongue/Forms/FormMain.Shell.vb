@@ -441,11 +441,12 @@ Partial Class FormMain
         btnNavTranscribe = CreateNavButton(ChrW(&H266A), "Transcribe")
         AddHandler btnNavTranscribe.Click, Sub(s, e) SwitchWorkspace(tabPageJob, btnNavTranscribe)
 
-        btnNavLive = CreateNavButton(ChrW(&H25B6), "Live")
+        Dim liveIcon = LoadEmbeddedImage("EveryTongue.Assets.Live.png", 24, 24)
+        btnNavLive = CreateNavButton("", "Live", liveIcon)
         AddHandler btnNavLive.Click, Sub(s, e) SwitchWorkspace(tabPageLive, btnNavLive)
     End Sub
 
-    Private Function CreateNavButton(icon As String, label As String) As Button
+    Private Function CreateNavButton(icon As String, label As String, Optional img As Image = Nothing) As Button
         Dim btn As New Button()
         btn.FlatStyle = FlatStyle.Flat
         btn.FlatAppearance.BorderSize = 0
@@ -453,16 +454,47 @@ Partial Class FormMain
         btn.FlatAppearance.MouseDownBackColor = NavSelectedColor
         btn.Size = New Size(NavRailWidth, 65)
         btn.Dock = DockStyle.Top
-        btn.Text = icon & vbCrLf & label
-        btn.TextAlign = ContentAlignment.MiddleCenter
         btn.Font = New Font("Segoe UI", 9)
         btn.ForeColor = NavForeColor
         btn.BackColor = NavBackColor
         btn.Cursor = Cursors.Hand
         btn.Margin = New Padding(0)
         btn.Padding = New Padding(0)
+
+        If img IsNot Nothing Then
+            btn.Image = img
+            btn.Text = label
+            btn.TextImageRelation = TextImageRelation.ImageAboveText
+            btn.ImageAlign = ContentAlignment.TopCenter
+            btn.TextAlign = ContentAlignment.BottomCenter
+            btn.Padding = New Padding(0, 4, 0, 4)
+        Else
+            btn.Text = icon & vbCrLf & label
+            btn.TextAlign = ContentAlignment.MiddleCenter
+        End If
+
         pnlNavRail.Controls.Add(btn)
         Return btn
+    End Function
+
+    Private Shared Function LoadEmbeddedImage(resourceName As String, w As Integer, h As Integer) As Image
+        Try
+            Using stream = Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName)
+                If stream IsNot Nothing Then
+                    Dim original = Image.FromStream(stream)
+                    Dim bmp As New Bitmap(w, h)
+                    Using g = Graphics.FromImage(bmp)
+                        g.InterpolationMode = Drawing2D.InterpolationMode.HighQualityBicubic
+                        g.DrawImage(original, 0, 0, w, h)
+                    End Using
+                    original.Dispose()
+                    Return bmp
+                End If
+            End Using
+        Catch ex As Exception
+            WriteDebugLog($"[ERROR] LoadEmbeddedImage({resourceName}): {ex.Message}")
+        End Try
+        Return Nothing
     End Function
 
     ' ═══════════════════════════════════════════════════════════════
