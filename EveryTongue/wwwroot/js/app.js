@@ -900,11 +900,16 @@ function toggleBible(){LOG('toggleBible');
 function closeBible(){LOG('closeBible');biblePanel.classList.remove('open')}
 
 function getBibleLang(){
-  /* Use app translation language if set, otherwise browser language */
+  /* 1. Check URL param from desktop app (e.g. ?bibleLang=es) */
+  var params=new URLSearchParams(window.location.search);
+  var bl=params.get('bibleLang');
+  if(bl)return bl.split('-')[0];
+  /* 2. Use app translation language if set */
   var tl=localStorage.getItem('transLang')||'';
   if(tl){
     for(var i=0;i<LANGS.length;i++){if(LANGS[i][0]===tl)return LANGS[i][3]}
   }
+  /* 3. Fall back to browser language */
   return (navigator.language||'en').split('-')[0];
 }
 

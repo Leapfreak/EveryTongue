@@ -9,7 +9,6 @@ Partial Class FormMain
 
     ' ── Shell controls ──────────────────────────────────────────────
     Private menuMain As MenuStrip
-    Private toolStripMain As ToolStrip
     Private pnlNavRail As Panel
     Private pnlContent As Panel
     Private statusMain As StatusStrip
@@ -22,12 +21,6 @@ Partial Class FormMain
     Private _activeNavButton As Button
 
     ' ── Toolbar buttons ─────────────────────────────────────────────
-    Private tsbLive As ToolStripButton
-    Private tsbTranscribe As ToolStripButton
-    Private tsbTranslate As ToolStripButton
-    Private tsbBible As ToolStripButton
-    Private tsbQR As ToolStripButton
-    Private tsbOptions As ToolStripButton
 
     ' ── Status bar labels ───────────────────────────────────────────
     Private tslServerStatus As ToolStripStatusLabel
@@ -143,7 +136,6 @@ Partial Class FormMain
 
         ' ── Build shell components ─────────────────────────────────
         BuildMenuBar()
-        BuildToolbar()
         BuildNavRail()
         BuildStatusBar()
         BuildLogPanel()
@@ -160,7 +152,6 @@ Partial Class FormMain
 
         Me.Controls.Add(pnlContent)
         Me.Controls.Add(statusMain)
-        Me.Controls.Add(toolStripMain)
         Me.Controls.Add(menuMain)
         Me.MainMenuStrip = menuMain
 
@@ -381,47 +372,6 @@ Partial Class FormMain
     ' ═══════════════════════════════════════════════════════════════
     ' Toolbar
     ' ═══════════════════════════════════════════════════════════════
-    Private Sub BuildToolbar()
-        toolStripMain = New ToolStrip()
-        toolStripMain.GripStyle = ToolStripGripStyle.Hidden
-        toolStripMain.RenderMode = ToolStripRenderMode.Professional
-
-        tsbLive = New ToolStripButton("Live") With {
-            .DisplayStyle = ToolStripItemDisplayStyle.Text,
-            .ToolTipText = "Live Translation"}
-        AddHandler tsbLive.Click, Sub(s, e) SwitchWorkspace(tabPageLive, btnNavLive)
-
-        tsbTranscribe = New ToolStripButton("Transcribe") With {
-            .DisplayStyle = ToolStripItemDisplayStyle.Text,
-            .ToolTipText = "Transcribe File/URL"}
-        AddHandler tsbTranscribe.Click, Sub(s, e) SwitchWorkspace(tabPageJob, btnNavTranscribe)
-
-        tsbTranslate = New ToolStripButton("Translate") With {
-            .DisplayStyle = ToolStripItemDisplayStyle.Text,
-            .ToolTipText = "Translate Text"}
-        AddHandler tsbTranslate.Click, Sub(s, e) SwitchWorkspace(tabPageTranslate, btnNavTranslate)
-
-        tsbBible = New ToolStripButton("Bible") With {
-            .DisplayStyle = ToolStripItemDisplayStyle.Text,
-            .ToolTipText = "Bible"}
-        AddHandler tsbBible.Click, Sub(s, e) SwitchWorkspace(tabPageBibleWs, btnNavBible)
-
-        tsbQR = New ToolStripButton("QR Code") With {
-            .DisplayStyle = ToolStripItemDisplayStyle.Text,
-            .ToolTipText = "Show QR Code"}
-        AddHandler tsbQR.Click, Sub(s, e) ShowQrCode()
-
-        tsbOptions = New ToolStripButton("Options") With {
-            .DisplayStyle = ToolStripItemDisplayStyle.Text,
-            .ToolTipText = "Options (Ctrl+,)"}
-        AddHandler tsbOptions.Click, Sub(s, e) ShowOptionsDialog("general")
-
-        toolStripMain.Items.AddRange({
-            tsbLive, tsbTranscribe, tsbTranslate, tsbBible,
-            New ToolStripSeparator(),
-            tsbQR, tsbOptions})
-    End Sub
-
     ' ═══════════════════════════════════════════════════════════════
     ' Nav Rail
     ' ═══════════════════════════════════════════════════════════════
@@ -431,22 +381,22 @@ Partial Class FormMain
             .Dock = DockStyle.Left,
             .BackColor = NavBackColor}
 
+        ' Icons from Segoe MDL2 Assets font (crisp at any size)
         ' Add buttons in reverse order (Dock=Top stacks first-added at top)
-        btnNavBible = CreateNavButton(ChrW(&HE736), "Bible")
+        btnNavBible = CreateNavButton(ChrW(&HE736), "Bible")       ' Book
         AddHandler btnNavBible.Click, Sub(s, e) SwitchWorkspace(tabPageBibleWs, btnNavBible)
 
-        btnNavTranslate = CreateNavButton("Aa", "Translate")
+        btnNavTranslate = CreateNavButton(ChrW(&HE774), "Translate") ' Globe / LocaleLanguage
         AddHandler btnNavTranslate.Click, Sub(s, e) SwitchWorkspace(tabPageTranslate, btnNavTranslate)
 
-        btnNavTranscribe = CreateNavButton(ChrW(&H266A), "Transcribe")
+        btnNavTranscribe = CreateNavButton(ChrW(&HE8D4), "Transcribe") ' Page / Document
         AddHandler btnNavTranscribe.Click, Sub(s, e) SwitchWorkspace(tabPageJob, btnNavTranscribe)
 
-        Dim liveIcon = LoadEmbeddedImage("EveryTongue.Assets.Live.png", 24, 24)
-        btnNavLive = CreateNavButton("", "Live", liveIcon)
+        btnNavLive = CreateNavButton(ChrW(&HE720), "Live")         ' Microphone
         AddHandler btnNavLive.Click, Sub(s, e) SwitchWorkspace(tabPageLive, btnNavLive)
     End Sub
 
-    Private Function CreateNavButton(icon As String, label As String, Optional img As Image = Nothing) As Button
+    Private Function CreateNavButton(icon As String, label As String) As Button
         Dim btn As New Button()
         btn.FlatStyle = FlatStyle.Flat
         btn.FlatAppearance.BorderSize = 0
@@ -454,47 +404,36 @@ Partial Class FormMain
         btn.FlatAppearance.MouseDownBackColor = NavSelectedColor
         btn.Size = New Size(NavRailWidth, 65)
         btn.Dock = DockStyle.Top
+        btn.Image = RenderFontIcon(icon, 24, NavForeColor)
+        btn.Text = label
         btn.Font = New Font("Segoe UI", 9)
         btn.ForeColor = NavForeColor
         btn.BackColor = NavBackColor
+        btn.TextImageRelation = TextImageRelation.ImageAboveText
+        btn.ImageAlign = ContentAlignment.TopCenter
+        btn.TextAlign = ContentAlignment.BottomCenter
+        btn.Padding = New Padding(0, 4, 0, 4)
         btn.Cursor = Cursors.Hand
         btn.Margin = New Padding(0)
-        btn.Padding = New Padding(0)
-
-        If img IsNot Nothing Then
-            btn.Image = img
-            btn.Text = label
-            btn.TextImageRelation = TextImageRelation.ImageAboveText
-            btn.ImageAlign = ContentAlignment.TopCenter
-            btn.TextAlign = ContentAlignment.BottomCenter
-            btn.Padding = New Padding(0, 4, 0, 4)
-        Else
-            btn.Text = icon & vbCrLf & label
-            btn.TextAlign = ContentAlignment.MiddleCenter
-        End If
-
         pnlNavRail.Controls.Add(btn)
         Return btn
     End Function
 
-    Private Shared Function LoadEmbeddedImage(resourceName As String, w As Integer, h As Integer) As Image
-        Try
-            Using stream = Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName)
-                If stream IsNot Nothing Then
-                    Dim original = Image.FromStream(stream)
-                    Dim bmp As New Bitmap(w, h)
-                    Using g = Graphics.FromImage(bmp)
-                        g.InterpolationMode = Drawing2D.InterpolationMode.HighQualityBicubic
-                        g.DrawImage(original, 0, 0, w, h)
-                    End Using
-                    original.Dispose()
-                    Return bmp
-                End If
+    ''' <summary>Renders a Segoe MDL2 Assets glyph to a bitmap.</summary>
+    Private Shared Function RenderFontIcon(glyph As String, size As Integer, color As Color) As Bitmap
+        Dim bmp As New Bitmap(size, size)
+        Using g = Graphics.FromImage(bmp)
+            g.TextRenderingHint = Drawing.Text.TextRenderingHint.AntiAliasGridFit
+            Using fnt As New Font("Segoe MDL2 Assets", size * 0.65F, FontStyle.Regular, GraphicsUnit.Pixel)
+                Dim sz = g.MeasureString(glyph, fnt)
+                Dim x = (size - sz.Width) / 2
+                Dim y = (size - sz.Height) / 2
+                Using br As New SolidBrush(color)
+                    g.DrawString(glyph, fnt, br, x, y)
+                End Using
             End Using
-        Catch ex As Exception
-            WriteDebugLog($"[ERROR] LoadEmbeddedImage({resourceName}): {ex.Message}")
-        End Try
-        Return Nothing
+        End Using
+        Return bmp
     End Function
 
     ' ═══════════════════════════════════════════════════════════════
@@ -751,7 +690,8 @@ Partial Class FormMain
     Private Sub NavigateBibleView()
         If wvBible Is Nothing OrElse _serverPort = 0 Then Return
         Try
-            wvBible.Source = New Uri($"http://127.0.0.1:{_serverPort}/#bible")
+            Dim lang = If(_config?.Language, "en")
+            wvBible.Source = New Uri($"http://127.0.0.1:{_serverPort}/?bibleLang={lang}#bible")
             wvBible.Visible = True
             lblBibleStatus.Visible = False
         Catch ex As Exception
@@ -908,11 +848,6 @@ Partial Class FormMain
         navButton.ForeColor = Color.White
         _activeNavButton = navButton
 
-        ' Update toolbar toggle state
-        tsbLive.Checked = (navButton Is btnNavLive)
-        tsbTranscribe.Checked = (navButton Is btnNavTranscribe)
-        tsbTranslate.Checked = (navButton Is btnNavTranslate)
-        tsbBible.Checked = (navButton Is btnNavBible)
     End Sub
 
     ''' <summary>
@@ -926,12 +861,6 @@ Partial Class FormMain
             _activeNavButton.ForeColor = NavForeColor
             _activeNavButton = Nothing
         End If
-
-        ' Clear toolbar toggle
-        tsbLive.Checked = False
-        tsbTranscribe.Checked = False
-        tsbTranslate.Checked = False
-        tsbBible.Checked = False
 
         tabMain.SelectedTab = tabPage
     End Sub
@@ -1075,7 +1004,6 @@ Partial Class FormMain
             Me.FormBorderStyle = _previousBorderStyle
             Me.WindowState = _previousWindowState
             menuMain.Visible = True
-            toolStripMain.Visible = True
             statusMain.Visible = True
             _isFullScreen = False
         Else
@@ -1085,7 +1013,6 @@ Partial Class FormMain
             Me.FormBorderStyle = FormBorderStyle.None
             Me.WindowState = FormWindowState.Maximized
             menuMain.Visible = False
-            toolStripMain.Visible = False
             statusMain.Visible = False
             _isFullScreen = True
         End If

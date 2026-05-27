@@ -37,9 +37,6 @@
     <EmbeddedResource Include="Assets\Primary_Black_Horizontal_Logo.png">
       <LogicalName>EveryTongue.Assets.Logo.png</LogicalName>
     </EmbeddedResource>
-    <EmbeddedResource Include="Assets\Live.png">
-      <LogicalName>EveryTongue.Assets.Live.png</LogicalName>
-    </EmbeddedResource>
   </ItemGroup>
 
   <ItemGroup>
