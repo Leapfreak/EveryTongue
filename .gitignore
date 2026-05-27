@@ -24,6 +24,9 @@ artifacts/
 ## Installer output
 Output/
 
+## Bible databases (user-supplied, not redistributable)
+Bibles/
+
 ## Whisper binaries (provided externally, not built from source)
 whisper-bin/
 
