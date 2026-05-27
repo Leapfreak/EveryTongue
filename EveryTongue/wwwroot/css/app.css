@@ -430,11 +430,20 @@ body {
     width: 100%;
     padding: 0 16px;
 }
+.lp-logo {
+    text-align: center;
+    padding: 20px 0 0;
+    flex-shrink: 0;
+}
+.lp-logo img {
+    max-width: 280px;
+    height: auto;
+}
 .lp-title {
     text-align: center;
     font-size: 22px;
     color: #fff;
-    padding: 24px 0 12px;
+    padding: 12px 0 12px;
     flex-shrink: 0;
 }
 #lpDetected {
