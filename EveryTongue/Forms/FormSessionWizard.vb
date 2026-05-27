@@ -27,8 +27,10 @@ Public Class FormSessionWizard
     Private _currentStep As Integer = 0
     Private ReadOnly _stepPanels As New List(Of Panel)
 
-    ' ── Step 1: Hardware (stub) ───────────────────────────────────
+    ' ── Step 1: Hardware ────────────────────────────────────────────
     Private lblHwStatus As Label
+    Private pnlHwBars As Panel
+    Private _hwInfo As Services.Infrastructure.HardwareInfo
 
     ' ── Step 2: Audio Input ───────────────────────────────────────
     Private lstDevices As ListBox
@@ -141,16 +143,109 @@ Public Class FormSessionWizard
         Dim pnl As New Panel()
 
         lblHwStatus = New Label() With {
-            .Text = "Hardware analysis will be available in a future update." & vbCrLf & vbCrLf &
-                    "Your current system will be used with default settings." & vbCrLf & vbCrLf &
-                    "Click Next to continue.",
-            .Location = New Drawing.Point(0, 40),
-            .Size = New Drawing.Size(500, 120),
+            .Text = "Scanning hardware...",
+            .Location = New Drawing.Point(0, 0),
+            .Size = New Drawing.Size(520, 24),
             .Font = New Drawing.Font("Segoe UI", 11)}
 
-        pnl.Controls.Add(lblHwStatus)
+        pnlHwBars = New Panel() With {
+            .Location = New Drawing.Point(0, 30),
+            .Size = New Drawing.Size(520, 260)}
+
+        pnl.Controls.AddRange({lblHwStatus, pnlHwBars})
         _stepPanels.Add(pnl)
+
+        ' Scan hardware in background
+        Threading.Tasks.Task.Run(
+            Function() Services.Infrastructure.HardwareScanner.Scan()
+        ).ContinueWith(Sub(t)
+                            If t.IsFaulted Then
+                                If Me.InvokeRequired Then
+                                    Me.BeginInvoke(Sub() lblHwStatus.Text = "Hardware scan failed.")
+                                Else
+                                    lblHwStatus.Text = "Hardware scan failed."
+                                End If
+                                Return
+                            End If
+                            _hwInfo = t.Result
+                            If Me.InvokeRequired Then
+                                Me.BeginInvoke(Sub() PopulateHardwareStep())
+                            Else
+                                PopulateHardwareStep()
+                            End If
+                        End Sub)
     End Sub
+
+    Private Sub PopulateHardwareStep()
+        If _hwInfo Is Nothing Then Return
+
+        Dim ratingColor As Drawing.Color
+        Select Case _hwInfo.Rating
+            Case "Green" : ratingColor = Drawing.Color.DarkGreen
+            Case "Amber" : ratingColor = Drawing.Color.DarkOrange
+            Case Else : ratingColor = Drawing.Color.Red
+        End Select
+
+        lblHwStatus.Text = $"Overall: {_hwInfo.OverallScore}/100 — {_hwInfo.RatingDescription}"
+        lblHwStatus.ForeColor = ratingColor
+
+        pnlHwBars.Controls.Clear()
+        Dim y = 10
+
+        AddScoreBar(pnlHwBars, $"GPU:  {_hwInfo.GpuName}", _hwInfo.GpuScore, _hwInfo.GpuMemoryMB & " MB", y) : y += 55
+        AddScoreBar(pnlHwBars, $"CPU:  {_hwInfo.CpuName}", _hwInfo.CpuScore, _hwInfo.CpuCores & " cores", y) : y += 55
+        AddScoreBar(pnlHwBars, "RAM:", _hwInfo.RamScore, FormatMB(_hwInfo.RamTotalMB), y) : y += 55
+        AddScoreBar(pnlHwBars, "Disk free:", _hwInfo.DiskScore, FormatMB(_hwInfo.DiskFreeMB), y)
+    End Sub
+
+    Private Shared Sub AddScoreBar(parent As Panel, label As String, score As Integer, detail As String, y As Integer)
+        Dim lblName As New Label() With {
+            .Text = label, .Location = New Drawing.Point(0, y),
+            .Size = New Drawing.Size(360, 18), .AutoEllipsis = True,
+            .Font = New Drawing.Font("Segoe UI", 9)}
+        parent.Controls.Add(lblName)
+
+        Dim lblDetail As New Label() With {
+            .Text = detail, .Location = New Drawing.Point(370, y),
+            .AutoSize = True, .ForeColor = Drawing.Color.Gray,
+            .Font = New Drawing.Font("Segoe UI", 8.5F)}
+        parent.Controls.Add(lblDetail)
+
+        ' Bar background
+        Dim pnlBg As New Panel() With {
+            .Location = New Drawing.Point(0, y + 20),
+            .Size = New Drawing.Size(360, 16),
+            .BackColor = Drawing.Color.FromArgb(230, 230, 230)}
+        parent.Controls.Add(pnlBg)
+
+        ' Bar fill
+        Dim barWidth = CInt(360 * score / 100)
+        Dim barColor As Drawing.Color
+        If score >= 70 Then
+            barColor = Drawing.Color.FromArgb(76, 175, 80)
+        ElseIf score >= 40 Then
+            barColor = Drawing.Color.FromArgb(255, 193, 7)
+        Else
+            barColor = Drawing.Color.FromArgb(244, 67, 54)
+        End If
+
+        Dim pnlFill As New Panel() With {
+            .Location = New Drawing.Point(0, 0),
+            .Size = New Drawing.Size(barWidth, 16),
+            .BackColor = barColor}
+        pnlBg.Controls.Add(pnlFill)
+
+        ' Score text
+        Dim lblScore As New Label() With {
+            .Text = $"{score}/100", .Location = New Drawing.Point(370, y + 20),
+            .AutoSize = True, .Font = New Drawing.Font("Segoe UI", 8.5F)}
+        parent.Controls.Add(lblScore)
+    End Sub
+
+    Private Shared Function FormatMB(mb As Long) As String
+        If mb >= 1024 Then Return $"{mb / 1024:F1} GB"
+        Return $"{mb} MB"
+    End Function
 
     ' ═══════════════════════════════════════════════════════════════
     ' Step 2: Audio Input

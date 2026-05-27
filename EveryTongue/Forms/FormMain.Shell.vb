@@ -3,6 +3,7 @@
 ' All existing functionality is preserved; tabs become hidden workspaces.
 
 Imports System.Drawing
+Imports System.IO.Compression
 
 Partial Class FormMain
 
@@ -159,10 +160,24 @@ Partial Class FormMain
         Me.Controls.Add(menuMain)
         Me.MainMenuStrip = menuMain
 
+        ' ── Keyboard shortcuts ─────────────────────────────────────
+        AddHandler Me.KeyDown, AddressOf ShellKeyDown
+
         ' ── Default to Live workspace ──────────────────────────────
         SwitchWorkspace(tabPageLive, btnNavLive)
 
         Me.ResumeLayout(True)
+    End Sub
+
+    Private Sub ShellKeyDown(sender As Object, e As KeyEventArgs)
+        If e.Control Then
+            Select Case e.KeyCode
+                Case Keys.D1 : SwitchWorkspace(tabPageLive, btnNavLive) : e.Handled = True
+                Case Keys.D2 : SwitchWorkspace(tabPageJob, btnNavTranscribe) : e.Handled = True
+                Case Keys.D3 : SwitchWorkspace(tabPageTranslate, btnNavTranslate) : e.Handled = True
+                Case Keys.D4 : SwitchWorkspace(tabPageBibleWs, btnNavBible) : e.Handled = True
+            End Select
+        End If
     End Sub
 
     ' ═══════════════════════════════════════════════════════════════
@@ -180,7 +195,7 @@ Partial Class FormMain
         AddHandler mnuFileNewSession.Click, Sub(s, e) LaunchSessionWizard()
 
         mnuFileExportDiag = New ToolStripMenuItem("Export Diagnostics...")
-        mnuFileExportDiag.Enabled = False
+        AddHandler mnuFileExportDiag.Click, Sub(s, e) ExportDiagnosticsAsync()
 
         mnuFileExit = New ToolStripMenuItem("E&xit")
         mnuFileExit.ShortcutKeys = Keys.Alt Or Keys.F4
@@ -308,7 +323,21 @@ Partial Class FormMain
         AddHandler mnuHelpQuickStart.Click, Sub(s, e) ShowLegacyTab(tabPageHelp)
 
         mnuHelpShortcuts = New ToolStripMenuItem("Keyboard Shortcuts")
-        mnuHelpShortcuts.Enabled = False
+        AddHandler mnuHelpShortcuts.Click, Sub(s, e)
+                                                MessageBox.Show(
+                                                    "Ctrl+1      Live workspace" & vbCrLf &
+                                                    "Ctrl+2      Transcribe workspace" & vbCrLf &
+                                                    "Ctrl+3      Translate workspace" & vbCrLf &
+                                                    "Ctrl+4      Bible workspace" & vbCrLf &
+                                                    "Ctrl+N      New Session wizard" & vbCrLf &
+                                                    "Ctrl+L      Toggle Log Panel" & vbCrLf &
+                                                    "Ctrl+,      Options" & vbCrLf &
+                                                    "F5          Start Live" & vbCrLf &
+                                                    "Shift+F5    Stop Live" & vbCrLf &
+                                                    "F11         Full Screen",
+                                                    "Keyboard Shortcuts",
+                                                    MessageBoxButtons.OK, MessageBoxIcon.Information)
+                                            End Sub
 
         mnuHelpHardware = New ToolStripMenuItem("Hardware Report")
         mnuHelpHardware.Enabled = False
@@ -898,6 +927,78 @@ Partial Class FormMain
             _formQr.UpdateUrl(url)
             _formQr.BringToFront()
         End If
+    End Sub
+
+    Private Async Sub ExportDiagnosticsAsync()
+        Dim hwInfo = Await Threading.Tasks.Task.Run(
+            Function() Services.Infrastructure.HardwareScanner.Scan())
+
+        Using dlg As New SaveFileDialog()
+            dlg.Filter = "ZIP Archive|*.zip"
+            dlg.FileName = $"EveryTongue_Diagnostics_{DateTime.Now:yyyyMMdd_HHmmss}.zip"
+            If dlg.ShowDialog() <> DialogResult.OK Then Return
+
+            Try
+                Using zipStream As New IO.FileStream(dlg.FileName, IO.FileMode.Create)
+                    Using archive As New IO.Compression.ZipArchive(zipStream, IO.Compression.ZipArchiveMode.Create)
+                        ' System info
+                        Dim infoEntry = archive.CreateEntry("system_info.txt")
+                        Using writer As New IO.StreamWriter(infoEntry.Open())
+                            writer.WriteLine($"Every Tongue Diagnostics — {DateTime.Now:yyyy-MM-dd HH:mm:ss}")
+                            writer.WriteLine($"Version: {Reflection.Assembly.GetExecutingAssembly().GetName().Version}")
+                            writer.WriteLine($"OS: {Environment.OSVersion}")
+                            writer.WriteLine($".NET: {Environment.Version}")
+                            writer.WriteLine($"64-bit OS: {Environment.Is64BitOperatingSystem}")
+                            writer.WriteLine($"64-bit process: {Environment.Is64BitProcess}")
+                            writer.WriteLine()
+                            writer.WriteLine("=== Hardware ===")
+                            writer.WriteLine($"GPU: {hwInfo.GpuName} ({hwInfo.GpuMemoryMB} MB) — Score: {hwInfo.GpuScore}/100")
+                            writer.WriteLine($"CPU: {hwInfo.CpuName} ({hwInfo.CpuCores} cores) — Score: {hwInfo.CpuScore}/100")
+                            writer.WriteLine($"RAM: {hwInfo.RamTotalMB} MB — Score: {hwInfo.RamScore}/100")
+                            writer.WriteLine($"Disk free: {hwInfo.DiskFreeMB} MB — Score: {hwInfo.DiskScore}/100")
+                            writer.WriteLine($"Overall: {hwInfo.OverallScore}/100 ({hwInfo.Rating})")
+                            writer.WriteLine()
+                            writer.WriteLine("=== Configuration ===")
+                            For Each prop In GetType(Models.AppConfig).GetProperties(Reflection.BindingFlags.Public Or Reflection.BindingFlags.Instance)
+                                If Not prop.CanRead Then Continue For
+                                Dim val = prop.GetValue(_config)
+                                ' Mask sensitive values
+                                Dim displayVal = If(prop.Name.IndexOf("Pin", StringComparison.OrdinalIgnoreCase) >= 0, "****", val?.ToString())
+                                writer.WriteLine($"  {prop.Name} = {displayVal}")
+                            Next
+                        End Using
+
+                        ' Server log
+                        If rtbServerLog.TextLength > 0 Then
+                            Dim logEntry = archive.CreateEntry("server_log.txt")
+                            Using writer As New IO.StreamWriter(logEntry.Open())
+                                writer.Write(rtbServerLog.Text)
+                            End Using
+                        End If
+
+                        ' Pipeline log
+                        If rtbLog.TextLength > 0 Then
+                            Dim logEntry = archive.CreateEntry("pipeline_log.txt")
+                            Using writer As New IO.StreamWriter(logEntry.Open())
+                                writer.Write(rtbLog.Text)
+                            End Using
+                        End If
+
+                        ' Debug log file
+                        Dim debugLogPath = GetPipelineLogPath()
+                        If IO.File.Exists(debugLogPath) Then
+                            archive.CreateEntryFromFile(debugLogPath, "debug_log.txt")
+                        End If
+                    End Using
+                End Using
+
+                MessageBox.Show($"Diagnostics exported to:{Environment.NewLine}{dlg.FileName}",
+                    "Export Complete", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Catch ex As Exception
+                MessageBox.Show($"Export failed: {ex.Message}",
+                    "Export Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            End Try
+        End Using
     End Sub
 
     Private Sub SetThemeFromMenu(theme As String)
