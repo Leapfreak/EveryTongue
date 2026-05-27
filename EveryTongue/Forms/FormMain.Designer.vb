@@ -944,10 +944,10 @@ Partial Class FormMain
         Me.WindowState = FormWindowState.Maximized
         ' === System Tray ===
         Me.trayMenu = New ContextMenuStrip()
+        Me.trayMenuAbout = New ToolStripMenuItem("About...")
         Me.trayMenuShow = New ToolStripMenuItem("Show")
-        Me.trayMenuAbout = New ToolStripMenuItem("About")
         Me.trayMenuExit = New ToolStripMenuItem("Exit")
-        Me.trayMenu.Items.AddRange({Me.trayMenuShow, New ToolStripSeparator(), Me.trayMenuAbout, New ToolStripSeparator(), Me.trayMenuExit})
+        Me.trayMenu.Items.AddRange({Me.trayMenuAbout, New ToolStripSeparator(), Me.trayMenuShow, New ToolStripSeparator(), Me.trayMenuExit})
 
         Me.trayIcon = New NotifyIcon()
         Me.trayIcon.Icon = Me.Icon

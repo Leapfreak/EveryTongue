@@ -4,7 +4,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <RootNamespace>EveryTongue</RootNamespace>
-    <StartupObject>EveryTongue.FormMain</StartupObject>
+    <StartupObject>EveryTongue.Program</StartupObject>
     <UseWindowsForms>true</UseWindowsForms>
     <Version>1.3.2</Version>
     <AssemblyVersion>1.3.2.0</AssemblyVersion>
@@ -32,7 +32,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Assets\Primary_White_Horizontal_Logo.png">
+    <EmbeddedResource Include="Assets\Primary_Black_Horizontal_Logo.png">
       <LogicalName>EveryTongue.Assets.Logo.png</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
@@ -86,6 +86,17 @@
     <Content Include="..\mms-tts-server\requirements.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>mms-tts-server\requirements.txt</Link>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\LICENSE">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>LICENSE</Link>
+    </Content>
+    <Content Include="..\THIRD_PARTY_NOTICES.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>THIRD_PARTY_NOTICES.md</Link>
     </Content>
   </ItemGroup>
 

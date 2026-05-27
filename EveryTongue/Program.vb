@@ -1,14 +1,23 @@
-﻿Friend Module Program
+Imports System.IO
+
+Friend Module Program
+
+    ' Keep the lock file open for the lifetime of the process
+    Private _lockStream As FileStream
 
     <STAThread()>
     Friend Sub Main(args As String())
-        Dim createdNew As Boolean
-        Dim mtx As New Threading.Mutex(True, "EveryTongue_SingleInstance", createdNew)
-        If Not createdNew Then
-            mtx.Dispose()
+        ' Single-instance guard: try to exclusively lock a file in AppData
+        Dim lockDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "EveryTongue")
+        Directory.CreateDirectory(lockDir)
+        Dim lockPath = Path.Combine(lockDir, ".lock")
+
+        Try
+            _lockStream = New FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None)
+        Catch ex As IOException
             MessageBox.Show("Every Tongue is already running.", "Every Tongue", MessageBoxButtons.OK, MessageBoxIcon.Information)
             Return
-        End If
+        End Try
 
         Try
             Application.SetHighDpiMode(HighDpiMode.SystemAware)
@@ -16,8 +25,7 @@
             Application.SetCompatibleTextRenderingDefault(False)
             Application.Run(New FormMain)
         Finally
-            mtx.ReleaseMutex()
-            mtx.Dispose()
+            _lockStream?.Dispose()
         End Try
     End Sub
 
