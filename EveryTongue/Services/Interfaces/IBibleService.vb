@@ -44,5 +44,7 @@ Namespace Services.Interfaces
 
         Function DetectReferencesInText(text As String
         ) As IReadOnlyList(Of DetectedReference)
+
+        Sub RescanTranslations()
     End Interface
 End Namespace

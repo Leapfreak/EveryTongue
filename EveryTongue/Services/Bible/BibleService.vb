@@ -146,6 +146,11 @@ Namespace Services.Bible
             ScanTranslations()
         End Sub
 
+        Public Sub RescanTranslations() Implements IBibleService.RescanTranslations
+            _translations.Clear()
+            ScanTranslations()
+        End Sub
+
         Private Sub ScanTranslations()
             _logger.LogInformation("Bible: scanning directory: {Dir}", _biblesDir)
             If Not Directory.Exists(_biblesDir) Then
@@ -278,9 +283,10 @@ Namespace Services.Bible
             For Each kvp In _translations
                 _logger.LogDebug("Bible: translation {Id} has language=""{Lang}""", kvp.Key, kvp.Value.Info.Language)
             Next
+            Dim queryLang = NormalizeLangCode(language)
             Dim result = _translations.Values.
                 Where(Function(e) String.IsNullOrEmpty(language) OrElse
-                                  e.Info.Language.Equals(language, StringComparison.OrdinalIgnoreCase)).
+                                  NormalizeLangCode(e.Info.Language).Equals(queryLang, StringComparison.OrdinalIgnoreCase)).
                 Select(Function(e) e.Info).ToList()
             _logger.LogInformation("Bible: filtered to {Count} translation(s) for language=""{Lang}""", result.Count, If(language, "(null)"))
             Return Task.FromResult(DirectCast(result, IReadOnlyList(Of BibleTranslation)))
@@ -507,6 +513,36 @@ Namespace Services.Bible
             Next
 
             Return detectedRefs
+        End Function
+
+        ''' <summary>
+        ''' Normalize a language code to 3-letter ISO 639-3 for consistent matching.
+        ''' Handles both 2-letter (en, es) and 3-letter (eng, spa) inputs.
+        ''' </summary>
+        Private Shared Function NormalizeLangCode(code As String) As String
+            If String.IsNullOrEmpty(code) Then Return ""
+            If code.Length >= 3 Then Return code  ' already 3-letter
+
+            Static map As Dictionary(Of String, String) = Nothing
+            If map Is Nothing Then
+                map = New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
+                    {"af", "afr"}, {"am", "amh"}, {"ar", "arb"}, {"hy", "hye"}, {"az", "azj"},
+                    {"bn", "ben"}, {"bs", "bos"}, {"bg", "bul"}, {"my", "mya"}, {"ca", "cat"},
+                    {"zh", "zho"}, {"hr", "hrv"}, {"cs", "ces"}, {"cy", "cym"}, {"da", "dan"},
+                    {"nl", "nld"}, {"en", "eng"}, {"et", "est"}, {"fi", "fin"}, {"fr", "fra"},
+                    {"gl", "glg"}, {"ka", "kat"}, {"de", "deu"}, {"el", "ell"}, {"he", "heb"},
+                    {"hi", "hin"}, {"hu", "hun"}, {"is", "isl"}, {"id", "ind"}, {"it", "ita"},
+                    {"ja", "jpn"}, {"ko", "kor"}, {"lv", "lvs"}, {"lt", "lit"}, {"mk", "mkd"},
+                    {"ms", "zsm"}, {"mt", "mlt"}, {"ne", "npi"}, {"no", "nob"}, {"fa", "pes"},
+                    {"pl", "pol"}, {"pt", "por"}, {"ro", "ron"}, {"ru", "rus"}, {"sr", "srp"},
+                    {"sk", "slk"}, {"sl", "slv"}, {"es", "spa"}, {"sw", "swh"}, {"sv", "swe"},
+                    {"ta", "tam"}, {"te", "tel"}, {"th", "tha"}, {"tr", "tur"}, {"uk", "ukr"},
+                    {"vi", "vie"}, {"sq", "sqi"}, {"si", "sin"}
+                }
+            End If
+            Dim result As String = Nothing
+            If map.TryGetValue(code, result) Then Return result
+            Return code
         End Function
     End Class
 End Namespace

@@ -174,7 +174,7 @@ Partial Class FormOptions
         Me.treeNav.ItemHeight = 28
         Me.treeNav.Location = New System.Drawing.Point(0, 0)
         Me.treeNav.Name = "treeNav"
-        Me.treeNav.Nodes.AddRange(New System.Windows.Forms.TreeNode() {New System.Windows.Forms.TreeNode("General") With {.Name = "general"}, New System.Windows.Forms.TreeNode("Tool Paths") With {.Name = "paths"}, New System.Windows.Forms.TreeNode("Server && Subtitles") With {.Name = "server"}})
+        Me.treeNav.Nodes.AddRange(New System.Windows.Forms.TreeNode() {New System.Windows.Forms.TreeNode("General") With {.Name = "general"}, New System.Windows.Forms.TreeNode("Tool Paths") With {.Name = "paths"}, New System.Windows.Forms.TreeNode("Server & Subtitles") With {.Name = "server"}})
         Me.treeNav.ShowLines = False
         Me.treeNav.ShowPlusMinus = False
         Me.treeNav.ShowRootLines = False

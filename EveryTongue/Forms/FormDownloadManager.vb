@@ -1,5 +1,8 @@
 Imports System.IO
+Imports System.IO.Compression
+Imports System.Net.Http
 Imports EveryTongue.Models
+Imports EveryTongue.Services.Bible
 Imports EveryTongue.Services.Tts
 
 Namespace Forms
@@ -33,12 +36,15 @@ Namespace Forms
             btnRefresh.Enabled = False
 
             Try
-                ' Check all core tools asynchronously
-                Dim states = Await _mgr.CheckAllToolsAsync()
+                ' Run all checks in parallel
+                Dim statesTask = _mgr.CheckAllToolsAsync()
+                Dim pythonTask = _mgr.CheckPythonEmbedAsync()
+                Dim pythonDepsTask = _mgr.CheckPythonDepsStateAsync()
+                Await Task.WhenAll(statesTask, pythonTask, pythonDepsTask)
 
-                ' Also check Python and its deps
-                Dim pythonState = Await _mgr.CheckPythonEmbedAsync()
-                Dim pythonDepsState = Await _mgr.CheckPythonDepsStateAsync()
+                Dim states = statesTask.Result
+                Dim pythonState = pythonTask.Result
+                Dim pythonDepsState = pythonDepsTask.Result
 
                 lvTools.Items.Clear()
 
@@ -91,13 +97,14 @@ Namespace Forms
                 ' Add Python Packages
                 Dim pkgItem As New ListViewItem("Python Packages")
                 pkgItem.SubItems.Add("Runtime")
-                If pythonDepsState.Status = ToolStatus.UpToDate Then
+                Dim missingPkgs = _mgr.GetMissingPythonPackages()
+                If missingPkgs.Count = 0 Then
                     pkgItem.SubItems.Add("Installed")
-                    pkgItem.SubItems.Add("")
+                    pkgItem.SubItems.Add("ctranslate2, sentencepiece, fastapi, uvicorn, faster-whisper, sounddevice, edge-tts")
                     pkgItem.ForeColor = Drawing.Color.DarkGreen
                 Else
-                    pkgItem.SubItems.Add("Not Installed")
-                    pkgItem.SubItems.Add("")
+                    pkgItem.SubItems.Add($"Missing ({missingPkgs.Count})")
+                    pkgItem.SubItems.Add(String.Join(", ", missingPkgs))
                     pkgItem.ForeColor = Drawing.Color.Red
                 End If
                 pkgItem.Tag = pythonDepsState
@@ -126,8 +133,10 @@ Namespace Forms
             ' Load MMS-TTS status
             LoadMmsTtsStatus()
 
-            ' Load Bibles
-            LoadBibles()
+            ' Load installed Bibles and cached catalog if available
+            LoadInstalledBibles()
+            LoadCachedCatalog()
+            PopulateBibleTree()
 
             If lblProgress.Text = "Checking components..." Then
                 lblProgress.Text = "Ready"
@@ -162,22 +171,295 @@ Namespace Forms
             End If
         End Sub
 
-        Private Sub LoadBibles()
-            lvBibles.Items.Clear()
-            If Not Directory.Exists(_biblesDir) Then Return
+        ' ── Bible Catalog ──
 
-            Dim dbExtensions = {".db", ".sqlite", ".sqlite3"}
-            For Each langDir As String In Directory.GetDirectories(_biblesDir)
-                Dim langCode = Path.GetFileName(langDir)
-                For Each dbFile As String In Directory.GetFiles(langDir)
-                    If dbExtensions.Contains(Path.GetExtension(dbFile).ToLower()) Then
-                        Dim item As New ListViewItem(Path.GetFileNameWithoutExtension(dbFile))
-                        item.SubItems.Add(langCode)
-                        item.SubItems.Add(Path.GetFileName(dbFile))
-                        lvBibles.Items.Add(item)
+        Private Shared ReadOnly _httpClient As New HttpClient()
+        Private Const CatalogUrl = "https://ebible.org/Scriptures/translations.csv"
+        Private Const UsfmUrlTemplate = "https://ebible.org/Scriptures/{0}_usfm.zip"
+
+        ''' <summary>Parsed row from eBible.org translations.csv</summary>
+        Private Class CatalogEntry
+            Public Property TranslationId As String
+            Public Property LanguageCode As String
+            Public Property LanguageName As String
+            Public Property LanguageNameEnglish As String
+            Public Property Title As String
+            Public Property Description As String
+            Public Property Redistributable As Boolean
+            Public Property Copyright As String
+            Public Property OTBooks As Integer
+            Public Property NTBooks As Integer
+        End Class
+
+        Private _catalog As List(Of CatalogEntry)
+        Private _installedBibles As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+
+        Private Sub LoadCachedCatalog()
+            Dim cacheFile = Path.Combine(_biblesDir, "translations.csv")
+            If File.Exists(cacheFile) Then
+                Try
+                    Dim csvText = File.ReadAllText(cacheFile)
+                    _catalog = ParseCatalogCsv(csvText)
+                Catch
+                End Try
+            End If
+        End Sub
+
+        Private Sub LoadInstalledBibles()
+            _installedBibles.Clear()
+            If Not Directory.Exists(_biblesDir) Then Return
+            Dim exts = {".db", ".sqlite", ".sqlite3"}
+            For Each f In Directory.GetFiles(_biblesDir, "*.*", SearchOption.AllDirectories)
+                If exts.Contains(Path.GetExtension(f).ToLower()) Then
+                    _installedBibles.Add(Path.GetFileNameWithoutExtension(f))
+                End If
+            Next
+        End Sub
+
+        Private Sub PopulateBibleTree(Optional filter As String = Nothing)
+            tvBibles.BeginUpdate()
+            tvBibles.Nodes.Clear()
+
+            If _catalog Is Nothing OrElse _catalog.Count = 0 Then
+                tvBibles.Nodes.Add("Click 'Fetch Catalog' to load available Bible translations from eBible.org")
+                tvBibles.EndUpdate()
+                Return
+            End If
+
+            Dim hasFilter = Not String.IsNullOrWhiteSpace(filter)
+            Dim filterLower = If(hasFilter, filter.ToLower(), "")
+
+            ' Group by language (English name)
+            Dim groups = _catalog.
+                Where(Function(c)
+                          If Not hasFilter Then Return True
+                          Return c.LanguageNameEnglish.ToLower().Contains(filterLower) OrElse
+                                 c.Title.ToLower().Contains(filterLower) OrElse
+                                 c.TranslationId.ToLower().Contains(filterLower) OrElse
+                                 c.LanguageCode.ToLower().Contains(filterLower)
+                      End Function).
+                GroupBy(Function(c) c.LanguageNameEnglish).
+                OrderBy(Function(g) g.Key)
+
+            For Each grp In groups
+                Dim langNode As New TreeNode($"{grp.Key} ({grp.Count()})")
+                langNode.Tag = Nothing
+                For Each entry In grp.OrderBy(Function(c) c.Title)
+                    Dim installed = _installedBibles.Contains(entry.TranslationId)
+                    Dim status = If(installed, " [Installed]", "")
+                    Dim books = ""
+                    If entry.OTBooks > 0 AndAlso entry.NTBooks > 0 Then
+                        books = $" (OT+NT)"
+                    ElseIf entry.NTBooks > 0 Then
+                        books = $" (NT only)"
+                    ElseIf entry.OTBooks > 0 Then
+                        books = $" (OT only)"
+                    End If
+                    Dim nodeText = $"{entry.Title}{books}{status}"
+                    Dim childNode As New TreeNode(nodeText)
+                    childNode.Tag = entry
+                    If installed Then childNode.ForeColor = Drawing.Color.DarkGreen
+                    langNode.Nodes.Add(childNode)
+                Next
+                tvBibles.Nodes.Add(langNode)
+            Next
+
+            If hasFilter Then tvBibles.ExpandAll()
+            tvBibles.EndUpdate()
+        End Sub
+
+        Private Function ParseCatalogCsv(csvText As String) As List(Of CatalogEntry)
+            Dim entries As New List(Of CatalogEntry)
+            Dim lines = csvText.Split({vbCrLf, vbLf}, StringSplitOptions.RemoveEmptyEntries)
+            If lines.Length < 2 Then Return entries
+
+            ' Parse header to find column indices
+            Dim headers = ParseCsvLine(lines(0))
+            Dim colMap As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
+            For i = 0 To headers.Length - 1
+                colMap(headers(i).Trim()) = i
+            Next
+
+            For i = 1 To lines.Length - 1
+                Try
+                    Dim cols = ParseCsvLine(lines(i))
+                    Dim redistributable = GetCol(cols, colMap, "Redistributable")
+                    If Not redistributable.Equals("True", StringComparison.OrdinalIgnoreCase) Then Continue For
+                    Dim downloadable = GetCol(cols, colMap, "downloadable")
+                    If downloadable.Equals("False", StringComparison.OrdinalIgnoreCase) Then Continue For
+
+                    Dim entry As New CatalogEntry With {
+                        .TranslationId = GetCol(cols, colMap, "translationId"),
+                        .LanguageCode = GetCol(cols, colMap, "languageCode"),
+                        .LanguageName = GetCol(cols, colMap, "languageName"),
+                        .LanguageNameEnglish = GetCol(cols, colMap, "languageNameInEnglish"),
+                        .Title = GetCol(cols, colMap, "title"),
+                        .Description = GetCol(cols, colMap, "description"),
+                        .Redistributable = True,
+                        .Copyright = GetCol(cols, colMap, "Copyright")
+                    }
+                    Integer.TryParse(GetCol(cols, colMap, "OTbooks"), entry.OTBooks)
+                    Integer.TryParse(GetCol(cols, colMap, "NTbooks"), entry.NTBooks)
+
+                    If Not String.IsNullOrEmpty(entry.TranslationId) Then
+                        entries.Add(entry)
+                    End If
+                Catch
+                End Try
+            Next
+
+            Return entries
+        End Function
+
+        Private Shared Function GetCol(cols As String(), colMap As Dictionary(Of String, Integer), name As String) As String
+            Dim idx As Integer
+            If colMap.TryGetValue(name, idx) AndAlso idx < cols.Length Then Return cols(idx).Trim()
+            Return ""
+        End Function
+
+        ''' <summary>Simple CSV line parser that handles quoted fields.</summary>
+        Private Shared Function ParseCsvLine(line As String) As String()
+            Dim fields As New List(Of String)
+            Dim current As New Text.StringBuilder()
+            Dim inQuotes = False
+            For Each ch In line
+                If ch = """"c Then
+                    inQuotes = Not inQuotes
+                ElseIf ch = ","c AndAlso Not inQuotes Then
+                    fields.Add(current.ToString())
+                    current.Clear()
+                Else
+                    current.Append(ch)
+                End If
+            Next
+            fields.Add(current.ToString())
+            Return fields.ToArray()
+        End Function
+
+        Private Async Sub btnFetchCatalog_Click(sender As Object, e As EventArgs) Handles btnFetchCatalog.Click
+            If _downloading Then Return
+            btnFetchCatalog.Enabled = False
+            lblProgress.Text = "Fetching Bible catalog from eBible.org..."
+            pbProgress.Style = ProgressBarStyle.Marquee
+
+            Try
+                ' Check for cached CSV (less than 24 hours old)
+                Dim cacheFile = Path.Combine(_biblesDir, "translations.csv")
+                Dim csvText As String
+
+                If File.Exists(cacheFile) AndAlso (DateTime.Now - File.GetLastWriteTime(cacheFile)).TotalHours < 24 Then
+                    csvText = File.ReadAllText(cacheFile)
+                    lblProgress.Text = "Loaded cached catalog"
+                Else
+                    csvText = Await _httpClient.GetStringAsync(CatalogUrl)
+                    If Not Directory.Exists(_biblesDir) Then Directory.CreateDirectory(_biblesDir)
+                    File.WriteAllText(cacheFile, csvText)
+                    lblProgress.Text = "Catalog downloaded"
+                End If
+
+                _catalog = ParseCatalogCsv(csvText)
+                LoadInstalledBibles()
+                PopulateBibleTree()
+                lblProgress.Text = $"Found {_catalog.Count} freely redistributable translations"
+
+            Catch ex As Exception
+                lblProgress.Text = $"Error fetching catalog: {ex.Message}"
+            Finally
+                pbProgress.Style = ProgressBarStyle.Continuous
+                pbProgress.Value = 0
+                btnFetchCatalog.Enabled = True
+            End Try
+        End Sub
+
+        Private Async Sub btnDownloadBibles_Click(sender As Object, e As EventArgs) Handles btnDownloadBibles.Click
+            If _downloading Then Return
+
+            ' Collect checked translation nodes
+            Dim toDownload As New List(Of CatalogEntry)
+            For Each langNode As TreeNode In tvBibles.Nodes
+                For Each childNode As TreeNode In langNode.Nodes
+                    If childNode.Checked Then
+                        Dim entry = TryCast(childNode.Tag, CatalogEntry)
+                        If entry IsNot Nothing AndAlso Not _installedBibles.Contains(entry.TranslationId) Then
+                            toDownload.Add(entry)
+                        End If
                     End If
                 Next
             Next
+
+            If toDownload.Count = 0 Then
+                lblProgress.Text = "Check one or more translations to download."
+                Return
+            End If
+
+            _downloading = True
+            SetAllButtonsEnabled(False)
+
+            Try
+                For i = 0 To toDownload.Count - 1
+                    Dim entry = toDownload(i)
+                    lblProgress.Text = $"Downloading {entry.Title} ({i + 1}/{toDownload.Count})..."
+                    pbProgress.Value = 0
+
+                    ' Download USFM zip
+                    Dim url = String.Format(UsfmUrlTemplate, entry.TranslationId)
+                    Dim zipBytes = Await _httpClient.GetByteArrayAsync(url)
+
+                    ' Extract to temp directory
+                    Dim tempDir = Path.Combine(Path.GetTempPath(), "EveryTongue_USFM_" & entry.TranslationId)
+                    If Directory.Exists(tempDir) Then Directory.Delete(tempDir, True)
+                    Directory.CreateDirectory(tempDir)
+
+                    Dim zipPath = Path.Combine(tempDir, "usfm.zip")
+                    File.WriteAllBytes(zipPath, zipBytes)
+                    ZipFile.ExtractToDirectory(zipPath, tempDir)
+                    File.Delete(zipPath)
+
+                    ' Convert USFM to SQLite3
+                    lblProgress.Text = $"Converting {entry.Title} to SQLite3 ({i + 1}/{toDownload.Count})..."
+                    pbProgress.Style = ProgressBarStyle.Marquee
+                    Application.DoEvents()
+
+                    Dim langDir = Path.Combine(_biblesDir, entry.LanguageCode)
+                    If Not Directory.Exists(langDir) Then Directory.CreateDirectory(langDir)
+                    Dim dbPath = Path.Combine(langDir, entry.TranslationId & ".sqlite3")
+
+                    Await Task.Run(Sub() UsfmConverter.Convert(tempDir, dbPath, entry.Title, entry.LanguageCode))
+
+                    pbProgress.Style = ProgressBarStyle.Continuous
+
+                    If File.Exists(dbPath) Then
+                        Dim sizeMb = New FileInfo(dbPath).Length / 1024.0 / 1024.0
+                        lblProgress.Text = $"Converted {entry.Title} ({sizeMb:F1} MB) ({i + 1}/{toDownload.Count})"
+                    Else
+                        lblProgress.Text = $"Warning: conversion may have failed for {entry.Title}"
+                    End If
+
+                    ' Cleanup temp
+                    Try
+                        Directory.Delete(tempDir, True)
+                    Catch
+                    End Try
+
+                    pbProgress.Value = CInt((i + 1) * 100 \ toDownload.Count)
+                Next
+
+                lblProgress.Text = $"Downloaded and converted {toDownload.Count} Bible(s) successfully"
+                pbProgress.Value = 100
+                PathsUpdated = True
+
+            Catch ex As Exception
+                lblProgress.Text = $"Error: {ex.Message}"
+            Finally
+                _downloading = False
+                SetAllButtonsEnabled(True)
+                LoadInstalledBibles()
+                PopulateBibleTree(txtBibleSearch.Text)
+            End Try
+        End Sub
+
+        Private Sub txtBibleSearch_TextChanged(sender As Object, e As EventArgs) Handles txtBibleSearch.TextChanged
+            PopulateBibleTree(txtBibleSearch.Text)
         End Sub
 
         Private Shared Function GetCategory(name As String) As String
@@ -443,7 +725,10 @@ Namespace Forms
             btnDownloadVoices.Enabled = enabled
             btnRemoveVoices.Enabled = enabled
             btnInstallMmsTts.Enabled = enabled
-            btnClose.Enabled = enabled
+            btnFetchCatalog.Enabled = enabled
+            btnDownloadBibles.Enabled = enabled
+            btnOk.Enabled = enabled
+            btnCancel.Enabled = enabled
         End Sub
 
         Private Shared Function GetLanguageDisplayName(nllbCode As String) As String

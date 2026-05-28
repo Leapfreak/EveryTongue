@@ -233,7 +233,7 @@ var LANGS=[
 ];
 
 /* Popular languages shown at top of picker */
-var POPULAR_LANGS=['eng_Latn','spa_Latn','fra_Latn','por_Latn','deu_Latn','zho_Hans','arb_Arab','rus_Cyrl','hin_Deva','kor_Hang','jpn_Jpan','ita_Latn'];
+var POPULAR_LANGS=['eng_Latn','spa_Latn','fra_Latn','por_Latn','deu_Latn','cat_Latn','zho_Hans','arb_Arab','rus_Cyrl','hin_Deva','kor_Hang','jpn_Jpan','ita_Latn'];
 
 /* ── Language Picker ── */
 function showLangPicker(){
@@ -335,7 +335,8 @@ document.getElementById('lpSearch').oninput=function(){renderLangList(this.value
 function goHome(){
   LOG('goHome');
   localStorage.removeItem('langChosen');
-  location.reload();
+  /* Navigate to clean URL without query params (e.g. ?bibleLang=) so we reach the landing page */
+  window.location.href=window.location.origin+window.location.pathname;
 }
 
 /* Populate transLangSelect dropdown dynamically from LANGS */
@@ -760,11 +761,9 @@ var rOpts=rateSelect.options;rOpts[0].textContent=t('slow');rOpts[1].textContent
     }
   }).catch(function(){});
   connect();
-  /* Preview mode (embedded WebView2) — use full width, hide chrome */
+  /* Preview mode (embedded WebView2) — use full width */
   if(location.search.indexOf('preview')!==-1){
     document.getElementById('lines').style.maxWidth='none';
-    document.getElementById('toolbar').style.display='none';
-    document.getElementById('status').style.display='none';
   }
   /* Show language picker on page load — skip if desktop app passed ?bibleLang= */
   var _qs=new URLSearchParams(window.location.search);
@@ -916,29 +915,28 @@ function closeBible(){LOG('closeBible');biblePanel.classList.remove('open')}
 })();
 
 function getBibleLang(){
-  /* 1. Check URL param from desktop app (e.g. ?bibleLang=es) */
+  /* 1. Check URL param from desktop app (e.g. ?bibleLang=eng) */
   var params=new URLSearchParams(window.location.search);
   var bl=params.get('bibleLang');
-  if(bl)return bl.split('-')[0];
-  /* 2. Use app translation language if set */
+  if(bl)return bl;
+  /* 2. Use app translation language — extract 3-letter code from NLLB code */
   var tl=localStorage.getItem('transLang')||'';
   if(tl){
-    for(var i=0;i<LANGS.length;i++){if(LANGS[i][0]===tl)return LANGS[i][3]}
+    for(var i=0;i<LANGS.length;i++){if(LANGS[i][0]===tl)return LANGS[i][0].substring(0,3)}
   }
-  /* 3. Fall back to browser language */
-  return (navigator.language||'en').split('-')[0];
+  /* 3. Fall back to browser language mapped to 3-letter */
+  var iso2=(navigator.language||'en').split('-')[0];
+  var map2to3={af:'afr',am:'amh',ar:'arb',hy:'hye',az:'azj',bn:'ben',bs:'bos',bg:'bul',my:'mya',ca:'cat',zh:'zho',hr:'hrv',cs:'ces',da:'dan',nl:'nld',en:'eng',et:'est',fi:'fin',fr:'fra',gl:'glg',ka:'kat',de:'deu',el:'ell',gu:'guj',ha:'hau',he:'heb',hi:'hin',hu:'hun',is:'isl',ig:'ibo',id:'ind',ga:'gle',it:'ita',ja:'jpn',jv:'jav',kn:'kan',kk:'kaz',km:'khm',ko:'kor',lo:'lao',lv:'lvs',lt:'lit',mk:'mkd',ms:'zsm',ml:'mal',mt:'mlt',mi:'mri',mr:'mar',mn:'khk',ne:'npi',no:'nob',fa:'pes',pl:'pol',pt:'por',pa:'pan',ro:'ron',ru:'rus',sr:'srp',sk:'slk',sl:'slv',so:'som',es:'spa',sw:'swh',sv:'swe',tl:'tgl',ta:'tam',te:'tel',th:'tha',tr:'tur',uk:'ukr',ur:'urd',uz:'uzn',vi:'vie',cy:'cym',yo:'yor',zu:'zul'};
+  return map2to3[iso2]||'eng';
 }
 
 function loadBibleTranslations(){
   bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">Loading...</div>';
   currentBibleTrans='';
   var lang=getBibleLang();
-  fetch('/bible/translations?lang='+encodeURIComponent(lang)).then(function(r){return r.json()}).then(function(data){
-    /* If no Bibles match the user's language, fall back to all */
+  fetch('/bible/translations?lang='+encodeURIComponent(lang),{cache:'no-store'}).then(function(r){return r.json()}).then(function(data){
     if(!data||!Array.isArray(data)||data.length===0){
-      fetch('/bible/translations').then(function(r2){return r2.json()}).then(function(all){
-        if(Array.isArray(all)){populateBibleData(all)}
-      }).catch(function(){});
+      bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">No Bibles installed for this language.<br>Use the Download Manager to add Bibles.</div>';
       return;
     }
     populateBibleData(data);
@@ -963,6 +961,26 @@ function populateBibleData(data){
     if(currentBibleTrans)localStorage.setItem('bibleTrans',currentBibleTrans);
   }
   showBookList();
+}
+
+function refreshBibleDropdown(){
+  var lang=getBibleLang();
+  fetch('/bible/translations?lang='+encodeURIComponent(lang),{cache:'no-store'}).then(function(r){return r.json()}).then(function(data){
+    if(!data||!Array.isArray(data)||data.length===0)return;
+    bibleTranslations=data;
+    var cur=bibleTransSelect.value;
+    bibleTransSelect.innerHTML='';
+    for(var i=0;i<data.length;i++){
+      var opt=document.createElement('option');
+      opt.value=data[i].id;
+      opt.textContent=data[i].name+' ('+data[i].language+')';
+      bibleTransSelect.appendChild(opt);
+    }
+    if(cur){bibleTransSelect.value=cur}
+    if(!bibleTransSelect.value&&data.length>0){bibleTransSelect.value=data[0].id}
+    currentBibleTrans=bibleTransSelect.value;
+    if(currentBibleTrans)localStorage.setItem('bibleTrans',currentBibleTrans);
+  });
 }
 
 function onBibleTransChange(val){

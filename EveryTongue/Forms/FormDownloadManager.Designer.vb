@@ -14,227 +14,413 @@ Namespace Forms
         End Sub
 
         Private Sub InitializeComponent()
-            Me.grpTools = New System.Windows.Forms.GroupBox()
-            Me.lvTools = New System.Windows.Forms.ListView()
-            Me.colToolName = New System.Windows.Forms.ColumnHeader()
-            Me.colToolCategory = New System.Windows.Forms.ColumnHeader()
-            Me.colToolStatus = New System.Windows.Forms.ColumnHeader()
-            Me.colToolVersion = New System.Windows.Forms.ColumnHeader()
-            Me.btnDownloadAll = New System.Windows.Forms.Button()
-            Me.btnRefresh = New System.Windows.Forms.Button()
-            Me.grpVoices = New System.Windows.Forms.GroupBox()
-            Me.lvVoices = New System.Windows.Forms.ListView()
-            Me.colVoiceLang = New System.Windows.Forms.ColumnHeader()
-            Me.colVoiceModel = New System.Windows.Forms.ColumnHeader()
-            Me.colVoiceStatus = New System.Windows.Forms.ColumnHeader()
-            Me.btnDownloadVoices = New System.Windows.Forms.Button()
-            Me.btnRemoveVoices = New System.Windows.Forms.Button()
-            Me.grpMmsTts = New System.Windows.Forms.GroupBox()
-            Me.lblMmsTtsStatus = New System.Windows.Forms.Label()
-            Me.btnInstallMmsTts = New System.Windows.Forms.Button()
-            Me.grpBibles = New System.Windows.Forms.GroupBox()
-            Me.lvBibles = New System.Windows.Forms.ListView()
-            Me.colBibleTranslation = New System.Windows.Forms.ColumnHeader()
-            Me.colBibleLanguage = New System.Windows.Forms.ColumnHeader()
-            Me.colBibleFile = New System.Windows.Forms.ColumnHeader()
-            Me.btnOpenBiblesFolder = New System.Windows.Forms.Button()
-            Me.lblBibleHint = New System.Windows.Forms.Label()
-            Me.pbProgress = New System.Windows.Forms.ProgressBar()
-            Me.lblProgress = New System.Windows.Forms.Label()
-            Me.btnClose = New System.Windows.Forms.Button()
-            Me.grpTools.SuspendLayout()
-            Me.grpVoices.SuspendLayout()
-            Me.grpMmsTts.SuspendLayout()
-            Me.grpBibles.SuspendLayout()
-            Me.SuspendLayout()
-
-            ' ── grpTools (y=12, height=235) ──
-            Me.grpTools.Text = "Components"
-            Me.grpTools.Location = New System.Drawing.Point(12, 12)
-            Me.grpTools.Size = New System.Drawing.Size(676, 235)
-            Me.grpTools.Controls.Add(Me.lvTools)
-            Me.grpTools.Controls.Add(Me.btnDownloadAll)
-            Me.grpTools.Controls.Add(Me.btnRefresh)
-
+            tabMain = New TabControl()
+            tabComponents = New TabPage()
+            lvTools = New ListView()
+            colToolName = New ColumnHeader()
+            colToolCategory = New ColumnHeader()
+            colToolStatus = New ColumnHeader()
+            colToolVersion = New ColumnHeader()
+            pnlToolsButtons = New Panel()
+            btnDownloadAll = New Button()
+            btnRefresh = New Button()
+            tabPiper = New TabPage()
+            lvVoices = New ListView()
+            colVoiceLang = New ColumnHeader()
+            colVoiceModel = New ColumnHeader()
+            colVoiceStatus = New ColumnHeader()
+            pnlVoicesButtons = New Panel()
+            btnDownloadVoices = New Button()
+            btnRemoveVoices = New Button()
+            tabMmsTts = New TabPage()
+            lblMmsTtsInfo = New Label()
+            lblMmsTtsStatus = New Label()
+            btnInstallMmsTts = New Button()
+            tabBibles = New TabPage()
+            pnlBibleSearch = New Panel()
+            txtBibleSearch = New TextBox()
+            tvBibles = New TreeView()
+            pnlBiblesButtons = New Panel()
+            btnFetchCatalog = New Button()
+            btnDownloadBibles = New Button()
+            btnOpenBiblesFolder = New Button()
+            pnlBottom = New Panel()
+            pbProgress = New ProgressBar()
+            lblProgress = New Label()
+            btnOk = New Button()
+            btnCancel = New Button()
+            tabMain.SuspendLayout()
+            tabComponents.SuspendLayout()
+            pnlToolsButtons.SuspendLayout()
+            tabPiper.SuspendLayout()
+            pnlVoicesButtons.SuspendLayout()
+            tabMmsTts.SuspendLayout()
+            tabBibles.SuspendLayout()
+            pnlBibleSearch.SuspendLayout()
+            pnlBiblesButtons.SuspendLayout()
+            pnlBottom.SuspendLayout()
+            SuspendLayout()
+            ' 
+            ' tabMain
+            ' 
+            tabMain.Controls.Add(tabComponents)
+            tabMain.Controls.Add(tabPiper)
+            tabMain.Controls.Add(tabMmsTts)
+            tabMain.Controls.Add(tabBibles)
+            tabMain.Dock = DockStyle.Fill
+            tabMain.Location = New Point(0, 0)
+            tabMain.Name = "tabMain"
+            tabMain.Padding = New Point(12, 4)
+            tabMain.SelectedIndex = 0
+            tabMain.Size = New Size(700, 448)
+            tabMain.TabIndex = 0
+            ' 
+            ' tabComponents
+            ' 
+            tabComponents.Controls.Add(lvTools)
+            tabComponents.Controls.Add(pnlToolsButtons)
+            tabComponents.Location = New Point(4, 26)
+            tabComponents.Name = "tabComponents"
+            tabComponents.Padding = New Padding(8)
+            tabComponents.Size = New Size(692, 418)
+            tabComponents.TabIndex = 0
+            tabComponents.Text = "Components"
+            ' 
             ' lvTools
-            Me.lvTools.Location = New System.Drawing.Point(10, 20)
-            Me.lvTools.Size = New System.Drawing.Size(656, 170)
-            Me.lvTools.View = System.Windows.Forms.View.Details
-            Me.lvTools.CheckBoxes = True
-            Me.lvTools.FullRowSelect = True
-            Me.lvTools.GridLines = True
-            Me.lvTools.Columns.AddRange(New System.Windows.Forms.ColumnHeader() {
-                Me.colToolName, Me.colToolCategory, Me.colToolStatus, Me.colToolVersion})
-            Me.colToolName.Text = "Component"
-            Me.colToolName.Width = 230
-            Me.colToolCategory.Text = "Category"
-            Me.colToolCategory.Width = 100
-            Me.colToolStatus.Text = "Status"
-            Me.colToolStatus.Width = 120
-            Me.colToolVersion.Text = "Version"
-            Me.colToolVersion.Width = 180
-
+            ' 
+            lvTools.CheckBoxes = True
+            lvTools.Columns.AddRange(New ColumnHeader() {colToolName, colToolCategory, colToolStatus, colToolVersion})
+            lvTools.Dock = DockStyle.Fill
+            lvTools.FullRowSelect = True
+            lvTools.GridLines = True
+            lvTools.Location = New Point(8, 8)
+            lvTools.Name = "lvTools"
+            lvTools.Size = New Size(676, 364)
+            lvTools.TabIndex = 0
+            lvTools.UseCompatibleStateImageBehavior = False
+            lvTools.View = View.Details
+            ' 
+            ' colToolName
+            ' 
+            colToolName.Text = "Component"
+            colToolName.Width = 230
+            ' 
+            ' colToolCategory
+            ' 
+            colToolCategory.Text = "Category"
+            colToolCategory.Width = 100
+            ' 
+            ' colToolStatus
+            ' 
+            colToolStatus.Text = "Status"
+            colToolStatus.Width = 120
+            ' 
+            ' colToolVersion
+            ' 
+            colToolVersion.Text = "Version / Details"
+            colToolVersion.Width = 200
+            ' 
+            ' pnlToolsButtons
+            ' 
+            pnlToolsButtons.Controls.Add(btnDownloadAll)
+            pnlToolsButtons.Controls.Add(btnRefresh)
+            pnlToolsButtons.Dock = DockStyle.Bottom
+            pnlToolsButtons.Location = New Point(8, 372)
+            pnlToolsButtons.Name = "pnlToolsButtons"
+            pnlToolsButtons.Size = New Size(676, 38)
+            pnlToolsButtons.TabIndex = 1
+            ' 
             ' btnDownloadAll
-            Me.btnDownloadAll.Text = "Download Selected"
-            Me.btnDownloadAll.Location = New System.Drawing.Point(10, 197)
-            Me.btnDownloadAll.Size = New System.Drawing.Size(140, 28)
-
+            ' 
+            btnDownloadAll.Location = New Point(0, 4)
+            btnDownloadAll.Name = "btnDownloadAll"
+            btnDownloadAll.Size = New Size(140, 30)
+            btnDownloadAll.TabIndex = 0
+            btnDownloadAll.Text = "Download Selected"
+            ' 
             ' btnRefresh
-            Me.btnRefresh.Text = "Refresh"
-            Me.btnRefresh.Location = New System.Drawing.Point(180, 197)
-            Me.btnRefresh.Size = New System.Drawing.Size(90, 28)
-
-            ' ── grpVoices (y=255, height=185) ──
-            Me.grpVoices.Text = "Piper Voice Models (select languages to download)"
-            Me.grpVoices.Location = New System.Drawing.Point(12, 255)
-            Me.grpVoices.Size = New System.Drawing.Size(676, 185)
-            Me.grpVoices.Controls.Add(Me.lvVoices)
-            Me.grpVoices.Controls.Add(Me.btnDownloadVoices)
-            Me.grpVoices.Controls.Add(Me.btnRemoveVoices)
-
+            ' 
+            btnRefresh.Location = New Point(148, 4)
+            btnRefresh.Name = "btnRefresh"
+            btnRefresh.Size = New Size(90, 30)
+            btnRefresh.TabIndex = 1
+            btnRefresh.Text = "Refresh"
+            ' 
+            ' tabPiper
+            ' 
+            tabPiper.Controls.Add(lvVoices)
+            tabPiper.Controls.Add(pnlVoicesButtons)
+            tabPiper.Location = New Point(4, 26)
+            tabPiper.Name = "tabPiper"
+            tabPiper.Padding = New Padding(8)
+            tabPiper.Size = New Size(692, 418)
+            tabPiper.TabIndex = 1
+            tabPiper.Text = "Piper Voices"
+            ' 
             ' lvVoices
-            Me.lvVoices.Location = New System.Drawing.Point(10, 20)
-            Me.lvVoices.Size = New System.Drawing.Size(656, 120)
-            Me.lvVoices.View = System.Windows.Forms.View.Details
-            Me.lvVoices.CheckBoxes = True
-            Me.lvVoices.FullRowSelect = True
-            Me.lvVoices.GridLines = True
-            Me.lvVoices.Columns.AddRange(New System.Windows.Forms.ColumnHeader() {
-                Me.colVoiceLang, Me.colVoiceModel, Me.colVoiceStatus})
-            Me.colVoiceLang.Text = "Language"
-            Me.colVoiceLang.Width = 200
-            Me.colVoiceModel.Text = "Voice Model"
-            Me.colVoiceModel.Width = 300
-            Me.colVoiceStatus.Text = "Status"
-            Me.colVoiceStatus.Width = 130
-
+            ' 
+            lvVoices.CheckBoxes = True
+            lvVoices.Columns.AddRange(New ColumnHeader() {colVoiceLang, colVoiceModel, colVoiceStatus})
+            lvVoices.Dock = DockStyle.Fill
+            lvVoices.FullRowSelect = True
+            lvVoices.GridLines = True
+            lvVoices.Location = New Point(8, 8)
+            lvVoices.Name = "lvVoices"
+            lvVoices.Size = New Size(676, 364)
+            lvVoices.TabIndex = 0
+            lvVoices.UseCompatibleStateImageBehavior = False
+            lvVoices.View = View.Details
+            ' 
+            ' colVoiceLang
+            ' 
+            colVoiceLang.Text = "Language"
+            colVoiceLang.Width = 200
+            ' 
+            ' colVoiceModel
+            ' 
+            colVoiceModel.Text = "Voice Model"
+            colVoiceModel.Width = 300
+            ' 
+            ' colVoiceStatus
+            ' 
+            colVoiceStatus.Text = "Status"
+            colVoiceStatus.Width = 130
+            ' 
+            ' pnlVoicesButtons
+            ' 
+            pnlVoicesButtons.Controls.Add(btnDownloadVoices)
+            pnlVoicesButtons.Controls.Add(btnRemoveVoices)
+            pnlVoicesButtons.Dock = DockStyle.Bottom
+            pnlVoicesButtons.Location = New Point(8, 372)
+            pnlVoicesButtons.Name = "pnlVoicesButtons"
+            pnlVoicesButtons.Size = New Size(676, 38)
+            pnlVoicesButtons.TabIndex = 1
+            ' 
             ' btnDownloadVoices
-            Me.btnDownloadVoices.Text = "Download Selected"
-            Me.btnDownloadVoices.Location = New System.Drawing.Point(10, 147)
-            Me.btnDownloadVoices.Size = New System.Drawing.Size(140, 28)
-
+            ' 
+            btnDownloadVoices.Location = New Point(0, 4)
+            btnDownloadVoices.Name = "btnDownloadVoices"
+            btnDownloadVoices.Size = New Size(140, 30)
+            btnDownloadVoices.TabIndex = 0
+            btnDownloadVoices.Text = "Download Selected"
+            ' 
             ' btnRemoveVoices
-            Me.btnRemoveVoices.Text = "Remove Selected"
-            Me.btnRemoveVoices.Location = New System.Drawing.Point(160, 147)
-            Me.btnRemoveVoices.Size = New System.Drawing.Size(140, 28)
-
-            ' ── grpMmsTts (y=448, height=55) ──
-            Me.grpMmsTts.Text = "MMS-TTS — 1100+ languages via PyTorch (optional)"
-            Me.grpMmsTts.Location = New System.Drawing.Point(12, 448)
-            Me.grpMmsTts.Size = New System.Drawing.Size(676, 55)
-            Me.grpMmsTts.Controls.Add(Me.lblMmsTtsStatus)
-            Me.grpMmsTts.Controls.Add(Me.btnInstallMmsTts)
-
+            ' 
+            btnRemoveVoices.Location = New Point(148, 4)
+            btnRemoveVoices.Name = "btnRemoveVoices"
+            btnRemoveVoices.Size = New Size(140, 30)
+            btnRemoveVoices.TabIndex = 1
+            btnRemoveVoices.Text = "Remove Selected"
+            ' 
+            ' tabMmsTts
+            ' 
+            tabMmsTts.Controls.Add(lblMmsTtsInfo)
+            tabMmsTts.Controls.Add(lblMmsTtsStatus)
+            tabMmsTts.Controls.Add(btnInstallMmsTts)
+            tabMmsTts.Location = New Point(4, 26)
+            tabMmsTts.Name = "tabMmsTts"
+            tabMmsTts.Padding = New Padding(16)
+            tabMmsTts.Size = New Size(692, 418)
+            tabMmsTts.TabIndex = 2
+            tabMmsTts.Text = "MMS-TTS"
+            ' 
+            ' lblMmsTtsInfo
+            ' 
+            lblMmsTtsInfo.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
+            lblMmsTtsInfo.Location = New Point(16, 16)
+            lblMmsTtsInfo.Name = "lblMmsTtsInfo"
+            lblMmsTtsInfo.Size = New Size(1112, 80)
+            lblMmsTtsInfo.TabIndex = 0
+            lblMmsTtsInfo.Text = "MMS-TTS is Meta's Massively Multilingual Speech synthesis engine." & vbCrLf & vbCrLf & "It covers 1100+ languages for when Piper doesn't have a voice model." & vbCrLf & "Requires CPU-only PyTorch (~200 MB download)."
+            ' 
             ' lblMmsTtsStatus
-            Me.lblMmsTtsStatus.Text = "Checking..."
-            Me.lblMmsTtsStatus.Location = New System.Drawing.Point(10, 24)
-            Me.lblMmsTtsStatus.Size = New System.Drawing.Size(440, 18)
-
+            ' 
+            lblMmsTtsStatus.Font = New Font("Segoe UI", 9F, FontStyle.Bold)
+            lblMmsTtsStatus.Location = New Point(16, 110)
+            lblMmsTtsStatus.Name = "lblMmsTtsStatus"
+            lblMmsTtsStatus.Size = New Size(460, 20)
+            lblMmsTtsStatus.TabIndex = 1
+            lblMmsTtsStatus.Text = "Checking..."
+            ' 
             ' btnInstallMmsTts
-            Me.btnInstallMmsTts.Text = "Install"
-            Me.btnInstallMmsTts.Location = New System.Drawing.Point(550, 19)
-            Me.btnInstallMmsTts.Size = New System.Drawing.Size(115, 28)
-
-            ' ── grpBibles (y=510, height=90) ──
-            Me.grpBibles.Text = "Bible Translations (installed)"
-            Me.grpBibles.Location = New System.Drawing.Point(12, 510)
-            Me.grpBibles.Size = New System.Drawing.Size(676, 90)
-            Me.grpBibles.Controls.Add(Me.lvBibles)
-            Me.grpBibles.Controls.Add(Me.btnOpenBiblesFolder)
-            Me.grpBibles.Controls.Add(Me.lblBibleHint)
-
-            ' lvBibles
-            Me.lvBibles.Location = New System.Drawing.Point(10, 20)
-            Me.lvBibles.Size = New System.Drawing.Size(656, 30)
-            Me.lvBibles.View = System.Windows.Forms.View.Details
-            Me.lvBibles.FullRowSelect = True
-            Me.lvBibles.GridLines = True
-            Me.lvBibles.Columns.AddRange(New System.Windows.Forms.ColumnHeader() {
-                Me.colBibleTranslation, Me.colBibleLanguage, Me.colBibleFile})
-            Me.colBibleTranslation.Text = "Translation"
-            Me.colBibleTranslation.Width = 180
-            Me.colBibleLanguage.Text = "Language"
-            Me.colBibleLanguage.Width = 120
-            Me.colBibleFile.Text = "File"
-            Me.colBibleFile.Width = 330
-
+            ' 
+            btnInstallMmsTts.Location = New Point(16, 140)
+            btnInstallMmsTts.Name = "btnInstallMmsTts"
+            btnInstallMmsTts.Size = New Size(160, 30)
+            btnInstallMmsTts.TabIndex = 2
+            btnInstallMmsTts.Text = "Install"
+            '
+            ' tabBibles
+            '
+            tabBibles.Controls.Add(tvBibles)
+            tabBibles.Controls.Add(pnlBibleSearch)
+            tabBibles.Controls.Add(pnlBiblesButtons)
+            tabBibles.Location = New Point(4, 26)
+            tabBibles.Name = "tabBibles"
+            tabBibles.Padding = New Padding(8)
+            tabBibles.Size = New Size(692, 418)
+            tabBibles.TabIndex = 3
+            tabBibles.Text = "Bibles"
+            '
+            ' pnlBibleSearch — top search bar
+            '
+            pnlBibleSearch.Controls.Add(txtBibleSearch)
+            pnlBibleSearch.Dock = DockStyle.Top
+            pnlBibleSearch.Height = 30
+            pnlBibleSearch.Name = "pnlBibleSearch"
+            '
+            ' txtBibleSearch
+            '
+            txtBibleSearch.Dock = DockStyle.Fill
+            txtBibleSearch.Name = "txtBibleSearch"
+            txtBibleSearch.PlaceholderText = "Search translations..."
+            '
+            ' tvBibles — fills remaining space
+            '
+            tvBibles.CheckBoxes = True
+            tvBibles.Dock = DockStyle.Fill
+            tvBibles.Name = "tvBibles"
+            '
+            ' pnlBiblesButtons — bottom button bar
+            '
+            pnlBiblesButtons.Controls.Add(btnFetchCatalog)
+            pnlBiblesButtons.Controls.Add(btnDownloadBibles)
+            pnlBiblesButtons.Controls.Add(btnOpenBiblesFolder)
+            pnlBiblesButtons.Dock = DockStyle.Bottom
+            pnlBiblesButtons.Height = 38
+            pnlBiblesButtons.Name = "pnlBiblesButtons"
+            '
+            ' btnFetchCatalog
+            '
+            btnFetchCatalog.Location = New Point(0, 4)
+            btnFetchCatalog.Name = "btnFetchCatalog"
+            btnFetchCatalog.Size = New Size(120, 30)
+            btnFetchCatalog.TabIndex = 0
+            btnFetchCatalog.Text = "Fetch Catalog"
+            '
+            ' btnDownloadBibles
+            '
+            btnDownloadBibles.Location = New Point(128, 4)
+            btnDownloadBibles.Name = "btnDownloadBibles"
+            btnDownloadBibles.Size = New Size(140, 30)
+            btnDownloadBibles.TabIndex = 1
+            btnDownloadBibles.Text = "Download Selected"
+            '
             ' btnOpenBiblesFolder
-            Me.btnOpenBiblesFolder.Text = "Open Bibles Folder"
-            Me.btnOpenBiblesFolder.Location = New System.Drawing.Point(10, 56)
-            Me.btnOpenBiblesFolder.Size = New System.Drawing.Size(150, 28)
-
-            ' lblBibleHint
-            Me.lblBibleHint.Text = "Add .SQLite3 Bible files to language subfolders (e.g. Bibles\en\KJV+.SQLite3)"
-            Me.lblBibleHint.Location = New System.Drawing.Point(170, 61)
-            Me.lblBibleHint.Size = New System.Drawing.Size(490, 18)
-            Me.lblBibleHint.ForeColor = System.Drawing.SystemColors.GrayText
-
-            ' ── pbProgress (y=608) ──
-            Me.pbProgress.Location = New System.Drawing.Point(12, 608)
-            Me.pbProgress.Size = New System.Drawing.Size(676, 20)
-
-            ' ── lblProgress (y=634) ──
-            Me.lblProgress.Text = "Ready"
-            Me.lblProgress.Location = New System.Drawing.Point(12, 634)
-            Me.lblProgress.Size = New System.Drawing.Size(560, 18)
-
-            ' ── btnClose (y=630) ──
-            Me.btnClose.Text = "Close"
-            Me.btnClose.Location = New System.Drawing.Point(598, 630)
-            Me.btnClose.Size = New System.Drawing.Size(90, 28)
-            Me.btnClose.DialogResult = System.Windows.Forms.DialogResult.OK
-
-            ' ── Form ──
-            Me.Text = "Download Manager"
-            Me.ClientSize = New System.Drawing.Size(700, 720)
-            Me.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent
-            Me.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog
-            Me.MaximizeBox = False
-            Me.MinimizeBox = False
-            Me.AcceptButton = Me.btnClose
-            Me.Controls.Add(Me.grpTools)
-            Me.Controls.Add(Me.grpVoices)
-            Me.Controls.Add(Me.grpMmsTts)
-            Me.Controls.Add(Me.grpBibles)
-            Me.Controls.Add(Me.pbProgress)
-            Me.Controls.Add(Me.lblProgress)
-            Me.Controls.Add(Me.btnClose)
-
-            Me.grpTools.ResumeLayout(False)
-            Me.grpVoices.ResumeLayout(False)
-            Me.grpMmsTts.ResumeLayout(False)
-            Me.grpBibles.ResumeLayout(False)
-            Me.ResumeLayout(False)
+            '
+            btnOpenBiblesFolder.Location = New Point(276, 4)
+            btnOpenBiblesFolder.Name = "btnOpenBiblesFolder"
+            btnOpenBiblesFolder.Size = New Size(130, 30)
+            btnOpenBiblesFolder.TabIndex = 2
+            btnOpenBiblesFolder.Text = "Open Folder"
+            ' 
+            ' pnlBottom
+            ' 
+            pnlBottom.Controls.Add(pbProgress)
+            pnlBottom.Controls.Add(lblProgress)
+            pnlBottom.Controls.Add(btnOk)
+            pnlBottom.Controls.Add(btnCancel)
+            pnlBottom.Dock = DockStyle.Bottom
+            pnlBottom.Location = New Point(0, 448)
+            pnlBottom.Name = "pnlBottom"
+            pnlBottom.Size = New Size(700, 72)
+            pnlBottom.TabIndex = 1
+            ' 
+            ' pbProgress
+            ' 
+            pbProgress.Location = New Point(12, 6)
+            pbProgress.Name = "pbProgress"
+            pbProgress.Size = New Size(676, 22)
+            pbProgress.TabIndex = 0
+            ' 
+            ' lblProgress
+            ' 
+            lblProgress.Location = New Point(12, 34)
+            lblProgress.Name = "lblProgress"
+            lblProgress.Size = New Size(480, 20)
+            lblProgress.TabIndex = 1
+            lblProgress.Text = "Ready"
+            ' 
+            ' btnOk
+            ' 
+            btnOk.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+            btnOk.DialogResult = DialogResult.OK
+            btnOk.Location = New Point(502, 34)
+            btnOk.Name = "btnOk"
+            btnOk.Size = New Size(90, 28)
+            btnOk.TabIndex = 2
+            btnOk.Text = "OK"
+            ' 
+            ' btnCancel
+            ' 
+            btnCancel.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+            btnCancel.DialogResult = DialogResult.Cancel
+            btnCancel.Location = New Point(598, 34)
+            btnCancel.Name = "btnCancel"
+            btnCancel.Size = New Size(90, 28)
+            btnCancel.TabIndex = 3
+            btnCancel.Text = "Cancel"
+            ' 
+            ' FormDownloadManager
+            ' 
+            AcceptButton = btnOk
+            CancelButton = btnCancel
+            ClientSize = New Size(700, 520)
+            Controls.Add(tabMain)
+            Controls.Add(pnlBottom)
+            MinimizeBox = False
+            MinimumSize = New Size(600, 400)
+            Name = "FormDownloadManager"
+            StartPosition = FormStartPosition.CenterParent
+            Text = "Download Manager"
+            tabMain.ResumeLayout(False)
+            tabComponents.ResumeLayout(False)
+            pnlToolsButtons.ResumeLayout(False)
+            tabPiper.ResumeLayout(False)
+            pnlVoicesButtons.ResumeLayout(False)
+            tabMmsTts.ResumeLayout(False)
+            tabBibles.ResumeLayout(False)
+            pnlBibleSearch.ResumeLayout(False)
+            pnlBiblesButtons.ResumeLayout(False)
+            pnlBottom.ResumeLayout(False)
+            ResumeLayout(False)
         End Sub
 
-        Friend WithEvents grpTools As System.Windows.Forms.GroupBox
+        Friend WithEvents tabMain As System.Windows.Forms.TabControl
+        Friend WithEvents tabComponents As System.Windows.Forms.TabPage
+        Friend WithEvents tabPiper As System.Windows.Forms.TabPage
+        Friend WithEvents tabMmsTts As System.Windows.Forms.TabPage
+        Friend WithEvents tabBibles As System.Windows.Forms.TabPage
         Friend WithEvents lvTools As System.Windows.Forms.ListView
         Friend WithEvents colToolName As System.Windows.Forms.ColumnHeader
         Friend WithEvents colToolCategory As System.Windows.Forms.ColumnHeader
         Friend WithEvents colToolStatus As System.Windows.Forms.ColumnHeader
         Friend WithEvents colToolVersion As System.Windows.Forms.ColumnHeader
+        Friend WithEvents pnlToolsButtons As System.Windows.Forms.Panel
         Friend WithEvents btnDownloadAll As System.Windows.Forms.Button
         Friend WithEvents btnRefresh As System.Windows.Forms.Button
-        Friend WithEvents grpVoices As System.Windows.Forms.GroupBox
         Friend WithEvents lvVoices As System.Windows.Forms.ListView
         Friend WithEvents colVoiceLang As System.Windows.Forms.ColumnHeader
         Friend WithEvents colVoiceModel As System.Windows.Forms.ColumnHeader
         Friend WithEvents colVoiceStatus As System.Windows.Forms.ColumnHeader
+        Friend WithEvents pnlVoicesButtons As System.Windows.Forms.Panel
         Friend WithEvents btnDownloadVoices As System.Windows.Forms.Button
         Friend WithEvents btnRemoveVoices As System.Windows.Forms.Button
-        Friend WithEvents grpMmsTts As System.Windows.Forms.GroupBox
         Friend WithEvents lblMmsTtsStatus As System.Windows.Forms.Label
+        Friend WithEvents lblMmsTtsInfo As System.Windows.Forms.Label
         Friend WithEvents btnInstallMmsTts As System.Windows.Forms.Button
-        Friend WithEvents grpBibles As System.Windows.Forms.GroupBox
-        Friend WithEvents lvBibles As System.Windows.Forms.ListView
-        Friend WithEvents colBibleTranslation As System.Windows.Forms.ColumnHeader
-        Friend WithEvents colBibleLanguage As System.Windows.Forms.ColumnHeader
-        Friend WithEvents colBibleFile As System.Windows.Forms.ColumnHeader
+        Friend WithEvents pnlBibleSearch As System.Windows.Forms.Panel
+        Friend WithEvents txtBibleSearch As System.Windows.Forms.TextBox
+        Friend WithEvents tvBibles As System.Windows.Forms.TreeView
+        Friend WithEvents pnlBiblesButtons As System.Windows.Forms.Panel
+        Friend WithEvents btnFetchCatalog As System.Windows.Forms.Button
+        Friend WithEvents btnDownloadBibles As System.Windows.Forms.Button
         Friend WithEvents btnOpenBiblesFolder As System.Windows.Forms.Button
-        Friend WithEvents lblBibleHint As System.Windows.Forms.Label
+        Friend WithEvents pnlBottom As System.Windows.Forms.Panel
         Friend WithEvents pbProgress As System.Windows.Forms.ProgressBar
         Friend WithEvents lblProgress As System.Windows.Forms.Label
-        Friend WithEvents btnClose As System.Windows.Forms.Button
+        Friend WithEvents btnOk As System.Windows.Forms.Button
+        Friend WithEvents btnCancel As System.Windows.Forms.Button
 
     End Class
 

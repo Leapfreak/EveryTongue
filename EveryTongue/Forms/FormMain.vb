@@ -120,6 +120,9 @@ Public Class FormMain
         _config = ConfigManager.Load()
         WriteDebugLog($"[STARTUP] Config loaded: Language={_config.Language}, OutputLanguage={_config.OutputLanguage}, BiblesDirectory={_config.BiblesDirectory}, Theme={_config.Theme}, UiLanguage={_config.UiLanguage}")
 
+        ' Clean up old log files (keep last 30 days)
+        CleanupOldLogFiles(30)
+
         ' Populate dropdowns
         PopulateLanguageDropdowns()
 
@@ -551,13 +554,31 @@ del ""%~f0""
                  End Sub)
     End Sub
 
-    Private Sub OpenDownloadManager()
+    Private Async Sub OpenDownloadManager()
         Try
             Dim biblesDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Bibles")
             Using dlg As New Forms.FormDownloadManager(_config, biblesDir)
                 dlg.ShowDialog(Me)
                 If dlg.PathsUpdated Then
                     UpdateConfigPaths(AppDomain.CurrentDomain.BaseDirectory)
+
+                    ' Rescan Bibles so newly downloaded translations appear immediately
+                    Dim bibleSvc = TryCast(_kestrelHost?.Services?.GetService(
+                        GetType(Services.Interfaces.IBibleService)), Services.Interfaces.IBibleService)
+                    bibleSvc?.RescanTranslations()
+
+                    ' Refresh Bible dropdown on all WebViews without resetting navigation
+                    Dim refreshJs = "if(typeof refreshBibleDropdown==='function'){refreshBibleDropdown()}"
+                    Try
+                        If wvBible?.CoreWebView2 IsNot Nothing Then
+                            Await wvBible.CoreWebView2.ExecuteScriptAsync(refreshJs)
+                        End If
+                    Catch : End Try
+                    Try
+                        If wvLiveClients?.CoreWebView2 IsNot Nothing Then
+                            Await wvLiveClients.CoreWebView2.ExecuteScriptAsync(refreshJs)
+                        End If
+                    Catch : End Try
                 End If
             End Using
         Catch ex As Exception
@@ -741,8 +762,6 @@ del ""%~f0""
             btnOpenSubtitleEdit.Text = GetString("Btn_SubtitleEdit")
             lnkPreviewSrt.Text = GetString("Lnk_PreviewSrt")
 
-            btnClearLog.Text = GetString("Btn_ClearLog")
-            btnCopyLog.Text = GetString("Btn_CopyLog")
 
             ' Live tab
             grpLiveInput.Text = GetString("Grp_LiveInput")
@@ -752,7 +771,7 @@ del ""%~f0""
             btnEditFilters.Text = GetString("Btn_Filters")
             btnLiveStart.Text = GetString("Btn_LiveStart")
             btnLiveStop.Text = GetString("Btn_LiveStop")
-            btnLiveSave.Text = GetString("Btn_LiveSave")
+
 
             ' Subtitle Server tab
             tabPageServer.Text = GetString("Tab_Server")
@@ -881,6 +900,7 @@ del ""%~f0""
 
         ' Switch to Job tab (log is visible there)
         tabMain.SelectedTab = tabPageJob
+        ShowLogPanel()
         Application.DoEvents()
 
         Dim progress As New Progress(Of PipelineProgress)(
@@ -969,6 +989,7 @@ del ""%~f0""
 
         ' Switch to Job tab (log is visible there)
         tabMain.SelectedTab = tabPageJob
+        ShowLogPanel()
         Application.DoEvents()
 
         Dim progress As New Progress(Of PipelineProgress)(
@@ -1030,65 +1051,19 @@ del ""%~f0""
 
 #Region "Logging"
 
-    Private _logAutoScroll As Boolean = True
-    Private Const PipelineLogMaxLines As Integer = 2000
-
     Private Sub LogToRtb(message As String, level As PipelineRunner.LogLevel)
-        If rtbLog.InvokeRequired Then
-            rtbLog.BeginInvoke(Sub() LogToRtb(message, level))
-            Return
-        End If
-
-        ' Skip verbose messages from the UI log to avoid flooding the RTB
+        ' Skip verbose messages to avoid flooding the log panel
         If level = PipelineRunner.LogLevel.Verbose Then Return
 
         Dim color As Drawing.Color
         Select Case level
-            Case PipelineRunner.LogLevel.Success : color = Drawing.Color.DarkGreen
-            Case PipelineRunner.LogLevel.Err : color = Drawing.Color.Red
-            Case Else : color = Drawing.Color.Black
+            Case PipelineRunner.LogLevel.Success : color = Drawing.Color.FromArgb(80, 200, 120)
+            Case PipelineRunner.LogLevel.Err : color = Drawing.Color.FromArgb(255, 100, 100)
+            Case Else : color = Drawing.Color.FromArgb(200, 200, 200)
         End Select
 
         ' Feed unified log panel
         AppendUnifiedLog("Pipeline", message, color)
-
-        SendMessage(rtbLog.Handle, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero)
-        Try
-            rtbLog.SelectionStart = rtbLog.TextLength
-            rtbLog.SelectionLength = 0
-            rtbLog.SelectionColor = color
-            rtbLog.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}")
-
-            ' Trim excess lines
-            If rtbLog.Lines.Length > PipelineLogMaxLines Then
-                Dim removeUpTo = rtbLog.GetFirstCharIndexFromLine(rtbLog.Lines.Length - PipelineLogMaxLines)
-                rtbLog.Select(0, removeUpTo)
-                rtbLog.SelectedText = ""
-            End If
-        Finally
-            SendMessage(rtbLog.Handle, WM_SETREDRAW, New IntPtr(1), IntPtr.Zero)
-            rtbLog.Invalidate()
-        End Try
-
-        If _logAutoScroll Then
-            SendMessage(rtbLog.Handle, WM_VSCROLL, New IntPtr(SB_BOTTOM), IntPtr.Zero)
-        End If
-    End Sub
-
-    Private Sub rtbLog_VScroll(sender As Object, e As EventArgs) Handles rtbLog.VScroll
-        ' Detect if user scrolled away from bottom
-        Dim pos = rtbLog.GetPositionFromCharIndex(rtbLog.TextLength - 1)
-        _logAutoScroll = pos.Y <= rtbLog.Height + 50
-    End Sub
-
-    Private Sub btnClearLog_Click(sender As Object, e As EventArgs) Handles btnClearLog.Click
-        rtbLog.Clear()
-    End Sub
-
-    Private Sub btnCopyLog_Click(sender As Object, e As EventArgs) Handles btnCopyLog.Click
-        If rtbLog.TextLength > 0 Then
-            Clipboard.SetText(rtbLog.Text)
-        End If
     End Sub
 
 #End Region
@@ -1265,7 +1240,7 @@ del ""%~f0""
     Private Sub ApplyThemeToControls(parent As Control, backColor As Drawing.Color, foreColor As Drawing.Color, controlBack As Drawing.Color)
         For Each ctrl As Control In parent.Controls
             ' Skip nav rail — themed by ApplyShellTheme
-            If ctrl Is pnlNavRail Then Continue For
+            If ctrl Is tsNavBar Then Continue For
 
             ctrl.ForeColor = foreColor
 
@@ -1577,26 +1552,6 @@ del ""%~f0""
         UpdateShellStatus()
     End Sub
 
-    Private Sub btnLiveSave_Click(sender As Object, e As EventArgs) Handles btnLiveSave.Click
-        Dim transcript = _liveTranscript.ToString()
-        If String.IsNullOrWhiteSpace(transcript) Then
-            MessageBox.Show("No transcript to save.", "Save Transcript", MessageBoxButtons.OK, MessageBoxIcon.Information)
-            Return
-        End If
-        Using dlg As New SaveFileDialog()
-            dlg.Filter = "Text files|*.txt|All files|*.*"
-            dlg.DefaultExt = "txt"
-            dlg.FileName = $"live_transcript_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.txt"
-            Dim resolvedOutput = AppConfig.ResolvePath(_config.PathOutputRoot)
-            If Not String.IsNullOrWhiteSpace(resolvedOutput) Then
-                dlg.InitialDirectory = resolvedOutput
-            End If
-            If dlg.ShowDialog() = DialogResult.OK Then
-                File.WriteAllText(dlg.FileName, transcript, System.Text.Encoding.UTF8)
-                MessageBox.Show($"{GetString("Msg_TranscriptSaved")}{Environment.NewLine}{dlg.FileName}", GetString("Msg_Saved"), MessageBoxButtons.OK, MessageBoxIcon.Information)
-            End If
-        End Using
-    End Sub
 
     Private Async Sub btnTuneStats_Click(sender As Object, e As EventArgs) Handles btnTuneStats.Click
         If _liveRunner Is Nothing Then
@@ -2206,7 +2161,7 @@ del ""%~f0""
     End Function
 
     Friend Shared Function GetPipelineLogPath() As String
-        Return IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{DateTime.Now:yyyyMMdd}_pipeline-debug.log")
+        Return IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{DateTime.Now:yyyyMMdd}.log")
     End Function
 
     Friend Shared Sub WriteDebugLog(msg As String)
@@ -2243,6 +2198,19 @@ del ""%~f0""
                 End If
                 frm.AppendUnifiedLog(source, msg, color)
             End If
+        Catch
+        End Try
+    End Sub
+
+    Private Shared Sub CleanupOldLogFiles(keepDays As Integer)
+        Try
+            Dim logDir = AppDomain.CurrentDomain.BaseDirectory
+            Dim cutoff = DateTime.Now.AddDays(-keepDays)
+            For Each f In IO.Directory.GetFiles(logDir, "????????.log")
+                If IO.File.GetLastWriteTime(f) < cutoff Then
+                    IO.File.Delete(f)
+                End If
+            Next
         Catch
         End Try
     End Sub

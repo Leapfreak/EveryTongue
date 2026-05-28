@@ -8,7 +8,7 @@ Imports System.IO.Compression
 Partial Class FormMain
 
     ' ── Runtime state (not controls) ──────────────────────────────────
-    Private _activeNavButton As Button
+    Private _activeNavButton As ToolStripButton
     Private _liveStartTime As DateTime
     Private _formQr As FormQrCode
     Private _logPanelVisible As Boolean = False
@@ -17,6 +17,7 @@ Partial Class FormMain
     Private _unifiedLogPending As Integer = 0
     Private Const UnifiedLogMaxLines As Integer = 3000
     Private _lastLogFilter As String = "All"
+    Friend _logDarkMode As Boolean = True
 
     ' ── Constants ───────────────────────────────────────────────────
     Private Const NavRailWidth As Integer = 80
@@ -54,10 +55,13 @@ Partial Class FormMain
         Next
 
         ' ── Set nav button images (runtime font rendering) ────────
-        btnNavLive.Image = RenderFontIcon(ChrW(&HE720), 24, NavForeColor)
-        btnNavTranscribe.Image = RenderFontIcon(ChrW(&HE8D4), 24, NavForeColor)
-        btnNavTranslate.Image = RenderFontIcon(ChrW(&HE774), 24, NavForeColor)
-        btnNavBible.Image = RenderFontIcon(ChrW(&HE736), 24, NavForeColor)
+        btnNavLive.Image = RenderFontIcon(ChrW(&HE720), 28, NavForeColor)
+        btnNavTranscribe.Image = RenderFontIcon(ChrW(&HE8D4), 28, NavForeColor)
+        btnNavTranslate.Image = RenderFontIcon(ChrW(&HE774), 28, NavForeColor)
+        btnNavBible.Image = RenderFontIcon(ChrW(&HE736), 28, NavForeColor)
+
+        ' Custom renderer for toolbar theme
+        tsNavBar.Renderer = New NavToolStripRenderer()
 
         ' ── Wire menu event handlers ─────────────────────────────
         AddHandler mnuFileNewSession.Click, Sub(s, e) LaunchSessionWizard()
@@ -99,16 +103,17 @@ Partial Class FormMain
         AddHandler mnuHelpQuickStart.Click, Sub(s, e) ShowLegacyTab(tabPageHelp)
         AddHandler mnuHelpShortcuts.Click, Sub(s, e)
                                                 MessageBox.Show(
-                                                    "Ctrl+1      Live workspace" & vbCrLf &
-                                                    "Ctrl+2      Transcribe workspace" & vbCrLf &
-                                                    "Ctrl+3      Translate workspace" & vbCrLf &
-                                                    "Ctrl+4      Bible workspace" & vbCrLf &
-                                                    "Ctrl+N      New Session wizard" & vbCrLf &
-                                                    "Ctrl+L      Toggle Log Panel" & vbCrLf &
-                                                    "Ctrl+,      Options" & vbCrLf &
-                                                    "F5          Start Live" & vbCrLf &
-                                                    "Shift+F5    Stop Live" & vbCrLf &
-                                                    "F11         Full Screen",
+                                                    "Ctrl+1           Live workspace" & vbCrLf &
+                                                    "Ctrl+2           Transcribe workspace" & vbCrLf &
+                                                    "Ctrl+3           Translate workspace" & vbCrLf &
+                                                    "Ctrl+4           Bible workspace" & vbCrLf &
+                                                    "Ctrl+N           New Session wizard" & vbCrLf &
+                                                    "Ctrl+L           Toggle Log Panel" & vbCrLf &
+                                                    "F1               Help" & vbCrLf &
+                                                    "F5               Start Live" & vbCrLf &
+                                                    "Shift+F5         Stop Live" & vbCrLf &
+                                                    "F10              Options" & vbCrLf &
+                                                    "F11              Full Screen",
                                                     "Keyboard Shortcuts",
                                                     MessageBoxButtons.OK, MessageBoxIcon.Information)
                                             End Sub
@@ -157,6 +162,13 @@ Partial Class FormMain
                                               Clipboard.SetText(rtbUnifiedLog.Text)
                                           End If
                                       End Sub
+        AddHandler btnLogSearchNext.Click, Sub(s, e) SearchLog()
+        AddHandler txtLogSearch.KeyDown, Sub(s, e)
+                                              If e.KeyCode = Keys.Enter Then
+                                                  e.SuppressKeyPress = True
+                                                  SearchLog()
+                                              End If
+                                          End Sub
 
         ' ── Wire translate workspace handlers ────────────────────
         AddHandler btnTransSwap.Click, Sub(s, e) SwapTranslateLanguages()
@@ -463,6 +475,8 @@ Partial Class FormMain
             Dim rawLang = _config?.OutputLanguage
             Dim lang = If(rawLang, "en")
             If String.IsNullOrEmpty(lang) OrElse lang = "auto" Then lang = "en"
+            ' Convert 2-letter Whisper code to 3-letter ISO 639-3 for Bible matching
+            lang = WhisperToIso3(lang)
             WriteDebugLog($"[BIBLE] NavigateBibleView: rawOutputLang={rawLang}, resolvedLang={lang}, configInputLang={_config?.Language}, configBiblesDir={_config?.BiblesDirectory}")
             Dim bust = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
             Dim url = $"http://127.0.0.1:{_serverPort}/?bibleLang={lang}&preview=1&_cb={bust}"
@@ -590,18 +604,75 @@ Partial Class FormMain
         SendMessage(rtbUnifiedLog.Handle, WM_VSCROLL, New IntPtr(SB_BOTTOM), IntPtr.Zero)
     End Sub
 
+    Private _logSearchPos As Integer = 0
+
+    Private Sub SearchLog()
+        Dim keyword = txtLogSearch.Text.Trim()
+        If keyword.Length = 0 Then Return
+
+        Dim startAt = If(_logSearchPos < rtbUnifiedLog.TextLength, _logSearchPos, 0)
+        Dim pos = rtbUnifiedLog.Find(keyword, startAt, RichTextBoxFinds.None)
+        If pos < 0 AndAlso startAt > 0 Then
+            ' Wrap around from the beginning
+            pos = rtbUnifiedLog.Find(keyword, 0, RichTextBoxFinds.None)
+        End If
+        If pos >= 0 Then
+            rtbUnifiedLog.Select(pos, keyword.Length)
+            rtbUnifiedLog.SelectionBackColor = Color.FromArgb(80, 80, 0)
+            rtbUnifiedLog.SelectionColor = Color.Yellow
+            rtbUnifiedLog.ScrollToCaret()
+            _logSearchPos = pos + keyword.Length
+        Else
+            _logSearchPos = 0
+            Media.SystemSounds.Beep.Play()
+        End If
+    End Sub
+
     Private Sub AppendLogEntry(entry As (Time As DateTime, Source As String, Text As String, Color As Drawing.Color))
+        Dim timeColor = If(_logDarkMode, Color.FromArgb(150, 150, 150), Color.FromArgb(130, 130, 130))
+        Dim sourceColor = If(_logDarkMode, Color.FromArgb(120, 120, 120), Color.FromArgb(150, 150, 150))
+        Dim textColor = LogColorForTheme(entry.Color)
+
         rtbUnifiedLog.SelectionStart = rtbUnifiedLog.TextLength
         rtbUnifiedLog.SelectionLength = 0
-        rtbUnifiedLog.SelectionColor = Color.FromArgb(150, 150, 150)
+        rtbUnifiedLog.SelectionColor = timeColor
         rtbUnifiedLog.AppendText($"{entry.Time:HH:mm:ss} ")
         rtbUnifiedLog.SelectionStart = rtbUnifiedLog.TextLength
-        rtbUnifiedLog.SelectionColor = Color.FromArgb(120, 120, 120)
+        rtbUnifiedLog.SelectionColor = sourceColor
         rtbUnifiedLog.AppendText($"[{entry.Source}] ")
         rtbUnifiedLog.SelectionStart = rtbUnifiedLog.TextLength
-        rtbUnifiedLog.SelectionColor = entry.Color
+        rtbUnifiedLog.SelectionColor = textColor
         rtbUnifiedLog.AppendText($"{entry.Text}{Environment.NewLine}")
     End Sub
+
+    ''' <summary>
+    ''' Remaps a log entry color so it's readable on the current log background.
+    ''' </summary>
+    Private Function LogColorForTheme(c As Color) As Color
+        If _logDarkMode Then
+            ' Dark background — ensure brightness is high enough
+            Dim brightness = (CInt(c.R) * 299 + CInt(c.G) * 587 + CInt(c.B) * 114) \ 1000
+            If brightness < 90 Then
+                ' Too dark to read on dark bg — lighten it
+                Return Color.FromArgb(
+                    Math.Min(255, c.R + 140),
+                    Math.Min(255, c.G + 140),
+                    Math.Min(255, c.B + 140))
+            End If
+            Return c
+        Else
+            ' Light background — ensure brightness is low enough
+            Dim brightness = (CInt(c.R) * 299 + CInt(c.G) * 587 + CInt(c.B) * 114) \ 1000
+            If brightness > 180 Then
+                ' Too light to read on white bg — darken it
+                Return Color.FromArgb(
+                    Math.Max(0, c.R - 140),
+                    Math.Max(0, c.G - 140),
+                    Math.Max(0, c.B - 140))
+            End If
+            Return c
+        End If
+    End Function
 
     ' ═══════════════════════════════════════════════════════════════
     ' Workspace Switching
@@ -626,7 +697,7 @@ Partial Class FormMain
         End Select
     End Sub
 
-    Private Sub SwitchWorkspace(tabPage As TabPage, navButton As Button)
+    Private Sub SwitchWorkspace(tabPage As TabPage, navButton As ToolStripButton)
         If tabMain.SelectedTab IsNot tabPage Then
             tabMain.SelectedTab = tabPage
         End If
@@ -637,14 +708,12 @@ Partial Class FormMain
         If _activeNavButton IsNot Nothing Then
             _activeNavButton.BackColor = inactiveBg
             _activeNavButton.ForeColor = inactiveFg
-            _activeNavButton.FlatAppearance.MouseOverBackColor = hoverBg
-            _activeNavButton.Image = RenderFontIcon(GetNavIcon(_activeNavButton.Text), 24, inactiveFg)
+            _activeNavButton.Image = RenderFontIcon(GetNavIcon(_activeNavButton.Text), 28, inactiveFg)
         End If
 
         navButton.BackColor = activeBg
         navButton.ForeColor = Color.White
-        navButton.FlatAppearance.MouseOverBackColor = activeBg
-        navButton.Image = RenderFontIcon(GetNavIcon(navButton.Text), 24, Color.White)
+        navButton.Image = RenderFontIcon(GetNavIcon(navButton.Text), 28, Color.White)
         _activeNavButton = navButton
     End Sub
 
@@ -659,8 +728,7 @@ Partial Class FormMain
 
             _activeNavButton.BackColor = inactiveBg
             _activeNavButton.ForeColor = inactiveFg
-            _activeNavButton.FlatAppearance.MouseOverBackColor = hoverBg
-            _activeNavButton.Image = RenderFontIcon(GetNavIcon(_activeNavButton.Text), 24, inactiveFg)
+            _activeNavButton.Image = RenderFontIcon(GetNavIcon(_activeNavButton.Text), 28, inactiveFg)
             _activeNavButton = Nothing
         End If
 
@@ -761,10 +829,10 @@ Partial Class FormMain
                             End Using
                         End If
 
-                        If rtbLog.TextLength > 0 Then
-                            Dim logEntry = archive.CreateEntry("pipeline_log.txt")
+                        If rtbUnifiedLog.TextLength > 0 Then
+                            Dim logEntry = archive.CreateEntry("unified_log.txt")
                             Using writer As New IO.StreamWriter(logEntry.Open())
-                                writer.Write(rtbLog.Text)
+                                writer.Write(rtbUnifiedLog.Text)
                             End Using
                         End If
 
@@ -848,82 +916,50 @@ Partial Class FormMain
     ''' Applies shell-specific theming to the nav rail and status bar.
     ''' </summary>
     Private Sub ApplyShellTheme(theme As String)
-        WriteDebugLog($"[THEME] ApplyShellTheme called with theme=""{theme}"", pnlNavRail={pnlNavRail IsNot Nothing}, activeBtn={_activeNavButton?.Text}")
-        If pnlNavRail Is Nothing Then Return
+        WriteDebugLog($"[THEME] ApplyShellTheme called with theme=""{theme}"", tsNavBar={tsNavBar IsNot Nothing}, activeBtn={_activeNavButton?.Text}")
+        If tsNavBar Is Nothing Then Return
 
-        Select Case theme.ToLower()
-            Case "light"
-                pnlNavRail.BackColor = Color.FromArgb(240, 240, 240)
-                For Each ctrl As Control In pnlNavRail.Controls
-                    If TypeOf ctrl Is Button Then
-                        Dim btn = DirectCast(ctrl, Button)
-                        btn.ForeColor = Color.FromArgb(60, 60, 60)
-                        If btn IsNot _activeNavButton Then
-                            btn.BackColor = pnlNavRail.BackColor
-                        End If
-                        btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(220, 220, 220)
-                        btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(200, 200, 200)
-                        btn.Image = RenderFontIcon(GetNavIcon(btn.Text), 24, btn.ForeColor)
-                    End If
-                Next
-                If _activeNavButton IsNot Nothing Then
-                    _activeNavButton.BackColor = Color.FromArgb(0, 122, 204)
-                    _activeNavButton.ForeColor = Color.White
-                    _activeNavButton.Image = RenderFontIcon(GetNavIcon(_activeNavButton.Text), 24, Color.White)
+        Dim inactiveBg, inactiveFg, activeBg, hoverBg As Color
+        GetNavThemeColors(inactiveBg, inactiveFg, activeBg, hoverBg)
+
+        tsNavBar.BackColor = inactiveBg
+
+        For Each item As ToolStripItem In tsNavBar.Items
+            If TypeOf item Is ToolStripButton Then
+                Dim btn = DirectCast(item, ToolStripButton)
+                If btn IsNot _activeNavButton Then
+                    btn.BackColor = inactiveBg
+                    btn.ForeColor = inactiveFg
+                    btn.Image = RenderFontIcon(GetNavIcon(btn.Text), 28, inactiveFg)
                 End If
-            Case "dark"
-                pnlNavRail.BackColor = NavBackColor
-                For Each ctrl As Control In pnlNavRail.Controls
-                    If TypeOf ctrl Is Button Then
-                        Dim btn = DirectCast(ctrl, Button)
-                        btn.ForeColor = NavForeColor
-                        If btn IsNot _activeNavButton Then
-                            btn.BackColor = NavBackColor
-                        End If
-                        btn.FlatAppearance.MouseOverBackColor = NavHoverColor
-                        btn.FlatAppearance.MouseDownBackColor = NavSelectedColor
-                        btn.Image = RenderFontIcon(GetNavIcon(btn.Text), 24, NavForeColor)
-                    End If
-                Next
-                If _activeNavButton IsNot Nothing Then
-                    _activeNavButton.BackColor = NavSelectedColor
-                    _activeNavButton.ForeColor = Color.White
-                    _activeNavButton.Image = RenderFontIcon(GetNavIcon(_activeNavButton.Text), 24, Color.White)
-                End If
-            Case Else ' System
-                pnlNavRail.BackColor = SystemColors.Control
-                For Each ctrl As Control In pnlNavRail.Controls
-                    If TypeOf ctrl Is Button Then
-                        Dim btn = DirectCast(ctrl, Button)
-                        btn.ForeColor = SystemColors.ControlText
-                        If btn IsNot _activeNavButton Then
-                            btn.BackColor = SystemColors.Control
-                        End If
-                        btn.FlatAppearance.MouseOverBackColor = SystemColors.ControlLight
-                        btn.FlatAppearance.MouseDownBackColor = SystemColors.ControlDark
-                        btn.Image = RenderFontIcon(GetNavIcon(btn.Text), 24, SystemColors.ControlText)
-                    End If
-                Next
-                If _activeNavButton IsNot Nothing Then
-                    _activeNavButton.BackColor = Color.FromArgb(0, 122, 204)
-                    _activeNavButton.ForeColor = Color.White
-                    _activeNavButton.Image = RenderFontIcon(GetNavIcon(_activeNavButton.Text), 24, Color.White)
-                End If
-        End Select
+            End If
+        Next
+
+        If _activeNavButton IsNot Nothing Then
+            _activeNavButton.BackColor = activeBg
+            _activeNavButton.ForeColor = Color.White
+            _activeNavButton.Image = RenderFontIcon(GetNavIcon(_activeNavButton.Text), 28, Color.White)
+        End If
 
         ' Theme the log panel
         If rtbUnifiedLog IsNot Nothing Then
             Select Case theme.ToLower()
                 Case "light"
-                    rtbUnifiedLog.BackColor = Color.FromArgb(250, 250, 250)
+                    _logDarkMode = False
+                    rtbUnifiedLog.BackColor = Color.FromArgb(255, 255, 255)
                     rtbUnifiedLog.ForeColor = Color.FromArgb(30, 30, 30)
                 Case "dark"
+                    _logDarkMode = True
                     rtbUnifiedLog.BackColor = Color.FromArgb(30, 30, 30)
                     rtbUnifiedLog.ForeColor = Color.FromArgb(200, 200, 200)
                 Case Else
+                    _logDarkMode = True
                     rtbUnifiedLog.BackColor = Color.FromArgb(30, 30, 30)
                     rtbUnifiedLog.ForeColor = Color.FromArgb(200, 200, 200)
             End Select
+            ' Re-render with correct colors
+            _lastLogFilter = ""
+            FlushUnifiedLog()
         End If
 
         ' Theme the translate workspace
@@ -955,4 +991,79 @@ Partial Class FormMain
         End If
     End Sub
 
+    ''' <summary>
+    ''' Map 2-letter Whisper/ISO 639-1 codes to 3-letter ISO 639-3 codes for Bible matching.
+    ''' </summary>
+    Private Shared Function WhisperToIso3(code As String) As String
+        Static map As Dictionary(Of String, String) = Nothing
+        If map Is Nothing Then
+            map = New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
+                {"af", "afr"}, {"am", "amh"}, {"ar", "arb"}, {"hy", "hye"}, {"az", "azj"},
+                {"bn", "ben"}, {"bs", "bos"}, {"bg", "bul"}, {"my", "mya"}, {"ca", "cat"},
+                {"zh", "zho"}, {"hr", "hrv"}, {"cs", "ces"}, {"cy", "cym"}, {"da", "dan"},
+                {"nl", "nld"}, {"en", "eng"}, {"et", "est"}, {"fi", "fin"}, {"fr", "fra"},
+                {"gl", "glg"}, {"ka", "kat"}, {"de", "deu"}, {"el", "ell"}, {"gu", "guj"},
+                {"ha", "hau"}, {"he", "heb"}, {"hi", "hin"}, {"hu", "hun"}, {"is", "isl"},
+                {"id", "ind"}, {"ga", "gle"}, {"it", "ita"}, {"ja", "jpn"}, {"jv", "jav"},
+                {"kn", "kan"}, {"kk", "kaz"}, {"km", "khm"}, {"ko", "kor"}, {"lo", "lao"},
+                {"lv", "lvs"}, {"lt", "lit"}, {"mk", "mkd"}, {"ms", "zsm"}, {"ml", "mal"},
+                {"mt", "mlt"}, {"mi", "mri"}, {"mr", "mar"}, {"mn", "khk"}, {"ne", "npi"},
+                {"no", "nob"}, {"fa", "pes"}, {"pl", "pol"}, {"pt", "por"}, {"pa", "pan"},
+                {"ro", "ron"}, {"ru", "rus"}, {"sr", "srp"}, {"sk", "slk"}, {"sl", "slv"},
+                {"so", "som"}, {"es", "spa"}, {"sw", "swh"}, {"sv", "swe"}, {"tl", "tgl"},
+                {"ta", "tam"}, {"te", "tel"}, {"th", "tha"}, {"tr", "tur"}, {"uk", "ukr"},
+                {"ur", "urd"}, {"uz", "uzn"}, {"vi", "vie"}, {"yo", "yor"}, {"zu", "zul"},
+                {"sq", "sqi"}, {"si", "sin"}
+            }
+        End If
+        Dim result As String = Nothing
+        If map.TryGetValue(code, result) Then Return result
+        Return code ' return as-is if no mapping
+    End Function
+
+End Class
+
+''' <summary>
+''' Custom ToolStrip renderer that uses each button's BackColor for fill
+''' instead of the default system/professional theme.
+''' </summary>
+Friend Class NavToolStripRenderer
+    Inherits ToolStripProfessionalRenderer
+
+    Protected Overrides Sub OnRenderToolStripBackground(e As ToolStripRenderEventArgs)
+        Using br As New Drawing.SolidBrush(e.ToolStrip.BackColor)
+            e.Graphics.FillRectangle(br, e.AffectedBounds)
+        End Using
+    End Sub
+
+    Protected Overrides Sub OnRenderButtonBackground(e As ToolStripItemRenderEventArgs)
+        Dim btn = TryCast(e.Item, ToolStripButton)
+        If btn Is Nothing Then
+            MyBase.OnRenderButtonBackground(e)
+            Return
+        End If
+
+        Dim bounds = New Drawing.Rectangle(Drawing.Point.Empty, btn.Size)
+        Dim bgColor As Drawing.Color
+
+        If btn.Pressed Then
+            bgColor = Drawing.Color.FromArgb(0, 100, 180)
+        ElseIf btn.Selected Then
+            ' Hover — slightly lighter than bg
+            Dim r = Math.Min(255, btn.BackColor.R + 20)
+            Dim g = Math.Min(255, btn.BackColor.G + 20)
+            Dim b = Math.Min(255, btn.BackColor.B + 20)
+            bgColor = Drawing.Color.FromArgb(r, g, b)
+        Else
+            bgColor = btn.BackColor
+        End If
+
+        Using br As New Drawing.SolidBrush(bgColor)
+            e.Graphics.FillRectangle(br, bounds)
+        End Using
+    End Sub
+
+    Protected Overrides Sub OnRenderToolStripBorder(e As ToolStripRenderEventArgs)
+        ' No border — keep it flat
+    End Sub
 End Class

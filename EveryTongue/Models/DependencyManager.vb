@@ -374,16 +374,46 @@ Namespace Models
             Dim nllbReq = Path.Combine(_toolsDir, "nllb-server", "requirements.txt")
             Dim liveReq = Path.Combine(_toolsDir, "live-server", "requirements.txt")
 
-            Dim args = "-m pip install"
-            If File.Exists(nllbReq) Then args &= $" -r ""{nllbReq}"""
-            If File.Exists(liveReq) Then args &= $" -r ""{liveReq}"""
-            args &= " edge-tts --no-warn-script-location"
-
             If Not File.Exists(nllbReq) AndAlso Not File.Exists(liveReq) Then
                 Throw New FileNotFoundException("No requirements.txt files found")
             End If
 
-            Await RunProcessAsync(PythonExePath(), args, _toolsDir, 600000)
+            ' Install each requirements file separately, falling back to individual packages
+            Dim nllbFailed = False
+            If File.Exists(nllbReq) Then
+                Try
+                    Await RunProcessAsync(PythonExePath(),
+                        $"-m pip install -r ""{nllbReq}"" --no-warn-script-location", _toolsDir, 600000)
+                Catch
+                    nllbFailed = True
+                End Try
+            End If
+
+            ' Fallback: install core nllb packages individually (nvidia-cublas may fail on non-CUDA)
+            If nllbFailed Then
+                For Each pkg In {"ctranslate2", "sentencepiece", "fastapi", "uvicorn"}
+                    Try
+                        Await RunProcessAsync(PythonExePath(),
+                            $"-m pip install {pkg} --no-warn-script-location", _toolsDir, 300000)
+                    Catch
+                    End Try
+                Next
+            End If
+
+            If File.Exists(liveReq) Then
+                Try
+                    Await RunProcessAsync(PythonExePath(),
+                        $"-m pip install -r ""{liveReq}"" --no-warn-script-location", _toolsDir, 600000)
+                Catch
+                End Try
+            End If
+
+            ' edge-tts is always needed
+            Try
+                Await RunProcessAsync(PythonExePath(),
+                    "-m pip install edge-tts --no-warn-script-location", _toolsDir, 300000)
+            Catch
+            End Try
         End Function
 
         Public Function CheckPythonDepsStateAsync() As Task(Of ToolState)
@@ -396,23 +426,46 @@ Namespace Models
         End Function
 
         Public Function CheckPythonDepsInstalled() As Boolean
-            If Not File.Exists(PythonExePath()) Then Return False
+            Return GetMissingPythonPackages().Count = 0
+        End Function
+
+        ''' <summary>
+        ''' Returns a list of Python package names that failed to import.
+        ''' Empty list means all required packages are installed.
+        ''' </summary>
+        Public Function GetMissingPythonPackages() As List(Of String)
+            Dim packages = {"ctranslate2", "sentencepiece", "fastapi", "uvicorn", "faster-whisper", "sounddevice", "edge-tts"}
+            If Not File.Exists(PythonExePath()) Then
+                Return New List(Of String) From {"(Python not installed)"}
+            End If
+
+            ' Single pip call to check all packages at once
             Try
                 Dim psi As New Diagnostics.ProcessStartInfo With {
                     .FileName = PythonExePath(),
-                    .Arguments = "-c ""import ctranslate2; import sentencepiece; import fastapi; import uvicorn; import faster_whisper; import sounddevice; import edge_tts""",
+                    .Arguments = "-m pip show " & String.Join(" ", packages),
                     .UseShellExecute = False,
                     .RedirectStandardOutput = True,
                     .RedirectStandardError = True,
                     .CreateNoWindow = True
                 }
+                Dim output As String
                 Using proc = Diagnostics.Process.Start(psi)
-                    proc.WaitForExit(10000)
-                    Return proc.ExitCode = 0
+                    output = proc.StandardOutput.ReadToEnd()
+                    proc.WaitForExit(15000)
                 End Using
-            Catch ex As Exception
-                Debug.WriteLine($"[Deps] Python deps check failed: {ex.Message}")
-                Return False
+
+                ' pip show lists "Name: xxx" for each found package
+                Dim found As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+                For Each line In output.Split({vbCrLf, vbLf}, StringSplitOptions.RemoveEmptyEntries)
+                    If line.StartsWith("Name: ", StringComparison.OrdinalIgnoreCase) Then
+                        found.Add(line.Substring(6).Trim())
+                    End If
+                Next
+
+                Return packages.Where(Function(p) Not found.Contains(p)).ToList()
+            Catch
+                Return packages.ToList()
             End Try
         End Function
 

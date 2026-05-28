@@ -65,11 +65,11 @@ Partial Class FormMain
         mnuHelpSep2 = New ToolStripSeparator()
         mnuHelpUpdates = New ToolStripMenuItem()
         mnuHelpAbout = New ToolStripMenuItem()
-        pnlNavRail = New Panel()
-        btnNavBible = New Button()
-        btnNavTranslate = New Button()
-        btnNavTranscribe = New Button()
-        btnNavLive = New Button()
+        tsNavBar = New ToolStrip()
+        btnNavLive = New ToolStripButton()
+        btnNavTranscribe = New ToolStripButton()
+        btnNavTranslate = New ToolStripButton()
+        btnNavBible = New ToolStripButton()
         statusMain = New StatusStrip()
         tslServerStatus = New ToolStripStatusLabel()
         tslClients = New ToolStripStatusLabel()
@@ -100,7 +100,7 @@ Partial Class FormMain
         btnTuneStats = New Button()
         pnlLiveOutput = New Panel()
         wvLiveClients = New Microsoft.Web.WebView2.WinForms.WebView2()
-        btnLiveSave = New Button()
+
         tabPageServer = New TabPage()
         grpServerSettings = New GroupBox()
         lblServerPort = New Label()
@@ -184,11 +184,7 @@ Partial Class FormMain
         btnOpenOutput = New Button()
         btnOpenSubtitleEdit = New Button()
         lnkPreviewSrt = New LinkLabel()
-        grpLog = New GroupBox()
-        rtbLog = New RichTextBox()
-        pnlJobLogButtons = New Panel()
-        btnClearLog = New Button()
-        btnCopyLog = New Button()
+
         tabPageHelp = New TabPage()
         rtbHelp = New RichTextBox()
         tabPageTranslate = New TabPage()
@@ -217,6 +213,8 @@ Partial Class FormMain
         splitterLog = New Splitter()
         pnlLogPanel = New Panel()
         rtbUnifiedLog = New RichTextBox()
+        txtLogSearch = New TextBox()
+        btnLogSearchNext = New Button()
         pnlLogToolbar = New Panel()
         lblLogTitle = New Label()
         cboLogFilter = New ComboBox()
@@ -230,7 +228,7 @@ Partial Class FormMain
         trayMenuExit = New ToolStripMenuItem()
         trayIcon = New NotifyIcon(components)
         menuMain.SuspendLayout()
-        pnlNavRail.SuspendLayout()
+        tsNavBar.SuspendLayout()
         statusMain.SuspendLayout()
         pnlContent.SuspendLayout()
         tabMain.SuspendLayout()
@@ -253,8 +251,7 @@ Partial Class FormMain
         grpInput.SuspendLayout()
         grpOutputFormats.SuspendLayout()
         grpProgress.SuspendLayout()
-        grpLog.SuspendLayout()
-        pnlJobLogButtons.SuspendLayout()
+
         tabPageHelp.SuspendLayout()
         tabPageTranslate.SuspendLayout()
         CType(splitTrans, ComponentModel.ISupportInitialize).BeginInit()
@@ -418,7 +415,7 @@ Partial Class FormMain
         ' 
         mnuToolsOptions.Name = "mnuToolsOptions"
         mnuToolsOptions.ShortcutKeyDisplayString = "Ctrl+,"
-        mnuToolsOptions.ShortcutKeys = Keys.Control Or Keys.Oemcomma
+        mnuToolsOptions.ShortcutKeys = Keys.F10
         mnuToolsOptions.Size = New Size(184, 22)
         mnuToolsOptions.Text = "&Options..."
         ' 
@@ -526,6 +523,7 @@ Partial Class FormMain
         ' mnuHelpQuickStart
         ' 
         mnuHelpQuickStart.Name = "mnuHelpQuickStart"
+        mnuHelpQuickStart.ShortcutKeys = Keys.F1
         mnuHelpQuickStart.Size = New Size(190, 22)
         mnuHelpQuickStart.Text = "Quick Start Guide"
         ' 
@@ -571,110 +569,63 @@ Partial Class FormMain
         mnuHelpAbout.Size = New Size(190, 22)
         mnuHelpAbout.Text = "About Every Tongue"
         ' 
-        ' pnlNavRail
-        ' 
-        pnlNavRail.BackColor = Color.FromArgb(CByte(37), CByte(37), CByte(38))
-        pnlNavRail.Controls.Add(btnNavBible)
-        pnlNavRail.Controls.Add(btnNavTranslate)
-        pnlNavRail.Controls.Add(btnNavTranscribe)
-        pnlNavRail.Controls.Add(btnNavLive)
-        pnlNavRail.Dock = DockStyle.Left
-        pnlNavRail.Location = New Point(0, 0)
-        pnlNavRail.Name = "pnlNavRail"
-        pnlNavRail.Size = New Size(80, 418)
-        pnlNavRail.TabIndex = 1
-        ' 
-        ' btnNavBible
-        ' 
-        btnNavBible.BackColor = Color.FromArgb(CByte(37), CByte(37), CByte(38))
-        btnNavBible.Cursor = Cursors.Hand
-        btnNavBible.Dock = DockStyle.Top
-        btnNavBible.FlatAppearance.BorderSize = 0
-        btnNavBible.FlatAppearance.MouseDownBackColor = Color.FromArgb(CByte(0), CByte(122), CByte(204))
-        btnNavBible.FlatAppearance.MouseOverBackColor = Color.FromArgb(CByte(51), CByte(51), CByte(52))
-        btnNavBible.FlatStyle = FlatStyle.Flat
-        btnNavBible.Font = New Font("Segoe UI", 9F)
-        btnNavBible.ForeColor = Color.FromArgb(CByte(200), CByte(200), CByte(200))
-        btnNavBible.ImageAlign = ContentAlignment.TopCenter
-        btnNavBible.Location = New Point(0, 195)
-        btnNavBible.Margin = New Padding(0)
-        btnNavBible.Name = "btnNavBible"
-        btnNavBible.Padding = New Padding(0, 4, 0, 4)
-        btnNavBible.Size = New Size(80, 65)
-        btnNavBible.TabIndex = 0
-        btnNavBible.Text = "Bible"
-        btnNavBible.TextAlign = ContentAlignment.BottomCenter
-        btnNavBible.TextImageRelation = TextImageRelation.ImageAboveText
-        btnNavBible.UseVisualStyleBackColor = False
-        ' 
-        ' btnNavTranslate
-        ' 
-        btnNavTranslate.BackColor = Color.FromArgb(CByte(37), CByte(37), CByte(38))
-        btnNavTranslate.Cursor = Cursors.Hand
-        btnNavTranslate.Dock = DockStyle.Top
-        btnNavTranslate.FlatAppearance.BorderSize = 0
-        btnNavTranslate.FlatAppearance.MouseDownBackColor = Color.FromArgb(CByte(0), CByte(122), CByte(204))
-        btnNavTranslate.FlatAppearance.MouseOverBackColor = Color.FromArgb(CByte(51), CByte(51), CByte(52))
-        btnNavTranslate.FlatStyle = FlatStyle.Flat
-        btnNavTranslate.Font = New Font("Segoe UI", 9F)
-        btnNavTranslate.ForeColor = Color.FromArgb(CByte(200), CByte(200), CByte(200))
-        btnNavTranslate.ImageAlign = ContentAlignment.TopCenter
-        btnNavTranslate.Location = New Point(0, 130)
-        btnNavTranslate.Margin = New Padding(0)
-        btnNavTranslate.Name = "btnNavTranslate"
-        btnNavTranslate.Padding = New Padding(0, 4, 0, 4)
-        btnNavTranslate.Size = New Size(80, 65)
-        btnNavTranslate.TabIndex = 1
-        btnNavTranslate.Text = "Translate"
-        btnNavTranslate.TextAlign = ContentAlignment.BottomCenter
-        btnNavTranslate.TextImageRelation = TextImageRelation.ImageAboveText
-        btnNavTranslate.UseVisualStyleBackColor = False
-        ' 
-        ' btnNavTranscribe
-        ' 
-        btnNavTranscribe.BackColor = Color.FromArgb(CByte(37), CByte(37), CByte(38))
-        btnNavTranscribe.Cursor = Cursors.Hand
-        btnNavTranscribe.Dock = DockStyle.Top
-        btnNavTranscribe.FlatAppearance.BorderSize = 0
-        btnNavTranscribe.FlatAppearance.MouseDownBackColor = Color.FromArgb(CByte(0), CByte(122), CByte(204))
-        btnNavTranscribe.FlatAppearance.MouseOverBackColor = Color.FromArgb(CByte(51), CByte(51), CByte(52))
-        btnNavTranscribe.FlatStyle = FlatStyle.Flat
-        btnNavTranscribe.Font = New Font("Segoe UI", 9F)
-        btnNavTranscribe.ForeColor = Color.FromArgb(CByte(200), CByte(200), CByte(200))
-        btnNavTranscribe.ImageAlign = ContentAlignment.TopCenter
-        btnNavTranscribe.Location = New Point(0, 65)
-        btnNavTranscribe.Margin = New Padding(0)
-        btnNavTranscribe.Name = "btnNavTranscribe"
-        btnNavTranscribe.Padding = New Padding(0, 4, 0, 4)
-        btnNavTranscribe.Size = New Size(80, 65)
-        btnNavTranscribe.TabIndex = 2
-        btnNavTranscribe.Text = "Transcribe"
-        btnNavTranscribe.TextAlign = ContentAlignment.BottomCenter
-        btnNavTranscribe.TextImageRelation = TextImageRelation.ImageAboveText
-        btnNavTranscribe.UseVisualStyleBackColor = False
-        ' 
+        ' tsNavBar
+        '
+        tsNavBar.BackColor = Color.FromArgb(CByte(37), CByte(37), CByte(38))
+        tsNavBar.Dock = DockStyle.Top
+        tsNavBar.GripStyle = ToolStripGripStyle.Hidden
+        tsNavBar.ImageScalingSize = New Size(28, 28)
+        tsNavBar.Items.AddRange(New ToolStripItem() {btnNavLive, btnNavTranscribe, btnNavTranslate, btnNavBible})
+        tsNavBar.Location = New Point(0, 0)
+        tsNavBar.Name = "tsNavBar"
+        tsNavBar.Padding = New Padding(4, 2, 4, 2)
+        tsNavBar.RenderMode = ToolStripRenderMode.ManagerRenderMode
+        tsNavBar.Size = New Size(880, 40)
+        tsNavBar.TabIndex = 1
+        '
         ' btnNavLive
-        ' 
-        btnNavLive.BackColor = Color.FromArgb(CByte(37), CByte(37), CByte(38))
-        btnNavLive.Cursor = Cursors.Hand
-        btnNavLive.Dock = DockStyle.Top
-        btnNavLive.FlatAppearance.BorderSize = 0
-        btnNavLive.FlatAppearance.MouseDownBackColor = Color.FromArgb(CByte(0), CByte(122), CByte(204))
-        btnNavLive.FlatAppearance.MouseOverBackColor = Color.FromArgb(CByte(51), CByte(51), CByte(52))
-        btnNavLive.FlatStyle = FlatStyle.Flat
-        btnNavLive.Font = New Font("Segoe UI", 9F)
+        '
+        btnNavLive.AutoSize = True
         btnNavLive.ForeColor = Color.FromArgb(CByte(200), CByte(200), CByte(200))
-        btnNavLive.ImageAlign = ContentAlignment.TopCenter
-        btnNavLive.Location = New Point(0, 0)
-        btnNavLive.Margin = New Padding(0)
+        btnNavLive.ImageScaling = ToolStripItemImageScaling.None
+        btnNavLive.Margin = New Padding(0, 0, 2, 0)
         btnNavLive.Name = "btnNavLive"
-        btnNavLive.Padding = New Padding(0, 4, 0, 4)
-        btnNavLive.Size = New Size(80, 65)
-        btnNavLive.TabIndex = 3
+        btnNavLive.Padding = New Padding(8, 2, 8, 2)
         btnNavLive.Text = "Live"
-        btnNavLive.TextAlign = ContentAlignment.BottomCenter
-        btnNavLive.TextImageRelation = TextImageRelation.ImageAboveText
-        btnNavLive.UseVisualStyleBackColor = False
+        btnNavLive.TextImageRelation = TextImageRelation.ImageBeforeText
+        '
+        ' btnNavTranscribe
+        '
+        btnNavTranscribe.AutoSize = True
+        btnNavTranscribe.ForeColor = Color.FromArgb(CByte(200), CByte(200), CByte(200))
+        btnNavTranscribe.ImageScaling = ToolStripItemImageScaling.None
+        btnNavTranscribe.Margin = New Padding(0, 0, 2, 0)
+        btnNavTranscribe.Name = "btnNavTranscribe"
+        btnNavTranscribe.Padding = New Padding(8, 2, 8, 2)
+        btnNavTranscribe.Text = "Transcribe"
+        btnNavTranscribe.TextImageRelation = TextImageRelation.ImageBeforeText
+        '
+        ' btnNavTranslate
+        '
+        btnNavTranslate.AutoSize = True
+        btnNavTranslate.ForeColor = Color.FromArgb(CByte(200), CByte(200), CByte(200))
+        btnNavTranslate.ImageScaling = ToolStripItemImageScaling.None
+        btnNavTranslate.Margin = New Padding(0, 0, 2, 0)
+        btnNavTranslate.Name = "btnNavTranslate"
+        btnNavTranslate.Padding = New Padding(8, 2, 8, 2)
+        btnNavTranslate.Text = "Translate"
+        btnNavTranslate.TextImageRelation = TextImageRelation.ImageBeforeText
+        '
+        ' btnNavBible
+        '
+        btnNavBible.AutoSize = True
+        btnNavBible.ForeColor = Color.FromArgb(CByte(200), CByte(200), CByte(200))
+        btnNavBible.ImageScaling = ToolStripItemImageScaling.None
+        btnNavBible.Margin = New Padding(0, 0, 2, 0)
+        btnNavBible.Name = "btnNavBible"
+        btnNavBible.Padding = New Padding(8, 2, 8, 2)
+        btnNavBible.Text = "Bible"
+        btnNavBible.TextImageRelation = TextImageRelation.ImageBeforeText
         ' 
         ' statusMain
         ' 
@@ -732,7 +683,7 @@ Partial Class FormMain
         ' pnlContent
         ' 
         pnlContent.Controls.Add(tabMain)
-        pnlContent.Controls.Add(pnlNavRail)
+        pnlContent.Controls.Add(tsNavBar)
         pnlContent.Controls.Add(splitterLog)
         pnlContent.Controls.Add(pnlLogPanel)
         pnlContent.Dock = DockStyle.Fill
@@ -947,7 +898,7 @@ Partial Class FormMain
         ' 
         pnlLiveOutput.Anchor = AnchorStyles.Top Or AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
         pnlLiveOutput.Controls.Add(wvLiveClients)
-        pnlLiveOutput.Controls.Add(btnLiveSave)
+
         pnlLiveOutput.Location = New Point(8, 183)
         pnlLiveOutput.Name = "pnlLiveOutput"
         pnlLiveOutput.Size = New Size(776, 402)
@@ -964,16 +915,7 @@ Partial Class FormMain
         wvLiveClients.Size = New Size(776, 402)
         wvLiveClients.TabIndex = 0
         wvLiveClients.ZoomFactor = 1R
-        ' 
-        ' btnLiveSave
-        ' 
-        btnLiveSave.Dock = DockStyle.Bottom
-        btnLiveSave.Location = New Point(0, 809)
-        btnLiveSave.Name = "btnLiveSave"
-        btnLiveSave.Size = New Size(1440, 30)
-        btnLiveSave.TabIndex = 1
-        btnLiveSave.Text = "Save Transcript..."
-        ' 
+        '
         ' tabPageServer
         ' 
         tabPageServer.Controls.Add(grpServerSettings)
@@ -1374,7 +1316,7 @@ Partial Class FormMain
         tabPageJob.Controls.Add(grpInput)
         tabPageJob.Controls.Add(grpOutputFormats)
         tabPageJob.Controls.Add(grpProgress)
-        tabPageJob.Controls.Add(grpLog)
+
         tabPageJob.Location = New Point(4, 5)
         tabPageJob.Name = "tabPageJob"
         tabPageJob.Padding = New Padding(8)
@@ -1827,57 +1769,7 @@ Partial Class FormMain
         lnkPreviewSrt.Text = "Open preview.srt"
         lnkPreviewSrt.Visible = False
         ' 
-        ' grpLog
-        ' 
-        grpLog.Anchor = AnchorStyles.Top Or AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
-        grpLog.Controls.Add(rtbLog)
-        grpLog.Controls.Add(pnlJobLogButtons)
-        grpLog.Location = New Point(8, 609)
-        grpLog.Name = "grpLog"
-        grpLog.Size = New Size(772, 749)
-        grpLog.TabIndex = 5
-        grpLog.TabStop = False
-        grpLog.Text = "Log"
-        ' 
-        ' rtbLog
-        ' 
-        rtbLog.BackColor = Color.White
-        rtbLog.Dock = DockStyle.Fill
-        rtbLog.Font = New Font("Consolas", 9F)
-        rtbLog.Location = New Point(3, 19)
-        rtbLog.Name = "rtbLog"
-        rtbLog.ReadOnly = True
-        rtbLog.Size = New Size(766, 692)
-        rtbLog.TabIndex = 0
-        rtbLog.Text = ""
-        rtbLog.WordWrap = False
-        ' 
-        ' pnlJobLogButtons
-        ' 
-        pnlJobLogButtons.Controls.Add(btnClearLog)
-        pnlJobLogButtons.Controls.Add(btnCopyLog)
-        pnlJobLogButtons.Dock = DockStyle.Bottom
-        pnlJobLogButtons.Location = New Point(3, 711)
-        pnlJobLogButtons.Name = "pnlJobLogButtons"
-        pnlJobLogButtons.Size = New Size(766, 35)
-        pnlJobLogButtons.TabIndex = 1
-        ' 
-        ' btnClearLog
-        ' 
-        btnClearLog.Location = New Point(4, 4)
-        btnClearLog.Name = "btnClearLog"
-        btnClearLog.Size = New Size(100, 26)
-        btnClearLog.TabIndex = 0
-        btnClearLog.Text = "Clear Log"
-        ' 
-        ' btnCopyLog
-        ' 
-        btnCopyLog.Location = New Point(112, 4)
-        btnCopyLog.Name = "btnCopyLog"
-        btnCopyLog.Size = New Size(140, 26)
-        btnCopyLog.TabIndex = 1
-        btnCopyLog.Text = "Copy to Clipboard"
-        ' 
+        '
         ' tabPageHelp
         ' 
         tabPageHelp.Controls.Add(rtbHelp)
@@ -2176,6 +2068,8 @@ Partial Class FormMain
         pnlLogToolbar.Controls.Add(cboLogFilter)
         pnlLogToolbar.Controls.Add(btnLogClear)
         pnlLogToolbar.Controls.Add(btnLogCopy)
+        pnlLogToolbar.Controls.Add(txtLogSearch)
+        pnlLogToolbar.Controls.Add(btnLogSearchNext)
         pnlLogToolbar.Dock = DockStyle.Top
         pnlLogToolbar.Location = New Point(0, 0)
         pnlLogToolbar.Name = "pnlLogToolbar"
@@ -2218,7 +2112,24 @@ Partial Class FormMain
         btnLogCopy.Size = New Size(55, 24)
         btnLogCopy.TabIndex = 3
         btnLogCopy.Text = "Copy"
-        ' 
+        '
+        ' txtLogSearch
+        '
+        txtLogSearch.Location = New Point(310, 2)
+        txtLogSearch.Name = "txtLogSearch"
+        txtLogSearch.Size = New Size(150, 23)
+        txtLogSearch.TabIndex = 4
+        txtLogSearch.PlaceholderText = "Search log..."
+        '
+        ' btnLogSearchNext
+        '
+        btnLogSearchNext.FlatStyle = FlatStyle.Flat
+        btnLogSearchNext.Location = New Point(465, 1)
+        btnLogSearchNext.Name = "btnLogSearchNext"
+        btnLogSearchNext.Size = New Size(55, 24)
+        btnLogSearchNext.TabIndex = 5
+        btnLogSearchNext.Text = "Find"
+        '
         ' trayMenu
         ' 
         trayMenu.Items.AddRange(New ToolStripItem() {trayMenuAbout, traySep1, trayMenuShow, traySep2, trayMenuExit})
@@ -2263,6 +2174,7 @@ Partial Class FormMain
         ' 
         AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
+        KeyPreview = True
         ClientSize = New Size(880, 650)
         Controls.Add(pnlContent)
         Controls.Add(statusMain)
@@ -2275,7 +2187,8 @@ Partial Class FormMain
         WindowState = FormWindowState.Maximized
         menuMain.ResumeLayout(False)
         menuMain.PerformLayout()
-        pnlNavRail.ResumeLayout(False)
+        tsNavBar.ResumeLayout(False)
+        tsNavBar.PerformLayout()
         statusMain.ResumeLayout(False)
         statusMain.PerformLayout()
         pnlContent.ResumeLayout(False)
@@ -2307,8 +2220,8 @@ Partial Class FormMain
         grpOutputFormats.PerformLayout()
         grpProgress.ResumeLayout(False)
         grpProgress.PerformLayout()
-        grpLog.ResumeLayout(False)
-        pnlJobLogButtons.ResumeLayout(False)
+
+
         tabPageHelp.ResumeLayout(False)
         tabPageTranslate.ResumeLayout(False)
         splitTrans.Panel1.ResumeLayout(False)
@@ -2389,11 +2302,11 @@ Partial Class FormMain
     Friend WithEvents mnuHelpAbout As ToolStripMenuItem
 
     ' Shell: Nav rail
-    Friend WithEvents pnlNavRail As Panel
-    Friend WithEvents btnNavLive As Button
-    Friend WithEvents btnNavTranscribe As Button
-    Friend WithEvents btnNavTranslate As Button
-    Friend WithEvents btnNavBible As Button
+    Friend WithEvents tsNavBar As ToolStrip
+    Friend WithEvents btnNavLive As ToolStripButton
+    Friend WithEvents btnNavTranscribe As ToolStripButton
+    Friend WithEvents btnNavTranslate As ToolStripButton
+    Friend WithEvents btnNavBible As ToolStripButton
 
     ' Shell: Status bar
     Friend WithEvents statusMain As StatusStrip
@@ -2417,6 +2330,8 @@ Partial Class FormMain
     Friend WithEvents btnLogClear As Button
     Friend WithEvents btnLogCopy As Button
     Friend WithEvents rtbUnifiedLog As RichTextBox
+    Friend WithEvents txtLogSearch As TextBox
+    Friend WithEvents btnLogSearchNext As Button
 
     ' TabControl
     Friend WithEvents tabMain As TabControl
@@ -2475,11 +2390,7 @@ Partial Class FormMain
     Friend WithEvents btnOpenOutput As Button
     Friend WithEvents btnOpenSubtitleEdit As Button
     Friend WithEvents lnkPreviewSrt As LinkLabel
-    Friend WithEvents grpLog As GroupBox
-    Friend WithEvents rtbLog As RichTextBox
-    Friend WithEvents pnlJobLogButtons As Panel
-    Friend WithEvents btnClearLog As Button
-    Friend WithEvents btnCopyLog As Button
+
     Friend WithEvents rtbHelp As RichTextBox
 
     ' Tab: Live
@@ -2493,7 +2404,7 @@ Partial Class FormMain
     Friend WithEvents pnlLiveButtons As Panel
     Friend WithEvents btnLiveStart As Button
     Friend WithEvents btnLiveStop As Button
-    Friend WithEvents btnLiveSave As Button
+
     Friend WithEvents lblMaxSegment As Label
     Friend WithEvents trkMaxSegment As TrackBar
     Friend WithEvents lblMaxSegmentValue As Label
