@@ -200,7 +200,8 @@ Namespace Forms
                 Try
                     Dim csvText = File.ReadAllText(cacheFile)
                     _catalog = ParseCatalogCsv(csvText)
-                Catch
+                Catch ex As Exception
+                    FormMain.WriteDebugLog($"[ERROR] LoadCachedCatalog: {ex.Message}")
                 End Try
             End If
         End Sub
@@ -304,7 +305,8 @@ Namespace Forms
                     If Not String.IsNullOrEmpty(entry.TranslationId) Then
                         entries.Add(entry)
                     End If
-                Catch
+                Catch ex As Exception
+                    FormMain.WriteDebugLog($"[ERROR] ParseCatalogCsv (row {i}): {ex.Message}")
                 End Try
             Next
 
@@ -395,6 +397,8 @@ Namespace Forms
             _downloading = True
             SetAllButtonsEnabled(False)
 
+            Dim allIssues As New List(Of String)()
+
             Try
                 For i = 0 To toDownload.Count - 1
                     Dim entry = toDownload(i)
@@ -430,15 +434,28 @@ Namespace Forms
 
                     If File.Exists(dbPath) Then
                         Dim sizeMb = New FileInfo(dbPath).Length / 1024.0 / 1024.0
+                        lblProgress.Text = $"Verifying {entry.Title}..."
+
+                        ' Run integrity check on the converted database
+                        Dim issues = Await Task.Run(Function() UsfmConverter.VerifyDatabase(dbPath))
+                        If issues.Count > 0 Then
+                            allIssues.Add($"{entry.Title}:")
+                            For Each issue In issues
+                                allIssues.Add($"  - {issue}")
+                            Next
+                        End If
+
                         lblProgress.Text = $"Converted {entry.Title} ({sizeMb:F1} MB) ({i + 1}/{toDownload.Count})"
                     Else
+                        allIssues.Add($"{entry.Title}: conversion failed — no output file")
                         lblProgress.Text = $"Warning: conversion may have failed for {entry.Title}"
                     End If
 
                     ' Cleanup temp
                     Try
                         Directory.Delete(tempDir, True)
-                    Catch
+                    Catch ex As Exception
+                        FormMain.WriteDebugLog($"[ERROR] DownloadBibles (cleanup tempDir): {ex.Message}")
                     End Try
 
                     pbProgress.Value = CInt((i + 1) * 100 \ toDownload.Count)
@@ -447,6 +464,16 @@ Namespace Forms
                 lblProgress.Text = $"Downloaded and converted {toDownload.Count} Bible(s) successfully"
                 pbProgress.Value = 100
                 PathsUpdated = True
+
+                ' Show integrity report if any issues were found
+                If allIssues.Count > 0 Then
+                    Dim report = String.Join(vbCrLf, allIssues)
+                    MessageBox.Show(
+                        $"Downloaded {toDownload.Count} Bible(s). The following issues were found:" &
+                        vbCrLf & vbCrLf & report,
+                        "Bible Integrity Report",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information)
+                End If
 
             Catch ex As Exception
                 lblProgress.Text = $"Error: {ex.Message}"
@@ -651,7 +678,8 @@ Namespace Forms
                         If File.Exists(onnxPath) Then File.Delete(onnxPath)
                         If File.Exists(jsonPath) Then File.Delete(jsonPath)
                         removed += 1
-                    Catch
+                    Catch ex As Exception
+                        FormMain.WriteDebugLog($"[ERROR] RemoveVoices (delete model files): {ex.Message}")
                     End Try
                 End If
             Next

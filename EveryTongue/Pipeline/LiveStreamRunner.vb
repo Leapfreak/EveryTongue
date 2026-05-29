@@ -1,4 +1,3 @@
-Imports System.Diagnostics
 Imports System.IO
 Imports System.Net.Http
 Imports System.Text
@@ -17,19 +16,32 @@ Namespace Pipeline
             .Timeout = TimeSpan.FromMinutes(5)
         }
 
-        Private _process As Process
-        Private _isRunning As Boolean = False
+        Private ReadOnly _host As New PythonSidecarHost() With {
+            .Label = "Live server",
+            .AddWhisperToPath = True,
+            .GracefulShutdownPath = "/shutdown"
+        }
+
+        Private _isCapturing As Boolean = False
         Private _serverReady As Boolean = False
-        Private _shuttingDown As Boolean = False
         Private _transcript As New StringBuilder()
         Private _cts As CancellationTokenSource
-        Private _port As Integer = 5091
-        Private _restartCount As Integer = 0
-        Private _lastConfig As AppConfig
+
+        Public Sub New()
+            AddHandler _host.StderrLine, Sub(s, line)
+                                              RaiseEvent ErrorReceived(Me, line)
+                                          End Sub
+            AddHandler _host.ProcessExited, Sub(s, e)
+                                                _serverReady = False
+                                                If _isCapturing Then
+                                                    RaiseEvent ErrorReceived(Me, "Live server process exited unexpectedly")
+                                                End If
+                                            End Sub
+        End Sub
 
         Public ReadOnly Property IsRunning As Boolean
             Get
-                Return _isRunning
+                Return _isCapturing
             End Get
         End Property
 
@@ -55,7 +67,7 @@ Namespace Pipeline
             ' Try the running server first
             If _serverReady Then
                 Try
-                    Dim response = _httpClient.GetAsync($"http://127.0.0.1:{_port}/devices").Result
+                    Dim response = _httpClient.GetAsync($"http://127.0.0.1:{_host.Port}/devices").Result
                     If response.IsSuccessStatusCode Then
                         Dim body = response.Content.ReadAsStringAsync().Result
                         Using doc = JsonDocument.Parse(body)
@@ -115,169 +127,44 @@ Namespace Pipeline
         ''' Start the live-server Python process and begin capturing.
         ''' </summary>
         Public Sub Start(config As AppConfig, deviceIndex As Integer, inputLanguage As String, translateToEnglish As Boolean)
-            If _isRunning Then Return
+            If _isCapturing Then Return
 
-            _port = config.LiveServerPort
+            _host.Port = config.LiveServerPort
             _transcript.Clear()
             _cts = New CancellationTokenSource()
-            _restartCount = 0
-            _shuttingDown = False
-            _lastConfig = config
+            _isCapturing = True
 
             ' If server is already running and healthy, reuse it
             Dim serverAlive = False
-            If _process IsNot Nothing AndAlso Not _process.HasExited Then
+            If _host.IsProcessRunning Then
                 Try
-                    Dim resp = _httpClient.GetAsync($"http://127.0.0.1:{_port}/health").Result
+                    Dim resp = _httpClient.GetAsync($"http://127.0.0.1:{_host.Port}/health").Result
                     serverAlive = resp.IsSuccessStatusCode
                     If serverAlive Then _serverReady = True
                 Catch ex As Exception
-                    Debug.WriteLine($"[Live] Start health-check failed (will restart): {ex.Message}")
+                    FormMain.WriteDebugLog($"[Live] Start health-check failed (will restart): {ex.Message}")
                 End Try
             End If
 
             If Not serverAlive Then
-                ' Kill any leftover process before starting fresh
-                KillExistingServer()
-                StartServer(config)
+                ' Stop any existing server and start fresh
+                _host.Stop()
+                _serverReady = False
+
+                Dim serverScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "live-server", "server.py")
+                Dim logDir = AppDomain.CurrentDomain.BaseDirectory
+                _host.Start(serverScript, $"--log-dir ""{logDir.TrimEnd({"\"c, "/"c})}""")
             End If
 
             ' Wait for server ready, then start capture
+            Dim ct = _cts.Token
             Task.Run(Sub()
-                         Dim ready = If(serverAlive, True, WaitForReady(_cts.Token))
+                         Dim ready = If(serverAlive, True, WaitForReady(ct))
                          If ready Then
                              StartCapture(config, deviceIndex, inputLanguage, translateToEnglish)
-                             ' Connect to SSE stream
-                             ReadSseLoop(_cts.Token)
+                             ReadSseLoop(ct)
                          End If
                      End Sub)
-        End Sub
-
-        Private Sub KillExistingServer()
-            _serverReady = False
-            Try
-                If _process IsNot Nothing AndAlso Not _process.HasExited Then
-                    ' Try graceful shutdown first
-                    Try
-                        Dim content As New StringContent("{}", Encoding.UTF8, "application/json")
-                        _httpClient.PostAsync($"http://127.0.0.1:{_port}/shutdown", content).Wait(2000)
-                        _process.WaitForExit(3000)
-                    Catch ex As Exception
-                        Debug.WriteLine($"[Live] KillExistingServer graceful shutdown failed: {ex.Message}")
-                    End Try
-
-                    ' Force kill if still alive
-                    If Not _process.HasExited Then
-                        _process.Kill(True)
-                        _process.WaitForExit(2000)
-                    End If
-                End If
-            Catch ex As Exception
-                Debug.WriteLine($"[Live] KillExistingServer force-kill failed: {ex.Message}")
-            End Try
-            _process = Nothing
-        End Sub
-
-        Private Shared Sub KillProcessOnPort(port As Integer)
-            Try
-                Dim psi As New ProcessStartInfo() With {
-                    .FileName = "netstat",
-                    .Arguments = "-ano",
-                    .UseShellExecute = False,
-                    .RedirectStandardOutput = True,
-                    .CreateNoWindow = True
-                }
-                Using proc = Process.Start(psi)
-                    Dim output = proc.StandardOutput.ReadToEnd()
-                    proc.WaitForExit(5000)
-                    For Each line In output.Split({vbCrLf, vbLf}, StringSplitOptions.RemoveEmptyEntries)
-                        If line.Contains($":{port}") AndAlso line.Contains("LISTENING") Then
-                            Dim parts = line.Trim().Split({" "c}, StringSplitOptions.RemoveEmptyEntries)
-                            Dim pid As Integer
-                            If parts.Length > 0 AndAlso Integer.TryParse(parts(parts.Length - 1), pid) AndAlso pid > 0 Then
-                                Try
-                                    Process.GetProcessById(pid).Kill(True)
-                                Catch ex As Exception
-                                    Debug.WriteLine($"[Live] KillProcessOnPort could not kill PID {pid}: {ex.Message}")
-                                End Try
-                            End If
-                        End If
-                    Next
-                End Using
-            Catch ex As Exception
-                Debug.WriteLine($"[Live] KillProcessOnPort failed: {ex.Message}")
-            End Try
-        End Sub
-
-        Private Sub StartServer(config As AppConfig)
-            ' Kill any leftover process from a previous session holding our port
-            KillProcessOnPort(_port)
-
-            Dim pythonPath = FindPython()
-            If String.IsNullOrEmpty(pythonPath) Then
-                RaiseEvent ErrorReceived(Me, "Python not found (need python-embed or system Python)")
-                Return
-            End If
-
-            Dim serverScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "live-server", "server.py")
-            If Not File.Exists(serverScript) Then
-                RaiseEvent ErrorReceived(Me, $"live-server/server.py not found: {serverScript}")
-                Return
-            End If
-
-            Dim logDir = AppDomain.CurrentDomain.BaseDirectory
-            Dim psi As New ProcessStartInfo() With {
-                .FileName = pythonPath,
-                .Arguments = $"""{serverScript}"" --port {_port} --log-dir ""{logDir.TrimEnd({"\"c, "/"c})}""",
-                .UseShellExecute = False,
-                .RedirectStandardOutput = True,
-                .RedirectStandardError = True,
-                .CreateNoWindow = True,
-                .StandardOutputEncoding = Encoding.UTF8,
-                .StandardErrorEncoding = Encoding.UTF8
-            }
-
-            ' Add whisper dir to PATH for CUDA DLLs
-            Dim whisperDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "whisper")
-            If Directory.Exists(whisperDir) Then
-                Dim currentPath = If(Environment.GetEnvironmentVariable("PATH"), "")
-                psi.Environment("PATH") = whisperDir & ";" & currentPath
-            End If
-
-            Try
-                _process = New Process()
-                _process.StartInfo = psi
-                _process.EnableRaisingEvents = True
-
-                AddHandler _process.ErrorDataReceived, Sub(s, e)
-                                                           If e.Data IsNot Nothing Then
-                                                               Dim line = e.Data.Trim()
-                                                               If line.Length > 0 Then
-                                                                   RaiseEvent ErrorReceived(Me, line)
-                                                               End If
-                                                           End If
-                                                       End Sub
-
-                AddHandler _process.Exited, Sub(s, e)
-                                                _isRunning = False
-                                                _serverReady = False
-                                                If Not _shuttingDown Then
-                                                    RaiseEvent ErrorReceived(Me, "Live server process exited unexpectedly")
-                                                End If
-                                            End Sub
-
-                _process.Start()
-                _process.BeginErrorReadLine()
-                ' Drain stdout to prevent deadlock
-                Task.Run(Sub()
-                             Try : _process.StandardOutput.ReadToEnd() : Catch : End Try
-                         End Sub)
-
-                _isRunning = True
-            Catch ex As Exception
-                _isRunning = False
-                RaiseEvent ErrorReceived(Me, $"Failed to start live server: {ex.Message}")
-            End Try
         End Sub
 
         Private Function WaitForReady(ct As CancellationToken) As Boolean
@@ -285,10 +172,9 @@ Namespace Pipeline
             While DateTime.UtcNow < deadline AndAlso Not ct.IsCancellationRequested
                 Try
                     Thread.Sleep(500)
-                    Dim response = _httpClient.GetAsync($"http://127.0.0.1:{_port}/health", ct).Result
+                    Dim response = _httpClient.GetAsync($"http://127.0.0.1:{_host.Port}/health", ct).Result
                     If response.IsSuccessStatusCode Then
                         _serverReady = True
-                        _restartCount = 0
                         Return True
                     End If
                 Catch ex As Exception
@@ -307,8 +193,8 @@ Namespace Pipeline
                 Dim jsonBody = $"{{""device_index"":{deviceIndex}," &
                     $"""language"":""{inputLanguage}""," &
                     $"""translate"":{If(translateToEnglish, "true", "false")}," &
-                    $"""initial_prompt"":""{EscapeJson(config.InitialPrompt)}""," &
-                    $"""model_path"":""{EscapeJson(modelPath)}""," &
+                    $"""initial_prompt"":""{EscapeJsonUnquoted(config.InitialPrompt)}""," &
+                    $"""model_path"":""{EscapeJsonUnquoted(modelPath)}""," &
                     $"""compute_type"":""{config.LiveComputeType}""," &
                     $"""device"":""{If(config.NoGpu, "cpu", "cuda")}""," &
                     $"""beam_size"":{config.BeamSize}," &
@@ -317,7 +203,7 @@ Namespace Pipeline
                     $"""interim_interval_ms"":{config.LiveInterimIntervalMs}}}"
 
                 Dim content As New StringContent(jsonBody, Encoding.UTF8, "application/json")
-                Dim response = _httpClient.PostAsync($"http://127.0.0.1:{_port}/start", content).Result
+                Dim response = _httpClient.PostAsync($"http://127.0.0.1:{_host.Port}/start", content).Result
 
                 If Not response.IsSuccessStatusCode Then
                     Dim body = response.Content.ReadAsStringAsync().Result
@@ -330,7 +216,7 @@ Namespace Pipeline
 
         Private Sub ReadSseLoop(ct As CancellationToken)
             Try
-                Dim request As New HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{_port}/stream")
+                Dim request As New HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{_host.Port}/stream")
                 Dim response = _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).Result
                 Using stream = response.Content.ReadAsStreamAsync().Result
                     Using reader As New StreamReader(stream, Encoding.UTF8)
@@ -349,7 +235,6 @@ Namespace Pipeline
                                         RaiseEvent OutputLineUpdated(Me, parsed.Text)
                                     ElseIf eventType = "commit" Then
                                         _transcript.AppendLine(parsed.Text)
-                                        ' Pass detected language with text (tab-separated)
                                         Dim commitData = If(String.IsNullOrEmpty(parsed.Lang), parsed.Text, parsed.Lang & vbTab & parsed.Text)
                                         RaiseEvent OutputLineCommitted(Me, commitData)
                                     ElseIf eventType = "error" Then
@@ -358,7 +243,6 @@ Namespace Pipeline
                                 End If
                                 eventType = ""
                             End If
-                            ' Empty line or comment — ignore
                         End While
                     End Using
                 End Using
@@ -372,69 +256,19 @@ Namespace Pipeline
         End Sub
 
         Public Sub [Stop]()
-            _shuttingDown = True
+            DoShutdown(3000)
+        End Sub
+
+        Private Sub DoShutdown(waitMs As Integer)
             _cts?.Cancel()
-            ' Cancel pending HTTP requests (breaks blocking SSE ReadLine)
             _httpClient.CancelPendingRequests()
-
-            ' Shut down the server completely
-            Try
-                Using shutdownClient As New HttpClient() With {.Timeout = TimeSpan.FromSeconds(3)}
-                    Dim content As New StringContent("{}", Encoding.UTF8, "application/json")
-                    shutdownClient.PostAsync($"http://127.0.0.1:{_port}/shutdown", content).Wait(3000)
-                End Using
-            Catch ex As Exception
-                Debug.WriteLine($"[Live] Stop /shutdown request failed: {ex.Message}")
-            End Try
-
-            ' Force kill if still alive
-            Try
-                If _process IsNot Nothing AndAlso Not _process.HasExited Then
-                    _process.WaitForExit(3000)
-                    If Not _process.HasExited Then
-                        _process.Kill(True)
-                        _process.WaitForExit(2000)
-                    End If
-                End If
-            Catch ex As Exception
-                Debug.WriteLine($"[Live] Stop force-kill failed: {ex.Message}")
-            End Try
-
-            _isRunning = False
+            _host.Stop(waitMs)
+            _isCapturing = False
             _serverReady = False
-            _process = Nothing
         End Sub
 
         Public Sub ShutdownServer()
-            _shuttingDown = True
-            _cts?.Cancel()
-            _httpClient.CancelPendingRequests()
-
-            ' Ask the server to shut down gracefully
-            Try
-                Using shutdownClient As New HttpClient() With {.Timeout = TimeSpan.FromSeconds(3)}
-                    Dim content As New StringContent("{}", Encoding.UTF8, "application/json")
-                    shutdownClient.PostAsync($"http://127.0.0.1:{_port}/shutdown", content).Wait(3000)
-                End Using
-            Catch ex As Exception
-                Debug.WriteLine($"[Live] ShutdownServer /shutdown request failed: {ex.Message}")
-            End Try
-
-            ' Wait for process to exit, then force-kill if needed
-            Try
-                If _process IsNot Nothing Then
-                    If Not _process.WaitForExit(5000) Then
-                        _process.Kill(True)
-                        _process.WaitForExit(2000)
-                    End If
-                End If
-            Catch ex As Exception
-                Debug.WriteLine($"[Live] ShutdownServer force-kill failed: {ex.Message}")
-            End Try
-
-            _isRunning = False
-            _serverReady = False
-            _process = Nothing
+            DoShutdown(5000)
         End Sub
 
         Public Async Function UpdateConfigAsync(config As Dictionary(Of String, Object)) As Task
@@ -442,7 +276,7 @@ Namespace Pipeline
             Try
                 Dim json = Text.Json.JsonSerializer.Serialize(config)
                 Dim content As New StringContent(json, Encoding.UTF8, "application/json")
-                Await _httpClient.PostAsync($"http://127.0.0.1:{_port}/config", content)
+                Await _httpClient.PostAsync($"http://127.0.0.1:{_host.Port}/config", content)
             Catch ex As Exception
                 FormMain.WriteDebugLog($"[Live] UpdateConfigAsync failed: {ex.Message}")
             End Try
@@ -456,29 +290,6 @@ Namespace Pipeline
                 FormMain.WriteDebugLog($"[Live] SaveTranscript failed: {ex.Message}")
                 Return False
             End Try
-        End Function
-
-        Private Shared Function FindPython() As String
-            Dim embedPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "python-embed", "python.exe")
-            If File.Exists(embedPath) Then Return embedPath
-
-            Try
-                Dim psi As New ProcessStartInfo() With {
-                    .FileName = "python",
-                    .Arguments = "--version",
-                    .UseShellExecute = False,
-                    .RedirectStandardOutput = True,
-                    .CreateNoWindow = True
-                }
-                Using proc = Process.Start(psi)
-                    proc.WaitForExit(5000)
-                    If proc.ExitCode = 0 Then Return "python"
-                End Using
-            Catch ex As Exception
-                FormMain.WriteDebugLog($"[Live] FindPython system Python check failed: {ex.Message}")
-            End Try
-
-            Return ""
         End Function
 
         Private Structure ParsedData
@@ -505,7 +316,7 @@ Namespace Pipeline
 
         Public Async Function GetStatsAsync() As Task(Of String)
             Try
-                Dim response = Await _httpClient.GetAsync($"http://127.0.0.1:{_port}/stats")
+                Dim response = Await _httpClient.GetAsync($"http://127.0.0.1:{_host.Port}/stats")
                 If response.IsSuccessStatusCode Then
                     Return Await response.Content.ReadAsStringAsync()
                 End If
@@ -515,9 +326,10 @@ Namespace Pipeline
             Return Nothing
         End Function
 
-        Private Shared Function EscapeJson(s As String) As String
+        Private Shared Function EscapeJsonUnquoted(s As String) As String
             If String.IsNullOrEmpty(s) Then Return ""
-            Return s.Replace("\", "\\").Replace("""", "\""").Replace(vbCr, "").Replace(vbLf, "\n")
+            Dim quoted = ProcessHelper.EscapeJson(s)
+            Return quoted.Substring(1, quoted.Length - 2)
         End Function
 
     End Class

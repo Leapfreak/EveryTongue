@@ -151,9 +151,18 @@ Namespace Server
 
         ''' <summary>
         ''' Callback for remote control commands from /api/control.
-        ''' Set by FormMain to handle start/stop/restart/clear/setSliders.
+        ''' Set by LiveController to handle start/stop/restart/clear/setSliders.
+        ''' Uses Volatile read/write for thread safety (set from UI thread, read from HTTP threads).
         ''' </summary>
-        Public RemoteCommandHandler As Action(Of String)
+        Private _remoteCommandHandler As Action(Of String)
+        Public Property RemoteCommandHandler As Action(Of String)
+            Get
+                Return Threading.Volatile.Read(_remoteCommandHandler)
+            End Get
+            Set(value As Action(Of String))
+                Threading.Volatile.Write(_remoteCommandHandler, value)
+            End Set
+        End Property
 
         Private Sub MapControlEndpoint(app As IEndpointRouteBuilder)
 

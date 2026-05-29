@@ -105,16 +105,37 @@ Namespace Services.Bible
             {"Revelation", "Rev"}, {"Rev", "Rev"}, {"Apocalypse", "Rev"}
         }
 
+        ' Standard USFM book_number values for alias targets
+        ' Used as final fallback: maps KJV-style alias target → standard book_number used in USFM Bible DBs
+        ' These numbers match the numbering scheme used by the Bible databases (10=Gen, 20=Exo, ..., 730=Rev)
+        Private Shared ReadOnly StandardBookNumbers As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase) From {
+            {"Gen", 10}, {"Exo", 20}, {"Lev", 30}, {"Num", 40}, {"Deu", 50},
+            {"Josh", 60}, {"Judg", 70}, {"Ruth", 80}, {"1Sam", 90}, {"2Sam", 100},
+            {"1Kin", 110}, {"2Kin", 120}, {"1Chr", 130}, {"2Chr", 140}, {"Ezr", 150},
+            {"Neh", 160}, {"Esth", 190}, {"Job", 220}, {"Ps", 230}, {"Prov", 240},
+            {"Eccl", 250}, {"Song", 260}, {"Isa", 290}, {"Jer", 300}, {"Lam", 310},
+            {"Ezek", 330}, {"Dan", 340}, {"Hos", 350}, {"Joel", 360}, {"Am", 370},
+            {"Oba", 380}, {"Jona", 390}, {"Mic", 400}, {"Nah", 410}, {"Hab", 420},
+            {"Zeph", 430}, {"Hag", 440}, {"Zech", 450}, {"Mal", 460},
+            {"Mat", 470}, {"Mar", 480}, {"Luk", 490}, {"John", 500}, {"Acts", 510},
+            {"Rom", 520}, {"1Cor", 530}, {"2Cor", 540}, {"Gal", 550}, {"Eph", 560},
+            {"Phil", 570}, {"Col", 580}, {"1Ths", 590}, {"2Ths", 600},
+            {"1Tim", 610}, {"2Tim", 620}, {"Tit", 630}, {"Phlm", 640}, {"Heb", 650},
+            {"Jam", 660}, {"1Pet", 670}, {"2Pet", 680}, {"1Jn", 690}, {"2Jn", 700},
+            {"3Jn", 710}, {"Jud", 720}, {"Rev", 730}
+        }
+
         ' Regex for detecting Bible references in text (supports accented characters for non-English)
+        ' Supports: "John 3:16", "John 3:16-18", "John 3" (chapter only, verse optional)
         Private Shared ReadOnly RefPattern As New Regex(
-            "(?<book>(?:\d\s*)?[\p{Lu}][\p{Ll}]+(?:\s+[\p{Ll}]+)*)\s+(?<chapter>\d{1,3})\s*:\s*(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3}))?",
+            "(?<book>(?:\d\s*)?[\p{Lu}][\p{Ll}]+(?:\s+[\p{Ll}]+)*)\s+(?<chapter>\d{1,3})(?:\s*:\s*(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3}))?)?",
             RegexOptions.Compiled)
 
         ' Internal class to track DB path alongside translation info
         Private Class BibleTranslationEntry
             Public Property Info As BibleTranslation
             Public Property DbPath As String
-            Public Property BookMap As Dictionary(Of String, Integer) ' short_name -> book_number
+            Public Property BookMap As Dictionary(Of String, Integer) ' short_name/long_name -> book_number
         End Class
 
         Public Sub New(logger As ILogger(Of BibleService), options As IOptions(Of ServerOptions))
@@ -158,13 +179,17 @@ Namespace Services.Bible
                 Return
             End If
 
-            Dim extensions = {"*.db", "*.sqlite", "*.sqlite3"}
+            ' Scan in preference order: .sqlite3 first, then .sqlite, then .db
+            ' Skip files whose ID (filename without extension) is already loaded
+            Dim extensions = {"*.sqlite3", "*.sqlite", "*.db"}
             For Each ext In extensions
                 For Each dbFile In Directory.GetFiles(_biblesDir, ext, SearchOption.AllDirectories)
+                    Dim id = Path.GetFileNameWithoutExtension(dbFile)
+                    If _translations.ContainsKey(id) Then Continue For
                     Try
                         LoadTranslation(dbFile)
                     Catch ex As Exception
-                        _logger.LogWarning("Failed to load Bible: {File} — {Error}", dbFile, ex.Message)
+                        _logger.LogWarning("Bible: skipped {File} — {Error}", dbFile, ex.Message)
                     End Try
                 Next
             Next
@@ -200,13 +225,14 @@ Namespace Services.Bible
                                     Case "description"
                                         If Not String.IsNullOrEmpty(val) Then name = val
                                     Case "language"
-                                        ' Use ISO code from DB (e.g. "ca", "en") instead of folder name
-                                        If Not String.IsNullOrEmpty(val) Then lang = val
+                                        ' Use ISO code from DB, normalized to 3-letter (e.g. "ca" -> "cat")
+                                        If Not String.IsNullOrEmpty(val) Then lang = NormalizeLangCode(val)
                                 End Select
                             End While
                         End Using
                     End Using
-                Catch
+                Catch ex As Exception
+                    Services.Infrastructure.AppLogger.Log($"[ERROR] BibleService.LoadTranslation: failed reading info for '{dbFile}' - {ex.Message}")
                 End Try
 
                 ' Build book_number map from books table (both short_name and long_name)
@@ -236,8 +262,73 @@ Namespace Services.Bible
             }
 
             _logger.LogInformation("Bible: loaded {Id} ({Lang}) — {Name}", id, lang, name)
-            _logger.LogDebug("Bible: {Id} books: {Books}", id,
-                String.Join(", ", bookMap.Keys.Where(Function(k) k.Length <= 8).OrderBy(Function(k) bookMap(k))))
+
+            ' Integrity check: report issues with this translation
+            VerifyTranslation(id, dbFile, bookMap)
+        End Sub
+
+        Private Sub VerifyTranslation(id As String, dbFile As String, bookMap As Dictionary(Of String, Integer))
+            Try
+                Dim bookNumbers = bookMap.Values.Distinct().OrderBy(Function(n) n).ToList()
+                Dim bookCount = bookNumbers.Count
+                Dim issues As New List(Of String)()
+
+                ' Check book count
+                If bookCount < 66 Then
+                    issues.Add($"{bookCount} books (expected 66)")
+                End If
+
+                ' Check for empty chapters
+                Dim connStr = New SqliteConnectionStringBuilder() With {
+                    .DataSource = dbFile,
+                    .Mode = SqliteOpenMode.ReadOnly
+                }.ToString()
+
+                Using conn As New SqliteConnection(connStr)
+                    conn.Open()
+                    Using cmd = conn.CreateCommand()
+                        ' Find chapters that exist in the books table but have no verses
+                        cmd.CommandText =
+                            "SELECT b.short_name, b.book_number, " &
+                            "  (SELECT MAX(v.chapter) FROM verses v WHERE v.book_number = b.book_number) AS max_ch, " &
+                            "  (SELECT COUNT(*) FROM verses v WHERE v.book_number = b.book_number) AS verse_count " &
+                            "FROM books b ORDER BY b.book_number"
+                        Using reader = cmd.ExecuteReader()
+                            While reader.Read()
+                                Dim shortName = reader.GetString(0)
+                                Dim verseCount = If(reader.IsDBNull(3), 0, reader.GetInt32(3))
+                                Dim maxCh = If(reader.IsDBNull(2), 0, reader.GetInt32(2))
+                                If verseCount = 0 Then
+                                    issues.Add($"{shortName}: no verses")
+                                ElseIf maxCh > 0 Then
+                                    ' Check for gaps in chapters
+                                    Using cmd2 = conn.CreateCommand()
+                                        cmd2.CommandText = "SELECT DISTINCT chapter FROM verses WHERE book_number = @bn ORDER BY chapter"
+                                        cmd2.Parameters.AddWithValue("@bn", reader.GetInt32(1))
+                                        Dim chapters As New List(Of Integer)()
+                                        Using r2 = cmd2.ExecuteReader()
+                                            While r2.Read()
+                                                chapters.Add(r2.GetInt32(0))
+                                            End While
+                                        End Using
+                                        Dim expectedChapters = Enumerable.Range(1, maxCh).ToList()
+                                        Dim missing = expectedChapters.Except(chapters).ToList()
+                                        If missing.Count > 0 Then
+                                            issues.Add($"{shortName}: missing chapters {String.Join(",", missing.Take(10))}")
+                                        End If
+                                    End Using
+                                End If
+                            End While
+                        End Using
+                    End Using
+                End Using
+
+                If issues.Count > 0 Then
+                    _logger.LogWarning("Bible: {Id} integrity issues: {Issues}", id, String.Join("; ", issues))
+                End If
+            Catch ex As Exception
+                _logger.LogWarning("Bible: {Id} verification failed: {Err}", id, ex.Message)
+            End Try
         End Sub
 
         Private Function GetConnection(translationId As String) As SqliteConnection
@@ -255,14 +346,21 @@ Namespace Services.Bible
             Dim entry As BibleTranslationEntry = Nothing
             If Not _translations.TryGetValue(translationId, entry) Then Return -1
 
-            ' Try direct match on short_name
+            ' Try direct match on short_name or long_name from DB
             Dim bookNum As Integer
             If entry.BookMap.TryGetValue(book, bookNum) Then Return bookNum
 
-            ' Try alias lookup -> short_name -> book_number
+            ' Try alias lookup -> KJV short_name -> direct DB match
             Dim shortName As String = Nothing
             If BookAliases.TryGetValue(book, shortName) Then
                 If entry.BookMap.TryGetValue(shortName, bookNum) Then Return bookNum
+            End If
+
+            ' Final fallback: use standard USFM book_number (10=Gen, 500=John, etc.)
+            Dim stdNum As Integer
+            Dim target = If(shortName, book)
+            If StandardBookNumbers.TryGetValue(target, stdNum) Then
+                If entry.BookMap.ContainsValue(stdNum) Then Return stdNum
             End If
 
             Return -1
@@ -278,17 +376,11 @@ Namespace Services.Bible
 
         Public Function GetTranslationsAsync(language As String, ct As CancellationToken
         ) As Task(Of IReadOnlyList(Of BibleTranslation)) Implements IBibleService.GetTranslationsAsync
-            _logger.LogInformation("Bible: GetTranslationsAsync called with language=""{Lang}"", total translations={Count}",
-                If(language, "(null)"), _translations.Count)
-            For Each kvp In _translations
-                _logger.LogDebug("Bible: translation {Id} has language=""{Lang}""", kvp.Key, kvp.Value.Info.Language)
-            Next
             Dim queryLang = NormalizeLangCode(language)
             Dim result = _translations.Values.
                 Where(Function(e) String.IsNullOrEmpty(language) OrElse
                                   NormalizeLangCode(e.Info.Language).Equals(queryLang, StringComparison.OrdinalIgnoreCase)).
                 Select(Function(e) e.Info).ToList()
-            _logger.LogInformation("Bible: filtered to {Count} translation(s) for language=""{Lang}""", result.Count, If(language, "(null)"))
             Return Task.FromResult(DirectCast(result, IReadOnlyList(Of BibleTranslation)))
         End Function
 
@@ -447,7 +539,6 @@ Namespace Services.Bible
                 If _translations.TryGetValue(translationId, entry) Then
                     Dim bookNum As Integer
                     If entry.BookMap.TryGetValue(bookName, bookNum) Then
-                        ' Find the short_name for this book_number
                         bookCode = entry.BookMap.
                             Where(Function(kv) kv.Value = bookNum).
                             OrderBy(Function(kv) kv.Key.Length).
@@ -466,14 +557,28 @@ Namespace Services.Bible
             End If
 
             Dim chap = Integer.Parse(m.Groups("chapter").Value)
-            Dim vStart = Integer.Parse(m.Groups("verse").Value)
-            Dim vEnd = vStart
-            If m.Groups("vend").Success Then
-                vEnd = Integer.Parse(m.Groups("vend").Value)
+            Dim vStart = 0
+            Dim vEnd = 0
+            If m.Groups("verse").Success Then
+                vStart = Integer.Parse(m.Groups("verse").Value)
+                vEnd = vStart
+                If m.Groups("vend").Success Then
+                    vEnd = Integer.Parse(m.Groups("vend").Value)
+                End If
+            End If
+
+            ' Resolve the book_number for the caller
+            Dim resolvedBookNum = 0
+            If Not String.IsNullOrEmpty(translationId) Then
+                resolvedBookNum = ResolveBookNumber(translationId, bookCode)
+            End If
+            If resolvedBookNum <= 0 Then
+                StandardBookNumbers.TryGetValue(bookCode, resolvedBookNum)
             End If
 
             Return Task.FromResult(New BibleReference With {
                 .Book = bookCode,
+                .BookNumber = resolvedBookNum,
                 .Chapter = chap,
                 .VerseStart = vStart,
                 .VerseEnd = vEnd,
@@ -492,10 +597,14 @@ Namespace Services.Bible
                 If Not BookAliases.TryGetValue(bookName, bookCode) Then Continue For
 
                 Dim chap = Integer.Parse(m.Groups("chapter").Value)
-                Dim vStart = Integer.Parse(m.Groups("verse").Value)
-                Dim vEnd = vStart
-                If m.Groups("vend").Success Then
-                    vEnd = Integer.Parse(m.Groups("vend").Value)
+                Dim vStart = 0
+                Dim vEnd = 0
+                If m.Groups("verse").Success Then
+                    vStart = Integer.Parse(m.Groups("verse").Value)
+                    vEnd = vStart
+                    If m.Groups("vend").Success Then
+                        vEnd = Integer.Parse(m.Groups("vend").Value)
+                    End If
                 End If
 
                 detectedRefs.Add(New DetectedReference With {

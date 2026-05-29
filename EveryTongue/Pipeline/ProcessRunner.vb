@@ -56,7 +56,8 @@ Namespace Pipeline
                     Sub()
                         Try
                             If Not proc.HasExited Then proc.Kill(True)
-                        Catch
+                        Catch ex As Exception
+                            Services.Infrastructure.AppLogger.Log($"[ERROR] RunAsync: Failed to kill process on cancellation — {ex.Message}")
                         End Try
                     End Sub)
             End If
@@ -70,7 +71,8 @@ Namespace Pipeline
             Catch ex As OperationCanceledException
                 Try
                     If Not proc.HasExited Then proc.Kill(True)
-                Catch
+                Catch killEx As Exception
+                    Services.Infrastructure.AppLogger.Log($"[ERROR] RunAsync: Failed to kill process after cancellation — {killEx.Message}")
                 End Try
                 Throw
             Finally

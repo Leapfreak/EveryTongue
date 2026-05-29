@@ -93,7 +93,8 @@ Namespace Services.Translation
                     End If
                 Catch ex As OperationCanceledException
                     Exit For
-                Catch
+                Catch ex As Exception
+                    Services.Infrastructure.AppLogger.Log($"[ERROR] DeepLBackend.TranslateAsync: target={targetLang} - {ex.Message}")
                 End Try
             Next
             Return results
@@ -110,7 +111,8 @@ Namespace Services.Translation
                 Dim response = Await HttpClient.GetAsync(
                     $"https://api-free.deepl.com/v2/usage?auth_key={ApiKey}", ct)
                 Return response.IsSuccessStatusCode
-            Catch
+            Catch ex As Exception
+                Services.Infrastructure.AppLogger.Log($"[ERROR] DeepLBackend.CheckHealthAsync: {ex.Message}")
                 Return False
             End Try
         End Function
@@ -156,7 +158,8 @@ Namespace Services.Translation
                     End If
                 Catch ex As OperationCanceledException
                     Exit For
-                Catch
+                Catch ex As Exception
+                    Services.Infrastructure.AppLogger.Log($"[ERROR] GoogleBackend.TranslateAsync: target={targetLang} - {ex.Message}")
                 End Try
             Next
             Return results
@@ -221,7 +224,8 @@ Namespace Services.Translation
                     End Using
                 End If
             Catch ex As OperationCanceledException
-            Catch
+            Catch ex As Exception
+                Services.Infrastructure.AppLogger.Log($"[ERROR] AzureBackend.TranslateAsync: {ex.Message}")
             End Try
             Return results
         End Function
@@ -239,7 +243,7 @@ Namespace Services.Translation
     ' Shared helper
     Module CloudTranslationHelper
         Friend Function EscapeJson(s As String) As String
-            Return System.Text.Json.JsonSerializer.Serialize(s)
+            Return Pipeline.ProcessHelper.EscapeJson(s)
         End Function
     End Module
 End Namespace

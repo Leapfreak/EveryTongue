@@ -3,13 +3,18 @@
 ' This file wires event handlers and contains shell logic only.
 
 Imports System.Drawing
+Imports System.Threading
 Imports System.IO.Compression
 
 Partial Class FormMain
 
+    ' ── Controllers ───────────────────────────────────────────────────
+    Private _bibleController As Controllers.BibleController
+    Private _translateController As Controllers.TranslateController
+
     ' ── Runtime state (not controls) ──────────────────────────────────
     Private _activeNavButton As ToolStripButton
-    Private _liveStartTime As DateTime
+    Private _liveStartTime As DateTime ' used by liveElapsedTimer
     Private _formQr As FormQrCode
     Private _logPanelVisible As Boolean = False
     Private ReadOnly _unifiedLogBuffer As New System.Collections.Concurrent.ConcurrentQueue(Of (Time As DateTime, Source As String, Text As String, Color As Drawing.Color))
@@ -17,15 +22,12 @@ Partial Class FormMain
     Private _unifiedLogPending As Integer = 0
     Private Const UnifiedLogMaxLines As Integer = 3000
     Private _lastLogFilter As String = "All"
-    Friend _logDarkMode As Boolean = True
+    Friend _logDarkMode As Boolean = False
 
     ' ── Constants ───────────────────────────────────────────────────
-    Private Const NavRailWidth As Integer = 80
     Private Shared ReadOnly NavBackColor As Color = Color.FromArgb(37, 37, 38)
     Private Shared ReadOnly NavForeColor As Color = Color.FromArgb(200, 200, 200)
     Private Shared ReadOnly NavSelectedColor As Color = Color.FromArgb(0, 122, 204)
-    Private Shared ReadOnly NavHoverColor As Color = Color.FromArgb(51, 51, 52)
-    Private Shared ReadOnly NavAccentBar As Color = Color.FromArgb(0, 122, 204)
 
     Private _isFullScreen As Boolean = False
     Private _previousWindowState As FormWindowState
@@ -54,11 +56,19 @@ Partial Class FormMain
             Next
         Next
 
-        ' ── Set nav button images (runtime font rendering) ────────
-        btnNavLive.Image = RenderFontIcon(ChrW(&HE720), 28, NavForeColor)
-        btnNavTranscribe.Image = RenderFontIcon(ChrW(&HE8D4), 28, NavForeColor)
-        btnNavTranslate.Image = RenderFontIcon(ChrW(&HE774), 28, NavForeColor)
-        btnNavBible.Image = RenderFontIcon(ChrW(&HE736), 28, NavForeColor)
+        ' ── Set nav button images + colours (theme-aware) ────────
+        Dim inactiveBg, inactiveFg, activeBg As Color
+        GetNavThemeColors(inactiveBg, inactiveFg, activeBg)
+
+        tsNavBar.BackColor = inactiveBg
+        btnNavLive.Image = RenderFontIcon(ChrW(&HE720), 28, inactiveFg)
+        btnNavLive.ForeColor = inactiveFg
+        btnNavTranscribe.Image = RenderFontIcon(ChrW(&HE8D4), 28, inactiveFg)
+        btnNavTranscribe.ForeColor = inactiveFg
+        btnNavTranslate.Image = RenderFontIcon(ChrW(&HE774), 28, inactiveFg)
+        btnNavTranslate.ForeColor = inactiveFg
+        btnNavBible.Image = RenderFontIcon(ChrW(&HE736), 28, inactiveFg)
+        btnNavBible.ForeColor = inactiveFg
 
         ' Custom renderer for toolbar theme
         tsNavBar.Renderer = New NavToolStripRenderer()
@@ -72,7 +82,6 @@ Partial Class FormMain
         AddHandler mnuToolsTranslate.Click, Sub(s, e) SwitchWorkspace(tabPageTranslate, btnNavTranslate)
         AddHandler mnuToolsBible.Click, Sub(s, e)
                                             SwitchWorkspace(tabPageBibleWs, btnNavBible)
-                                            NavigateBibleView()
                                         End Sub
         AddHandler mnuToolsGlossary.Click, Sub(s, e)
                                                 Using dlg As New FormFilterEditor(AppDomain.CurrentDomain.BaseDirectory, _config.LiveServerPort, _config.TranslationPort, _resMgr)
@@ -92,12 +101,12 @@ Partial Class FormMain
                                            End Sub
         AddHandler mnuSessionStop.Click, Sub(s, e) btnLiveStop.PerformClick()
         AddHandler mnuSessionQR.Click, Sub(s, e) ShowQrCode()
-        AddHandler mnuSessionCopyUrl.Click, Sub(s, e) CopyPhoneUrl()
+        AddHandler mnuSessionCopyUrl.Click, Sub(s, e) _serverController?.CopyPhoneUrl()
 
         AddHandler mnuViewLogPanel.Click, Sub(s, e) ToggleLogPanel()
-        AddHandler mnuViewThemeSystem.Click, Sub(s, e) SetThemeFromMenu("System")
-        AddHandler mnuViewThemeLight.Click, Sub(s, e) SetThemeFromMenu("Light")
-        AddHandler mnuViewThemeDark.Click, Sub(s, e) SetThemeFromMenu("Dark")
+        AddHandler mnuViewThemeSystem.Click, Sub(s, e) SetThemeFromMenu(Models.ThemeMode.System)
+        AddHandler mnuViewThemeLight.Click, Sub(s, e) SetThemeFromMenu(Models.ThemeMode.Light)
+        AddHandler mnuViewThemeDark.Click, Sub(s, e) SetThemeFromMenu(Models.ThemeMode.Dark)
         AddHandler mnuViewFullScreen.Click, Sub(s, e) ToggleFullScreen()
 
         AddHandler mnuHelpQuickStart.Click, Sub(s, e) ShowLegacyTab(tabPageHelp)
@@ -130,7 +139,6 @@ Partial Class FormMain
         AddHandler btnNavTranslate.Click, Sub(s, e) SwitchWorkspace(tabPageTranslate, btnNavTranslate)
         AddHandler btnNavBible.Click, Sub(s, e)
                                           SwitchWorkspace(tabPageBibleWs, btnNavBible)
-                                          NavigateBibleView()
                                       End Sub
 
         ' ── Restore log panel height from config ────────────────
@@ -139,6 +147,15 @@ Partial Class FormMain
                                                    _config.LogPanelHeight = pnlLogPanel.Height
                                                    SaveUiToConfig()
                                                End Sub
+
+        ' ── Bible controller ────────────────────────────────────
+        _bibleController = New Controllers.BibleController(
+            cboBibleLang, cboBibleTrans, txtBibleRef, btnBibleGo,
+            btnBibleBack, lblBibleNavTitle, flpBibleNav, rtbBibleText,
+            AddressOf GetBibleService,
+            Function() WhisperToIso3(If(_config?.OutputLanguage, "en")),
+            AddressOf WriteDebugLog)
+        _bibleController.WireEvents()
 
         ' ── Wire status bar handlers ─────────────────────────────
         AddHandler tslLogToggle.Click, Sub(s, e) ToggleLogPanel()
@@ -170,37 +187,24 @@ Partial Class FormMain
                                               End If
                                           End Sub
 
-        ' ── Wire translate workspace handlers ────────────────────
-        AddHandler btnTransSwap.Click, Sub(s, e) SwapTranslateLanguages()
-        AddHandler btnTranslate.Click, Sub(s, e) RunTranslateAsync()
-        AddHandler btnTransCopy.Click, Sub(s, e)
-                                            If Not String.IsNullOrEmpty(txtTransInput.Text) Then
-                                                Clipboard.SetText(txtTransInput.Text)
-                                            End If
-                                        End Sub
-        AddHandler btnTransClear.Click, Sub(s, e) txtTransInput.Clear()
-        AddHandler btnTransOutCopy.Click, Sub(s, e)
-                                              If Not String.IsNullOrEmpty(txtTransOutput.Text) Then
-                                                  Clipboard.SetText(txtTransOutput.Text)
-                                              End If
-                                          End Sub
-        AddHandler btnTransOutClear.Click, Sub(s, e) txtTransOutput.Clear()
-
-        ' ── Populate translate language dropdowns ─────────────────
-        For Each lang In _whisperLanguages
-            If lang = "auto" Then Continue For
-            Dim display = LangDisplayName(lang)
-            cboTransSource.Items.Add(display)
-            cboTransTarget.Items.Add(display)
-        Next
-        cboTransSource.Items.Insert(0, LangDisplayName("auto"))
-        cboTransSource.SelectedIndex = 0
-        For i = 0 To cboTransTarget.Items.Count - 1
-            If cboTransTarget.Items(i).ToString().StartsWith("English") Then
-                cboTransTarget.SelectedIndex = i
-                Exit For
-            End If
-        Next
+        ' ── Wire translate workspace — delegated to TranslateController ──
+        _translateController = New Controllers.TranslateController(
+            _config,
+            txtTransInput, txtTransOutput,
+            cboTransSource, cboTransTarget,
+            btnTransSwap, btnTranslate,
+            btnTransCopy, btnTransClear,
+            btnTransOutCopy, btnTransOutClear,
+            lblTransStatus,
+            _whisperLanguages,
+            AddressOf LangDisplayName,
+            AddressOf LangCodeFromDisplay,
+            AddressOf StartTranslationService,
+            Function() _translationService,
+            Sub(msg) WriteDebugLog(msg),
+            AddressOf GetString)
+        _translateController.WireEvents()
+        _translateController.PopulateLanguageDropdowns()
 
         ' ── Keyboard shortcuts ─────────────────────────────────────
         AddHandler Me.KeyDown, AddressOf ShellKeyDown
@@ -221,7 +225,7 @@ Partial Class FormMain
                 Case Keys.D1 : SwitchWorkspace(tabPageLive, btnNavLive) : e.Handled = True
                 Case Keys.D2 : SwitchWorkspace(tabPageJob, btnNavTranscribe) : e.Handled = True
                 Case Keys.D3 : SwitchWorkspace(tabPageTranslate, btnNavTranslate) : e.Handled = True
-                Case Keys.D4 : SwitchWorkspace(tabPageBibleWs, btnNavBible) : NavigateBibleView() : e.Handled = True
+                Case Keys.D4 : SwitchWorkspace(tabPageBibleWs, btnNavBible) : e.Handled = True
             End Select
         End If
     End Sub
@@ -259,234 +263,21 @@ Partial Class FormMain
     End Function
 
     ' ═══════════════════════════════════════════════════════════════
-    ' Translate Workspace Logic
+    ' Bible Workspace — delegated to BibleController
     ' ═══════════════════════════════════════════════════════════════
 
-    Private Sub SwapTranslateLanguages()
-        If cboTransSource.SelectedIndex < 0 OrElse cboTransTarget.SelectedIndex < 0 Then Return
-        Dim srcText = cboTransSource.Text
-        Dim tgtText = cboTransTarget.Text
-        ' Don't swap if source is "Auto Detect"
-        If srcText.StartsWith("Auto") Then Return
-        cboTransSource.Text = tgtText
-        cboTransTarget.Text = srcText
-        ' Also swap the text content
-        Dim tmp = txtTransInput.Text
-        txtTransInput.Text = txtTransOutput.Text
-        txtTransOutput.Text = tmp
+    Private Sub InitBibleTab()
+        _bibleController?.Initialize()
     End Sub
 
-    Private Async Sub RunTranslateAsync()
-        Dim inputText = txtTransInput.Text.Trim()
-        If String.IsNullOrEmpty(inputText) Then Return
-
-        Dim sourceWhisper = LangCodeFromDisplay(cboTransSource.Text)
-        Dim targetWhisper = LangCodeFromDisplay(cboTransTarget.Text)
-
-        ' Convert whisper ISO codes to NLLB-200 codes for the translation server
-        Dim sourceLang = If(sourceWhisper = "auto", "eng_Latn",
-            Pipeline.TranslationService.WhisperToNllbLang(sourceWhisper))
-        Dim targetLang = Pipeline.TranslationService.WhisperToNllbLang(targetWhisper)
-
-        If String.IsNullOrEmpty(targetLang) Then
-            lblTransStatus.Text = $"Unsupported target language: {targetWhisper}"
-            lblTransStatus.ForeColor = Color.Red
-            Return
-        End If
-
-        btnTranslate.Enabled = False
-        txtTransOutput.Text = ""
-
-        ' Ensure translation service is running (auto-start if needed)
-        If Not Await EnsureTranslationServiceAsync() Then
-            btnTranslate.Enabled = True
-            Return
-        End If
-
-        ' Split input into sentences so the NLLB model translates each one properly
-        Dim sentences = SplitIntoSentences(inputText)
-        lblTransStatus.Text = $"Translating ({sentences.Count} segment(s))..."
-        lblTransStatus.ForeColor = Color.FromArgb(0, 122, 204)
-
-        Try
-            Dim port = _config.TranslationPort
-            Using client As New System.Net.Http.HttpClient()
-                client.Timeout = TimeSpan.FromSeconds(60)
-                Dim url = $"http://127.0.0.1:{port}/translate"
-                Dim results As New System.Text.StringBuilder()
-
-                For idx = 0 To sentences.Count - 1
-                    Dim sentence = sentences(idx)
-                    If String.IsNullOrWhiteSpace(sentence) Then
-                        results.AppendLine()
-                        Continue For
-                    End If
-
-                    lblTransStatus.Text = $"Translating {idx + 1}/{sentences.Count}..."
-
-                    Dim bodyObj As New Dictionary(Of String, Object) From {
-                        {"text", sentence},
-                        {"source_lang", sourceLang},
-                        {"target_langs", New String() {targetLang}}
-                    }
-                    Dim bodyJson = System.Text.Json.JsonSerializer.Serialize(bodyObj)
-                    Dim content As New System.Net.Http.StringContent(
-                        bodyJson, System.Text.Encoding.UTF8, "application/json")
-
-                    Dim response = Await client.PostAsync(url, content)
-                    If response.IsSuccessStatusCode Then
-                        Dim json = Await response.Content.ReadAsStringAsync()
-                        Dim doc = System.Text.Json.JsonDocument.Parse(json)
-                        Dim root = doc.RootElement
-
-                        Dim translationsEl As System.Text.Json.JsonElement
-                        Dim resultEl As System.Text.Json.JsonElement
-                        If root.TryGetProperty("translations", translationsEl) Then
-                            If translationsEl.TryGetProperty(targetLang, resultEl) Then
-                                If results.Length > 0 Then results.Append(" ")
-                                results.Append(resultEl.GetString())
-                            End If
-                        End If
-                    Else
-                        lblTransStatus.Text = $"Error: {response.StatusCode}"
-                        lblTransStatus.ForeColor = Color.Red
-                        txtTransOutput.Text = results.ToString()
-                        Return
-                    End If
-                Next
-
-                txtTransOutput.Text = results.ToString()
-                lblTransStatus.Text = "Done"
-                lblTransStatus.ForeColor = Color.Green
-            End Using
-        Catch ex As System.Net.Http.HttpRequestException
-            lblTransStatus.Text = "Translation server connection failed — try again"
-            lblTransStatus.ForeColor = Color.Red
-        Catch ex As TaskCanceledException
-            lblTransStatus.Text = "Request timed out"
-            lblTransStatus.ForeColor = Color.Red
-        Catch ex As Exception
-            lblTransStatus.Text = $"Error: {ex.Message}"
-            lblTransStatus.ForeColor = Color.Red
-        Finally
-            btnTranslate.Enabled = True
-        End Try
-    End Sub
-
-    ''' <summary>
-    ''' Ensures the translation service is started and model loaded.
-    ''' Auto-starts the service if needed and waits for readiness.
-    ''' </summary>
-    Private Async Function EnsureTranslationServiceAsync() As Task(Of Boolean)
-        WriteDebugLog($"[TRANSLATE] EnsureTranslationServiceAsync: service={_translationService IsNot Nothing}, isRunning={_translationService?.IsRunning}, isModelLoaded={_translationService?.IsModelLoaded}, config.TranslationEnabled={_config.TranslationEnabled}")
-
-        ' Start if not running
-        If _translationService Is Nothing OrElse Not _translationService.IsRunning Then
-            Dim deps = Pipeline.TranslationService.CheckDependenciesInstalled()
-            WriteDebugLog($"[TRANSLATE] Deps check: pythonOk={deps.pythonOk}, depsOk={deps.depsOk}, modelOk={deps.modelOk}")
-            If Not deps.pythonOk OrElse Not deps.depsOk OrElse Not deps.modelOk Then
-                lblTransStatus.Text = "Translation dependencies not installed. Use Tools > Download Manager."
-                lblTransStatus.ForeColor = Color.Red
-                Return False
-            End If
-            lblTransStatus.Text = "Starting translation engine..."
-            lblTransStatus.ForeColor = Color.FromArgb(0, 122, 204)
-            WriteDebugLog("[TRANSLATE] Calling StartTranslationService...")
-            StartTranslationService()
-        End If
-
-        ' Guard against null service (e.g. TranslationEnabled=False)
-        If _translationService Is Nothing Then
-            WriteDebugLog("[TRANSLATE] Service is Nothing after start attempt — TranslationEnabled is likely False")
-            lblTransStatus.Text = "Translation is disabled in settings"
-            lblTransStatus.ForeColor = Color.Red
-            Return False
-        End If
-
-        ' Reload model if server is running but model was unloaded
-        If _translationService.IsRunning AndAlso Not _translationService.IsModelLoaded Then
-            WriteDebugLog("[TRANSLATE] Server running but model not loaded — reloading...")
-            lblTransStatus.Text = "Loading translation model..."
-            lblTransStatus.ForeColor = Color.FromArgb(0, 122, 204)
-            Try
-                Await _translationService.LoadModelAsync()
-            Catch ex As Exception
-                WriteDebugLog($"[TRANSLATE] LoadModelAsync failed: {ex.Message}")
-            End Try
-        End If
-
-        ' Wait for model to load (up to 120s)
-        If Not _translationService.IsModelLoaded Then
-            WriteDebugLog("[TRANSLATE] Waiting for model to load (up to 120s)...")
-            lblTransStatus.Text = "Waiting for translation model..."
-            lblTransStatus.ForeColor = Color.FromArgb(0, 122, 204)
-            Dim waited = 0
-            While Not _translationService.IsModelLoaded AndAlso waited < 120000
-                Await Task.Delay(500)
-                waited += 500
-            End While
-            WriteDebugLog($"[TRANSLATE] Wait complete: waited={waited}ms, isModelLoaded={_translationService.IsModelLoaded}")
-            If Not _translationService.IsModelLoaded Then
-                lblTransStatus.Text = "Translation model failed to load"
-                lblTransStatus.ForeColor = Color.Red
-                Return False
-            End If
-        End If
-
-        WriteDebugLog("[TRANSLATE] Translation service ready")
-        Return True
+    Private Function GetBibleService() As Services.Interfaces.IBibleService
+        Dim host = _serverController?.KestrelHost
+        Return TryCast(host?.Services?.GetService(
+            GetType(Services.Interfaces.IBibleService)), Services.Interfaces.IBibleService)
     End Function
 
-    ''' <summary>Split text into sentences, preserving blank lines as empty entries.</summary>
-    Private Shared Function SplitIntoSentences(text As String) As List(Of String)
-        Dim result As New List(Of String)()
-        Dim lines = text.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None)
-        For Each line In lines
-            Dim trimmed = line.Trim()
-            If String.IsNullOrEmpty(trimmed) Then
-                result.Add("")
-                Continue For
-            End If
-            Dim sentences = System.Text.RegularExpressions.Regex.Split(
-                trimmed, "(?<=[.!?])\s+")
-            For Each s In sentences
-                Dim st = s.Trim()
-                If st.Length > 0 Then result.Add(st)
-            Next
-        Next
-        Return result
-    End Function
-
-    ' ═══════════════════════════════════════════════════════════════
-    ' Bible Workspace Logic
-    ' ═══════════════════════════════════════════════════════════════
-
-    ''' <summary>
-    ''' Navigates the Bible WebView2 to the server's Bible tab.
-    ''' Called after the server starts.
-    ''' </summary>
-    Private Sub NavigateBibleView()
-        WriteDebugLog($"[BIBLE] NavigateBibleView called — wvBible={wvBible IsNot Nothing}, _serverPort={_serverPort}")
-        If wvBible Is Nothing OrElse _serverPort = 0 Then
-            WriteDebugLog("[BIBLE] NavigateBibleView aborted: wvBible or port is not ready")
-            Return
-        End If
-        Try
-            Dim rawLang = _config?.OutputLanguage
-            Dim lang = If(rawLang, "en")
-            If String.IsNullOrEmpty(lang) OrElse lang = "auto" Then lang = "en"
-            ' Convert 2-letter Whisper code to 3-letter ISO 639-3 for Bible matching
-            lang = WhisperToIso3(lang)
-            WriteDebugLog($"[BIBLE] NavigateBibleView: rawOutputLang={rawLang}, resolvedLang={lang}, configInputLang={_config?.Language}, configBiblesDir={_config?.BiblesDirectory}")
-            Dim bust = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
-            Dim url = $"http://127.0.0.1:{_serverPort}/?bibleLang={lang}&preview=1&_cb={bust}"
-            WriteDebugLog($"[BIBLE] Navigating to: {url}")
-            wvBible.Source = New Uri(url)
-            wvBible.Visible = True
-            lblBibleStatus.Visible = False
-        Catch ex As Exception
-            WriteDebugLog($"[ERROR] NavigateBibleView: {ex.Message}")
-        End Try
+    Friend Sub RefreshBibleTab()
+        _bibleController?.Refresh()
     End Sub
 
     ' ═══════════════════════════════════════════════════════════════
@@ -677,23 +468,20 @@ Partial Class FormMain
     ' ═══════════════════════════════════════════════════════════════
     ' Workspace Switching
     ' ═══════════════════════════════════════════════════════════════
-    Private Sub GetNavThemeColors(ByRef inactiveBg As Color, ByRef inactiveFg As Color, ByRef activeBg As Color, ByRef hoverBg As Color)
-        Select Case If(_config?.Theme, "System").ToLower()
-            Case "light"
+    Private Sub GetNavThemeColors(ByRef inactiveBg As Color, ByRef inactiveFg As Color, ByRef activeBg As Color)
+        Select Case If(_config?.Theme, Models.ThemeMode.System)
+            Case Models.ThemeMode.Light
                 inactiveBg = Color.FromArgb(240, 240, 240)
                 inactiveFg = Color.FromArgb(60, 60, 60)
                 activeBg = Color.FromArgb(0, 122, 204)
-                hoverBg = Color.FromArgb(220, 220, 220)
-            Case "dark"
+            Case Models.ThemeMode.Dark
                 inactiveBg = NavBackColor
                 inactiveFg = NavForeColor
                 activeBg = NavSelectedColor
-                hoverBg = NavHoverColor
             Case Else
                 inactiveBg = SystemColors.Control
                 inactiveFg = SystemColors.ControlText
                 activeBg = Color.FromArgb(0, 122, 204)
-                hoverBg = SystemColors.ControlLight
         End Select
     End Sub
 
@@ -702,8 +490,8 @@ Partial Class FormMain
             tabMain.SelectedTab = tabPage
         End If
 
-        Dim inactiveBg, inactiveFg, activeBg, hoverBg As Color
-        GetNavThemeColors(inactiveBg, inactiveFg, activeBg, hoverBg)
+        Dim inactiveBg, inactiveFg, activeBg As Color
+        GetNavThemeColors(inactiveBg, inactiveFg, activeBg)
 
         If _activeNavButton IsNot Nothing Then
             _activeNavButton.BackColor = inactiveBg
@@ -723,8 +511,8 @@ Partial Class FormMain
     ''' </summary>
     Private Sub ShowLegacyTab(tabPage As TabPage)
         If _activeNavButton IsNot Nothing Then
-            Dim inactiveBg, inactiveFg, activeBg, hoverBg As Color
-            GetNavThemeColors(inactiveBg, inactiveFg, activeBg, hoverBg)
+            Dim inactiveBg, inactiveFg, activeBg As Color
+            GetNavThemeColors(inactiveBg, inactiveFg, activeBg)
 
             _activeNavButton.BackColor = inactiveBg
             _activeNavButton.ForeColor = inactiveFg
@@ -767,14 +555,14 @@ Partial Class FormMain
     End Sub
 
     Private Sub ShowQrCode()
-        If _serverPort = 0 Then
+        If _serverController Is Nothing OrElse _serverController.Port = 0 Then
             MessageBox.Show("The server is not running. Start a live session first.",
                 "QR Code", MessageBoxButtons.OK, MessageBoxIcon.Information)
             Return
         End If
 
-        Dim localIp = GetLocalIpAddress()
-        Dim url = $"https://{localIp}:{_serverPort + 1}"
+        Dim localIp = Controllers.ServerController.GetLocalIpAddress()
+        Dim url = $"https://{localIp}:{_serverController.Port + 1}"
 
         If _formQr Is Nothing OrElse _formQr.IsDisposed Then
             _formQr = New FormQrCode(url)
@@ -852,7 +640,7 @@ Partial Class FormMain
         End Using
     End Sub
 
-    Private Sub SetThemeFromMenu(theme As String)
+    Private Sub SetThemeFromMenu(theme As Models.ThemeMode)
         _config.Theme = theme
         Models.ConfigManager.Save(_config)
         ApplyTheme(theme)
@@ -883,8 +671,8 @@ Partial Class FormMain
     Private Sub UpdateShellStatus()
         If statusMain Is Nothing Then Return
 
-        If _kestrelHost IsNot Nothing AndAlso _kestrelHost.IsRunning Then
-            tslServerStatus.Text = $"Server: Running :{_serverPort}"
+        If _serverController IsNot Nothing AndAlso _serverController.IsRunning Then
+            tslServerStatus.Text = $"Server: Running :{_serverController.Port}"
             tslServerStatus.ForeColor = Color.Green
         Else
             tslServerStatus.Text = "Server: Stopped"
@@ -895,7 +683,7 @@ Partial Class FormMain
         Dim clients = If(svc?.ConnectedClients, 0)
         tslClients.Text = $"Clients: {clients}"
 
-        If _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning Then
+        If _liveController IsNot Nothing AndAlso _liveController.IsRunning Then
             tslLiveStatus.Text = "Live: Running"
             tslLiveStatus.ForeColor = Color.Green
             If Not liveElapsedTimer.Enabled Then
@@ -915,12 +703,12 @@ Partial Class FormMain
     ''' <summary>
     ''' Applies shell-specific theming to the nav rail and status bar.
     ''' </summary>
-    Private Sub ApplyShellTheme(theme As String)
+    Private Sub ApplyShellTheme(theme As Models.ThemeMode)
         WriteDebugLog($"[THEME] ApplyShellTheme called with theme=""{theme}"", tsNavBar={tsNavBar IsNot Nothing}, activeBtn={_activeNavButton?.Text}")
         If tsNavBar Is Nothing Then Return
 
-        Dim inactiveBg, inactiveFg, activeBg, hoverBg As Color
-        GetNavThemeColors(inactiveBg, inactiveFg, activeBg, hoverBg)
+        Dim inactiveBg, inactiveFg, activeBg As Color
+        GetNavThemeColors(inactiveBg, inactiveFg, activeBg)
 
         tsNavBar.BackColor = inactiveBg
 
@@ -943,15 +731,11 @@ Partial Class FormMain
 
         ' Theme the log panel
         If rtbUnifiedLog IsNot Nothing Then
-            Select Case theme.ToLower()
-                Case "light"
+            Select Case theme
+                Case Models.ThemeMode.Light
                     _logDarkMode = False
                     rtbUnifiedLog.BackColor = Color.FromArgb(255, 255, 255)
                     rtbUnifiedLog.ForeColor = Color.FromArgb(30, 30, 30)
-                Case "dark"
-                    _logDarkMode = True
-                    rtbUnifiedLog.BackColor = Color.FromArgb(30, 30, 30)
-                    rtbUnifiedLog.ForeColor = Color.FromArgb(200, 200, 200)
                 Case Else
                     _logDarkMode = True
                     rtbUnifiedLog.BackColor = Color.FromArgb(30, 30, 30)
@@ -964,13 +748,13 @@ Partial Class FormMain
 
         ' Theme the translate workspace
         If txtTransInput IsNot Nothing Then
-            Select Case theme.ToLower()
-                Case "dark"
+            Select Case theme
+                Case Models.ThemeMode.Dark
                     txtTransInput.BackColor = Color.FromArgb(45, 45, 48)
                     txtTransInput.ForeColor = Color.FromArgb(220, 220, 220)
                     txtTransOutput.BackColor = Color.FromArgb(45, 45, 48)
                     txtTransOutput.ForeColor = Color.FromArgb(220, 220, 220)
-                Case "light"
+                Case Models.ThemeMode.Light
                     txtTransInput.BackColor = Color.White
                     txtTransInput.ForeColor = Color.Black
                     txtTransOutput.BackColor = Color.White
@@ -985,9 +769,9 @@ Partial Class FormMain
 
         ' Update theme menu checkmarks
         If mnuViewThemeSystem IsNot Nothing Then
-            mnuViewThemeSystem.Checked = theme.Equals("System", StringComparison.OrdinalIgnoreCase)
-            mnuViewThemeLight.Checked = theme.Equals("Light", StringComparison.OrdinalIgnoreCase)
-            mnuViewThemeDark.Checked = theme.Equals("Dark", StringComparison.OrdinalIgnoreCase)
+            mnuViewThemeSystem.Checked = (theme = Models.ThemeMode.System)
+            mnuViewThemeLight.Checked = (theme = Models.ThemeMode.Light)
+            mnuViewThemeDark.Checked = (theme = Models.ThemeMode.Dark)
         End If
     End Sub
 

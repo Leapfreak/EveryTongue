@@ -93,8 +93,9 @@ Public Class FormOptions
                 Exit For
             End If
         Next
-        SelectItem(cboTheme, _config.Theme)
+        SelectItem(cboTheme, _config.Theme.ToString())
         chkStartWindows.Checked = _config.StartWithWindows
+        chkMinimizeToTray.Checked = _config.MinimizeToTray
 
         ' Paths
         txtWhisper.Text = _config.PathWhisper
@@ -135,8 +136,14 @@ Public Class FormOptions
         If cboUiLang.SelectedIndex >= 0 AndAlso cboUiLang.SelectedIndex < _uiLocales.Length Then
             _config.UiLanguage = _uiLocales(cboUiLang.SelectedIndex).Code
         End If
-        If cboTheme.SelectedItem IsNot Nothing Then _config.Theme = cboTheme.SelectedItem.ToString()
+        If cboTheme.SelectedItem IsNot Nothing Then
+            Dim parsed As Models.ThemeMode
+            If [Enum].TryParse(cboTheme.SelectedItem.ToString(), True, parsed) Then
+                _config.Theme = parsed
+            End If
+        End If
         _config.StartWithWindows = chkStartWindows.Checked
+        _config.MinimizeToTray = chkMinimizeToTray.Checked
 
         ' Paths
         _config.PathWhisper = txtWhisper.Text

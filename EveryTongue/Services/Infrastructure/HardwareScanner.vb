@@ -90,7 +90,7 @@ Namespace Services.Infrastructure
                     End If
                 End Using
             Catch ex As Exception
-                Debug.WriteLine($"[HW] nvidia-smi not available: {ex.Message}")
+                FormMain.WriteDebugLog($"[HW] nvidia-smi not available: {ex.Message}")
             End Try
 
             ' Fallback to WMI if nvidia-smi didn't work
@@ -111,7 +111,7 @@ Namespace Services.Infrastructure
                         Next
                     End Using
                 Catch ex As Exception
-                    Debug.WriteLine($"[HW] WMI GPU scan failed: {ex.Message}")
+                    FormMain.WriteDebugLog($"[HW] WMI GPU scan failed: {ex.Message}")
                 End Try
             End If
 
@@ -151,7 +151,7 @@ Namespace Services.Infrastructure
                     Next
                 End Using
             Catch ex As Exception
-                Debug.WriteLine($"[HW] WMI CPU scan failed: {ex.Message}")
+                FormMain.WriteDebugLog($"[HW] WMI CPU scan failed: {ex.Message}")
             End Try
 
             ' Score CPU by core count
@@ -181,7 +181,7 @@ Namespace Services.Infrastructure
                     Next
                 End Using
             Catch ex As Exception
-                Debug.WriteLine($"[HW] WMI RAM scan failed: {ex.Message}")
+                FormMain.WriteDebugLog($"[HW] WMI RAM scan failed: {ex.Message}")
             End Try
 
             ' Score RAM
@@ -204,7 +204,7 @@ Namespace Services.Infrastructure
                 Dim driveInfo As New IO.DriveInfo(appDrive)
                 info.DiskFreeMB = driveInfo.AvailableFreeSpace \ (1024 * 1024)
             Catch ex As Exception
-                Debug.WriteLine($"[HW] Disk scan failed: {ex.Message}")
+                FormMain.WriteDebugLog($"[HW] Disk scan failed: {ex.Message}")
             End Try
 
             ' Score disk free space

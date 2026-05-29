@@ -1,0 +1,295 @@
+Imports System.Text.RegularExpressions
+
+Namespace Controllers
+    ''' <summary>
+    ''' Manages the Translate workspace — source/target language selection,
+    ''' text translation via NLLB, swap, copy/clear buttons.
+    ''' Extracted from FormMain.Shell.vb.
+    ''' </summary>
+    Friend Class TranslateController
+
+        ' UI controls
+        Private ReadOnly _txtInput As TextBox
+        Private ReadOnly _txtOutput As TextBox
+        Private ReadOnly _cboSource As ComboBox
+        Private ReadOnly _cboTarget As ComboBox
+        Private ReadOnly _btnSwap As Button
+        Private ReadOnly _btnTranslate As Button
+        Private ReadOnly _btnCopy As Button
+        Private ReadOnly _btnClear As Button
+        Private ReadOnly _btnOutCopy As Button
+        Private ReadOnly _btnOutClear As Button
+        Private ReadOnly _lblStatus As Label
+
+        ' Callbacks
+        Private ReadOnly _config As Models.AppConfig
+        Private ReadOnly _langDisplayName As Func(Of String, String)
+        Private ReadOnly _langCodeFromDisplay As Func(Of String, String)
+        Private ReadOnly _whisperLanguages As String()
+        Private ReadOnly _startTranslationService As Action
+        Private ReadOnly _getTranslationService As Func(Of Pipeline.TranslationService)
+        Private ReadOnly _debugLog As Action(Of String)
+        Private ReadOnly _getString As Func(Of String, String)
+
+        Public Sub New(config As Models.AppConfig,
+                       txtInput As TextBox, txtOutput As TextBox,
+                       cboSource As ComboBox, cboTarget As ComboBox,
+                       btnSwap As Button, btnTranslate As Button,
+                       btnCopy As Button, btnClear As Button,
+                       btnOutCopy As Button, btnOutClear As Button,
+                       lblStatus As Label,
+                       whisperLanguages As String(),
+                       langDisplayName As Func(Of String, String),
+                       langCodeFromDisplay As Func(Of String, String),
+                       startTranslationService As Action,
+                       getTranslationService As Func(Of Pipeline.TranslationService),
+                       debugLog As Action(Of String),
+                       getString As Func(Of String, String))
+            _config = config
+            _txtInput = txtInput
+            _txtOutput = txtOutput
+            _cboSource = cboSource
+            _cboTarget = cboTarget
+            _btnSwap = btnSwap
+            _btnTranslate = btnTranslate
+            _btnCopy = btnCopy
+            _btnClear = btnClear
+            _btnOutCopy = btnOutCopy
+            _btnOutClear = btnOutClear
+            _lblStatus = lblStatus
+            _whisperLanguages = whisperLanguages
+            _langDisplayName = langDisplayName
+            _langCodeFromDisplay = langCodeFromDisplay
+            _startTranslationService = startTranslationService
+            _getTranslationService = getTranslationService
+            _debugLog = debugLog
+            _getString = getString
+        End Sub
+
+        Public Sub WireEvents()
+            AddHandler _btnSwap.Click, Sub(s, e) SwapLanguages()
+            AddHandler _btnTranslate.Click, Sub(s, e) RunTranslateAsync()
+            AddHandler _btnCopy.Click, Sub(s, e)
+                                            If Not String.IsNullOrEmpty(_txtInput.Text) Then
+                                                Clipboard.SetText(_txtInput.Text)
+                                            End If
+                                        End Sub
+            AddHandler _btnClear.Click, Sub(s, e) _txtInput.Clear()
+            AddHandler _btnOutCopy.Click, Sub(s, e)
+                                              If Not String.IsNullOrEmpty(_txtOutput.Text) Then
+                                                  Clipboard.SetText(_txtOutput.Text)
+                                              End If
+                                          End Sub
+            AddHandler _btnOutClear.Click, Sub(s, e) _txtOutput.Clear()
+        End Sub
+
+        Public Sub PopulateLanguageDropdowns()
+            For Each lang In _whisperLanguages
+                If lang = "auto" Then Continue For
+                Dim display = _langDisplayName(lang)
+                _cboSource.Items.Add(display)
+                _cboTarget.Items.Add(display)
+            Next
+            _cboSource.Items.Insert(0, _langDisplayName("auto"))
+            _cboSource.SelectedIndex = 0
+            For i = 0 To _cboTarget.Items.Count - 1
+                If _cboTarget.Items(i).ToString().StartsWith("English") Then
+                    _cboTarget.SelectedIndex = i
+                    Exit For
+                End If
+            Next
+        End Sub
+
+        Private Sub SwapLanguages()
+            If _cboSource.SelectedIndex < 0 OrElse _cboTarget.SelectedIndex < 0 Then Return
+            Dim srcText = _cboSource.Text
+            Dim tgtText = _cboTarget.Text
+            If srcText.StartsWith("Auto") Then Return
+            _cboSource.Text = tgtText
+            _cboTarget.Text = srcText
+            Dim tmp = _txtInput.Text
+            _txtInput.Text = _txtOutput.Text
+            _txtOutput.Text = tmp
+        End Sub
+
+        Private Async Sub RunTranslateAsync()
+            Dim inputText = _txtInput.Text.Trim()
+            If String.IsNullOrEmpty(inputText) Then Return
+
+            Dim sourceWhisper = _langCodeFromDisplay(_cboSource.Text)
+            Dim targetWhisper = _langCodeFromDisplay(_cboTarget.Text)
+
+            Dim sourceLang = If(sourceWhisper = "auto", "eng_Latn",
+                Pipeline.TranslationService.WhisperToNllbLang(sourceWhisper))
+            Dim targetLang = Pipeline.TranslationService.WhisperToNllbLang(targetWhisper)
+
+            If String.IsNullOrEmpty(targetLang) Then
+                _lblStatus.Text = $"Unsupported target language: {targetWhisper}"
+                _lblStatus.ForeColor = Drawing.Color.Red
+                Return
+            End If
+
+            _btnTranslate.Enabled = False
+            _txtOutput.Text = ""
+
+            If Not Await EnsureTranslationServiceAsync() Then
+                _btnTranslate.Enabled = True
+                Return
+            End If
+
+            Dim sentences = SplitIntoSentences(inputText)
+            _lblStatus.Text = $"Translating ({sentences.Count} segment(s))..."
+            _lblStatus.ForeColor = Drawing.Color.FromArgb(0, 122, 204)
+
+            Try
+                Dim port = _config.TranslationPort
+                Using client As New System.Net.Http.HttpClient()
+                    client.Timeout = TimeSpan.FromSeconds(60)
+                    Dim url = $"http://127.0.0.1:{port}/translate"
+                    Dim results As New System.Text.StringBuilder()
+
+                    For idx = 0 To sentences.Count - 1
+                        Dim sentence = sentences(idx)
+                        If String.IsNullOrWhiteSpace(sentence) Then
+                            results.AppendLine()
+                            Continue For
+                        End If
+
+                        _lblStatus.Text = $"Translating {idx + 1}/{sentences.Count}..."
+
+                        Dim bodyObj As New Dictionary(Of String, Object) From {
+                            {"text", sentence},
+                            {"source_lang", sourceLang},
+                            {"target_langs", New String() {targetLang}}
+                        }
+                        Dim bodyJson = System.Text.Json.JsonSerializer.Serialize(bodyObj)
+                        Dim content As New System.Net.Http.StringContent(
+                            bodyJson, System.Text.Encoding.UTF8, "application/json")
+
+                        Dim response = Await client.PostAsync(url, content)
+                        If response.IsSuccessStatusCode Then
+                            Dim json = Await response.Content.ReadAsStringAsync()
+                            Dim doc = System.Text.Json.JsonDocument.Parse(json)
+                            Dim root = doc.RootElement
+
+                            Dim translationsEl As System.Text.Json.JsonElement
+                            Dim resultEl As System.Text.Json.JsonElement
+                            If root.TryGetProperty("translations", translationsEl) Then
+                                If translationsEl.TryGetProperty(targetLang, resultEl) Then
+                                    If results.Length > 0 Then results.Append(" ")
+                                    results.Append(resultEl.GetString())
+                                End If
+                            End If
+                        Else
+                            _lblStatus.Text = $"Error: {response.StatusCode}"
+                            _lblStatus.ForeColor = Drawing.Color.Red
+                            _txtOutput.Text = results.ToString()
+                            Return
+                        End If
+                    Next
+
+                    _txtOutput.Text = results.ToString()
+                    _lblStatus.Text = "Done"
+                    _lblStatus.ForeColor = Drawing.Color.Green
+                End Using
+            Catch ex As System.Net.Http.HttpRequestException
+                _lblStatus.Text = "Translation server connection failed — try again"
+                _lblStatus.ForeColor = Drawing.Color.Red
+            Catch ex As TaskCanceledException
+                _lblStatus.Text = "Request timed out"
+                _lblStatus.ForeColor = Drawing.Color.Red
+            Catch ex As Exception
+                _lblStatus.Text = $"Error: {ex.Message}"
+                _lblStatus.ForeColor = Drawing.Color.Red
+            Finally
+                _btnTranslate.Enabled = True
+            End Try
+        End Sub
+
+        Private Async Function EnsureTranslationServiceAsync() As Task(Of Boolean)
+            Dim svc = _getTranslationService()
+            _debugLog($"[TRANSLATE] EnsureTranslationServiceAsync: service={svc IsNot Nothing}, isRunning={svc?.IsRunning}, isModelLoaded={svc?.IsModelLoaded}, config.TranslationEnabled={_config.TranslationEnabled}")
+
+            ' Start if not running
+            If svc Is Nothing OrElse Not svc.IsRunning Then
+                Dim deps = Pipeline.TranslationService.CheckDependenciesInstalled()
+                _debugLog($"[TRANSLATE] Deps check: pythonOk={deps.pythonOk}, depsOk={deps.depsOk}, modelOk={deps.modelOk}")
+                If Not deps.pythonOk OrElse Not deps.depsOk OrElse Not deps.modelOk Then
+                    _lblStatus.Text = _getString("Msg_TransDepsMissing")
+                    _lblStatus.ForeColor = Drawing.Color.Red
+                    Services.Infrastructure.AppLogger.PromptDownloadManager(
+                        _getString("Msg_TransDepsMissing") & vbCrLf & vbCrLf & _getString("Msg_OpenDownloadManager"),
+                        _getString("Msg_DepsMissing"))
+                    Return False
+                End If
+                _lblStatus.Text = "Starting translation engine..."
+                _lblStatus.ForeColor = Drawing.Color.FromArgb(0, 122, 204)
+                _debugLog("[TRANSLATE] Calling StartTranslationService...")
+                _startTranslationService()
+            End If
+
+            ' Re-fetch after start attempt
+            svc = _getTranslationService()
+
+            ' Guard against null service (e.g. TranslationEnabled=False)
+            If svc Is Nothing Then
+                _debugLog("[TRANSLATE] Service is Nothing after start attempt — TranslationEnabled is likely False")
+                _lblStatus.Text = "Translation is disabled in settings"
+                _lblStatus.ForeColor = Drawing.Color.Red
+                Return False
+            End If
+
+            ' Reload model if server is running but model was unloaded
+            If svc.IsRunning AndAlso Not svc.IsModelLoaded Then
+                _debugLog("[TRANSLATE] Server running but model not loaded — reloading...")
+                _lblStatus.Text = "Loading translation model..."
+                _lblStatus.ForeColor = Drawing.Color.FromArgb(0, 122, 204)
+                Try
+                    Await svc.LoadModelAsync()
+                Catch ex As Exception
+                    _debugLog($"[TRANSLATE] LoadModelAsync failed: {ex.Message}")
+                End Try
+            End If
+
+            ' Wait for model to load (up to 120s)
+            If Not svc.IsModelLoaded Then
+                _debugLog("[TRANSLATE] Waiting for model to load (up to 120s)...")
+                _lblStatus.Text = "Waiting for translation model..."
+                _lblStatus.ForeColor = Drawing.Color.FromArgb(0, 122, 204)
+                Dim waited = 0
+                While Not svc.IsModelLoaded AndAlso waited < 120000
+                    Await Task.Delay(500)
+                    waited += 500
+                End While
+                _debugLog($"[TRANSLATE] Wait complete: waited={waited}ms, isModelLoaded={svc.IsModelLoaded}")
+                If Not svc.IsModelLoaded Then
+                    _lblStatus.Text = "Translation model failed to load"
+                    _lblStatus.ForeColor = Drawing.Color.Red
+                    Return False
+                End If
+            End If
+
+            _debugLog("[TRANSLATE] Translation service ready")
+            Return True
+        End Function
+
+        Private Shared Function SplitIntoSentences(text As String) As List(Of String)
+            Dim result As New List(Of String)()
+            Dim lines = text.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None)
+            For Each line In lines
+                Dim trimmed = line.Trim()
+                If String.IsNullOrEmpty(trimmed) Then
+                    result.Add("")
+                    Continue For
+                End If
+                Dim sentences = Regex.Split(trimmed, "(?<=[.!?])\s+")
+                For Each s In sentences
+                    Dim st = s.Trim()
+                    If st.Length > 0 Then result.Add(st)
+                Next
+            Next
+            Return result
+        End Function
+
+    End Class
+End Namespace

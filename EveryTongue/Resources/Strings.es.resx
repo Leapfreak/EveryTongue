@@ -168,9 +168,7 @@
   <data name="Msg_NewVersionAvailable"><value>Hay una nueva versi&#243;n disponible:</value></data>
   <data name="Msg_DownloadUpdate"><value>&#191;Desea visitar la p&#225;gina de descarga?</value></data>
   <data name="Msg_UpdateAvailable"><value>Actualizaci&#243;n disponible</value></data>
-  <data name="Msg_LiveDepsMissing"><value>Las dependencias de transcripci&#243;n en vivo no est&#225;n instaladas.
-
-Ejecute la verificaci&#243;n de dependencias desde la pesta&#241;a Configuraci&#243;n para descargar todos los componentes necesarios.</value></data>
+  <data name="Msg_LiveDepsMissing"><value>Las dependencias de transcripción en vivo no están instaladas.</value></data>
   <data name="Msg_DepsMissing"><value>Dependencias faltantes</value></data>
   <data name="Tab_LiveOutput"><value>Salida en Vivo</value></data>
   <data name="Tab_LiveLog"><value>Registro</value></data>
@@ -211,4 +209,12 @@ Ejecute la verificaci&#243;n de dependencias desde la pesta&#241;a Configuraci&#
   <data name="FE_ColTargetLang"><value>Idioma destino</value></data>
   <data name="FE_ColWrong"><value>Palabra errónea</value></data>
   <data name="FE_ColRight"><value>Palabra correcta</value></data>
+  <data name="FirstRun_StartWithWindows"><value>¿Desea que Every Tongue se inicie automáticamente con Windows?</value></data>
+  <data name="FirstRun_StartupTitle"><value>Preferencia de inicio</value></data>
+  <data name="FirstRun_AllowFirewall"><value>¿Permitir que Every Tongue acepte conexiones de otros dispositivos en su red?
+
+Esto es necesario para que los teléfonos muestren subtítulos en vivo. Windows puede solicitar permiso de administrador.</value></data>
+  <data name="FirstRun_NetworkTitle"><value>Acceso a la red</value></data>
+  <data name="Msg_OpenDownloadManager"><value>¿Desea abrir el Gestor de Descargas para instalar los componentes que faltan?</value></data>
+  <data name="Msg_TransDepsMissing"><value>Las dependencias de traducción no están instaladas.</value></data>
 </root>

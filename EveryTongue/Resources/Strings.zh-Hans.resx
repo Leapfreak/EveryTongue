@@ -168,9 +168,7 @@
   <data name="Msg_NewVersionAvailable"><value>&#26377;&#26032;&#29256;&#26412;&#21487;&#29992;&#65306;</value></data>
   <data name="Msg_DownloadUpdate"><value>&#26159;&#21542;&#35775;&#38382;&#19979;&#36733;&#39029;&#38754;&#65311;</value></data>
   <data name="Msg_UpdateAvailable"><value>&#26377;&#21487;&#29992;&#26356;&#26032;</value></data>
-  <data name="Msg_LiveDepsMissing"><value>&#23454;&#26102;&#36716;&#24405;&#20381;&#36182;&#39033;&#26410;&#23433;&#35013;&#12290;
-
-&#35831;&#20174;&#35774;&#32622;&#36873;&#39033;&#21345;&#36816;&#34892;&#20381;&#36182;&#39033;&#26816;&#26597;&#20197;&#19979;&#36733;&#25152;&#26377;&#24517;&#38656;&#32452;&#20214;&#12290;</value></data>
+  <data name="Msg_LiveDepsMissing"><value>实时转录依赖项未安装。</value></data>
   <data name="Msg_DepsMissing"><value>&#32570;&#23569;&#20381;&#36182;&#39033;</value></data>
   <data name="Tab_LiveOutput"><value>&#23454;&#26102;&#36755;&#20986;</value></data>
   <data name="Tab_LiveLog"><value>&#26085;&#24535;</value></data>
@@ -211,4 +209,12 @@
   <data name="FE_ColTargetLang"><value>目标语言</value></data>
   <data name="FE_ColWrong"><value>错误词</value></data>
   <data name="FE_ColRight"><value>正确词</value></data>
+  <data name="FirstRun_StartWithWindows"><value>是否希望 Every Tongue 在 Windows 启动时自动运行？</value></data>
+  <data name="FirstRun_StartupTitle"><value>启动偏好</value></data>
+  <data name="FirstRun_AllowFirewall"><value>允许 Every Tongue 接受网络上其他设备的连接？
+
+手机需要此权限才能显示实时字幕。Windows 可能会请求管理员权限。</value></data>
+  <data name="FirstRun_NetworkTitle"><value>网络访问</value></data>
+  <data name="Msg_OpenDownloadManager"><value>是否打开下载管理器安装缺少的组件？</value></data>
+  <data name="Msg_TransDepsMissing"><value>翻译依赖项未安装。</value></data>
 </root>

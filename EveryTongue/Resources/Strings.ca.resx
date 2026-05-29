@@ -168,9 +168,7 @@
   <data name="Msg_NewVersionAvailable"><value>Hi ha una nova versi&#243; disponible:</value></data>
   <data name="Msg_DownloadUpdate"><value>Voleu visitar la p&#224;gina de desc&#224;rrega?</value></data>
   <data name="Msg_UpdateAvailable"><value>Actualitzaci&#243; disponible</value></data>
-  <data name="Msg_LiveDepsMissing"><value>Les depend&#232;ncies de transcripci&#243; en directe no estan instal&#183;lades.
-
-Executeu la verificaci&#243; de depend&#232;ncies des de la pestanya Configuraci&#243; per descarregar tots els components necessaris.</value></data>
+  <data name="Msg_LiveDepsMissing"><value>Les dependències de transcripció en directe no estan instal·lades.</value></data>
   <data name="Msg_DepsMissing"><value>Depend&#232;ncies faltants</value></data>
   <data name="Tab_LiveOutput"><value>Sortida en Directe</value></data>
   <data name="Tab_LiveLog"><value>Registre</value></data>
@@ -211,4 +209,12 @@ Executeu la verificaci&#243; de depend&#232;ncies des de la pestanya Configuraci
   <data name="FE_ColTargetLang"><value>Idioma destí</value></data>
   <data name="FE_ColWrong"><value>Paraula errònia</value></data>
   <data name="FE_ColRight"><value>Paraula correcta</value></data>
+  <data name="FirstRun_StartWithWindows"><value>Voleu que Every Tongue s'iniciï automàticament amb Windows?</value></data>
+  <data name="FirstRun_StartupTitle"><value>Preferència d'inici</value></data>
+  <data name="FirstRun_AllowFirewall"><value>Permetre que Every Tongue accepti connexions d'altres dispositius a la vostra xarxa?
+
+Això és necessari perquè els telèfons mostrin subtítols en directe. Windows pot demanar permís d'administrador.</value></data>
+  <data name="FirstRun_NetworkTitle"><value>Accés a la xarxa</value></data>
+  <data name="Msg_OpenDownloadManager"><value>Voleu obrir el Gestor de descàrregues per instal·lar els components que falten?</value></data>
+  <data name="Msg_TransDepsMissing"><value>Les dependències de traducció no estan instal·lades.</value></data>
 </root>

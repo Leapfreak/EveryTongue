@@ -193,7 +193,7 @@ Namespace Pipeline
                         If File.Exists(chunkPaths(i)) Then File.Delete(chunkPaths(i))
                         If File.Exists(srtPaths(i)) Then File.Delete(srtPaths(i))
                     Catch ex As Exception
-                        Debug.WriteLine($"[Pipeline] Failed to delete chunk file: {ex.Message}")
+                        FormMain.WriteDebugLog($"[Pipeline] Failed to delete chunk file: {ex.Message}")
                     End Try
                 Next
                 Log("Chunk files cleaned up.")
@@ -204,7 +204,7 @@ Namespace Pipeline
                 Try
                     If File.Exists(previewPath) Then File.Delete(previewPath)
                 Catch ex As Exception
-                    Debug.WriteLine($"[Pipeline] Failed to delete preview file: {ex.Message}")
+                    FormMain.WriteDebugLog($"[Pipeline] Failed to delete preview file: {ex.Message}")
                 End Try
             End If
 
@@ -375,7 +375,7 @@ Namespace Pipeline
                 Try
                     If File.Exists(previewPath) Then File.Delete(previewPath)
                 Catch ex As Exception
-                    Debug.WriteLine($"[Pipeline] Failed to delete preview file: {ex.Message}")
+                    FormMain.WriteDebugLog($"[Pipeline] Failed to delete preview file: {ex.Message}")
                 End Try
             End If
 
@@ -504,7 +504,7 @@ Namespace Pipeline
                         If File.Exists(chunkPaths(i)) Then File.Delete(chunkPaths(i))
                         If File.Exists(srtPaths(i)) Then File.Delete(srtPaths(i))
                     Catch ex As Exception
-                        Debug.WriteLine($"[Pipeline] Failed to delete chunk file: {ex.Message}")
+                        FormMain.WriteDebugLog($"[Pipeline] Failed to delete chunk file: {ex.Message}")
                     End Try
                 Next
                 Log("Chunk files cleaned up.")
@@ -598,7 +598,7 @@ Namespace Pipeline
                     Try
                         If Not proc.HasExited Then proc.Kill(True)
                     Catch ex As Exception
-                        Debug.WriteLine($"[Pipeline] Failed to kill process: {ex.Message}")
+                        FormMain.WriteDebugLog($"[Pipeline] Failed to kill process: {ex.Message}")
                     End Try
                     proc.Dispose()
                 Next

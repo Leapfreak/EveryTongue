@@ -32,7 +32,12 @@ Namespace Services.Bible
             {"PHP", 570}, {"COL", 580}, {"1TH", 590}, {"2TH", 600}, {"1TI", 610},
             {"2TI", 620}, {"TIT", 630}, {"PHM", 640}, {"HEB", 650}, {"JAS", 660},
             {"1PE", 670}, {"2PE", 680}, {"1JN", 690}, {"2JN", 700}, {"3JN", 710},
-            {"JUD", 720}, {"REV", 730}
+            {"JUD", 720}, {"REV", 730},
+            {"TOB", 170}, {"JDT", 180}, {"ESG", 192}, {"WIS", 270}, {"SIR", 280},
+            {"BAR", 320}, {"LJE", 315}, {"S3Y", 342}, {"SUS", 343}, {"BEL", 344},
+            {"1MA", 462}, {"2MA", 464}, {"3MA", 466}, {"4MA", 468},
+            {"1ES", 165}, {"2ES", 166}, {"MAN", 790}, {"PS2", 231},
+            {"DAG", 341}, {"EZA", 167}, {"5EZ", 168}, {"6EZ", 169}
         }
 
         ''' <summary>Default short names for books (used when USFM \toc3 is missing). Uses MyBible numbering.</summary>
@@ -50,7 +55,12 @@ Namespace Services.Bible
             {570, "Phil"}, {580, "Col"}, {590, "1Ths"}, {600, "2Ths"}, {610, "1Tim"},
             {620, "2Tim"}, {630, "Tit"}, {640, "Phlm"}, {650, "Heb"}, {660, "Jam"},
             {670, "1Pet"}, {680, "2Pet"}, {690, "1Jn"}, {700, "2Jn"}, {710, "3Jn"},
-            {720, "Jud"}, {730, "Rev"}
+            {720, "Jud"}, {730, "Rev"},
+            {170, "Tob"}, {180, "Jdt"}, {192, "EstGr"}, {270, "Wis"}, {280, "Sir"},
+            {320, "Bar"}, {315, "LJe"}, {342, "S3Y"}, {343, "Sus"}, {344, "Bel"},
+            {462, "1Mac"}, {464, "2Mac"}, {466, "3Mac"}, {468, "4Mac"},
+            {165, "1Esd"}, {166, "2Esd"}, {790, "Man"}, {231, "Ps151"},
+            {341, "DanGr"}, {167, "EzrA"}, {168, "5Ezr"}, {169, "6Ezr"}
         }
 
         ' Marker types to skip entirely (footnotes, cross-references, figures)
@@ -283,16 +293,21 @@ Namespace Services.Bible
         End Sub
 
         ''' <summary>
-        ''' Strip \d lines (descriptive titles) from USFM text.
+        ''' Strip \d lines (descriptive titles) and \s/\s1/\s2 lines (section headings) from USFM text.
         ''' The parser's DMarker consumes all subsequent content when \d contains \w markers.
+        ''' Section headings (\s1) act as containers — verses nested inside them become invisible
+        ''' to GetChildMarkers(Of VMarker) on the chapter (e.g. Psalm 119 Hebrew acrostic headings).
         ''' </summary>
         Private Shared Function StripDescriptiveTitles(usfm As String) As String
             Dim lines = usfm.Split({vbCrLf, vbLf}, StringSplitOptions.None)
             Dim sb As New StringBuilder(usfm.Length)
             For Each line In lines
-                If Not line.TrimStart().StartsWith("\d ") Then
-                    sb.AppendLine(line)
-                End If
+                Dim trimmed = line.TrimStart()
+                ' Strip \d (descriptive title) and \s/\s1/\s2/\s3 (section heading) lines
+                If trimmed.StartsWith("\d ") Then Continue For
+                If trimmed.StartsWith("\s ") OrElse trimmed.StartsWith("\s1 ") OrElse
+                   trimmed.StartsWith("\s2 ") OrElse trimmed.StartsWith("\s3 ") Then Continue For
+                sb.AppendLine(line)
             Next
             Return sb.ToString()
         End Function
@@ -322,6 +337,77 @@ Namespace Services.Bible
                 i += 1
             End While
             Return sb.ToString()
+        End Function
+
+        ''' <summary>
+        ''' Verify a converted Bible database for integrity issues.
+        ''' Returns a list of human-readable issue strings (empty if no issues).
+        ''' </summary>
+        Public Shared Function VerifyDatabase(dbPath As String) As List(Of String)
+            Dim issues As New List(Of String)()
+            Try
+                Dim connStr = New SqliteConnectionStringBuilder() With {
+                    .DataSource = dbPath,
+                    .Mode = SqliteOpenMode.ReadOnly
+                }.ToString()
+
+                Using conn As New SqliteConnection(connStr)
+                    conn.Open()
+
+                    ' Count distinct books
+                    Dim bookCount = 0
+                    Using cmd = conn.CreateCommand()
+                        cmd.CommandText = "SELECT COUNT(*) FROM books"
+                        bookCount = CInt(cmd.ExecuteScalar())
+                    End Using
+
+                    If bookCount < 27 Then
+                        issues.Add($"Only {bookCount} books found (expected at least 27 for NT)")
+                    ElseIf bookCount < 66 Then
+                        issues.Add($"{bookCount} books (expected 66 for full Bible)")
+                    End If
+
+                    ' Check for empty books and missing chapters
+                    Using cmd = conn.CreateCommand()
+                        cmd.CommandText =
+                            "SELECT b.short_name, b.book_number, " &
+                            "  (SELECT MAX(v.chapter) FROM verses v WHERE v.book_number = b.book_number) AS max_ch, " &
+                            "  (SELECT COUNT(*) FROM verses v WHERE v.book_number = b.book_number) AS verse_count " &
+                            "FROM books b ORDER BY b.book_number"
+                        Using reader = cmd.ExecuteReader()
+                            While reader.Read()
+                                Dim shortName = reader.GetString(0)
+                                Dim bookNum = reader.GetInt32(1)
+                                Dim verseCount = If(reader.IsDBNull(3), 0, reader.GetInt32(3))
+                                Dim maxCh = If(reader.IsDBNull(2), 0, reader.GetInt32(2))
+
+                                If verseCount = 0 Then
+                                    issues.Add($"{shortName}: no verses at all")
+                                ElseIf maxCh > 1 Then
+                                    ' Check for chapter gaps
+                                    Using cmd2 = conn.CreateCommand()
+                                        cmd2.CommandText = "SELECT DISTINCT chapter FROM verses WHERE book_number = @bn ORDER BY chapter"
+                                        cmd2.Parameters.AddWithValue("@bn", bookNum)
+                                        Dim chapters As New List(Of Integer)()
+                                        Using r2 = cmd2.ExecuteReader()
+                                            While r2.Read()
+                                                chapters.Add(r2.GetInt32(0))
+                                            End While
+                                        End Using
+                                        Dim missing = Enumerable.Range(1, maxCh).Except(chapters).ToList()
+                                        If missing.Count > 0 Then
+                                            issues.Add($"{shortName}: missing chapter(s) {String.Join(", ", missing.Take(10))}")
+                                        End If
+                                    End Using
+                                End If
+                            End While
+                        End Using
+                    End Using
+                End Using
+            Catch ex As Exception
+                issues.Add($"Verification error: {ex.Message}")
+            End Try
+            Return issues
         End Function
 
         ''' <summary>Collapse multiple whitespace characters into a single space.</summary>

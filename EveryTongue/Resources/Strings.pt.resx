@@ -168,9 +168,7 @@
   <data name="Msg_NewVersionAvailable"><value>Uma nova vers&#227;o est&#225; dispon&#237;vel:</value></data>
   <data name="Msg_DownloadUpdate"><value>Deseja visitar a p&#225;gina de download?</value></data>
   <data name="Msg_UpdateAvailable"><value>Atualiza&#231;&#227;o dispon&#237;vel</value></data>
-  <data name="Msg_LiveDepsMissing"><value>As depend&#234;ncias de transcri&#231;&#227;o ao vivo n&#227;o est&#227;o instaladas.
-
-Execute a verifica&#231;&#227;o de depend&#234;ncias na guia Configura&#231;&#245;es para baixar todos os componentes necess&#225;rios.</value></data>
+  <data name="Msg_LiveDepsMissing"><value>As dependências de transcrição ao vivo não estão instaladas.</value></data>
   <data name="Msg_DepsMissing"><value>Depend&#234;ncias ausentes</value></data>
   <data name="Tab_LiveOutput"><value>Saída ao Vivo</value></data>
   <data name="Tab_LiveLog"><value>Registo</value></data>
@@ -211,4 +209,12 @@ Execute a verifica&#231;&#227;o de depend&#234;ncias na guia Configura&#231;&#24
   <data name="FE_ColTargetLang"><value>Idioma alvo</value></data>
   <data name="FE_ColWrong"><value>Palavra errada</value></data>
   <data name="FE_ColRight"><value>Palavra correta</value></data>
+  <data name="FirstRun_StartWithWindows"><value>Deseja que o Every Tongue inicie automaticamente com o Windows?</value></data>
+  <data name="FirstRun_StartupTitle"><value>Preferência de inicialização</value></data>
+  <data name="FirstRun_AllowFirewall"><value>Permitir que o Every Tongue aceite conexões de outros dispositivos na sua rede?
+
+Isto é necessário para que os telefones exibam legendas ao vivo. O Windows pode solicitar permissão de administrador.</value></data>
+  <data name="FirstRun_NetworkTitle"><value>Acesso à rede</value></data>
+  <data name="Msg_OpenDownloadManager"><value>Deseja abrir o Gerenciador de Downloads para instalar os componentes que faltam?</value></data>
+  <data name="Msg_TransDepsMissing"><value>As dependências de tradução não estão instaladas.</value></data>
 </root>

@@ -83,7 +83,7 @@ Namespace Models
                     Return info
                 End Using
             Catch ex As Exception
-                Debug.WriteLine($"[Update] CheckForUpdatesAsync failed: {ex.Message}")
+                FormMain.WriteDebugLog($"[Update] CheckForUpdatesAsync failed: {ex.Message}")
             End Try
 
             Return Nothing
@@ -117,7 +117,7 @@ Namespace Models
                     End If
                 Next
             Catch ex As Exception
-                Debug.WriteLine($"[Update] HasMatchingWhisperVersion failed: {ex.Message}")
+                FormMain.WriteDebugLog($"[Update] HasMatchingWhisperVersion failed: {ex.Message}")
             End Try
             Return False
         End Function
@@ -137,7 +137,7 @@ Namespace Models
                     End If
                 End Using
             Catch ex As Exception
-                Debug.WriteLine($"[Update] GetLocalWhisperVersion failed: {ex.Message}")
+                FormMain.WriteDebugLog($"[Update] GetLocalWhisperVersion failed: {ex.Message}")
             End Try
             Return ""
         End Function
@@ -155,7 +155,7 @@ Namespace Models
                 Dim json = JsonSerializer.Serialize(versions, New JsonSerializerOptions With {.WriteIndented = True})
                 IO.File.WriteAllText(versionFile, json)
             Catch ex As Exception
-                Debug.WriteLine($"[Update] SaveLocalVersions failed: {ex.Message}")
+                FormMain.WriteDebugLog($"[Update] SaveLocalVersions failed: {ex.Message}")
             End Try
         End Sub
 

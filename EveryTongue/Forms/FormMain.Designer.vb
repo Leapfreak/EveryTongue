@@ -208,8 +208,19 @@ Partial Class FormMain
         cboTransTarget = New ComboBox()
         btnTranslate = New Button()
         tabPageBibleWs = New TabPage()
-        wvBible = New Microsoft.Web.WebView2.WinForms.WebView2()
-        lblBibleStatus = New Label()
+        pnlBibleTop = New Panel()
+        lblBibleLang = New Label()
+        cboBibleLang = New ComboBox()
+        lblBibleTrans = New Label()
+        cboBibleTrans = New ComboBox()
+        txtBibleRef = New ComboBox()
+        btnBibleGo = New Button()
+        splitBible = New SplitContainer()
+        pnlBibleNavHeader = New Panel()
+        btnBibleBack = New Button()
+        lblBibleNavTitle = New Label()
+        flpBibleNav = New FlowLayoutPanel()
+        rtbBibleText = New RichTextBox()
         splitterLog = New Splitter()
         pnlLogPanel = New Panel()
         rtbUnifiedLog = New RichTextBox()
@@ -264,7 +275,12 @@ Partial Class FormMain
         pnlTransBottom.SuspendLayout()
         pnlTransTop.SuspendLayout()
         tabPageBibleWs.SuspendLayout()
-        CType(wvBible, ComponentModel.ISupportInitialize).BeginInit()
+        pnlBibleTop.SuspendLayout()
+        CType(splitBible, ComponentModel.ISupportInitialize).BeginInit()
+        splitBible.Panel1.SuspendLayout()
+        splitBible.Panel2.SuspendLayout()
+        splitBible.SuspendLayout()
+        pnlBibleNavHeader.SuspendLayout()
         pnlLogPanel.SuspendLayout()
         pnlLogToolbar.SuspendLayout()
         trayMenu.SuspendLayout()
@@ -571,7 +587,7 @@ Partial Class FormMain
         ' 
         ' tsNavBar
         '
-        tsNavBar.BackColor = Color.FromArgb(CByte(37), CByte(37), CByte(38))
+        tsNavBar.BackColor = Color.FromArgb(CByte(240), CByte(240), CByte(240))
         tsNavBar.Dock = DockStyle.Top
         tsNavBar.GripStyle = ToolStripGripStyle.Hidden
         tsNavBar.ImageScalingSize = New Size(28, 28)
@@ -586,7 +602,7 @@ Partial Class FormMain
         ' btnNavLive
         '
         btnNavLive.AutoSize = True
-        btnNavLive.ForeColor = Color.FromArgb(CByte(200), CByte(200), CByte(200))
+        btnNavLive.ForeColor = Color.FromArgb(CByte(60), CByte(60), CByte(60))
         btnNavLive.ImageScaling = ToolStripItemImageScaling.None
         btnNavLive.Margin = New Padding(0, 0, 2, 0)
         btnNavLive.Name = "btnNavLive"
@@ -597,7 +613,7 @@ Partial Class FormMain
         ' btnNavTranscribe
         '
         btnNavTranscribe.AutoSize = True
-        btnNavTranscribe.ForeColor = Color.FromArgb(CByte(200), CByte(200), CByte(200))
+        btnNavTranscribe.ForeColor = Color.FromArgb(CByte(60), CByte(60), CByte(60))
         btnNavTranscribe.ImageScaling = ToolStripItemImageScaling.None
         btnNavTranscribe.Margin = New Padding(0, 0, 2, 0)
         btnNavTranscribe.Name = "btnNavTranscribe"
@@ -608,7 +624,7 @@ Partial Class FormMain
         ' btnNavTranslate
         '
         btnNavTranslate.AutoSize = True
-        btnNavTranslate.ForeColor = Color.FromArgb(CByte(200), CByte(200), CByte(200))
+        btnNavTranslate.ForeColor = Color.FromArgb(CByte(60), CByte(60), CByte(60))
         btnNavTranslate.ImageScaling = ToolStripItemImageScaling.None
         btnNavTranslate.Margin = New Padding(0, 0, 2, 0)
         btnNavTranslate.Name = "btnNavTranslate"
@@ -619,7 +635,7 @@ Partial Class FormMain
         ' btnNavBible
         '
         btnNavBible.AutoSize = True
-        btnNavBible.ForeColor = Color.FromArgb(CByte(200), CByte(200), CByte(200))
+        btnNavBible.ForeColor = Color.FromArgb(CByte(60), CByte(60), CByte(60))
         btnNavBible.ImageScaling = ToolStripItemImageScaling.None
         btnNavBible.Margin = New Padding(0, 0, 2, 0)
         btnNavBible.Name = "btnNavBible"
@@ -1991,39 +2007,141 @@ Partial Class FormMain
         txtTransOutput.TabIndex = 0
         ' 
         ' tabPageBibleWs
-        ' 
-        tabPageBibleWs.Controls.Add(wvBible)
-        tabPageBibleWs.Controls.Add(lblBibleStatus)
+        '
+        tabPageBibleWs.Controls.Add(splitBible)
+        tabPageBibleWs.Controls.Add(pnlBibleTop)
         tabPageBibleWs.Location = New Point(4, 5)
         tabPageBibleWs.Name = "tabPageBibleWs"
         tabPageBibleWs.Size = New Size(792, 593)
         tabPageBibleWs.TabIndex = 5
         tabPageBibleWs.Text = "Bible"
-        ' 
-        ' wvBible
-        ' 
-        wvBible.AllowExternalDrop = True
-        wvBible.CreationProperties = Nothing
-        wvBible.DefaultBackgroundColor = Color.White
-        wvBible.Dock = DockStyle.Fill
-        wvBible.Location = New Point(0, 0)
-        wvBible.Name = "wvBible"
-        wvBible.Size = New Size(792, 593)
-        wvBible.TabIndex = 0
-        wvBible.Visible = False
-        wvBible.ZoomFactor = 1R
-        ' 
-        ' lblBibleStatus
-        ' 
-        lblBibleStatus.Dock = DockStyle.Fill
-        lblBibleStatus.Font = New Font("Segoe UI", 14F)
-        lblBibleStatus.ForeColor = Color.Gray
-        lblBibleStatus.Location = New Point(0, 0)
-        lblBibleStatus.Name = "lblBibleStatus"
-        lblBibleStatus.Size = New Size(112, 0)
-        lblBibleStatus.TabIndex = 1
-        lblBibleStatus.Text = "Waiting for server to start..."
-        lblBibleStatus.TextAlign = ContentAlignment.MiddleCenter
+        '
+        ' pnlBibleTop
+        '
+        pnlBibleTop.Controls.Add(btnBibleGo)
+        pnlBibleTop.Controls.Add(txtBibleRef)
+        pnlBibleTop.Controls.Add(cboBibleTrans)
+        pnlBibleTop.Controls.Add(lblBibleTrans)
+        pnlBibleTop.Controls.Add(cboBibleLang)
+        pnlBibleTop.Controls.Add(lblBibleLang)
+        pnlBibleTop.Dock = DockStyle.Top
+        pnlBibleTop.Location = New Point(0, 0)
+        pnlBibleTop.Name = "pnlBibleTop"
+        pnlBibleTop.Padding = New Padding(8, 6, 8, 6)
+        pnlBibleTop.Size = New Size(792, 38)
+        pnlBibleTop.TabIndex = 0
+        '
+        ' lblBibleLang
+        '
+        lblBibleLang.AutoSize = True
+        lblBibleLang.Location = New Point(11, 10)
+        lblBibleLang.Name = "lblBibleLang"
+        lblBibleLang.Text = "Language:"
+        '
+        ' cboBibleLang
+        '
+        cboBibleLang.DropDownStyle = ComboBoxStyle.DropDownList
+        cboBibleLang.Location = New Point(80, 7)
+        cboBibleLang.Name = "cboBibleLang"
+        cboBibleLang.Size = New Size(140, 23)
+        cboBibleLang.TabIndex = 1
+        '
+        ' lblBibleTrans
+        '
+        lblBibleTrans.AutoSize = True
+        lblBibleTrans.Location = New Point(230, 10)
+        lblBibleTrans.Name = "lblBibleTrans"
+        lblBibleTrans.Text = "Translation:"
+        '
+        ' cboBibleTrans
+        '
+        cboBibleTrans.DropDownStyle = ComboBoxStyle.DropDownList
+        cboBibleTrans.Location = New Point(310, 7)
+        cboBibleTrans.Name = "cboBibleTrans"
+        cboBibleTrans.Size = New Size(200, 23)
+        cboBibleTrans.TabIndex = 2
+        '
+        ' txtBibleRef
+        '
+        txtBibleRef.DropDownStyle = ComboBoxStyle.DropDown
+        txtBibleRef.Location = New Point(530, 7)
+        txtBibleRef.Name = "txtBibleRef"
+        txtBibleRef.Size = New Size(140, 23)
+        txtBibleRef.TabIndex = 3
+        txtBibleRef.MaxDropDownItems = 15
+        '
+        ' btnBibleGo
+        '
+        btnBibleGo.Location = New Point(676, 6)
+        btnBibleGo.Name = "btnBibleGo"
+        btnBibleGo.Size = New Size(50, 25)
+        btnBibleGo.TabIndex = 4
+        btnBibleGo.Text = "Go"
+        btnBibleGo.UseVisualStyleBackColor = True
+        '
+        ' splitBible
+        '
+        splitBible.Dock = DockStyle.Fill
+        splitBible.Location = New Point(0, 38)
+        splitBible.Name = "splitBible"
+        splitBible.FixedPanel = FixedPanel.Panel1
+        splitBible.SplitterDistance = 240
+        splitBible.Size = New Size(792, 555)
+        splitBible.TabIndex = 1
+        '
+        ' pnlBibleNavHeader (Panel1 top)
+        '
+        splitBible.Panel1.Controls.Add(flpBibleNav)
+        splitBible.Panel1.Controls.Add(pnlBibleNavHeader)
+        pnlBibleNavHeader.Controls.Add(lblBibleNavTitle)
+        pnlBibleNavHeader.Controls.Add(btnBibleBack)
+        pnlBibleNavHeader.Dock = DockStyle.Top
+        pnlBibleNavHeader.Size = New Size(220, 30)
+        pnlBibleNavHeader.Name = "pnlBibleNavHeader"
+        '
+        ' btnBibleBack
+        '
+        btnBibleBack.Dock = DockStyle.Left
+        btnBibleBack.FlatStyle = FlatStyle.Flat
+        btnBibleBack.FlatAppearance.BorderSize = 0
+        btnBibleBack.Font = New Font("Segoe MDL2 Assets", 12F)
+        btnBibleBack.Text = ChrW(&HE72B)
+        btnBibleBack.Size = New Size(30, 30)
+        btnBibleBack.Name = "btnBibleBack"
+        btnBibleBack.Visible = False
+        '
+        ' lblBibleNavTitle
+        '
+        lblBibleNavTitle.Dock = DockStyle.Fill
+        lblBibleNavTitle.Font = New Font("Segoe UI", 10F, FontStyle.Bold)
+        lblBibleNavTitle.TextAlign = ContentAlignment.MiddleCenter
+        lblBibleNavTitle.Text = "Books"
+        lblBibleNavTitle.Name = "lblBibleNavTitle"
+        '
+        ' flpBibleNav (Panel1 fill)
+        '
+        flpBibleNav.AutoScroll = True
+        flpBibleNav.Dock = DockStyle.Fill
+        flpBibleNav.FlowDirection = FlowDirection.LeftToRight
+        flpBibleNav.Location = New Point(0, 30)
+        flpBibleNav.Name = "flpBibleNav"
+        flpBibleNav.Padding = New Padding(4)
+        flpBibleNav.Size = New Size(220, 525)
+        flpBibleNav.TabIndex = 0
+        flpBibleNav.WrapContents = True
+        '
+        ' rtbBibleText (Panel2)
+        '
+        splitBible.Panel2.Controls.Add(rtbBibleText)
+        rtbBibleText.BackColor = Color.White
+        rtbBibleText.BorderStyle = BorderStyle.None
+        rtbBibleText.Dock = DockStyle.Fill
+        rtbBibleText.Font = New Font("Segoe UI", 12F)
+        rtbBibleText.Location = New Point(0, 0)
+        rtbBibleText.Name = "rtbBibleText"
+        rtbBibleText.ReadOnly = True
+        rtbBibleText.Size = New Size(568, 555)
+        rtbBibleText.TabIndex = 0
         ' 
         ' splitterLog
         ' 
@@ -2238,7 +2356,13 @@ Partial Class FormMain
         pnlTransTop.ResumeLayout(False)
         pnlTransTop.PerformLayout()
         tabPageBibleWs.ResumeLayout(False)
-        CType(wvBible, ComponentModel.ISupportInitialize).EndInit()
+        pnlBibleTop.ResumeLayout(False)
+        pnlBibleTop.PerformLayout()
+        pnlBibleNavHeader.ResumeLayout(False)
+        splitBible.Panel1.ResumeLayout(False)
+        splitBible.Panel2.ResumeLayout(False)
+        CType(splitBible, ComponentModel.ISupportInitialize).EndInit()
+        splitBible.ResumeLayout(False)
         pnlLogPanel.ResumeLayout(False)
         pnlLogToolbar.ResumeLayout(False)
         pnlLogToolbar.PerformLayout()
@@ -2436,8 +2560,19 @@ Partial Class FormMain
     Friend WithEvents lblTransStatus As Label
 
     ' Tab: Bible
-    Friend WithEvents wvBible As Microsoft.Web.WebView2.WinForms.WebView2
-    Friend WithEvents lblBibleStatus As Label
+    Friend WithEvents pnlBibleTop As Panel
+    Friend WithEvents lblBibleLang As Label
+    Friend WithEvents cboBibleLang As ComboBox
+    Friend WithEvents lblBibleTrans As Label
+    Friend WithEvents cboBibleTrans As ComboBox
+    Friend WithEvents txtBibleRef As ComboBox
+    Friend WithEvents btnBibleGo As Button
+    Friend WithEvents splitBible As SplitContainer
+    Friend WithEvents pnlBibleNavHeader As Panel
+    Friend WithEvents btnBibleBack As Button
+    Friend WithEvents lblBibleNavTitle As Label
+    Friend WithEvents flpBibleNav As FlowLayoutPanel
+    Friend WithEvents rtbBibleText As RichTextBox
 
     ' Tab: Server
     Friend WithEvents grpServerSettings As GroupBox

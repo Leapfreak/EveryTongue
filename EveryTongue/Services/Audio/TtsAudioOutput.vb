@@ -66,7 +66,8 @@ Namespace Services.Audio
                         .DeviceNumber = i,
                         .Name = If(i = -1, "Default", caps.ProductName)
                     })
-                Catch
+                Catch ex As Exception
+                    Services.Infrastructure.AppLogger.Log($"[ERROR] TtsAudioOutput.GetOutputDevices: device {i} - {ex.Message}")
                 End Try
             Next
             Return devices
@@ -181,7 +182,8 @@ Namespace Services.Audio
                     ' Try as mp3 (most common from Edge TTS)
                     Try
                         Return New Mp3FileReader(filePath)
-                    Catch
+                    Catch ex As Exception
+                        Services.Infrastructure.AppLogger.Log($"[ERROR] TtsAudioOutput.CreateReader: failed to read '{filePath}' - {ex.Message}")
                         Return Nothing
                     End Try
             End Select

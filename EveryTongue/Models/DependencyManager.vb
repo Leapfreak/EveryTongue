@@ -66,7 +66,7 @@ Namespace Models
                     Return JsonSerializer.Deserialize(Of Dictionary(Of String, String))(json)
                 End If
             Catch ex As Exception
-                Debug.WriteLine($"[Deps] Failed to load tool versions: {ex.Message}")
+                FormMain.WriteDebugLog($"[Deps] Failed to load tool versions: {ex.Message}")
             End Try
             Return New Dictionary(Of String, String)()
         End Function
@@ -77,7 +77,7 @@ Namespace Models
                 Dim json = JsonSerializer.Serialize(_versions, New JsonSerializerOptions With {.WriteIndented = True})
                 File.WriteAllText(VersionsFilePath(), json)
             Catch ex As Exception
-                Debug.WriteLine($"[Deps] Failed to save tool versions: {ex.Message}")
+                FormMain.WriteDebugLog($"[Deps] Failed to save tool versions: {ex.Message}")
             End Try
         End Sub
 
@@ -159,7 +159,7 @@ Namespace Models
                     End If
                 End If
             Catch ex As Exception
-                Debug.WriteLine($"[Deps] yt-dlp check failed: {ex.Message}")
+                FormMain.WriteDebugLog($"[Deps] yt-dlp check failed: {ex.Message}")
                 If state.Status = ToolStatus.Missing Then state.Status = ToolStatus.CheckFailed
             End Try
             Return state
@@ -212,7 +212,7 @@ Namespace Models
                     End If
                 End If
             Catch ex As Exception
-                Debug.WriteLine($"[Deps] FFmpeg check failed: {ex.Message}")
+                FormMain.WriteDebugLog($"[Deps] FFmpeg check failed: {ex.Message}")
                 If state.Status = ToolStatus.Missing Then state.Status = ToolStatus.CheckFailed
             End Try
             Return state
@@ -294,7 +294,7 @@ Namespace Models
                     End If
                 End If
             Catch ex As Exception
-                Debug.WriteLine($"[Deps] Subtitle Edit check failed: {ex.Message}")
+                FormMain.WriteDebugLog($"[Deps] Subtitle Edit check failed: {ex.Message}")
                 If state.Status = ToolStatus.Missing Then state.Status = ToolStatus.CheckFailed
             End Try
             Return state
@@ -384,7 +384,8 @@ Namespace Models
                 Try
                     Await RunProcessAsync(PythonExePath(),
                         $"-m pip install -r ""{nllbReq}"" --no-warn-script-location", _toolsDir, 600000)
-                Catch
+                Catch ex As Exception
+                    Services.Infrastructure.AppLogger.Log($"[ERROR] InstallPythonDepsAsync: NLLB requirements install failed — {ex.Message}")
                     nllbFailed = True
                 End Try
             End If
@@ -395,7 +396,8 @@ Namespace Models
                     Try
                         Await RunProcessAsync(PythonExePath(),
                             $"-m pip install {pkg} --no-warn-script-location", _toolsDir, 300000)
-                    Catch
+                    Catch ex As Exception
+                        Services.Infrastructure.AppLogger.Log($"[ERROR] InstallPythonDepsAsync: Failed to install package '{pkg}' — {ex.Message}")
                     End Try
                 Next
             End If
@@ -404,7 +406,8 @@ Namespace Models
                 Try
                     Await RunProcessAsync(PythonExePath(),
                         $"-m pip install -r ""{liveReq}"" --no-warn-script-location", _toolsDir, 600000)
-                Catch
+                Catch ex As Exception
+                    Services.Infrastructure.AppLogger.Log($"[ERROR] InstallPythonDepsAsync: Live requirements install failed — {ex.Message}")
                 End Try
             End If
 
@@ -412,7 +415,8 @@ Namespace Models
             Try
                 Await RunProcessAsync(PythonExePath(),
                     "-m pip install edge-tts --no-warn-script-location", _toolsDir, 300000)
-            Catch
+            Catch ex As Exception
+                Services.Infrastructure.AppLogger.Log($"[ERROR] InstallPythonDepsAsync: edge-tts install failed — {ex.Message}")
             End Try
         End Function
 
@@ -464,7 +468,8 @@ Namespace Models
                 Next
 
                 Return packages.Where(Function(p) Not found.Contains(p)).ToList()
-            Catch
+            Catch ex As Exception
+                Services.Infrastructure.AppLogger.Log($"[ERROR] GetMissingPythonPackages: Failed to check packages — {ex.Message}")
                 Return packages.ToList()
             End Try
         End Function
@@ -487,7 +492,7 @@ Namespace Models
                         depsOk = (proc.ExitCode = 0)
                     End Using
                 Catch ex As Exception
-                    Debug.WriteLine($"[Deps] Live deps check failed: {ex.Message}")
+                    FormMain.WriteDebugLog($"[Deps] Live deps check failed: {ex.Message}")
                 End Try
             End If
             Dim modelDir = FasterWhisperModelDir()
@@ -524,7 +529,7 @@ Namespace Models
                     Try
                         Await proc.WaitForExitAsync(cts.Token)
                     Catch ex As OperationCanceledException
-                        Try : proc.Kill(True) : Catch killEx As Exception : Debug.WriteLine($"[Deps] Failed to kill timed-out process: {killEx.Message}") : End Try
+                        Try : proc.Kill(True) : Catch killEx As Exception : FormMain.WriteDebugLog($"[Deps] Failed to kill timed-out process: {killEx.Message}") : End Try
                         Throw New TimeoutException($"Process timed out after {timeoutMs / 1000}s")
                     End Try
                 End Using
@@ -966,7 +971,7 @@ Namespace Models
                         Dim result = If(String.IsNullOrWhiteSpace(stdout), stderr, stdout)
                         Return result.Trim()
                     Catch ex As OperationCanceledException
-                        Try : proc.Kill() : Catch killEx As Exception : Debug.WriteLine($"[Deps] Failed to kill timed-out process: {killEx.Message}") : End Try
+                        Try : proc.Kill() : Catch killEx As Exception : FormMain.WriteDebugLog($"[Deps] Failed to kill timed-out process: {killEx.Message}") : End Try
                         Return ""
                     End Try
                 End Using

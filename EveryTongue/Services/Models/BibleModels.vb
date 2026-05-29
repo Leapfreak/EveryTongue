@@ -56,6 +56,7 @@ Namespace Services.Models
     ''' </summary>
     Public Class BibleReference
         Public Property Book As String
+        Public Property BookNumber As Integer  ' resolved book_number from DB (e.g. 500=John)
         Public Property Chapter As Integer
         Public Property VerseStart As Integer
         Public Property VerseEnd As Integer

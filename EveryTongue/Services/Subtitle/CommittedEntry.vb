@@ -9,7 +9,7 @@ Namespace Services.Subtitle
         Public Property SourceLang As String = ""
         Public Property Translations As Dictionary(Of String, String)
         Public Property LangTags As Dictionary(Of String, String)
-        Public Property BibleRefs As List(Of Object)
+        Public Property BibleRefs As List(Of Models.DetectedReference)
         Public Property Timestamp As DateTime
 
         Public Sub New(id As Integer,

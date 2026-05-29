@@ -29,7 +29,8 @@ Partial Public Class FormFilterEditor
         Try
             Dim val = _resMgr.GetString(key)
             Return If(val, key)
-        Catch
+        Catch ex As Exception
+            FormMain.WriteDebugLog($"[ERROR] FormFilterEditor.S: {ex.Message}")
             Return key
         End Try
     End Function
@@ -514,15 +515,18 @@ Partial Public Class FormFilterEditor
         Dim content As New StringContent("{}", Encoding.UTF8, "application/json")
         Try
             Await _httpClient.PostAsync($"http://127.0.0.1:{_livePort}/hallucinations/reload", content)
-        Catch
+        Catch ex As Exception
+            FormMain.WriteDebugLog($"[ERROR] ReloadServersAsync (hallucinations/reload): {ex.Message}")
         End Try
         Try
             Await _httpClient.PostAsync($"http://127.0.0.1:{_nllbPort}/glossary/reload", New StringContent("{}", Encoding.UTF8, "application/json"))
-        Catch
+        Catch ex As Exception
+            FormMain.WriteDebugLog($"[ERROR] ReloadServersAsync (glossary/reload): {ex.Message}")
         End Try
         Try
             Await _httpClient.PostAsync($"http://127.0.0.1:{_nllbPort}/profanity/reload", New StringContent("{}", Encoding.UTF8, "application/json"))
-        Catch
+        Catch ex As Exception
+            FormMain.WriteDebugLog($"[ERROR] ReloadServersAsync (profanity/reload): {ex.Message}")
         End Try
     End Sub
 

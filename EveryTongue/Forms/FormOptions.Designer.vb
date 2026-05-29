@@ -20,6 +20,7 @@ Partial Class FormOptions
         Me.pnlPages = New System.Windows.Forms.Panel()
         Me.pnlGeneral = New System.Windows.Forms.Panel()
         Me.chkStartWindows = New System.Windows.Forms.CheckBox()
+        Me.chkMinimizeToTray = New System.Windows.Forms.CheckBox()
         Me.lblStartupSep = New System.Windows.Forms.Label()
         Me.lblStartupHeader = New System.Windows.Forms.Label()
         Me.cboTheme = New System.Windows.Forms.ComboBox()
@@ -199,6 +200,7 @@ Partial Class FormOptions
         ' pnlGeneral
         '
         Me.pnlGeneral.AutoScroll = True
+        Me.pnlGeneral.Controls.Add(Me.chkMinimizeToTray)
         Me.pnlGeneral.Controls.Add(Me.chkStartWindows)
         Me.pnlGeneral.Controls.Add(Me.lblStartupSep)
         Me.pnlGeneral.Controls.Add(Me.lblStartupHeader)
@@ -300,6 +302,16 @@ Partial Class FormOptions
         Me.chkStartWindows.TabIndex = 8
         Me.chkStartWindows.Text = "Start with Windows"
         Me.chkStartWindows.UseVisualStyleBackColor = True
+        '
+        ' chkMinimizeToTray
+        '
+        Me.chkMinimizeToTray.AutoSize = True
+        Me.chkMinimizeToTray.Location = New System.Drawing.Point(12, 205)
+        Me.chkMinimizeToTray.Name = "chkMinimizeToTray"
+        Me.chkMinimizeToTray.Size = New System.Drawing.Size(180, 19)
+        Me.chkMinimizeToTray.TabIndex = 9
+        Me.chkMinimizeToTray.Text = "Minimize to tray on close"
+        Me.chkMinimizeToTray.UseVisualStyleBackColor = True
         '
         ' ══════════════════════════════════════════════════════════════
         ' PATHS PANEL
@@ -1218,6 +1230,7 @@ Partial Class FormOptions
     Friend WithEvents lblStartupHeader As System.Windows.Forms.Label
     Friend WithEvents lblStartupSep As System.Windows.Forms.Label
     Friend WithEvents chkStartWindows As System.Windows.Forms.CheckBox
+    Friend WithEvents chkMinimizeToTray As System.Windows.Forms.CheckBox
 
     ' Paths panel — section headers
     Friend WithEvents lblToolPathsHeader As System.Windows.Forms.Label

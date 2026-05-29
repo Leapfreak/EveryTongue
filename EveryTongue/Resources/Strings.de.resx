@@ -168,9 +168,7 @@
   <data name="Msg_NewVersionAvailable"><value>Eine neue Version ist verf&#252;gbar:</value></data>
   <data name="Msg_DownloadUpdate"><value>M&#246;chten Sie die Download-Seite besuchen?</value></data>
   <data name="Msg_UpdateAvailable"><value>Update verf&#252;gbar</value></data>
-  <data name="Msg_LiveDepsMissing"><value>Die Abh&#228;ngigkeiten f&#252;r die Live-Transkription sind nicht installiert.
-
-F&#252;hren Sie die Abh&#228;ngigkeitspr&#252;fung auf der Registerkarte Einstellungen aus, um alle erforderlichen Komponenten herunterzuladen.</value></data>
+  <data name="Msg_LiveDepsMissing"><value>Die Abhängigkeiten für die Live-Transkription sind nicht installiert.</value></data>
   <data name="Msg_DepsMissing"><value>Fehlende Abh&#228;ngigkeiten</value></data>
   <data name="Tab_LiveOutput"><value>Live-Ausgabe</value></data>
   <data name="Tab_LiveLog"><value>Protokoll</value></data>
@@ -211,4 +209,12 @@ F&#252;hren Sie die Abh&#228;ngigkeitspr&#252;fung auf der Registerkarte Einstel
   <data name="FE_ColTargetLang"><value>Zielsprache</value></data>
   <data name="FE_ColWrong"><value>Falsches Wort</value></data>
   <data name="FE_ColRight"><value>Richtiges Wort</value></data>
+  <data name="FirstRun_StartWithWindows"><value>Soll Every Tongue automatisch mit Windows starten?</value></data>
+  <data name="FirstRun_StartupTitle"><value>Starteinstellung</value></data>
+  <data name="FirstRun_AllowFirewall"><value>Every Tongue erlauben, Verbindungen von anderen Geräten in Ihrem Netzwerk zu akzeptieren?
+
+Dies ist erforderlich, damit Telefone Live-Untertitel anzeigen können. Windows fragt möglicherweise nach Administratorrechten.</value></data>
+  <data name="FirstRun_NetworkTitle"><value>Netzwerkzugriff</value></data>
+  <data name="Msg_OpenDownloadManager"><value>Möchten Sie den Download-Manager öffnen, um die fehlenden Komponenten zu installieren?</value></data>
+  <data name="Msg_TransDepsMissing"><value>Die Übersetzungsabhängigkeiten sind nicht installiert.</value></data>
 </root>

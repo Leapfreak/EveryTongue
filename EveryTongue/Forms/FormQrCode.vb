@@ -46,7 +46,7 @@ Public Class FormQrCode
                 End Using
             End Using
         Catch ex As Exception
-            Debug.WriteLine($"[QR] GenerateQr failed: {ex.Message}")
+            FormMain.WriteDebugLog($"[QR] GenerateQr failed: {ex.Message}")
         End Try
     End Sub
 

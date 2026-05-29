@@ -134,7 +134,8 @@ Namespace Services.Tts
                             .Backend = backend.Name
                         })
                     End If
-                Catch
+                Catch ex As Exception
+                    Services.Infrastructure.AppLogger.Log($"[ERROR] TtsOrchestrator.GetAvailableVoicesAsync: {ex.Message}")
                 End Try
             Next
             Return voices

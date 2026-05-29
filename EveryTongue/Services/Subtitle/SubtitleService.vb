@@ -49,22 +49,23 @@ Namespace Services.Subtitle
         End Property
 
         Public Sub New(logger As ILogger(Of SubtitleService),
-                       options As IOptions(Of ServerOptions))
+                       options As IOptions(Of ServerOptions),
+                       bibleService As IBibleService,
+                       ttsService As ITtsService,
+                       ttsCache As Tts.TtsCache)
             _logger = logger
             _options = options.Value
+            Me.BibleService = bibleService
+            Me.TtsService = ttsService
+            Me.TtsCacheDirectory = If(ttsCache?.CacheDirectory, "")
         End Sub
 
-        ''' <summary>Set after DI resolution to avoid circular dependency.</summary>
-        Public Property BibleService As IBibleService
+        Public ReadOnly Property BibleService As IBibleService
+        Public ReadOnly Property TtsService As ITtsService
+        Public ReadOnly Property TtsCacheDirectory As String
 
-        ''' <summary>Set after DI resolution to enable server-side TTS generation.</summary>
-        Public Property TtsService As ITtsService
-
-        ''' <summary>Set after DI resolution to enable local TTS audio output.</summary>
+        ''' <summary>Set after Build() — conditionally created based on TTS output device config.</summary>
         Public Property TtsAudioOutput As TtsAudioOutput
-
-        ''' <summary>TTS cache directory for local audio output file path resolution.</summary>
-        Public Property TtsCacheDirectory As String
 
         ' ── Client management ──
 
@@ -159,7 +160,7 @@ Namespace Services.Subtitle
                                                  End If
                                              End If
                                          Catch ex As Exception
-                                             System.Diagnostics.Debug.WriteLine($"[Subtitle] TTS synthesis for requestTts failed: {ex.Message}")
+                                             FormMain.WriteDebugLog($"[Subtitle] TTS synthesis for requestTts failed: {ex.Message}")
                                          End Try
                                      End Function)
                         End If
@@ -173,7 +174,7 @@ Namespace Services.Subtitle
                     End If
                 End Using
             Catch ex As Exception
-                System.Diagnostics.Debug.WriteLine($"[Subtitle] ProcessClientMessage failed: {ex.Message}")
+                FormMain.WriteDebugLog($"[Subtitle] ProcessClientMessage failed: {ex.Message}")
             End Try
         End Sub
 
@@ -232,7 +233,7 @@ Namespace Services.Subtitle
                         deadKeys.Add(kvp.Key)
                     End If
                 Catch ex As Exception
-                    System.Diagnostics.Debug.WriteLine($"[Subtitle] WebSocket send failed for {kvp.Key}: {ex.Message}")
+                    FormMain.WriteDebugLog($"[Subtitle] WebSocket send failed for {kvp.Key}: {ex.Message}")
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -292,7 +293,7 @@ Namespace Services.Subtitle
                         deadKeys.Add(kvp.Key)
                     End If
                 Catch ex As Exception
-                    System.Diagnostics.Debug.WriteLine($"[Subtitle] WebSocket send failed for {kvp.Key}: {ex.Message}")
+                    FormMain.WriteDebugLog($"[Subtitle] WebSocket send failed for {kvp.Key}: {ex.Message}")
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -335,7 +336,7 @@ Namespace Services.Subtitle
                         deadKeys.Add(kvp.Key)
                     End If
                 Catch ex As Exception
-                    System.Diagnostics.Debug.WriteLine($"[Subtitle] WebSocket send failed for {kvp.Key}: {ex.Message}")
+                    FormMain.WriteDebugLog($"[Subtitle] WebSocket send failed for {kvp.Key}: {ex.Message}")
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -404,7 +405,7 @@ Namespace Services.Subtitle
                     Interlocked.Exchange(client.SendBusy, 0)
                 End Try
             Catch ex As Exception
-                System.Diagnostics.Debug.WriteLine($"[Subtitle] ReplayHistoryAsync failed: {ex.Message}")
+                FormMain.WriteDebugLog($"[Subtitle] ReplayHistoryAsync failed: {ex.Message}")
             End Try
         End Function
 
@@ -434,7 +435,7 @@ Namespace Services.Subtitle
                                  Interlocked.Increment(client.MessagesSent)
                              End If
                          Catch ex As Exception
-                             System.Diagnostics.Debug.WriteLine($"[Subtitle] Async WebSocket send failed: {ex.Message}")
+                             FormMain.WriteDebugLog($"[Subtitle] Async WebSocket send failed: {ex.Message}")
                          Finally
                              Interlocked.Exchange(client.SendBusy, 0)
                          End Try
@@ -450,7 +451,7 @@ Namespace Services.Subtitle
                 Try
                     If Not TrySendToClient(kvp.Value, buffer) Then deadKeys.Add(kvp.Key)
                 Catch ex As Exception
-                    System.Diagnostics.Debug.WriteLine($"[Subtitle] WebSocket send failed for {kvp.Key}: {ex.Message}")
+                    FormMain.WriteDebugLog($"[Subtitle] WebSocket send failed for {kvp.Key}: {ex.Message}")
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -476,7 +477,7 @@ Namespace Services.Subtitle
             Try
                 Dim refs = BibleService.DetectReferencesInText(text)
                 If refs Is Nothing OrElse refs.Count = 0 Then Return ""
-                entry.BibleRefs = refs.Cast(Of Object)().ToList()
+                entry.BibleRefs = refs.ToList()
                 Dim sb As New StringBuilder(",""refs"":[")
                 For i = 0 To refs.Count - 1
                     If i > 0 Then sb.Append(",")
@@ -486,7 +487,7 @@ Namespace Services.Subtitle
                 sb.Append("]")
                 Return sb.ToString()
             Catch ex As Exception
-                System.Diagnostics.Debug.WriteLine($"[Subtitle] Bible reference detection failed: {ex.Message}")
+                FormMain.WriteDebugLog($"[Subtitle] Bible reference detection failed: {ex.Message}")
                 Return ""
             End Try
         End Function
@@ -497,13 +498,13 @@ Namespace Services.Subtitle
                 Dim sb As New StringBuilder(",""refs"":[")
                 For i = 0 To entry.BibleRefs.Count - 1
                     If i > 0 Then sb.Append(",")
-                    Dim r = DirectCast(entry.BibleRefs(i), Models.DetectedReference)
+                    Dim r = entry.BibleRefs(i)
                     sb.Append($"{{""book"":{EscapeJson(r.Reference.Book)},""chapter"":{r.Reference.Chapter},""verseStart"":{r.Reference.VerseStart},""verseEnd"":{r.Reference.VerseEnd},""matched"":{EscapeJson(r.MatchedText)},""start"":{r.StartIndex},""len"":{r.Length}}}")
                 Next
                 sb.Append("]")
                 Return sb.ToString()
             Catch ex As Exception
-                System.Diagnostics.Debug.WriteLine($"[Subtitle] Serializing stored Bible refs failed: {ex.Message}")
+                FormMain.WriteDebugLog($"[Subtitle] Serializing stored Bible refs failed: {ex.Message}")
                 Return ""
             End Try
         End Function
@@ -587,7 +588,7 @@ Namespace Services.Subtitle
                         End If
                     End If
                 Catch ex As Exception
-                    System.Diagnostics.Debug.WriteLine($"[Subtitle] WebSocket send failed for {kvp.Key}: {ex.Message}")
+                    FormMain.WriteDebugLog($"[Subtitle] WebSocket send failed for {kvp.Key}: {ex.Message}")
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -605,7 +606,7 @@ Namespace Services.Subtitle
                 Dim removed As ClientConnection = Nothing
                 If _clients.TryRemove(key, removed) Then
                     _logger.LogDebug("Cleanup dead client: {Endpoint}", removed.RemoteEndpoint)
-                    Try : removed.WebSocket?.Dispose() : Catch ex As Exception : System.Diagnostics.Debug.WriteLine($"[Subtitle] WebSocket dispose failed: {ex.Message}") : End Try
+                    Try : removed.WebSocket?.Dispose() : Catch ex As Exception : FormMain.WriteDebugLog($"[Subtitle] WebSocket dispose failed: {ex.Message}") : End Try
                 End If
             Next
             If deadKeys.Count > 0 Then
@@ -652,7 +653,7 @@ Namespace Services.Subtitle
                     End If
                 End Using
             Catch ex As Exception
-                System.Diagnostics.Debug.WriteLine($"[Subtitle] ExtractLastId JSON parse failed: {ex.Message}")
+                FormMain.WriteDebugLog($"[Subtitle] ExtractLastId JSON parse failed: {ex.Message}")
             End Try
             Return 0
         End Function
@@ -660,26 +661,7 @@ Namespace Services.Subtitle
         ' ── Shared utilities ──
 
         Public Shared Function EscapeJson(s As String) As String
-            Dim sb As New StringBuilder("""")
-            For Each c In s
-                Select Case c
-                    Case """"c : sb.Append("\""")
-                    Case "\"c : sb.Append("\\")
-                    Case ChrW(8) : sb.Append("\b")
-                    Case ChrW(9) : sb.Append("\t")
-                    Case ChrW(10) : sb.Append("\n")
-                    Case ChrW(12) : sb.Append("\f")
-                    Case ChrW(13) : sb.Append("\r")
-                    Case Else
-                        If AscW(c) < 32 Then
-                            sb.Append($"\u{AscW(c):X4}")
-                        Else
-                            sb.Append(c)
-                        End If
-                End Select
-            Next
-            sb.Append(""""c)
-            Return sb.ToString()
+            Return Pipeline.ProcessHelper.EscapeJson(s)
         End Function
 
         Public Shared Function ParseUserAgent(ua As String) As String

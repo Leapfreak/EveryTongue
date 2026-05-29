@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.4.1 - 2026-05-28
+
+### Added
+- USFM Bible converter (`UsfmConverter.vb`) using USFMToolsSharp for importing eBible.org translations to SQLite
+- Download Manager for browsing and downloading Bible translations from eBible.org
+- `BibleService.RescanTranslations()` for runtime Bible refresh without restart
+- `refreshBibleDropdown()` JS function to update translation dropdown without resetting navigation
+
+### Improved
+- Download Manager auto-loads cached eBible.org catalog on open
+- Parallel tool checking in Download Manager for faster startup
+- Single `pip show` call for dependency checking instead of sequential per-package calls
+- Bible dropdown refreshes on both WebViews (Bible tab and Live tab) after downloading new Bibles
+
+### Fixed
+- Home button on Bible tab now navigates to clean URL instead of reloading with `?bibleLang=` param
+- "No Bibles installed for this language" message instead of falling back to all translations
+
 ## v1.0.7 - 2026-04-16
 
 ### Fixed

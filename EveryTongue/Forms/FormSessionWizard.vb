@@ -257,7 +257,8 @@ Public Class FormSessionWizard
             Dim ip = GetLocalIp()
             lblNetworkStatus.Text = $"Network: Connected ({ip})"
             lblNetworkStatus.ForeColor = Drawing.Color.DarkGreen
-        Catch
+        Catch ex As Exception
+            FormMain.WriteDebugLog($"[ERROR] UpdateNetworkLabel: {ex.Message}")
             lblNetworkStatus.Text = "Network: Could not determine IP address"
             lblNetworkStatus.ForeColor = Drawing.Color.Red
         End Try
@@ -304,7 +305,7 @@ Public Class FormSessionWizard
                 End Using
             End Using
         Catch ex As Exception
-            Debug.WriteLine($"[Wizard] GenerateQr failed: {ex.Message}")
+            FormMain.WriteDebugLog($"[Wizard] GenerateQr failed: {ex.Message}")
         End Try
     End Sub
 
@@ -409,7 +410,7 @@ Public Class FormSessionWizard
                 End If
             Next
         Catch ex As Exception
-            Debug.WriteLine($"[Wizard] GetLocalIp failed: {ex.Message}")
+            FormMain.WriteDebugLog($"[Wizard] GetLocalIp failed: {ex.Message}")
         End Try
         Return "127.0.0.1"
     End Function

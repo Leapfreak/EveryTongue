@@ -1,6 +1,14 @@
 Imports System.Text.Json.Serialization
 
 Namespace Models
+
+    <JsonConverter(GetType(JsonStringEnumConverter))>
+    Public Enum ThemeMode
+        System
+        Light
+        Dark
+    End Enum
+
     Public Class AppConfig
 
         ' --- Paths & Tools ---
@@ -41,7 +49,7 @@ Namespace Models
 
         Public Property SkipDownloadIfExists As Boolean = False
 
-        Public Property Theme As String = "System"
+        Public Property Theme As ThemeMode = ThemeMode.Light
 
         Public Property LastLiveDeviceId As String = ""
 
@@ -166,6 +174,8 @@ Namespace Models
         Public Property AdminPin As String = "1234"
 
         Public Property BiblesDirectory As String = ".\Bibles"
+
+        Public Property MinimizeToTray As Boolean = True
 
         Public Property LogPanelHeight As Integer = 250
 

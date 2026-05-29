@@ -143,30 +143,15 @@ Namespace Server
             ' ── Build the app ──
             Dim app = builder.Build()
 
-            ' Wire BibleService and TtsService into SubtitleService (post-build, avoids circular DI)
-            Dim subtitleSvc = TryCast(app.Services.GetService(GetType(ISubtitleService)), SubtitleService)
-            Dim bibleSvc = TryCast(app.Services.GetService(GetType(IBibleService)), IBibleService)
-            If subtitleSvc IsNot Nothing AndAlso bibleSvc IsNot Nothing Then
-                subtitleSvc.BibleService = bibleSvc
-            End If
-
-            Dim ttsSvc = app.Services.GetService(Of ITtsService)()
-            If subtitleSvc IsNot Nothing AndAlso ttsSvc IsNot Nothing Then
-                subtitleSvc.TtsService = ttsSvc
-            End If
-
             ' Apply TTS backend preference from config
+            Dim ttsSvc = app.Services.GetService(Of ITtsService)()
             Dim ttsOrch = TryCast(ttsSvc, TtsOrchestrator)
             If ttsOrch IsNot Nothing AndAlso Not String.IsNullOrEmpty(options.TtsBackends) Then
                 ttsOrch.SetPreferredBackends(options.TtsBackends)
             End If
 
-            ' Wire TTS audio output for local PA/NDI playback
-            Dim ttsCache = app.Services.GetService(Of TtsCache)()
-            If subtitleSvc IsNot Nothing AndAlso ttsCache IsNot Nothing Then
-                subtitleSvc.TtsCacheDirectory = ttsCache.CacheDirectory
-            End If
-
+            ' Wire TTS audio output for local PA/NDI playback (conditional, so stays post-build)
+            Dim subtitleSvc = TryCast(app.Services.GetService(GetType(ISubtitleService)), SubtitleService)
             If subtitleSvc IsNot Nothing AndAlso options.TtsOutputDevice >= 0 Then
                 Dim ttsOutput As New TtsAudioOutput(
                     LoggerFactory.Create(Sub(b) b.SetMinimumLevel(LogLevel.Information).
@@ -354,7 +339,8 @@ Namespace Server
             Try
                 Dim subtitleSvc = TryCast(_app?.Services?.GetService(GetType(ISubtitleService)), SubtitleService)
                 subtitleSvc?.TtsAudioOutput?.Dispose()
-            Catch
+            Catch ex As Exception
+                AppLogger.Log($"[ERROR] KestrelHost.Dispose (TtsAudioOutput): {ex.Message}")
             End Try
             Try
                 Dim backends = _app?.Services?.GetServices(Of ITtsBackend)()
@@ -364,7 +350,8 @@ Namespace Server
                         mmsTts?.Stop()
                     Next
                 End If
-            Catch
+            Catch ex As Exception
+                AppLogger.Log($"[ERROR] KestrelHost.Dispose (MmsTtsBackend): {ex.Message}")
             End Try
 
             [Stop]()
