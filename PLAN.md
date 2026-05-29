@@ -8,19 +8,17 @@ All 10 phases done. Legacy HttpListener/SslStream server removed. Kestrel in-pro
 ### Code Quality (all done)
 All 11 items complete: controller extraction, tune stats dedup, language code consolidation, ThemeMode enum, silent error fix, BibleRefs typing, PythonSidecarHost, LiveStreamRunner stop dedup, thread-safe RemoteCommandHandler, AppLogger decoupling, KestrelHost.Dispose, SubtitleService constructor injection. Config architecture (item B) merged into UI Redesign Plan.
 
+Additional cleanup (2026-05-31): Removed all dead hidden tab controls (tabPageServer, tabPagePaths, tabPageSettings and ~35+ child controls from FormMain.Designer.vb). Eliminated AppendServerLog indirection — all logging now routes directly through WriteDebugLog/AppLogger. ServerController constructor simplified from 18 params to 4 (config, webview, statusCallback, logCallback). LiveController cleaned of dead dependencies (btnSetupTranslation, checkDeps, appendServerLog). FormOptions is now the single source of truth for paths/settings/server config.
+
 ## User-Reported Issues & Tasks
-- [x] Bible download links — Download Manager browses eBible.org, downloads USFM, converts to SQLite
-- [x] Python packages / Download Manager — single pip show call, parallel tool checks
 - [ ] TTS preference path (configurable path for TTS models/voices)
-- [ ] Oversized Options Form (FormOptions too large, needs fixing/scrolling)
 - [ ] Implement stubs (menu items / features that are wired but do nothing yet)
 - [ ] Audio routing: NDI or Direct Audio output
 
 ## Suggested Next Priorities
-1. Audio Level Monitor (#3) — critical for operator feedback
-2. ~~First-run Language Picker~~ — DONE (language picker, auto-locale discovery, Download Manager auto-open, Option D fix)
-3. Diagnostic Bundle (#4) — needed for remote support
-4. Pluggable Translation UI (#14c) — backend selector + API key config
+1. Diagnostic Bundle (#4d) — finish file integrity checksums (build-time manifest + runtime verification)
+2. Audio Level Monitor (#3) — critical for operator feedback
+3. Pluggable Translation UI (#14c) — backend selector + API key config
 
 ---
 
@@ -34,10 +32,10 @@ Implementation plan for making Every Tongue field-deployable by a non-technical 
 
 | # | Feature | Status | Phase |
 |---|---------|--------|-------|
-| [1](#1-qr-code-connection) | QR Code Connection | New | 1 |
+| [1](#1-qr-code-connection) | QR Code Connection | **Done** | 1 |
 | [2](#2-setup-wizard--event-setup-mode) | Setup Wizard — Event Setup Mode | Improve | 2 |
 | [3](#3-audio-level-monitor) | Audio Level Monitor | New | 1 |
-| [4](#4-diagnostic-bundle--remote-support) | Diagnostic Bundle / Remote Support | New | 1 |
+| [4](#4-diagnostic-bundle--remote-support) | Diagnostic Bundle / Remote Support | **In Progress** | 1 |
 | [5](#5-glossary-management--simplified-for-non-technical-users) | Glossary Management — Simplified | Improve | 2 |
 | [6](#6-text-to-speech--server-side-engine) | Text-to-Speech — Server-Side Engine | Done | 4 |
 | [7](#7-portable-usb-deployment) | Portable USB Deployment | New | 5 |
@@ -47,7 +45,7 @@ Implementation plan for making Every Tongue field-deployable by a non-technical 
 | [11A](#11a-field-feedback-system) | Field Feedback System | New | 4 |
 | [11B](#11b-glossary-enrichment-pipeline) | Glossary Enrichment Pipeline | New | 4 |
 | [11C](#11c-device-compatibility--suitability-scoring) | Device Compatibility & Suitability Scoring | New | 4 |
-| [12](#12-hardware-readiness-score) | Hardware Readiness Score | New | 1 |
+| [12](#12-hardware-readiness-score) | Hardware Readiness Score | **Done** | 1 |
 | [13](#13-recommended-specifications-generator) | Recommended Specifications Generator | New | 1 |
 | [14](#14-pluggable-translation-backends) | Pluggable Translation Backends (Cloud APIs) | Scaffolded | 4 |
 | [15](#15-server-infrastructure-upgrade--kestrel) | Server Infrastructure Upgrade (Kestrel) | **Done** | 3 |
@@ -59,7 +57,7 @@ Implementation plan for making Every Tongue field-deployable by a non-technical 
 
 ## 1. QR Code Connection
 
-**Status:** Not started
+**Status:** Done. FormQrCode with QRCoder, accessible from session wizard and menu. Shows QR + URL text fallback.
 
 **Problem:** Phones currently connect by typing `https://<IP>:5081` manually. In a room of 50 people who don't speak the operator's language, this is a showstopper.
 
@@ -163,7 +161,7 @@ Add steps after the current two:
 
 ## 4. Diagnostic Bundle / Remote Support
 
-**Status:** Not started. Debug logs exist (`YYYYMMDD_pipeline-debug.log`, `YYYYMMDD_nllb-debug.log`) but there's no way to collect and export system state.
+**Status:** In progress. Sections (a) system info, (b) log bundling (last 30 days, compressed), and (c) export button (File → Export Diagnostics) are implemented. Section (d) file integrity checksums not yet done.
 
 **Problem:** A dev team supporting deployments across 36 countries needs to diagnose problems remotely. Currently requires back-and-forth asking operators to find and send log files.
 
@@ -1066,7 +1064,7 @@ The dev team updates `compatibility.json` based on this data each release. The f
 
 ## 12. Hardware Readiness Score
 
-**Status:** Not started. No system capability detection exists. Users discover their hardware is inadequate only after trying to run transcription and getting unusable results.
+**Status:** Done. HardwareScanner detects GPU (nvidia-smi + WMI), CPU (cores + clock), RAM, disk, and OS. Weighted scoring (GPU 40%, CPU 25%, RAM 20%, Disk 10%, OS 5%) with green/amber/red traffic light. Options → Hardware panel shows score, component breakdown, and recommendations. Auto-scans on first visit. First-run flow: language picker → Options (Hardware) → Download Manager. Win 10/11 distinguished by build number.
 
 **Problem:** Someone in rural Poland installs the app on a 2015 ultrabook with integrated graphics. The app starts, everything looks fine, but transcription runs at 0.3x real-time and the translations lag 30 seconds behind the speaker. They conclude the software doesn't work. A hardware check on first run would have told them upfront: "This laptop isn't powerful enough for live transcription" — saving frustration and protecting the tool's reputation.
 

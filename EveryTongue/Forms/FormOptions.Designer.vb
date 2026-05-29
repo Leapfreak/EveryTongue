@@ -21,6 +21,7 @@ Partial Class FormOptions
         Me.pnlGeneral = New System.Windows.Forms.Panel()
         Me.chkStartWindows = New System.Windows.Forms.CheckBox()
         Me.chkMinimizeToTray = New System.Windows.Forms.CheckBox()
+        Me.chkResetFirstRun = New System.Windows.Forms.CheckBox()
         Me.lblStartupSep = New System.Windows.Forms.Label()
         Me.lblStartupHeader = New System.Windows.Forms.Label()
         Me.cboTheme = New System.Windows.Forms.ComboBox()
@@ -76,6 +77,24 @@ Partial Class FormOptions
         Me.lblWhisperPath = New System.Windows.Forms.Label()
         Me.lblToolPathsSep = New System.Windows.Forms.Label()
         Me.lblToolPathsHeader = New System.Windows.Forms.Label()
+        Me.pnlHardware = New System.Windows.Forms.Panel()
+        Me.lblHwHeader = New System.Windows.Forms.Label()
+        Me.lblHwSep = New System.Windows.Forms.Label()
+        Me.lblHwOverallCaption = New System.Windows.Forms.Label()
+        Me.lblHwOverallScore = New System.Windows.Forms.Label()
+        Me.pnlHwIndicator = New System.Windows.Forms.Panel()
+        Me.lblHwVerdict = New System.Windows.Forms.Label()
+        Me.lblHwBreakdownHeader = New System.Windows.Forms.Label()
+        Me.lblHwBreakdownSep = New System.Windows.Forms.Label()
+        Me.lblHwGpu = New System.Windows.Forms.Label()
+        Me.lblHwCpu = New System.Windows.Forms.Label()
+        Me.lblHwRam = New System.Windows.Forms.Label()
+        Me.lblHwDisk = New System.Windows.Forms.Label()
+        Me.lblHwOs = New System.Windows.Forms.Label()
+        Me.lblHwRecsHeader = New System.Windows.Forms.Label()
+        Me.lblHwRecsSep = New System.Windows.Forms.Label()
+        Me.txtHwRecs = New System.Windows.Forms.TextBox()
+        Me.btnHwRescan = New System.Windows.Forms.Button()
         Me.pnlServer = New System.Windows.Forms.Panel()
         Me.txtTts = New System.Windows.Forms.TextBox()
         Me.lblTts = New System.Windows.Forms.Label()
@@ -117,6 +136,7 @@ Partial Class FormOptions
         Me.pnlGeneral.SuspendLayout()
         Me.pnlPaths.SuspendLayout()
         Me.pnlServer.SuspendLayout()
+        Me.pnlHardware.SuspendLayout()
         CType(Me.nudPort, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudLivePort, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudTransPort, System.ComponentModel.ISupportInitialize).BeginInit()
@@ -175,7 +195,7 @@ Partial Class FormOptions
         Me.treeNav.ItemHeight = 28
         Me.treeNav.Location = New System.Drawing.Point(0, 0)
         Me.treeNav.Name = "treeNav"
-        Me.treeNav.Nodes.AddRange(New System.Windows.Forms.TreeNode() {New System.Windows.Forms.TreeNode("General") With {.Name = "general"}, New System.Windows.Forms.TreeNode("Tool Paths") With {.Name = "paths"}, New System.Windows.Forms.TreeNode("Server & Subtitles") With {.Name = "server"}})
+        Me.treeNav.Nodes.AddRange(New System.Windows.Forms.TreeNode() {New System.Windows.Forms.TreeNode("General") With {.Name = "general"}, New System.Windows.Forms.TreeNode("Tool Paths") With {.Name = "paths"}, New System.Windows.Forms.TreeNode("Server & Subtitles") With {.Name = "server"}, New System.Windows.Forms.TreeNode("Hardware") With {.Name = "hardware"}})
         Me.treeNav.ShowLines = False
         Me.treeNav.ShowPlusMinus = False
         Me.treeNav.ShowRootLines = False
@@ -187,6 +207,7 @@ Partial Class FormOptions
         Me.pnlPages.Controls.Add(Me.pnlGeneral)
         Me.pnlPages.Controls.Add(Me.pnlPaths)
         Me.pnlPages.Controls.Add(Me.pnlServer)
+        Me.pnlPages.Controls.Add(Me.pnlHardware)
         Me.pnlPages.Dock = System.Windows.Forms.DockStyle.Fill
         Me.pnlPages.Location = New System.Drawing.Point(0, 0)
         Me.pnlPages.Name = "pnlPages"
@@ -200,6 +221,7 @@ Partial Class FormOptions
         ' pnlGeneral
         '
         Me.pnlGeneral.AutoScroll = True
+        Me.pnlGeneral.Controls.Add(Me.chkResetFirstRun)
         Me.pnlGeneral.Controls.Add(Me.chkMinimizeToTray)
         Me.pnlGeneral.Controls.Add(Me.chkStartWindows)
         Me.pnlGeneral.Controls.Add(Me.lblStartupSep)
@@ -312,6 +334,16 @@ Partial Class FormOptions
         Me.chkMinimizeToTray.TabIndex = 9
         Me.chkMinimizeToTray.Text = "Minimize to tray on close"
         Me.chkMinimizeToTray.UseVisualStyleBackColor = True
+        '
+        ' chkResetFirstRun
+        '
+        Me.chkResetFirstRun.AutoSize = True
+        Me.chkResetFirstRun.Location = New System.Drawing.Point(12, 230)
+        Me.chkResetFirstRun.Name = "chkResetFirstRun"
+        Me.chkResetFirstRun.Size = New System.Drawing.Size(200, 19)
+        Me.chkResetFirstRun.TabIndex = 10
+        Me.chkResetFirstRun.Text = "Re-run first-time setup on next start"
+        Me.chkResetFirstRun.UseVisualStyleBackColor = True
         '
         ' ══════════════════════════════════════════════════════════════
         ' PATHS PANEL
@@ -1168,6 +1200,215 @@ Partial Class FormOptions
         Me.txtTts.Size = New System.Drawing.Size(300, 23)
         Me.txtTts.TabIndex = 32
         '
+        ' ══════════════════════════════════════════════════════════════
+        ' HARDWARE PANEL
+        ' ══════════════════════════════════════════════════════════════
+        '
+        ' pnlHardware
+        '
+        Me.pnlHardware.AutoScroll = True
+        Me.pnlHardware.Controls.Add(Me.btnHwRescan)
+        Me.pnlHardware.Controls.Add(Me.txtHwRecs)
+        Me.pnlHardware.Controls.Add(Me.lblHwRecsSep)
+        Me.pnlHardware.Controls.Add(Me.lblHwRecsHeader)
+        Me.pnlHardware.Controls.Add(Me.lblHwOs)
+        Me.pnlHardware.Controls.Add(Me.lblHwDisk)
+        Me.pnlHardware.Controls.Add(Me.lblHwRam)
+        Me.pnlHardware.Controls.Add(Me.lblHwCpu)
+        Me.pnlHardware.Controls.Add(Me.lblHwGpu)
+        Me.pnlHardware.Controls.Add(Me.lblHwBreakdownSep)
+        Me.pnlHardware.Controls.Add(Me.lblHwBreakdownHeader)
+        Me.pnlHardware.Controls.Add(Me.lblHwVerdict)
+        Me.pnlHardware.Controls.Add(Me.pnlHwIndicator)
+        Me.pnlHardware.Controls.Add(Me.lblHwOverallScore)
+        Me.pnlHardware.Controls.Add(Me.lblHwOverallCaption)
+        Me.pnlHardware.Controls.Add(Me.lblHwSep)
+        Me.pnlHardware.Controls.Add(Me.lblHwHeader)
+        Me.pnlHardware.Dock = System.Windows.Forms.DockStyle.Fill
+        Me.pnlHardware.Location = New System.Drawing.Point(0, 0)
+        Me.pnlHardware.Name = "pnlHardware"
+        Me.pnlHardware.Size = New System.Drawing.Size(564, 469)
+        Me.pnlHardware.TabIndex = 3
+        Me.pnlHardware.Visible = False
+        '
+        ' lblHwHeader
+        '
+        Me.lblHwHeader.AutoSize = True
+        Me.lblHwHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
+        Me.lblHwHeader.Location = New System.Drawing.Point(8, 12)
+        Me.lblHwHeader.Name = "lblHwHeader"
+        Me.lblHwHeader.Size = New System.Drawing.Size(165, 20)
+        Me.lblHwHeader.TabIndex = 0
+        Me.lblHwHeader.Text = "Hardware Readiness"
+        '
+        ' lblHwSep
+        '
+        Me.lblHwSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.lblHwSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
+        Me.lblHwSep.Location = New System.Drawing.Point(8, 34)
+        Me.lblHwSep.Name = "lblHwSep"
+        Me.lblHwSep.Size = New System.Drawing.Size(520, 1)
+        Me.lblHwSep.TabIndex = 1
+        '
+        ' lblHwOverallCaption
+        '
+        Me.lblHwOverallCaption.AutoSize = True
+        Me.lblHwOverallCaption.Font = New System.Drawing.Font("Segoe UI", 10.0!)
+        Me.lblHwOverallCaption.Location = New System.Drawing.Point(12, 46)
+        Me.lblHwOverallCaption.Name = "lblHwOverallCaption"
+        Me.lblHwOverallCaption.Size = New System.Drawing.Size(93, 19)
+        Me.lblHwOverallCaption.TabIndex = 2
+        Me.lblHwOverallCaption.Text = "Overall Score:"
+        '
+        ' lblHwOverallScore
+        '
+        Me.lblHwOverallScore.AutoSize = True
+        Me.lblHwOverallScore.Font = New System.Drawing.Font("Segoe UI", 18.0!, System.Drawing.FontStyle.Bold)
+        Me.lblHwOverallScore.Location = New System.Drawing.Point(40, 68)
+        Me.lblHwOverallScore.Name = "lblHwOverallScore"
+        Me.lblHwOverallScore.Size = New System.Drawing.Size(50, 32)
+        Me.lblHwOverallScore.TabIndex = 3
+        Me.lblHwOverallScore.Text = "—"
+        '
+        ' pnlHwIndicator
+        '
+        Me.pnlHwIndicator.BackColor = System.Drawing.Color.Gray
+        Me.pnlHwIndicator.Location = New System.Drawing.Point(12, 74)
+        Me.pnlHwIndicator.Name = "pnlHwIndicator"
+        Me.pnlHwIndicator.Size = New System.Drawing.Size(20, 20)
+        Me.pnlHwIndicator.TabIndex = 4
+        '
+        ' lblHwVerdict
+        '
+        Me.lblHwVerdict.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.lblHwVerdict.Font = New System.Drawing.Font("Segoe UI", 9.0!)
+        Me.lblHwVerdict.Location = New System.Drawing.Point(12, 106)
+        Me.lblHwVerdict.Name = "lblHwVerdict"
+        Me.lblHwVerdict.Size = New System.Drawing.Size(520, 20)
+        Me.lblHwVerdict.TabIndex = 5
+        Me.lblHwVerdict.Text = "Click Re-scan to check hardware."
+        '
+        ' lblHwBreakdownHeader
+        '
+        Me.lblHwBreakdownHeader.AutoSize = True
+        Me.lblHwBreakdownHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
+        Me.lblHwBreakdownHeader.Location = New System.Drawing.Point(8, 140)
+        Me.lblHwBreakdownHeader.Name = "lblHwBreakdownHeader"
+        Me.lblHwBreakdownHeader.Size = New System.Drawing.Size(170, 20)
+        Me.lblHwBreakdownHeader.TabIndex = 6
+        Me.lblHwBreakdownHeader.Text = "Component Scores"
+        '
+        ' lblHwBreakdownSep
+        '
+        Me.lblHwBreakdownSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.lblHwBreakdownSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
+        Me.lblHwBreakdownSep.Location = New System.Drawing.Point(8, 162)
+        Me.lblHwBreakdownSep.Name = "lblHwBreakdownSep"
+        Me.lblHwBreakdownSep.Size = New System.Drawing.Size(520, 1)
+        Me.lblHwBreakdownSep.TabIndex = 7
+        '
+        ' lblHwGpu
+        '
+        Me.lblHwGpu.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.lblHwGpu.Font = New System.Drawing.Font("Segoe UI", 9.0!)
+        Me.lblHwGpu.Location = New System.Drawing.Point(12, 170)
+        Me.lblHwGpu.Name = "lblHwGpu"
+        Me.lblHwGpu.Size = New System.Drawing.Size(520, 18)
+        Me.lblHwGpu.TabIndex = 8
+        Me.lblHwGpu.Text = "GPU:  —"
+        '
+        ' lblHwCpu
+        '
+        Me.lblHwCpu.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.lblHwCpu.Font = New System.Drawing.Font("Segoe UI", 9.0!)
+        Me.lblHwCpu.Location = New System.Drawing.Point(12, 192)
+        Me.lblHwCpu.Name = "lblHwCpu"
+        Me.lblHwCpu.Size = New System.Drawing.Size(520, 18)
+        Me.lblHwCpu.TabIndex = 9
+        Me.lblHwCpu.Text = "CPU:  —"
+        '
+        ' lblHwRam
+        '
+        Me.lblHwRam.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.lblHwRam.Font = New System.Drawing.Font("Segoe UI", 9.0!)
+        Me.lblHwRam.Location = New System.Drawing.Point(12, 214)
+        Me.lblHwRam.Name = "lblHwRam"
+        Me.lblHwRam.Size = New System.Drawing.Size(520, 18)
+        Me.lblHwRam.TabIndex = 10
+        Me.lblHwRam.Text = "RAM:  —"
+        '
+        ' lblHwDisk
+        '
+        Me.lblHwDisk.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.lblHwDisk.Font = New System.Drawing.Font("Segoe UI", 9.0!)
+        Me.lblHwDisk.Location = New System.Drawing.Point(12, 236)
+        Me.lblHwDisk.Name = "lblHwDisk"
+        Me.lblHwDisk.Size = New System.Drawing.Size(520, 18)
+        Me.lblHwDisk.TabIndex = 11
+        Me.lblHwDisk.Text = "Disk:  —"
+        '
+        ' lblHwOs
+        '
+        Me.lblHwOs.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.lblHwOs.Font = New System.Drawing.Font("Segoe UI", 9.0!)
+        Me.lblHwOs.Location = New System.Drawing.Point(12, 258)
+        Me.lblHwOs.Name = "lblHwOs"
+        Me.lblHwOs.Size = New System.Drawing.Size(520, 18)
+        Me.lblHwOs.TabIndex = 12
+        Me.lblHwOs.Text = "OS:  —"
+        '
+        ' lblHwRecsHeader
+        '
+        Me.lblHwRecsHeader.AutoSize = True
+        Me.lblHwRecsHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
+        Me.lblHwRecsHeader.Location = New System.Drawing.Point(8, 290)
+        Me.lblHwRecsHeader.Name = "lblHwRecsHeader"
+        Me.lblHwRecsHeader.Size = New System.Drawing.Size(145, 20)
+        Me.lblHwRecsHeader.TabIndex = 13
+        Me.lblHwRecsHeader.Text = "Recommendations"
+        '
+        ' lblHwRecsSep
+        '
+        Me.lblHwRecsSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.lblHwRecsSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
+        Me.lblHwRecsSep.Location = New System.Drawing.Point(8, 312)
+        Me.lblHwRecsSep.Name = "lblHwRecsSep"
+        Me.lblHwRecsSep.Size = New System.Drawing.Size(520, 1)
+        Me.lblHwRecsSep.TabIndex = 14
+        '
+        ' txtHwRecs
+        '
+        Me.txtHwRecs.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.txtHwRecs.BorderStyle = System.Windows.Forms.BorderStyle.None
+        Me.txtHwRecs.Font = New System.Drawing.Font("Segoe UI", 9.0!)
+        Me.txtHwRecs.Location = New System.Drawing.Point(12, 320)
+        Me.txtHwRecs.Multiline = True
+        Me.txtHwRecs.Name = "txtHwRecs"
+        Me.txtHwRecs.ReadOnly = True
+        Me.txtHwRecs.ScrollBars = System.Windows.Forms.ScrollBars.Vertical
+        Me.txtHwRecs.Size = New System.Drawing.Size(520, 80)
+        Me.txtHwRecs.TabIndex = 15
+        Me.txtHwRecs.Text = ""
+        '
+        ' btnHwRescan
+        '
+        Me.btnHwRescan.Location = New System.Drawing.Point(12, 410)
+        Me.btnHwRescan.Name = "btnHwRescan"
+        Me.btnHwRescan.Size = New System.Drawing.Size(100, 28)
+        Me.btnHwRescan.TabIndex = 16
+        Me.btnHwRescan.Text = "Re-scan"
+        Me.btnHwRescan.UseVisualStyleBackColor = True
+        '
         ' FormOptions
         '
         Me.AcceptButton = Me.btnOk
@@ -1197,6 +1438,8 @@ Partial Class FormOptions
         Me.pnlPaths.PerformLayout()
         Me.pnlServer.ResumeLayout(False)
         Me.pnlServer.PerformLayout()
+        Me.pnlHardware.ResumeLayout(False)
+        Me.pnlHardware.PerformLayout()
         CType(Me.nudPort, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudLivePort, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudTransPort, System.ComponentModel.ISupportInitialize).EndInit()
@@ -1231,6 +1474,7 @@ Partial Class FormOptions
     Friend WithEvents lblStartupSep As System.Windows.Forms.Label
     Friend WithEvents chkStartWindows As System.Windows.Forms.CheckBox
     Friend WithEvents chkMinimizeToTray As System.Windows.Forms.CheckBox
+    Friend WithEvents chkResetFirstRun As System.Windows.Forms.CheckBox
 
     ' Paths panel — section headers
     Friend WithEvents lblToolPathsHeader As System.Windows.Forms.Label
@@ -1324,5 +1568,25 @@ Partial Class FormOptions
     ' Server panel — TTS
     Friend WithEvents lblTts As System.Windows.Forms.Label
     Friend WithEvents txtTts As System.Windows.Forms.TextBox
+
+    ' Hardware panel
+    Friend WithEvents pnlHardware As System.Windows.Forms.Panel
+    Friend WithEvents lblHwHeader As System.Windows.Forms.Label
+    Friend WithEvents lblHwSep As System.Windows.Forms.Label
+    Friend WithEvents lblHwOverallCaption As System.Windows.Forms.Label
+    Friend WithEvents lblHwOverallScore As System.Windows.Forms.Label
+    Friend WithEvents pnlHwIndicator As System.Windows.Forms.Panel
+    Friend WithEvents lblHwVerdict As System.Windows.Forms.Label
+    Friend WithEvents lblHwBreakdownHeader As System.Windows.Forms.Label
+    Friend WithEvents lblHwBreakdownSep As System.Windows.Forms.Label
+    Friend WithEvents lblHwGpu As System.Windows.Forms.Label
+    Friend WithEvents lblHwCpu As System.Windows.Forms.Label
+    Friend WithEvents lblHwRam As System.Windows.Forms.Label
+    Friend WithEvents lblHwDisk As System.Windows.Forms.Label
+    Friend WithEvents lblHwOs As System.Windows.Forms.Label
+    Friend WithEvents lblHwRecsHeader As System.Windows.Forms.Label
+    Friend WithEvents lblHwRecsSep As System.Windows.Forms.Label
+    Friend WithEvents txtHwRecs As System.Windows.Forms.TextBox
+    Friend WithEvents btnHwRescan As System.Windows.Forms.Button
 
 End Class

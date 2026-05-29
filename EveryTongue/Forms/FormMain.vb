@@ -201,7 +201,7 @@ Public Class FormMain
             cboLiveDevice, cboLiveInputLang,
             btnLiveStart, btnLiveStop,
             btnRefreshDevices, btnEditFilters,
-            btnTuneStats, btnSetupTranslation,
+            btnTuneStats,
             grpLiveInput,
             trkMaxSegment, trkVadSilence,
             lblMaxSegmentValue, lblVadSilenceValue,
@@ -212,11 +212,9 @@ Public Class FormMain
             Function() SubtitleSvc,
             Function() _translationService,
             AddressOf StartTranslationService,
-            AddressOf AppendServerLog,
             AddressOf WriteDebugLog,
             AddressOf ShowLogPanel,
             AddressOf UpdateShellStatus,
-            Sub(manual) CheckDependenciesAsync(manual),
             AddressOf GetString,
             Me.Icon,
             Me,
@@ -250,15 +248,10 @@ Public Class FormMain
 
         ' Create server controller
         _serverController = New Controllers.ServerController(
-            _config, btnServerStart, btnServerStop, btnServerRestart,
-            nudServerPort, btnCopyUrl, lblServerStatus, lblServerUrl, lblServerClients,
-            rtbServerLog, btnSubtitleBg, btnSubtitleFg, cboSubtitleFont, nudSubtitleSize, chkSubtitleBold,
-            wvLiveClients,
-            AddressOf SaveUiToConfig,
+            _config, wvLiveClients,
             AddressOf UpdateShellStatus,
-            AddressOf WriteDebugLog,
-            Sub(hWnd, msg, wParam, lParam) SendMessage(hWnd, msg, wParam, lParam))
-        _serverController.WireEvents()
+            AddressOf WriteDebugLog)
+
 
         ' Fix tab switching rendering (progress bars don't repaint correctly)
         AddHandler tabMain.SelectedIndexChanged, Sub(s, ev)
@@ -274,9 +267,6 @@ Public Class FormMain
 
         ' Check for missing dependencies
         CheckDependenciesAsync()
-
-        ' Update translation setup button
-        _liveController.UpdateTranslationButtonAsync()
 
         ' Wire up system tray
         AddHandler trayIcon.DoubleClick, Sub(s, ev) ShowFromTray()
@@ -302,7 +292,6 @@ Public Class FormMain
         ' Auto-start subtitle server after form is fully shown
         AddHandler Me.Shown, Sub(s, ev)
                                   _serverController.StartServer(Sub(svc) _liveController.ConfigureSubtitleService(svc))
-                                  _serverController.DoneInitializing()
                                   InitBibleTab()
                               End Sub
     End Sub
@@ -505,11 +494,23 @@ del ""%~f0""
             End If
         End Try
 
-        ' First run: open Download Manager to get tools installed
+        ' First run: show hardware readiness, then open Download Manager
         If isFirstRun Then
-            WriteDebugLog("[FIRSTRUN] Setting FirstRunComplete=True and opening Download Manager")
+            WriteDebugLog("[FIRSTRUN] Setting FirstRunComplete=True")
             _config.FirstRunComplete = True
             ConfigManager.Save(_config)
+
+            ' Show Options dialog opened to Hardware panel so user sees readiness score
+            WriteDebugLog("[FIRSTRUN] Opening Options → Hardware")
+            Using opts As New FormOptions(_config, _uiLocales)
+                opts.SelectCategory("hardware")
+                opts.ShowDialog(Me)
+                If opts.ConfigChanged Then
+                    ApplyTheme(_config.Theme)
+                End If
+            End Using
+
+            WriteDebugLog("[FIRSTRUN] Opening Download Manager")
             OpenDownloadManager()
             WriteDebugLog("[FIRSTRUN] Download Manager closed")
         End If
@@ -740,17 +741,6 @@ del ""%~f0""
 
 
             ' Subtitle Server tab
-            tabPageServer.Text = GetString("Tab_Server")
-            grpServerSettings.Text = GetString("Grp_ServerSettings")
-            lblServerPort.Text = GetString("Lbl_ServerPort")
-            btnServerStart.Text = GetString("Btn_ServerStart")
-            btnServerStop.Text = GetString("Btn_ServerStop")
-            btnServerRestart.Text = GetString("Btn_ServerRestart")
-            lblSubtitleBg.Text = GetString("Lbl_SubtitleBg")
-            lblSubtitleFg.Text = GetString("Lbl_SubtitleFg")
-            grpServerInfo.Text = GetString("Grp_ServerInfo")
-            btnCopyUrl.Text = GetString("Btn_CopyUrl")
-
             If _transcribeController Is Nothing OrElse Not _transcribeController.IsRunning Then
                 lblStepStatus.Text = GetString("Msg_Ready")
             End If
@@ -846,10 +836,6 @@ del ""%~f0""
             ElseIf TypeOf ctrl Is TabControl Then
                 ' Don't change tab control background
             ElseIf TypeOf ctrl Is Button Then
-                ' Skip color picker buttons
-                If ctrl Is btnSubtitleBg OrElse ctrl Is btnSubtitleFg Then
-                    Continue For
-                End If
                 ' Keep buttons readable
                 If backColor = Drawing.SystemColors.Control Then
                     ctrl.BackColor = Drawing.SystemColors.Control
@@ -907,7 +893,7 @@ del ""%~f0""
 
         _translationService = New TranslationService()
         AddHandler _translationService.StatusChanged, Sub(s, msg)
-                                                          AppendServerLog(msg)
+                                                          WriteDebugLog(msg)
                                                           If msg.Contains("model loaded") Then _liveController?.FlushPendingCommits()
                                                       End Sub
 
@@ -919,7 +905,7 @@ del ""%~f0""
         WriteDebugLog($"[TRANSLATE] StartTranslationService: port={port}, device={device}, modelPath={modelPath}")
         _translationService.Start(port, modelPath, device, glossaryPath)
         _translationStarting = False
-        AppendServerLog("Translation service starting...")
+        WriteDebugLog("Translation service starting...")
     End Sub
 
     Friend Shared Function GetPipelineLogPath() As String
@@ -931,10 +917,6 @@ del ""%~f0""
     End Sub
 
     ' Subtitle Server — delegated to ServerController
-
-    Private Sub AppendServerLog(text As String)
-        _serverController?.AppendServerLog(text)
-    End Sub
 
     Private Sub VerifyAllPaths()
         _serverController?.VerifyAllPaths()

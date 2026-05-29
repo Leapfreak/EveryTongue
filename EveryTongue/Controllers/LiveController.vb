@@ -22,7 +22,6 @@ Namespace Controllers
         Private ReadOnly _btnRefreshDevices As Button
         Private ReadOnly _btnEditFilters As Button
         Private ReadOnly _btnTuneStats As Button
-        Private ReadOnly _btnSetupTranslation As Button
         Private ReadOnly _grpInput As GroupBox
         Private ReadOnly _trkMaxSegment As TrackBar
         Private ReadOnly _trkVadSilence As TrackBar
@@ -38,11 +37,9 @@ Namespace Controllers
         Private ReadOnly _getSubtitleSvc As Func(Of Services.Interfaces.ISubtitleService)
         Private ReadOnly _getTranslationService As Func(Of TranslationService)
         Private ReadOnly _startTranslationService As Action
-        Private ReadOnly _appendServerLog As Action(Of String)
         Private ReadOnly _debugLog As Action(Of String)
         Private ReadOnly _showLogPanel As Action
         Private ReadOnly _updateShellStatus As Action
-        Private ReadOnly _checkDeps As Action(Of Boolean)
         Private ReadOnly _getString As Func(Of String, String)
         Private ReadOnly _formIcon As Drawing.Icon
         Private ReadOnly _ownerForm As Form
@@ -70,7 +67,7 @@ Namespace Controllers
                        cboDevice As ComboBox, cboInputLang As ComboBox,
                        btnStart As Button, btnStop As Button,
                        btnRefreshDevices As Button, btnEditFilters As Button,
-                       btnTuneStats As Button, btnSetupTranslation As Button,
+                       btnTuneStats As Button,
                        grpInput As GroupBox,
                        trkMaxSegment As TrackBar, trkVadSilence As TrackBar,
                        lblMaxSegmentValue As Label, lblVadSilenceValue As Label,
@@ -81,11 +78,9 @@ Namespace Controllers
                        getSubtitleSvc As Func(Of Services.Interfaces.ISubtitleService),
                        getTranslationService As Func(Of TranslationService),
                        startTranslationService As Action,
-                       appendServerLog As Action(Of String),
                        debugLog As Action(Of String),
                        showLogPanel As Action,
                        updateShellStatus As Action,
-                       checkDeps As Action(Of Boolean),
                        getString As Func(Of String, String),
                        formIcon As Drawing.Icon,
                        ownerForm As Form,
@@ -98,7 +93,6 @@ Namespace Controllers
             _btnRefreshDevices = btnRefreshDevices
             _btnEditFilters = btnEditFilters
             _btnTuneStats = btnTuneStats
-            _btnSetupTranslation = btnSetupTranslation
             _grpInput = grpInput
             _trkMaxSegment = trkMaxSegment
             _trkVadSilence = trkVadSilence
@@ -111,11 +105,9 @@ Namespace Controllers
             _getSubtitleSvc = getSubtitleSvc
             _getTranslationService = getTranslationService
             _startTranslationService = startTranslationService
-            _appendServerLog = appendServerLog
             _debugLog = debugLog
             _showLogPanel = showLogPanel
             _updateShellStatus = updateShellStatus
-            _checkDeps = checkDeps
             _getString = getString
             _formIcon = formIcon
             _ownerForm = ownerForm
@@ -133,7 +125,6 @@ Namespace Controllers
             AddHandler _trkMaxSegment.Scroll, Sub(s, e) OnMaxSegmentScroll()
             AddHandler _trkVadSilence.Scroll, Sub(s, e) OnVadSilenceScroll()
             AddHandler _btnTuneStats.Click, Sub(s, e) ShowTuneStats()
-            AddHandler _btnSetupTranslation.Click, Sub(s, e) _checkDeps(True)
         End Sub
 
         Public Sub PopulateLanguageDropdown()
@@ -235,7 +226,7 @@ Namespace Controllers
 
             If Not liveDeps.pythonOk OrElse Not liveDeps.depsOk OrElse Not liveDeps.modelOk Then
                 If _isRemoteCommand Then
-                    _appendServerLog("ERROR: Live transcription dependencies not installed.")
+                    _debugLog("ERROR: Live transcription dependencies not installed.")
                     Return
                 End If
                 Services.Infrastructure.AppLogger.PromptDownloadManager(
@@ -280,7 +271,7 @@ Namespace Controllers
                                                       End If
                                                   End Sub
 
-            _appendServerLog($"Live transcription starting (device {deviceId}, lang={inputLang})...")
+            _debugLog($"Live transcription starting (device {deviceId}, lang={inputLang})...")
             _debugLog($"[Live] faster-whisper + Silero VAD (port {_config.LiveServerPort})")
 
             _liveRunner.Start(_config, deviceId, inputLang, False)
@@ -303,7 +294,7 @@ Namespace Controllers
             If _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning Then
                 _getSubtitleSvc()?.BroadcastSystemMessage("[Transcription Stopped]")
                 _liveRunner.Stop()
-                _appendServerLog("Live transcription stopped.")
+                _debugLog("Live transcription stopped.")
             End If
 
             _btnStart.Enabled = True
@@ -340,20 +331,20 @@ Namespace Controllers
                 Select Case command
                     Case "start"
                         If Not isLiveActive Then
-                            _appendServerLog("Remote command: START")
+                            _debugLog("Remote command: START")
                             StartLiveAsync()
                         End If
                     Case "stop"
                         If isLiveActive Then
-                            _appendServerLog("Remote command: STOP")
+                            _debugLog("Remote command: STOP")
                             StopLive()
                         End If
                     Case "restart"
-                        _appendServerLog("Remote command: RESTART")
+                        _debugLog("Remote command: RESTART")
                         If isLiveActive Then StopLive()
                         StartLiveAsync()
                     Case "clear"
-                        _appendServerLog("Remote command: CLEAR")
+                        _debugLog("Remote command: CLEAR")
                         _getSubtitleSvc()?.BroadcastClear()
                     Case Else
                         If command.StartsWith("setSliders:") Then
@@ -362,7 +353,7 @@ Namespace Controllers
                                 Dim maxSeg As Integer
                                 Dim vadSilence As Integer
                                 If Integer.TryParse(parts(0), maxSeg) AndAlso Integer.TryParse(parts(1), vadSilence) Then
-                                    _appendServerLog($"Remote command: SET SLIDERS maxSeg={maxSeg}s vadSilence={vadSilence}ms")
+                                    _debugLog($"Remote command: SET SLIDERS maxSeg={maxSeg}s vadSilence={vadSilence}ms")
                                     _trkMaxSegment.Value = Math.Max(_trkMaxSegment.Minimum, Math.Min(_trkMaxSegment.Maximum, maxSeg))
                                     _lblMaxSegmentValue.Text = $"{_trkMaxSegment.Value}s"
                                     _trkVadSilence.Value = Math.Max(_trkVadSilence.Minimum, Math.Min(_trkVadSilence.Maximum, vadSilence))
@@ -501,7 +492,7 @@ Namespace Controllers
 
             Dim deps = TranslationService.CheckDependenciesInstalled()
             If Not deps.pythonOk OrElse Not deps.depsOk OrElse Not deps.modelOk Then
-                _appendServerLog(_getString("Msg_TransDepsMissing"))
+                _debugLog(_getString("Msg_TransDepsMissing"))
                 Services.Infrastructure.AppLogger.PromptDownloadManager(
                     _getString("Msg_TransDepsMissing") & vbCrLf & vbCrLf & _getString("Msg_OpenDownloadManager"),
                     _getString("Msg_DepsMissing"))
@@ -524,7 +515,7 @@ Namespace Controllers
                 Sub(state)
                     Dim tgts = _getSubtitleSvc()?.GetActiveTranslationLanguages()
                     If tgts Is Nothing OrElse tgts.Count = 0 Then
-                        _appendServerLog($"No translation clients for {minutes} min, unloading model...")
+                        _debugLog($"No translation clients for {minutes} min, unloading model...")
                         _getTranslationService()?.UnloadModelAsync().Wait()
                     End If
                 End Sub, Nothing, TimeSpan.FromMinutes(minutes), Timeout.InfiniteTimeSpan)
@@ -556,22 +547,6 @@ Namespace Controllers
             If Not found AndAlso _cboDevice.Items.Count > 0 Then _cboDevice.SelectedIndex = 0
         End Sub
 
-        Public Sub UpdateTranslationButton(Optional deps As (pythonOk As Boolean, depsOk As Boolean, modelOk As Boolean)? = Nothing)
-            If deps Is Nothing Then deps = TranslationService.CheckDependenciesInstalled()
-            Dim d = deps.Value
-            If d.pythonOk AndAlso d.depsOk AndAlso d.modelOk Then
-                _btnSetupTranslation.Text = "Translation Ready"
-                _btnSetupTranslation.Enabled = True
-            Else
-                _btnSetupTranslation.Text = _getString("Btn_CheckToolUpdates")
-                _btnSetupTranslation.Enabled = True
-            End If
-        End Sub
-
-        Public Async Sub UpdateTranslationButtonAsync()
-            Dim deps = Await Task.Run(Function() TranslationService.CheckDependenciesInstalled())
-            UpdateTranslationButton(deps)
-        End Sub
 
         ''' <summary>
         ''' Wires live-specific events on the SubtitleService after server start.

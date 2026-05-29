@@ -101,44 +101,6 @@ Partial Class FormMain
         pnlLiveOutput = New Panel()
         wvLiveClients = New Microsoft.Web.WebView2.WinForms.WebView2()
 
-        tabPageServer = New TabPage()
-        grpServerSettings = New GroupBox()
-        lblServerPort = New Label()
-        nudServerPort = New NumericUpDown()
-        btnServerStart = New Button()
-        btnServerStop = New Button()
-        btnServerRestart = New Button()
-        lblSubtitleBg = New Label()
-        btnSubtitleBg = New Button()
-        lblSubtitleFg = New Label()
-        btnSubtitleFg = New Button()
-        lblSubtitleFont = New Label()
-        cboSubtitleFont = New ComboBox()
-        lblSubtitleSize = New Label()
-        nudSubtitleSize = New NumericUpDown()
-        chkSubtitleBold = New CheckBox()
-        lblAdminPin = New Label()
-        txtAdminPin = New TextBox()
-        lblLiveServerPort = New Label()
-        nudLiveServerPort = New NumericUpDown()
-        lblTranslationPort = New Label()
-        nudTranslationPort = New NumericUpDown()
-        lblTransDevice = New Label()
-        cboTransDevice = New ComboBox()
-        lblTransUnload = New Label()
-        nudTransUnload = New NumericUpDown()
-        chkTransEnabled = New CheckBox()
-        chkAllowFirewall = New CheckBox()
-        lblTtsBackends = New Label()
-        txtTtsBackends = New TextBox()
-        lblTtsHint = New Label()
-        btnSetupTranslation = New Button()
-        grpServerInfo = New GroupBox()
-        lblServerStatus = New Label()
-        lblServerUrl = New Label()
-        lblServerClients = New Label()
-        btnCopyUrl = New Button()
-        rtbServerLog = New RichTextBox()
         tabPageJob = New TabPage()
         lblMode = New Label()
         cboMode = New ComboBox()
@@ -250,14 +212,6 @@ Partial Class FormMain
         CType(trkVadSilence, ComponentModel.ISupportInitialize).BeginInit()
         pnlLiveOutput.SuspendLayout()
         CType(wvLiveClients, ComponentModel.ISupportInitialize).BeginInit()
-        tabPageServer.SuspendLayout()
-        grpServerSettings.SuspendLayout()
-        CType(nudServerPort, ComponentModel.ISupportInitialize).BeginInit()
-        CType(nudSubtitleSize, ComponentModel.ISupportInitialize).BeginInit()
-        CType(nudLiveServerPort, ComponentModel.ISupportInitialize).BeginInit()
-        CType(nudTranslationPort, ComponentModel.ISupportInitialize).BeginInit()
-        CType(nudTransUnload, ComponentModel.ISupportInitialize).BeginInit()
-        grpServerInfo.SuspendLayout()
         tabPageJob.SuspendLayout()
         grpInput.SuspendLayout()
         grpOutputFormats.SuspendLayout()
@@ -430,8 +384,8 @@ Partial Class FormMain
         ' mnuToolsOptions
         ' 
         mnuToolsOptions.Name = "mnuToolsOptions"
-        mnuToolsOptions.ShortcutKeyDisplayString = "Ctrl+,"
-        mnuToolsOptions.ShortcutKeys = Keys.F10
+        mnuToolsOptions.ShortcutKeys = Keys.F12
+        mnuToolsOptions.ShortcutKeyDisplayString = "F12"
         mnuToolsOptions.Size = New Size(184, 22)
         mnuToolsOptions.Text = "&Options..."
         ' 
@@ -712,7 +666,6 @@ Partial Class FormMain
         ' 
         tabMain.Appearance = TabAppearance.FlatButtons
         tabMain.Controls.Add(tabPageLive)
-        tabMain.Controls.Add(tabPageServer)
         tabMain.Controls.Add(tabPageJob)
         tabMain.Controls.Add(tabPageHelp)
         tabMain.Controls.Add(tabPageTranslate)
@@ -931,398 +884,6 @@ Partial Class FormMain
         wvLiveClients.Size = New Size(776, 402)
         wvLiveClients.TabIndex = 0
         wvLiveClients.ZoomFactor = 1R
-        '
-        ' tabPageServer
-        ' 
-        tabPageServer.Controls.Add(grpServerSettings)
-        tabPageServer.Controls.Add(grpServerInfo)
-        tabPageServer.Controls.Add(rtbServerLog)
-        tabPageServer.Location = New Point(4, 5)
-        tabPageServer.Name = "tabPageServer"
-        tabPageServer.Padding = New Padding(8)
-        tabPageServer.Size = New Size(792, 593)
-        tabPageServer.TabIndex = 1
-        tabPageServer.Text = "Subtitle Server"
-        ' 
-        ' grpServerSettings
-        ' 
-        grpServerSettings.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        grpServerSettings.Controls.Add(lblServerPort)
-        grpServerSettings.Controls.Add(nudServerPort)
-        grpServerSettings.Controls.Add(btnServerStart)
-        grpServerSettings.Controls.Add(btnServerStop)
-        grpServerSettings.Controls.Add(btnServerRestart)
-        grpServerSettings.Controls.Add(lblSubtitleBg)
-        grpServerSettings.Controls.Add(btnSubtitleBg)
-        grpServerSettings.Controls.Add(lblSubtitleFg)
-        grpServerSettings.Controls.Add(btnSubtitleFg)
-        grpServerSettings.Controls.Add(lblSubtitleFont)
-        grpServerSettings.Controls.Add(cboSubtitleFont)
-        grpServerSettings.Controls.Add(lblSubtitleSize)
-        grpServerSettings.Controls.Add(nudSubtitleSize)
-        grpServerSettings.Controls.Add(chkSubtitleBold)
-        grpServerSettings.Controls.Add(lblAdminPin)
-        grpServerSettings.Controls.Add(txtAdminPin)
-        grpServerSettings.Controls.Add(lblLiveServerPort)
-        grpServerSettings.Controls.Add(nudLiveServerPort)
-        grpServerSettings.Controls.Add(lblTranslationPort)
-        grpServerSettings.Controls.Add(nudTranslationPort)
-        grpServerSettings.Controls.Add(lblTransDevice)
-        grpServerSettings.Controls.Add(cboTransDevice)
-        grpServerSettings.Controls.Add(lblTransUnload)
-        grpServerSettings.Controls.Add(nudTransUnload)
-        grpServerSettings.Controls.Add(chkTransEnabled)
-        grpServerSettings.Controls.Add(chkAllowFirewall)
-        grpServerSettings.Controls.Add(lblTtsBackends)
-        grpServerSettings.Controls.Add(txtTtsBackends)
-        grpServerSettings.Controls.Add(lblTtsHint)
-        grpServerSettings.Controls.Add(btnSetupTranslation)
-        grpServerSettings.Location = New Point(8, 6)
-        grpServerSettings.Name = "grpServerSettings"
-        grpServerSettings.Size = New Size(760, 254)
-        grpServerSettings.TabIndex = 0
-        grpServerSettings.TabStop = False
-        grpServerSettings.Text = "Server Settings"
-        ' 
-        ' lblServerPort
-        ' 
-        lblServerPort.AutoSize = True
-        lblServerPort.Location = New Point(10, 22)
-        lblServerPort.Name = "lblServerPort"
-        lblServerPort.Size = New Size(32, 15)
-        lblServerPort.TabIndex = 0
-        lblServerPort.Text = "Port:"
-        ' 
-        ' nudServerPort
-        ' 
-        nudServerPort.Location = New Point(10, 38)
-        nudServerPort.Maximum = New Decimal(New Integer() {65535, 0, 0, 0})
-        nudServerPort.Minimum = New Decimal(New Integer() {1024, 0, 0, 0})
-        nudServerPort.Name = "nudServerPort"
-        nudServerPort.Size = New Size(80, 23)
-        nudServerPort.TabIndex = 1
-        nudServerPort.Value = New Decimal(New Integer() {5080, 0, 0, 0})
-        ' 
-        ' btnServerStart
-        ' 
-        btnServerStart.Location = New Point(110, 37)
-        btnServerStart.Name = "btnServerStart"
-        btnServerStart.Size = New Size(110, 25)
-        btnServerStart.TabIndex = 2
-        btnServerStart.Text = "Start Server"
-        ' 
-        ' btnServerStop
-        ' 
-        btnServerStop.Enabled = False
-        btnServerStop.Location = New Point(230, 37)
-        btnServerStop.Name = "btnServerStop"
-        btnServerStop.Size = New Size(110, 25)
-        btnServerStop.TabIndex = 3
-        btnServerStop.Text = "Stop Server"
-        ' 
-        ' btnServerRestart
-        ' 
-        btnServerRestart.Enabled = False
-        btnServerRestart.Location = New Point(350, 37)
-        btnServerRestart.Name = "btnServerRestart"
-        btnServerRestart.Size = New Size(110, 25)
-        btnServerRestart.TabIndex = 4
-        btnServerRestart.Text = "Restart Server"
-        ' 
-        ' lblSubtitleBg
-        ' 
-        lblSubtitleBg.AutoSize = True
-        lblSubtitleBg.Location = New Point(10, 70)
-        lblSubtitleBg.Name = "lblSubtitleBg"
-        lblSubtitleBg.Size = New Size(74, 15)
-        lblSubtitleBg.TabIndex = 5
-        lblSubtitleBg.Text = "Background:"
-        ' 
-        ' btnSubtitleBg
-        ' 
-        btnSubtitleBg.BackColor = Color.Black
-        btnSubtitleBg.FlatAppearance.BorderColor = Color.Gray
-        btnSubtitleBg.FlatStyle = FlatStyle.Flat
-        btnSubtitleBg.Location = New Point(10, 86)
-        btnSubtitleBg.Name = "btnSubtitleBg"
-        btnSubtitleBg.Size = New Size(80, 23)
-        btnSubtitleBg.TabIndex = 6
-        btnSubtitleBg.UseVisualStyleBackColor = False
-        ' 
-        ' lblSubtitleFg
-        ' 
-        lblSubtitleFg.AutoSize = True
-        lblSubtitleFg.Location = New Point(110, 70)
-        lblSubtitleFg.Name = "lblSubtitleFg"
-        lblSubtitleFg.Size = New Size(61, 15)
-        lblSubtitleFg.TabIndex = 7
-        lblSubtitleFg.Text = "Text color:"
-        ' 
-        ' btnSubtitleFg
-        ' 
-        btnSubtitleFg.BackColor = Color.White
-        btnSubtitleFg.FlatAppearance.BorderColor = Color.Gray
-        btnSubtitleFg.FlatStyle = FlatStyle.Flat
-        btnSubtitleFg.Location = New Point(110, 86)
-        btnSubtitleFg.Name = "btnSubtitleFg"
-        btnSubtitleFg.Size = New Size(80, 23)
-        btnSubtitleFg.TabIndex = 8
-        btnSubtitleFg.UseVisualStyleBackColor = False
-        ' 
-        ' lblSubtitleFont
-        ' 
-        lblSubtitleFont.AutoSize = True
-        lblSubtitleFont.Location = New Point(210, 70)
-        lblSubtitleFont.Name = "lblSubtitleFont"
-        lblSubtitleFont.Size = New Size(34, 15)
-        lblSubtitleFont.TabIndex = 9
-        lblSubtitleFont.Text = "Font:"
-        ' 
-        ' cboSubtitleFont
-        ' 
-        cboSubtitleFont.DropDownStyle = ComboBoxStyle.DropDownList
-        cboSubtitleFont.Location = New Point(210, 86)
-        cboSubtitleFont.Name = "cboSubtitleFont"
-        cboSubtitleFont.Size = New Size(200, 23)
-        cboSubtitleFont.TabIndex = 10
-        ' 
-        ' lblSubtitleSize
-        ' 
-        lblSubtitleSize.AutoSize = True
-        lblSubtitleSize.Location = New Point(430, 70)
-        lblSubtitleSize.Name = "lblSubtitleSize"
-        lblSubtitleSize.Size = New Size(30, 15)
-        lblSubtitleSize.TabIndex = 11
-        lblSubtitleSize.Text = "Size:"
-        ' 
-        ' nudSubtitleSize
-        ' 
-        nudSubtitleSize.Location = New Point(430, 86)
-        nudSubtitleSize.Maximum = New Decimal(New Integer() {72, 0, 0, 0})
-        nudSubtitleSize.Minimum = New Decimal(New Integer() {8, 0, 0, 0})
-        nudSubtitleSize.Name = "nudSubtitleSize"
-        nudSubtitleSize.Size = New Size(55, 23)
-        nudSubtitleSize.TabIndex = 12
-        nudSubtitleSize.Value = New Decimal(New Integer() {12, 0, 0, 0})
-        ' 
-        ' chkSubtitleBold
-        ' 
-        chkSubtitleBold.AutoSize = True
-        chkSubtitleBold.Location = New Point(500, 88)
-        chkSubtitleBold.Name = "chkSubtitleBold"
-        chkSubtitleBold.Size = New Size(50, 19)
-        chkSubtitleBold.TabIndex = 13
-        chkSubtitleBold.Text = "Bold"
-        ' 
-        ' lblAdminPin
-        ' 
-        lblAdminPin.AutoSize = True
-        lblAdminPin.Location = New Point(10, 118)
-        lblAdminPin.Name = "lblAdminPin"
-        lblAdminPin.Size = New Size(68, 15)
-        lblAdminPin.TabIndex = 14
-        lblAdminPin.Text = "Admin PIN:"
-        ' 
-        ' txtAdminPin
-        ' 
-        txtAdminPin.Location = New Point(10, 134)
-        txtAdminPin.MaxLength = 8
-        txtAdminPin.Name = "txtAdminPin"
-        txtAdminPin.Size = New Size(100, 23)
-        txtAdminPin.TabIndex = 15
-        ' 
-        ' lblLiveServerPort
-        ' 
-        lblLiveServerPort.AutoSize = True
-        lblLiveServerPort.Location = New Point(130, 118)
-        lblLiveServerPort.Name = "lblLiveServerPort"
-        lblLiveServerPort.Size = New Size(56, 15)
-        lblLiveServerPort.TabIndex = 16
-        lblLiveServerPort.Text = "Live Port:"
-        ' 
-        ' nudLiveServerPort
-        ' 
-        nudLiveServerPort.Location = New Point(130, 134)
-        nudLiveServerPort.Maximum = New Decimal(New Integer() {65535, 0, 0, 0})
-        nudLiveServerPort.Minimum = New Decimal(New Integer() {1024, 0, 0, 0})
-        nudLiveServerPort.Name = "nudLiveServerPort"
-        nudLiveServerPort.Size = New Size(80, 23)
-        nudLiveServerPort.TabIndex = 17
-        nudLiveServerPort.Value = New Decimal(New Integer() {5091, 0, 0, 0})
-        ' 
-        ' lblTranslationPort
-        ' 
-        lblTranslationPort.AutoSize = True
-        lblTranslationPort.Location = New Point(230, 118)
-        lblTranslationPort.Name = "lblTranslationPort"
-        lblTranslationPort.Size = New Size(93, 15)
-        lblTranslationPort.TabIndex = 18
-        lblTranslationPort.Text = "Translation Port:"
-        ' 
-        ' nudTranslationPort
-        ' 
-        nudTranslationPort.Location = New Point(230, 134)
-        nudTranslationPort.Maximum = New Decimal(New Integer() {65535, 0, 0, 0})
-        nudTranslationPort.Minimum = New Decimal(New Integer() {1024, 0, 0, 0})
-        nudTranslationPort.Name = "nudTranslationPort"
-        nudTranslationPort.Size = New Size(80, 23)
-        nudTranslationPort.TabIndex = 19
-        nudTranslationPort.Value = New Decimal(New Integer() {5090, 0, 0, 0})
-        ' 
-        ' lblTransDevice
-        ' 
-        lblTransDevice.AutoSize = True
-        lblTransDevice.Location = New Point(330, 118)
-        lblTransDevice.Name = "lblTransDevice"
-        lblTransDevice.Size = New Size(45, 15)
-        lblTransDevice.TabIndex = 20
-        lblTransDevice.Text = "Device:"
-        ' 
-        ' cboTransDevice
-        ' 
-        cboTransDevice.DropDownStyle = ComboBoxStyle.DropDownList
-        cboTransDevice.Items.AddRange(New Object() {"cuda", "cpu"})
-        cboTransDevice.Location = New Point(330, 134)
-        cboTransDevice.Name = "cboTransDevice"
-        cboTransDevice.Size = New Size(90, 23)
-        cboTransDevice.TabIndex = 21
-        ' 
-        ' lblTransUnload
-        ' 
-        lblTransUnload.AutoSize = True
-        lblTransUnload.Location = New Point(440, 118)
-        lblTransUnload.Name = "lblTransUnload"
-        lblTransUnload.Size = New Size(80, 15)
-        lblTransUnload.TabIndex = 22
-        lblTransUnload.Text = "Unload (min):"
-        ' 
-        ' nudTransUnload
-        ' 
-        nudTransUnload.Location = New Point(440, 134)
-        nudTransUnload.Maximum = New Decimal(New Integer() {1440, 0, 0, 0})
-        nudTransUnload.Name = "nudTransUnload"
-        nudTransUnload.Size = New Size(60, 23)
-        nudTransUnload.TabIndex = 23
-        nudTransUnload.Value = New Decimal(New Integer() {10, 0, 0, 0})
-        ' 
-        ' chkTransEnabled
-        ' 
-        chkTransEnabled.AutoSize = True
-        chkTransEnabled.Location = New Point(520, 136)
-        chkTransEnabled.Name = "chkTransEnabled"
-        chkTransEnabled.Size = New Size(129, 19)
-        chkTransEnabled.TabIndex = 24
-        chkTransEnabled.Text = "Translation Enabled"
-        ' 
-        ' chkAllowFirewall
-        ' 
-        chkAllowFirewall.AutoSize = True
-        chkAllowFirewall.Location = New Point(680, 136)
-        chkAllowFirewall.Name = "chkAllowFirewall"
-        chkAllowFirewall.Size = New Size(99, 19)
-        chkAllowFirewall.TabIndex = 25
-        chkAllowFirewall.Text = "Allow Firewall"
-        ' 
-        ' lblTtsBackends
-        ' 
-        lblTtsBackends.AutoSize = True
-        lblTtsBackends.Location = New Point(10, 166)
-        lblTtsBackends.Name = "lblTtsBackends"
-        lblTtsBackends.Size = New Size(80, 15)
-        lblTtsBackends.TabIndex = 26
-        lblTtsBackends.Text = "TTS Backends"
-        ' 
-        ' txtTtsBackends
-        ' 
-        txtTtsBackends.Location = New Point(10, 182)
-        txtTtsBackends.Name = "txtTtsBackends"
-        txtTtsBackends.Size = New Size(300, 23)
-        txtTtsBackends.TabIndex = 27
-        ' 
-        ' lblTtsHint
-        ' 
-        lblTtsHint.AutoSize = True
-        lblTtsHint.ForeColor = Color.Gray
-        lblTtsHint.Location = New Point(320, 184)
-        lblTtsHint.Name = "lblTtsHint"
-        lblTtsHint.Size = New Size(319, 15)
-        lblTtsHint.TabIndex = 28
-        lblTtsHint.Text = "(piper, mms-tts, edgetts — comma-separated, empty = all)"
-        ' 
-        ' btnSetupTranslation
-        ' 
-        btnSetupTranslation.Location = New Point(10, 216)
-        btnSetupTranslation.Name = "btnSetupTranslation"
-        btnSetupTranslation.Size = New Size(240, 28)
-        btnSetupTranslation.TabIndex = 29
-        btnSetupTranslation.Text = "Check Dependencies"
-        ' 
-        ' grpServerInfo
-        ' 
-        grpServerInfo.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        grpServerInfo.Controls.Add(lblServerStatus)
-        grpServerInfo.Controls.Add(lblServerUrl)
-        grpServerInfo.Controls.Add(lblServerClients)
-        grpServerInfo.Controls.Add(btnCopyUrl)
-        grpServerInfo.Location = New Point(8, 256)
-        grpServerInfo.Name = "grpServerInfo"
-        grpServerInfo.Size = New Size(760, 100)
-        grpServerInfo.TabIndex = 1
-        grpServerInfo.TabStop = False
-        grpServerInfo.Text = "Connection Info"
-        ' 
-        ' lblServerStatus
-        ' 
-        lblServerStatus.AutoSize = True
-        lblServerStatus.Font = New Font("Segoe UI", 10F, FontStyle.Bold)
-        lblServerStatus.Location = New Point(10, 25)
-        lblServerStatus.Name = "lblServerStatus"
-        lblServerStatus.Size = New Size(114, 19)
-        lblServerStatus.TabIndex = 0
-        lblServerStatus.Text = "Status: Stopped"
-        ' 
-        ' lblServerUrl
-        ' 
-        lblServerUrl.AutoSize = True
-        lblServerUrl.Font = New Font("Consolas", 11F)
-        lblServerUrl.Location = New Point(10, 50)
-        lblServerUrl.Name = "lblServerUrl"
-        lblServerUrl.Size = New Size(152, 18)
-        lblServerUrl.TabIndex = 1
-        lblServerUrl.Text = "URL: (not running)"
-        ' 
-        ' lblServerClients
-        ' 
-        lblServerClients.AutoSize = True
-        lblServerClients.Location = New Point(10, 75)
-        lblServerClients.Name = "lblServerClients"
-        lblServerClients.Size = New Size(114, 15)
-        lblServerClients.TabIndex = 2
-        lblServerClients.Text = "Connected clients: 0"
-        ' 
-        ' btnCopyUrl
-        ' 
-        btnCopyUrl.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        btnCopyUrl.Enabled = False
-        btnCopyUrl.Location = New Point(700, 47)
-        btnCopyUrl.Name = "btnCopyUrl"
-        btnCopyUrl.Size = New Size(110, 25)
-        btnCopyUrl.TabIndex = 3
-        btnCopyUrl.Text = "Copy URL"
-        ' 
-        ' rtbServerLog
-        ' 
-        rtbServerLog.Anchor = AnchorStyles.Top Or AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
-        rtbServerLog.BackColor = Color.Black
-        rtbServerLog.Font = New Font("Consolas", 10F)
-        rtbServerLog.ForeColor = Color.FromArgb(CByte(0), CByte(200), CByte(255))
-        rtbServerLog.Location = New Point(8, 362)
-        rtbServerLog.Name = "rtbServerLog"
-        rtbServerLog.ReadOnly = True
-        rtbServerLog.ScrollBars = RichTextBoxScrollBars.Vertical
-        rtbServerLog.Size = New Size(760, 248)
-        rtbServerLog.TabIndex = 2
-        rtbServerLog.Text = ""
         ' 
         ' tabPageJob
         ' 
@@ -2320,16 +1881,6 @@ Partial Class FormMain
         CType(trkVadSilence, ComponentModel.ISupportInitialize).EndInit()
         pnlLiveOutput.ResumeLayout(False)
         CType(wvLiveClients, ComponentModel.ISupportInitialize).EndInit()
-        tabPageServer.ResumeLayout(False)
-        grpServerSettings.ResumeLayout(False)
-        grpServerSettings.PerformLayout()
-        CType(nudServerPort, ComponentModel.ISupportInitialize).EndInit()
-        CType(nudSubtitleSize, ComponentModel.ISupportInitialize).EndInit()
-        CType(nudLiveServerPort, ComponentModel.ISupportInitialize).EndInit()
-        CType(nudTranslationPort, ComponentModel.ISupportInitialize).EndInit()
-        CType(nudTransUnload, ComponentModel.ISupportInitialize).EndInit()
-        grpServerInfo.ResumeLayout(False)
-        grpServerInfo.PerformLayout()
         tabPageJob.ResumeLayout(False)
         tabPageJob.PerformLayout()
         grpInput.ResumeLayout(False)
@@ -2462,7 +2013,6 @@ Partial Class FormMain
     Friend WithEvents tabPageJob As TabPage
     Friend WithEvents tabPageLive As TabPage
     Friend WithEvents tabPageHelp As TabPage
-    Friend WithEvents tabPageServer As TabPage
     Friend WithEvents tabPageTranslate As TabPage
     Friend WithEvents tabPageBibleWs As TabPage
 
@@ -2575,43 +2125,6 @@ Partial Class FormMain
     Friend WithEvents rtbBibleText As RichTextBox
 
     ' Tab: Server
-    Friend WithEvents grpServerSettings As GroupBox
-    Friend WithEvents lblServerPort As Label
-    Friend WithEvents nudServerPort As NumericUpDown
-    Friend WithEvents btnServerStart As Button
-    Friend WithEvents btnServerStop As Button
-    Friend WithEvents btnServerRestart As Button
-    Friend WithEvents grpServerInfo As GroupBox
-    Friend WithEvents lblServerStatus As Label
-    Friend WithEvents lblServerUrl As Label
-    Friend WithEvents lblServerClients As Label
-    Friend WithEvents btnCopyUrl As Button
-    Friend WithEvents rtbServerLog As RichTextBox
-    Friend WithEvents lblSubtitleBg As Label
-    Friend WithEvents btnSubtitleBg As Button
-    Friend WithEvents lblSubtitleFg As Label
-    Friend WithEvents btnSubtitleFg As Button
-    Friend WithEvents lblSubtitleFont As Label
-    Friend WithEvents cboSubtitleFont As ComboBox
-    Friend WithEvents lblSubtitleSize As Label
-    Friend WithEvents nudSubtitleSize As NumericUpDown
-    Friend WithEvents chkSubtitleBold As CheckBox
-    Friend WithEvents lblAdminPin As Label
-    Friend WithEvents txtAdminPin As TextBox
-    Friend WithEvents btnSetupTranslation As Button
-    Friend WithEvents lblLiveServerPort As Label
-    Friend WithEvents nudLiveServerPort As NumericUpDown
-    Friend WithEvents lblTranslationPort As Label
-    Friend WithEvents nudTranslationPort As NumericUpDown
-    Friend WithEvents lblTransDevice As Label
-    Friend WithEvents cboTransDevice As ComboBox
-    Friend WithEvents lblTransUnload As Label
-    Friend WithEvents nudTransUnload As NumericUpDown
-    Friend WithEvents chkTransEnabled As CheckBox
-    Friend WithEvents chkAllowFirewall As CheckBox
-    Friend WithEvents lblTtsBackends As Label
-    Friend WithEvents txtTtsBackends As TextBox
-    Friend WithEvents lblTtsHint As Label
 
     ' System Tray
     Friend WithEvents trayIcon As NotifyIcon

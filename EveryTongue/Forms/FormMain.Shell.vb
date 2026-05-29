@@ -43,14 +43,9 @@ Partial Class FormMain
         Me.Icon = Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath)
         trayIcon.Icon = Me.Icon
 
-        ' ── Populate font combo (runtime data) ────────────────────
-        For Each fam In Drawing.FontFamily.Families
-            cboSubtitleFont.Items.Add(fam.Name)
-        Next
-
         ' ── Send labels to back (z-order fix) ────────────────────
         lblMode.SendToBack()
-        For Each grp As Control In {grpInput, grpLiveInput, grpServerSettings}
+        For Each grp As Control In {grpInput, grpLiveInput}
             For Each child As Control In grp.Controls
                 If TypeOf child Is Label Then child.SendToBack()
             Next
@@ -112,17 +107,17 @@ Partial Class FormMain
         AddHandler mnuHelpQuickStart.Click, Sub(s, e) ShowLegacyTab(tabPageHelp)
         AddHandler mnuHelpShortcuts.Click, Sub(s, e)
                                                 MessageBox.Show(
-                                                    "Ctrl+1           Live workspace" & vbCrLf &
-                                                    "Ctrl+2           Transcribe workspace" & vbCrLf &
-                                                    "Ctrl+3           Translate workspace" & vbCrLf &
-                                                    "Ctrl+4           Bible workspace" & vbCrLf &
-                                                    "Ctrl+N           New Session wizard" & vbCrLf &
-                                                    "Ctrl+L           Toggle Log Panel" & vbCrLf &
-                                                    "F1               Help" & vbCrLf &
-                                                    "F5               Start Live" & vbCrLf &
-                                                    "Shift+F5         Stop Live" & vbCrLf &
-                                                    "F10              Options" & vbCrLf &
-                                                    "F11              Full Screen",
+                                                    "Ctrl+1" & vbTab & "Live workspace" & vbCrLf &
+                                                    "Ctrl+2" & vbTab & "Transcribe workspace" & vbCrLf &
+                                                    "Ctrl+3" & vbTab & "Translate workspace" & vbCrLf &
+                                                    "Ctrl+4" & vbTab & "Bible workspace" & vbCrLf &
+                                                    "Ctrl+N" & vbTab & "New Session wizard" & vbCrLf &
+                                                    "Ctrl+L" & vbTab & "Toggle Log Panel" & vbCrLf &
+                                                    "F12" & vbTab & "Options" & vbCrLf &
+                                                    "F1" & vbTab & "Help" & vbCrLf &
+                                                    "F5" & vbTab & "Start Live" & vbCrLf &
+                                                    "Shift+F5" & vbTab & "Stop Live" & vbCrLf &
+                                                    "F11" & vbTab & "Full Screen",
                                                     "Keyboard Shortcuts",
                                                     MessageBoxButtons.OK, MessageBoxIcon.Information)
                                             End Sub
@@ -585,22 +580,84 @@ Partial Class FormMain
             Try
                 Using zipStream As New IO.FileStream(dlg.FileName, IO.FileMode.Create)
                     Using archive As New IO.Compression.ZipArchive(zipStream, IO.Compression.ZipArchiveMode.Create)
+
+                        ' ── system_info.txt ──
                         Dim infoEntry = archive.CreateEntry("system_info.txt")
                         Using writer As New IO.StreamWriter(infoEntry.Open())
                             writer.WriteLine($"Every Tongue Diagnostics — {DateTime.Now:yyyy-MM-dd HH:mm:ss}")
+                            writer.WriteLine($"Hostname: {Environment.MachineName}")
                             writer.WriteLine($"Version: {Reflection.Assembly.GetExecutingAssembly().GetName().Version}")
-                            writer.WriteLine($"OS: {Environment.OSVersion}")
+                            writer.WriteLine($"OS: {hwInfo.OsDescription}")
                             writer.WriteLine($".NET: {Environment.Version}")
                             writer.WriteLine($"64-bit OS: {Environment.Is64BitOperatingSystem}")
                             writer.WriteLine($"64-bit process: {Environment.Is64BitProcess}")
                             writer.WriteLine()
+
                             writer.WriteLine("=== Hardware ===")
-                            writer.WriteLine($"GPU: {hwInfo.GpuName} ({hwInfo.GpuMemoryMB} MB) — Score: {hwInfo.GpuScore}/100")
-                            writer.WriteLine($"CPU: {hwInfo.CpuName} ({hwInfo.CpuCores} cores) — Score: {hwInfo.CpuScore}/100")
-                            writer.WriteLine($"RAM: {hwInfo.RamTotalMB} MB — Score: {hwInfo.RamScore}/100")
-                            writer.WriteLine($"Disk free: {hwInfo.DiskFreeMB} MB — Score: {hwInfo.DiskScore}/100")
-                            writer.WriteLine($"Overall: {hwInfo.OverallScore}/100 ({hwInfo.Rating})")
+                            writer.WriteLine($"GPU: {hwInfo.GpuName} ({hwInfo.GpuMemoryMB} MB VRAM) — Score: {hwInfo.GpuScore}/100")
+                            Dim clockGHz = (hwInfo.CpuClockMHz / 1000.0).ToString("F1")
+                            writer.WriteLine($"CPU: {hwInfo.CpuName} ({hwInfo.CpuCores} cores, {clockGHz} GHz) — Score: {hwInfo.CpuScore}/100")
+                            writer.WriteLine($"RAM: {hwInfo.RamTotalMB} MB ({hwInfo.RamTotalMB \ 1024} GB) — Score: {hwInfo.RamScore}/100")
+                            writer.WriteLine($"Disk free: {hwInfo.DiskFreeMB} MB ({hwInfo.DiskFreeMB / 1024.0:F1} GB) — Score: {hwInfo.DiskScore}/100")
+                            writer.WriteLine($"OS: {hwInfo.OsDescription} — Score: {hwInfo.OsScore}/100")
+                            writer.WriteLine($"Overall: {hwInfo.OverallScore}/100 ({hwInfo.Rating}) — {hwInfo.RatingDescription}")
                             writer.WriteLine()
+
+                            ' Recommendations
+                            Dim recs = hwInfo.GetRecommendations()
+                            If recs.Count > 0 Then
+                                writer.WriteLine("=== Recommendations ===")
+                                For Each rec In recs
+                                    writer.WriteLine($"  • {rec}")
+                                Next
+                                writer.WriteLine()
+                            End If
+
+                            ' Models loaded
+                            writer.WriteLine("=== Models ===")
+                            writer.WriteLine($"  Whisper model: {_config.PathModel}")
+                            writer.WriteLine($"  Whisper model (audio): {_config.PathModelAudio}")
+                            writer.WriteLine($"  Faster-whisper model: {_config.PathFasterWhisperModel}")
+                            writer.WriteLine($"  NLLB model: {_config.TranslationModelPath}")
+                            writer.WriteLine($"  GPU enabled: {Not _config.NoGpu}")
+                            writer.WriteLine($"  Flash attention: {_config.FlashAttn}")
+                            writer.WriteLine()
+
+                            ' Server status
+                            writer.WriteLine("=== Server ===")
+                            writer.WriteLine($"  Subtitle port: {_config.SubtitleServerPort}")
+                            writer.WriteLine($"  Live port: {_config.LiveServerPort}")
+                            writer.WriteLine($"  Translation port: {_config.TranslationPort}")
+                            writer.WriteLine($"  Translation enabled: {_config.TranslationEnabled}")
+                            writer.WriteLine($"  Translation device: {_config.TranslationDevice}")
+
+                            ' Metrics snapshot
+                            Try
+                                Dim metricsSvc = _serverController?.KestrelHost?.Services?.GetService(
+                                    GetType(Services.Interfaces.IMetricsService))
+                                If metricsSvc IsNot Nothing Then
+                                    Dim metrics = DirectCast(metricsSvc, Services.Interfaces.IMetricsService).GetSnapshot()
+                                    writer.WriteLine()
+                                    writer.WriteLine("=== Metrics ===")
+                                    writer.WriteLine($"  Connected clients: {metrics.Clients.Connected}")
+                                    If metrics.Clients.ByLanguage?.Count > 0 Then
+                                        writer.WriteLine($"  Clients by language: {String.Join(", ", metrics.Clients.ByLanguage.Select(Function(kv) $"{kv.Key}={kv.Value}"))}")
+                                    End If
+                                    writer.WriteLine($"  Broadcast latency: {metrics.Broadcast.LatencyMs} ms")
+                                    writer.WriteLine($"  Messages sent: {metrics.Broadcast.MessagesSent}")
+                                    writer.WriteLine($"  Messages dropped: {metrics.Broadcast.MessagesDropped}")
+                                    writer.WriteLine($"  Translation backend: {metrics.Translation.ActiveBackend}")
+                                    writer.WriteLine($"  Translation latency: {metrics.Translation.LatencyMs} ms")
+                                    writer.WriteLine($"  Translation chars: {metrics.Translation.CharactersThisSession}")
+                                    writer.WriteLine($"  Memory: {metrics.System.MemoryMB} MB")
+                                    writer.WriteLine($"  Uptime: {metrics.System.UptimeSeconds} s")
+                                End If
+                            Catch ex As Exception
+                                writer.WriteLine($"  (metrics unavailable: {ex.Message})")
+                            End Try
+                            writer.WriteLine()
+
+                            ' Configuration
                             writer.WriteLine("=== Configuration ===")
                             For Each prop In GetType(Models.AppConfig).GetProperties(Reflection.BindingFlags.Public Or Reflection.BindingFlags.Instance)
                                 If Not prop.CanRead Then Continue For
@@ -610,23 +667,21 @@ Partial Class FormMain
                             Next
                         End Using
 
-                        If rtbServerLog.TextLength > 0 Then
-                            Dim logEntry = archive.CreateEntry("server_log.txt")
-                            Using writer As New IO.StreamWriter(logEntry.Open())
-                                writer.Write(rtbServerLog.Text)
-                            End Using
-                        End If
+                        ' ── Log files (last 30 days) ──
+                        Dim logDir = AppDomain.CurrentDomain.BaseDirectory
+                        For dayOffset = 0 To 29
+                            Dim logDate = DateTime.Now.AddDays(-dayOffset)
+                            Dim logName = $"{logDate:yyyyMMdd}.log"
+                            Dim logPath = IO.Path.Combine(logDir, logName)
+                            If IO.File.Exists(logPath) Then
+                                archive.CreateEntryFromFile(logPath, $"logs/{logName}")
+                            End If
+                        Next
 
-                        If rtbUnifiedLog.TextLength > 0 Then
-                            Dim logEntry = archive.CreateEntry("unified_log.txt")
-                            Using writer As New IO.StreamWriter(logEntry.Open())
-                                writer.Write(rtbUnifiedLog.Text)
-                            End Using
-                        End If
-
-                        Dim debugLogPath = GetPipelineLogPath()
-                        If IO.File.Exists(debugLogPath) Then
-                            archive.CreateEntryFromFile(debugLogPath, "debug_log.txt")
+                        ' ── Glossary ──
+                        Dim glossaryPath = Models.AppConfig.ResolvePath(_config.TranslationGlossaryPath)
+                        If IO.File.Exists(glossaryPath) Then
+                            archive.CreateEntryFromFile(glossaryPath, "glossary.json")
                         End If
                     End Using
                 End Using

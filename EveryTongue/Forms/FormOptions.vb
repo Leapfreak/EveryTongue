@@ -2,6 +2,7 @@
 ' Phase 2 of the UI redesign — consolidates Settings, Paths, and Server tabs.
 
 Imports EveryTongue.Models
+Imports EveryTongue.Services.Infrastructure
 
 Public Class FormOptions
     Inherits Form
@@ -13,6 +14,7 @@ Public Class FormOptions
     ' ── Config reference ──────────────────────────────────────────
     Private ReadOnly _config As AppConfig
     Private ReadOnly _uiLocales As (Code As String, Name As String)()
+    Private _hwInfo As HardwareInfo
 
     ' ═══════════════════════════════════════════════════════════════
     ' Constructor
@@ -51,6 +53,9 @@ Public Class FormOptions
         AddHandler btnBrowseModelAudio.Click, Sub(s, e) BrowseFile(txtModelAudio)
         AddHandler btnBrowseGlossary.Click, Sub(s, e) BrowseFile(txtGlossary)
 
+        ' Hardware re-scan
+        AddHandler btnHwRescan.Click, Sub(s, e) RunHardwareScan()
+
         ' Browse buttons — folder pickers
         AddHandler btnBrowseFasterWhisper.Click, Sub(s, e) BrowseFolder(txtFasterWhisper)
         AddHandler btnBrowseNllbModel.Click, Sub(s, e) BrowseFolder(txtNllbModel)
@@ -74,6 +79,12 @@ Public Class FormOptions
         pnlGeneral.Visible = (e.Node.Name = "general")
         pnlPaths.Visible = (e.Node.Name = "paths")
         pnlServer.Visible = (e.Node.Name = "server")
+        pnlHardware.Visible = (e.Node.Name = "hardware")
+
+        ' Auto-scan on first visit to hardware panel
+        If e.Node.Name = "hardware" AndAlso _hwInfo Is Nothing Then
+            RunHardwareScan()
+        End If
     End Sub
 
     ''' <summary>Opens the dialog pre-selecting the given category.</summary>
@@ -144,6 +155,7 @@ Public Class FormOptions
         End If
         _config.StartWithWindows = chkStartWindows.Checked
         _config.MinimizeToTray = chkMinimizeToTray.Checked
+        If chkResetFirstRun.Checked Then _config.FirstRunComplete = False
 
         ' Paths
         _config.PathWhisper = txtWhisper.Text
@@ -179,6 +191,62 @@ Public Class FormOptions
         FormMain.WriteDebugLog($"[OPTIONS] ApplyToConfig: Language={_config.Language}, OutputLanguage={_config.OutputLanguage}, BiblesDirectory={_config.BiblesDirectory}, Theme={_config.Theme}, UiLanguage={_config.UiLanguage}, TranslationEnabled={_config.TranslationEnabled}")
         ConfigManager.Save(_config)
         ConfigChanged = True
+    End Sub
+
+    ' ═══════════════════════════════════════════════════════════════
+    ' Hardware scan
+    ' ═══════════════════════════════════════════════════════════════
+    Private Sub RunHardwareScan()
+        btnHwRescan.Enabled = False
+        lblHwVerdict.Text = "Scanning hardware..."
+        Me.Cursor = Cursors.WaitCursor
+
+        Threading.ThreadPool.QueueUserWorkItem(
+            Sub()
+                Dim info = HardwareScanner.Scan()
+                Me.BeginInvoke(Sub() DisplayHardwareInfo(info))
+            End Sub)
+    End Sub
+
+    Private Sub DisplayHardwareInfo(info As HardwareInfo)
+        _hwInfo = info
+        Me.Cursor = Cursors.Default
+        btnHwRescan.Enabled = True
+
+        ' Overall score
+        lblHwOverallScore.Text = $"{info.OverallScore}/100"
+
+        ' Traffic light indicator
+        Select Case info.Rating
+            Case "Green"
+                pnlHwIndicator.BackColor = Drawing.Color.FromArgb(0, 180, 0)
+            Case "Amber"
+                pnlHwIndicator.BackColor = Drawing.Color.FromArgb(255, 180, 0)
+            Case Else
+                pnlHwIndicator.BackColor = Drawing.Color.FromArgb(220, 40, 40)
+        End Select
+
+        lblHwVerdict.Text = info.RatingDescription
+
+        ' Component breakdown
+        Dim gpuVram = If(info.GpuMemoryMB > 0, $"{info.GpuMemoryMB \ 1024}GB VRAM", "N/A")
+        lblHwGpu.Text = $"GPU:  [{info.GpuScore}/100]  {info.GpuName} ({gpuVram})"
+        Dim clockGHz = (info.CpuClockMHz / 1000.0).ToString("F1")
+        lblHwCpu.Text = $"CPU:  [{info.CpuScore}/100]  {info.CpuName} ({info.CpuCores} cores, {clockGHz} GHz)"
+        lblHwRam.Text = $"RAM:  [{info.RamScore}/100]  {info.RamTotalMB \ 1024}GB"
+        Dim diskGB = info.DiskFreeMB / 1024.0
+        lblHwDisk.Text = $"Disk:  [{info.DiskScore}/100]  {diskGB:F1}GB free"
+        lblHwOs.Text = $"OS:  [{info.OsScore}/100]  {info.OsDescription}"
+
+        ' Recommendations
+        Dim recs = info.GetRecommendations()
+        If recs.Count = 0 Then
+            txtHwRecs.Text = "No recommendations — your hardware looks great!"
+        Else
+            txtHwRecs.Text = String.Join(Environment.NewLine & Environment.NewLine, recs)
+        End If
+
+        FormMain.WriteDebugLog($"[HW] Scan complete: Overall={info.OverallScore}, GPU={info.GpuScore}, CPU={info.CpuScore}, RAM={info.RamScore}, Disk={info.DiskScore}, OS={info.OsScore}, Rating={info.Rating}")
     End Sub
 
     ' ═══════════════════════════════════════════════════════════════
