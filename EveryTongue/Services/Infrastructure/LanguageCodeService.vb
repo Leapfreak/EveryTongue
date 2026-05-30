@@ -220,9 +220,11 @@ Namespace Services.Infrastructure
         ''' </summary>
         Public Function GetAllLanguagesForWeb() As List(Of (Nllb As String, Native As String, Name As String, Iso1 As String))
             Dim result As New List(Of (String, String, String, String))()
+            Dim seenIso1 As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
             For Each kvp In _byNllb
                 Dim e = kvp.Value
                 If String.IsNullOrEmpty(e.Iso1) Then Continue For
+                If Not seenIso1.Add(e.Iso1) Then Continue For
                 result.Add((e.Nllb, If(e.Native, e.Name), If(e.Name, ""), e.Iso1))
             Next
             result.Sort(Function(a, b) String.Compare(a.Item3, b.Item3, StringComparison.OrdinalIgnoreCase))

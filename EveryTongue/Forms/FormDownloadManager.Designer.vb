@@ -393,7 +393,7 @@ Namespace Forms
             btnDeleteLangPacks.Name = "btnDeleteLangPacks"
             btnDeleteLangPacks.Size = New Size(120, 30)
             btnDeleteLangPacks.TabIndex = 1
-            btnDeleteLangPacks.Text = "Delete Selected"
+            btnDeleteLangPacks.Text = "Uninstall Selected"
             '
             ' pnlBottom
             '

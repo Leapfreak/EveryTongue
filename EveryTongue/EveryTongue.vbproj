@@ -42,6 +42,9 @@
     <EmbeddedResource Include="Assets\Primary_White_Horizontal_Logo.png">
       <LogicalName>EveryTongue.Assets.LogoWhite.png</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="..\locales\en.json">
+      <LogicalName>EveryTongue.Assets.en.json</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <ItemGroup>

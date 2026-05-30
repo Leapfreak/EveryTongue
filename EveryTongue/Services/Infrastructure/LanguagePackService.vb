@@ -78,6 +78,9 @@ Namespace Services.Infrastructure
             Dim enPath = Path.Combine(_localesDir, "en.json")
             If File.Exists(enPath) Then
                 LoadJsonInto(enPath, _strings)
+            Else
+                ' Fall back to embedded en.json resource
+                LoadEmbeddedEnglish(_strings)
             End If
 
             ' Then overlay the requested language
@@ -222,6 +225,28 @@ Namespace Services.Infrastructure
                 End Using
             Catch ex As Exception
                 AppLogger.Log($"[LanguagePack] Failed to load {filePath}: {ex.Message}")
+            End Try
+        End Sub
+
+        Private Shared Sub LoadEmbeddedEnglish(dict As Dictionary(Of String, String))
+            Try
+                Dim asm = Reflection.Assembly.GetExecutingAssembly()
+                Dim stream = asm.GetManifestResourceStream("EveryTongue.Assets.en.json")
+                If stream Is Nothing Then
+                    AppLogger.Log("[LanguagePack] Embedded en.json not found")
+                    Return
+                End If
+                Using reader As New IO.StreamReader(stream, Text.Encoding.UTF8)
+                    Dim json = reader.ReadToEnd()
+                    Using doc = JsonDocument.Parse(json)
+                        For Each prop In doc.RootElement.EnumerateObject()
+                            dict(prop.Name) = prop.Value.GetString()
+                        Next
+                    End Using
+                End Using
+                AppLogger.Log($"[LanguagePack] Loaded embedded en.json with {dict.Count} keys")
+            Catch ex As Exception
+                AppLogger.Log($"[LanguagePack] Failed to load embedded en.json: {ex.Message}")
             End Try
         End Sub
 

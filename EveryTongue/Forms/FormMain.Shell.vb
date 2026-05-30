@@ -239,12 +239,12 @@ Partial Class FormMain
     ' ═══════════════════════════════════════════════════════════════
 
     ''' <summary>Maps nav button label back to its MDL2 icon glyph.</summary>
-    Private Shared Function GetNavIcon(label As String) As String
-        Select Case label
-            Case "Live" : Return ChrW(&HE720)
-            Case "Transcribe" : Return ChrW(&HE8D4)
-            Case "Translate" : Return ChrW(&HE774)
-            Case "Bible" : Return ChrW(&HE736)
+    Private Shared Function GetNavIcon(name As String) As String
+        Select Case name
+            Case "btnNavLive" : Return ChrW(&HE720)
+            Case "btnNavTranscribe" : Return ChrW(&HE8D4)
+            Case "btnNavTranslate" : Return ChrW(&HE774)
+            Case "btnNavBible" : Return ChrW(&HE736)
             Case Else : Return ChrW(&HE700)
         End Select
     End Function
@@ -304,10 +304,10 @@ Partial Class FormMain
         splitterLog.Visible = _logPanelVisible
         mnuViewLogPanel.Checked = _logPanelVisible
         If _logPanelVisible Then
-            mnuViewLogPanel.Text = "Hide Log Panel"
+            mnuViewLogPanel.Text = GetString("Menu_ViewHideLogPanel")
             FlushUnifiedLog()
         Else
-            mnuViewLogPanel.Text = "Show Log Panel"
+            mnuViewLogPanel.Text = GetString("Menu_ViewLogPanel")
         End If
     End Sub
 
@@ -500,12 +500,12 @@ Partial Class FormMain
         If _activeNavButton IsNot Nothing Then
             _activeNavButton.BackColor = inactiveBg
             _activeNavButton.ForeColor = inactiveFg
-            _activeNavButton.Image = RenderFontIcon(GetNavIcon(_activeNavButton.Text), 28, inactiveFg)
+            _activeNavButton.Image = RenderFontIcon(GetNavIcon(_activeNavButton.Name), 28, inactiveFg)
         End If
 
         navButton.BackColor = activeBg
         navButton.ForeColor = Color.White
-        navButton.Image = RenderFontIcon(GetNavIcon(navButton.Text), 28, Color.White)
+        navButton.Image = RenderFontIcon(GetNavIcon(navButton.Name), 28, Color.White)
         _activeNavButton = navButton
     End Sub
 
@@ -520,7 +520,7 @@ Partial Class FormMain
 
             _activeNavButton.BackColor = inactiveBg
             _activeNavButton.ForeColor = inactiveFg
-            _activeNavButton.Image = RenderFontIcon(GetNavIcon(_activeNavButton.Text), 28, inactiveFg)
+            _activeNavButton.Image = RenderFontIcon(GetNavIcon(_activeNavButton.Name), 28, inactiveFg)
             _activeNavButton = Nothing
         End If
 
@@ -847,7 +847,7 @@ Partial Class FormMain
                 If btn IsNot _activeNavButton Then
                     btn.BackColor = inactiveBg
                     btn.ForeColor = inactiveFg
-                    btn.Image = RenderFontIcon(GetNavIcon(btn.Text), 28, inactiveFg)
+                    btn.Image = RenderFontIcon(GetNavIcon(btn.Name), 28, inactiveFg)
                 End If
             End If
         Next
@@ -855,7 +855,7 @@ Partial Class FormMain
         If _activeNavButton IsNot Nothing Then
             _activeNavButton.BackColor = activeBg
             _activeNavButton.ForeColor = Color.White
-            _activeNavButton.Image = RenderFontIcon(GetNavIcon(_activeNavButton.Text), 28, Color.White)
+            _activeNavButton.Image = RenderFontIcon(GetNavIcon(_activeNavButton.Name), 28, Color.White)
         End If
 
         ' Theme the log panel

@@ -783,8 +783,12 @@ Namespace Forms
             Dim all = langSvc.GetAllLanguagesForWeb()
             Dim installed = langPack.GetAvailableLanguages()
 
-            For Each l In all
-                If String.IsNullOrEmpty(l.Iso1) Then Continue For
+            ' Sort installed languages to the top
+            Dim sorted = all.Where(Function(l) Not String.IsNullOrEmpty(l.Iso1)).
+                OrderByDescending(Function(l) installed.Any(Function(c) c.Equals(l.Iso1, StringComparison.OrdinalIgnoreCase))).
+                ThenBy(Function(l) l.Name).ToList()
+
+            For Each l In sorted
                 Dim item As New ListViewItem(l.Name)
                 item.SubItems.Add(If(l.Native, l.Name))
                 item.SubItems.Add(l.Iso1)
@@ -859,13 +863,13 @@ Namespace Forms
             Next
 
             If toDelete.Count = 0 Then
-                lblProgress.Text = "No installed language packs selected for deletion"
+                lblProgress.Text = "No installed language packs selected for uninstall"
                 Return
             End If
 
             Dim result = MessageBox.Show(
-                $"Delete {toDelete.Count} language pack(s)?" & vbCrLf & String.Join(", ", toDelete),
-                "Delete Language Packs", MessageBoxButtons.YesNo, MessageBoxIcon.Question)
+                $"Uninstall {toDelete.Count} language pack(s)?" & vbCrLf & String.Join(", ", toDelete),
+                "Uninstall Language Packs", MessageBoxButtons.YesNo, MessageBoxIcon.Question)
             If result <> DialogResult.Yes Then Return
 
             Dim langPack = Services.Infrastructure.LanguagePackService.Instance
@@ -882,7 +886,7 @@ Namespace Forms
                 End Try
             Next
 
-            lblProgress.Text = $"Deleted {deleted} language pack(s)"
+            lblProgress.Text = $"Uninstalled {deleted} language pack(s)"
             LoadLangPacks()
         End Sub
 

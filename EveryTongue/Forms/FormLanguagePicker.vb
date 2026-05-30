@@ -21,11 +21,24 @@ Public Class FormLanguagePicker
         _langs = New List(Of (String, String, String))()
         _langs.Add(("en", "English", "English"))
         Dim langSvc = LanguageCodeService.Instance
+        Dim langPack = LanguagePackService.Instance
+        Dim installed = langPack.GetAvailableLanguages()
         Dim all = langSvc.GetAllLanguagesForWeb()
+
+        ' Installed languages first (excluding English which is already added)
         For Each l In all
             If l.Iso1.Equals("en", StringComparison.OrdinalIgnoreCase) Then Continue For
+            If Not installed.Any(Function(c) c.Equals(l.Iso1, StringComparison.OrdinalIgnoreCase)) Then Continue For
             _langs.Add((l.Iso1, If(Not String.IsNullOrEmpty(l.Native), l.Native, l.Name), l.Name))
         Next
+
+        ' Then the rest
+        For Each l In all
+            If l.Iso1.Equals("en", StringComparison.OrdinalIgnoreCase) Then Continue For
+            If installed.Any(Function(c) c.Equals(l.Iso1, StringComparison.OrdinalIgnoreCase)) Then Continue For
+            _langs.Add((l.Iso1, If(Not String.IsNullOrEmpty(l.Native), l.Native, l.Name), l.Name))
+        Next
+
         InitializeComponent()
     End Sub
 
@@ -64,12 +77,15 @@ Public Class FormLanguagePicker
         _cboLang = New ComboBox() With {
             .Size = New Size(400, 36),
             .Location = New Point((600 - 400) \ 2, 290),
-            .DropDownStyle = ComboBoxStyle.DropDownList,
+            .DropDownStyle = ComboBoxStyle.DropDown,
+            .AutoCompleteMode = AutoCompleteMode.SuggestAppend,
+            .AutoCompleteSource = AutoCompleteSource.ListItems,
             .Font = New Font("Segoe UI", 14),
             .BackColor = Color.FromArgb(50, 50, 55),
             .ForeColor = Color.White,
             .FlatStyle = FlatStyle.Flat,
-            .MaxDropDownItems = 15
+            .MaxDropDownItems = 8,
+            .DropDownHeight = 200
         }
         For Each lang In _langs
             _cboLang.Items.Add($"{lang.Native}  ({lang.Name})")
@@ -98,6 +114,15 @@ Public Class FormLanguagePicker
     Private Sub BtnOk_Click(sender As Object, e As EventArgs) Handles _btnOk.Click
         If _cboLang.SelectedIndex >= 0 AndAlso _cboLang.SelectedIndex < _langs.Count Then
             SelectedLanguage = _langs(_cboLang.SelectedIndex).Code
+        Else
+            ' Match typed text against items
+            Dim typed = _cboLang.Text.Trim()
+            For i = 0 To _langs.Count - 1
+                If _cboLang.Items(i).ToString().Equals(typed, StringComparison.OrdinalIgnoreCase) Then
+                    SelectedLanguage = _langs(i).Code
+                    Exit For
+                End If
+            Next
         End If
         Me.DialogResult = DialogResult.OK
         Me.Close()

@@ -118,7 +118,7 @@ Public Class FormMain
                     _config.UiLanguage = picker.SelectedLanguage
                     ConfigManager.Save(_config)
 
-                    ' Download language pack if not English
+                    ' Download language pack if not English, then load it
                     If Not picker.SelectedLanguage.Equals("en", StringComparison.OrdinalIgnoreCase) Then
                         WriteDebugLog($"[FIRSTRUN] Downloading language pack: {picker.SelectedLanguage}")
                         Try
@@ -126,6 +126,7 @@ Public Class FormMain
                             Dim ok = Task.Run(Function() _langPack.DownloadLanguageAsync(picker.SelectedLanguage)).GetAwaiter().GetResult()
                             If ok Then
                                 WriteDebugLog($"[FIRSTRUN] Language pack downloaded: {picker.SelectedLanguage}")
+                                _langPack.LoadLanguage(picker.SelectedLanguage)
                             Else
                                 WriteDebugLog($"[FIRSTRUN] Language pack not available: {picker.SelectedLanguage}")
                             End If
@@ -768,6 +769,48 @@ del ""%~f0""
             If _transcribeController Is Nothing OrElse Not _transcribeController.IsRunning Then
                 lblStepStatus.Text = GetString("Msg_Ready")
             End If
+
+            ' Menus
+            mnuFile.Text = GetString("Menu_File")
+            mnuFileNewSession.Text = GetString("Menu_FileNewSession")
+            mnuFileExportDiag.Text = GetString("Menu_FileExportDiag")
+            mnuFileExit.Text = GetString("Menu_FileExit")
+            mnuTools.Text = GetString("Menu_Tools")
+            mnuToolsTranscribe.Text = GetString("Menu_ToolsTranscribe")
+            mnuToolsTranslate.Text = GetString("Menu_ToolsTranslate")
+            mnuToolsBible.Text = GetString("Menu_ToolsBible")
+            mnuToolsGlossary.Text = GetString("Menu_ToolsGlossary")
+            mnuToolsLocalization.Text = GetString("Menu_ToolsLocalization")
+            mnuToolsDownloadMgr.Text = GetString("Menu_ToolsDownloadMgr")
+            mnuToolsVerifyPaths.Text = GetString("Menu_ToolsVerifyPaths")
+            mnuToolsVerifyIntegrity.Text = GetString("Menu_ToolsVerifyIntegrity")
+            mnuToolsOptions.Text = GetString("Menu_ToolsOptions")
+            mnuSession.Text = GetString("Menu_Session")
+            mnuSessionStart.Text = GetString("Menu_SessionStart")
+            mnuSessionStop.Text = GetString("Menu_SessionStop")
+            mnuSessionQR.Text = GetString("Menu_SessionQR")
+            mnuSessionCopyUrl.Text = GetString("Menu_SessionCopyUrl")
+            mnuView.Text = GetString("Menu_View")
+            mnuViewLogPanel.Text = If(_logPanelVisible, GetString("Menu_ViewHideLogPanel"), GetString("Menu_ViewLogPanel"))
+            mnuViewTheme.Text = GetString("Menu_ViewTheme")
+            mnuViewThemeSystem.Text = GetString("Menu_ViewThemeSystem")
+            mnuViewThemeLight.Text = GetString("Menu_ViewThemeLight")
+            mnuViewThemeDark.Text = GetString("Menu_ViewThemeDark")
+            mnuViewClients.Text = GetString("Menu_ViewClients")
+            mnuViewFullScreen.Text = GetString("Menu_ViewFullScreen")
+            mnuHelpMenu.Text = GetString("Menu_Help")
+            mnuHelpQuickStart.Text = GetString("Menu_HelpQuickStart")
+            mnuHelpShortcuts.Text = GetString("Menu_HelpShortcuts")
+            mnuHelpHardware.Text = GetString("Menu_HelpHardware")
+            mnuHelpSpecSheet.Text = GetString("Menu_HelpSpecSheet")
+            mnuHelpUpdates.Text = GetString("Menu_HelpUpdates")
+            mnuHelpAbout.Text = GetString("Menu_HelpAbout")
+
+            ' Nav rail buttons
+            btnNavLive.Text = GetString("Nav_Live")
+            btnNavTranscribe.Text = GetString("Nav_Transcribe")
+            btnNavTranslate.Text = GetString("Nav_Translate")
+            btnNavBible.Text = GetString("Nav_Bible")
         Catch ex As Exception
             ' Fallback silently if resource not found
             WriteDebugLog($"[ERROR] ApplyLocalization: {ex.Message}")
