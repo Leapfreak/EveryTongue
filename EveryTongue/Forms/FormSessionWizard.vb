@@ -81,10 +81,11 @@ Public Class FormSessionWizard
             Function() Services.Infrastructure.HardwareScanner.Scan()
         ).ContinueWith(Sub(t)
                            If t.IsFaulted Then
+                               Dim msg = Services.Infrastructure.LanguagePackService.Instance.GetString("SW_HwScanFailed")
                                If Me.InvokeRequired Then
-                                   Me.BeginInvoke(Sub() lblHwStatus.Text = "Hardware scan failed.")
+                                   Me.BeginInvoke(Sub() lblHwStatus.Text = msg)
                                Else
-                                   lblHwStatus.Text = "Hardware scan failed."
+                                   lblHwStatus.Text = msg
                                End If
                                Return
                            End If
@@ -107,7 +108,7 @@ Public Class FormSessionWizard
             Case Else : ratingColor = Drawing.Color.Red
         End Select
 
-        lblHwStatus.Text = $"Overall: {_hwInfo.OverallScore}/100 — {_hwInfo.RatingDescription}"
+        lblHwStatus.Text = $"Overall: {_hwInfo.OverallScore}/100 — {_hwInfo.GetRatingDescription(Services.Infrastructure.LanguagePackService.Instance)}"
         lblHwStatus.ForeColor = ratingColor
 
         pnlHwBars.Controls.Clear()
@@ -252,13 +253,14 @@ Public Class FormSessionWizard
     End Sub
 
     Private Sub UpdateNetworkLabel()
+        Dim lp = Services.Infrastructure.LanguagePackService.Instance
         Try
             Dim ip = GetLocalIp()
-            lblNetworkStatus.Text = $"Network: Connected ({ip})"
+            lblNetworkStatus.Text = String.Format(lp.GetString("SW_NetworkConnected"), ip)
             lblNetworkStatus.ForeColor = Drawing.Color.DarkGreen
         Catch ex As Exception
             FormMain.WriteDebugLog($"[ERROR] UpdateNetworkLabel: {ex.Message}")
-            lblNetworkStatus.Text = "Network: Could not determine IP address"
+            lblNetworkStatus.Text = lp.GetString("SW_NetworkNoIp")
             lblNetworkStatus.ForeColor = Drawing.Color.Red
         End Try
     End Sub
@@ -267,24 +269,25 @@ Public Class FormSessionWizard
     ' Step 5: Ready — summary & QR
     ' ═══════════════════════════════════════════════════════════════
     Private Sub PopulateSummary()
+        Dim lp = Services.Infrastructure.LanguagePackService.Instance
         Dim deviceText = If(lstDevices.SelectedItem?.ToString(), "(none)")
-        Dim langText = If(cboSpeakerLang.SelectedItem?.ToString(), "Auto Detect")
+        Dim langText = If(cboSpeakerLang.SelectedItem?.ToString(), lp.GetString("SW_AutoDetect"))
         Dim transText = If(chkEnableTrans.Checked,
-            $"Enabled ({cboTransDevice.SelectedItem})",
-            "Disabled")
+            String.Format(lp.GetString("SW_TransEnabled"), cboTransDevice.SelectedItem),
+            lp.GetString("SW_TransDisabled"))
         Dim fontText = $"{If(cboWizFont.SelectedItem, "Segoe UI")} {nudWizFontSize.Value}pt"
-        If chkWizBold.Checked Then fontText &= " Bold"
+        If chkWizBold.Checked Then fontText &= $" {lp.GetString("Opt_Bold")}"
 
         Dim ip = GetLocalIp()
         Dim port = _config.SubtitleServerPort
         Dim url = $"https://{ip}:{port + 1}"
 
         lblSummary.Text =
-            $"Audio: {deviceText}" & vbCrLf & vbCrLf &
-            $"Language: {langText}" & vbCrLf & vbCrLf &
-            $"Translation: {transText}" & vbCrLf & vbCrLf &
-            $"Font: {fontText}" & vbCrLf & vbCrLf &
-            $"Server: {url}"
+            String.Format(lp.GetString("SW_SummaryAudio"), deviceText) & vbCrLf & vbCrLf &
+            String.Format(lp.GetString("SW_SummaryLanguage"), langText) & vbCrLf & vbCrLf &
+            String.Format(lp.GetString("SW_SummaryTranslation"), transText) & vbCrLf & vbCrLf &
+            String.Format(lp.GetString("SW_SummaryFont"), fontText) & vbCrLf & vbCrLf &
+            String.Format(lp.GetString("SW_SummaryServer"), url)
 
         lblQrUrl.Text = url
         GenerateQr(url)
@@ -311,18 +314,22 @@ Public Class FormSessionWizard
     ' ═══════════════════════════════════════════════════════════════
     ' Navigation
     ' ═══════════════════════════════════════════════════════════════
-    Private ReadOnly _stepTitles As String() = {
-        "Hardware Check",
-        "Audio Input",
-        "Translation",
-        "Display && Network",
-        "Ready"
-    }
+    Private Function GetStepTitles() As String()
+        Dim lp = Services.Infrastructure.LanguagePackService.Instance
+        Return {
+            lp.GetString("SW_StepHardware"),
+            lp.GetString("SW_StepAudio"),
+            lp.GetString("SW_StepTranslation"),
+            lp.GetString("SW_StepDisplay"),
+            lp.GetString("SW_StepReady")
+        }
+    End Function
 
     Private Sub ShowStep(index As Integer)
         If index < 0 OrElse index >= _stepPanels.Count Then Return
 
         _currentStep = index
+        Dim lp = Services.Infrastructure.LanguagePackService.Instance
 
         ' Hide all, show current
         For Each p In _stepPanels
@@ -331,16 +338,17 @@ Public Class FormSessionWizard
         _stepPanels(index).Visible = True
 
         ' Update header
-        lblStepNumber.Text = $"Step {index + 1} of {_stepPanels.Count}"
-        lblStepTitle.Text = _stepTitles(index)
+        lblStepNumber.Text = String.Format(lp.GetString("SW_StepNumber"), index + 1, _stepPanels.Count)
+        Dim titles = GetStepTitles()
+        lblStepTitle.Text = titles(index)
 
         ' Update buttons
         btnBack.Enabled = (index > 0)
         If index = _stepPanels.Count - 1 Then
-            btnNext.Text = "Start!"
+            btnNext.Text = lp.GetString("SW_BtnStart")
             PopulateSummary()
         Else
-            btnNext.Text = "Next >"
+            btnNext.Text = lp.GetString("SW_BtnNext")
         End If
     End Sub
 

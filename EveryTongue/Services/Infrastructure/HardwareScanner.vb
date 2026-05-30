@@ -38,43 +38,41 @@ Namespace Services.Infrastructure
             End Get
         End Property
 
-        Public ReadOnly Property RatingDescription As String
-            Get
-                Select Case OverallScore
-                    Case >= 75 : Return "This PC is well suited for live transcription and translation."
-                    Case >= 50 : Return "This PC can run transcription but performance may be limited. See recommendations below."
-                    Case >= 25 : Return "This PC will struggle with live transcription. Consider using a more powerful laptop."
-                    Case Else : Return "This PC does not meet minimum requirements for usable live transcription."
-                End Select
-            End Get
-        End Property
+        Public Function GetRatingDescription(lp As LanguagePackService) As String
+            Select Case OverallScore
+                Case >= 75 : Return lp.GetString("Opt_HwRatingGreen")
+                Case >= 50 : Return lp.GetString("Opt_HwRatingAmber")
+                Case >= 25 : Return lp.GetString("Opt_HwRatingLow")
+                Case Else : Return lp.GetString("Opt_HwRatingRed")
+            End Select
+        End Function
 
-        Public Function GetRecommendations() As List(Of String)
+        Public Function GetRecommendations(lp As LanguagePackService) As List(Of String)
             Dim recs As New List(Of String)
 
             If GpuScore < 25 Then
-                recs.Add("No NVIDIA GPU detected — transcription will run on CPU only, expect significant delays. For live use, an NVIDIA GPU with at least 4GB VRAM is strongly recommended.")
+                recs.Add(lp.GetString("Opt_HwRecNoGpu"))
             ElseIf GpuScore <= 55 Then
                 Dim vramGB = GpuMemoryMB \ 1024
-                recs.Add($"Your GPU has {vramGB}GB VRAM — use the 'small' or 'base' whisper model instead of 'medium' for best real-time performance.")
+                recs.Add(String.Format(lp.GetString("Opt_HwRecLowGpu"), vramGB))
             End If
 
             If CpuScore < 25 AndAlso GpuScore < 25 Then
-                recs.Add("Without a GPU, consider using the 'tiny' or 'base' whisper model. Accuracy will be lower but speed will be usable.")
+                recs.Add(lp.GetString("Opt_HwRecNoCpuGpu"))
             End If
 
             If RamScore < 50 Then
                 Dim ramGB = RamTotalMB \ 1024
-                recs.Add($"With {ramGB}GB RAM, running transcription and translation simultaneously may cause slowdowns. Close other applications before starting.")
+                recs.Add(String.Format(lp.GetString("Opt_HwRecLowRam"), ramGB))
             End If
 
             If DiskScore < 40 Then
                 Dim freeGB = (DiskFreeMB / 1024.0).ToString("F1")
-                recs.Add($"Only {freeGB}GB free disk space. You may not have room for all language models. Free up space or use an external drive.")
+                recs.Add(String.Format(lp.GetString("Opt_HwRecLowDisk"), freeGB))
             End If
 
             If OsScore < 100 AndAlso Not Is64Bit Then
-                recs.Add("A 64-bit version of Windows is required for optimal performance.")
+                recs.Add(lp.GetString("Opt_HwRecNo64Bit"))
             End If
 
             Return recs

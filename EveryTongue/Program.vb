@@ -18,7 +18,7 @@ Friend Module Program
         Try
             _lockStream = New FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None)
         Catch ex As IOException
-            MessageBox.Show("Every Tongue is already running.", "Every Tongue", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            MessageBox.Show(Services.Infrastructure.LanguagePackService.Instance.GetString("App_AlreadyRunning"), "Every Tongue", MessageBoxButtons.OK, MessageBoxIcon.Information)
             Return
         End Try
 

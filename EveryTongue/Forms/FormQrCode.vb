@@ -76,10 +76,10 @@ Public Class FormQrCode
 
     Private Sub btnCopyUrl_Click(sender As Object, e As EventArgs) Handles btnCopyUrl.Click
         Clipboard.SetText(_url)
-        btnCopyUrl.Text = "Copied!"
+        btnCopyUrl.Text = Services.Infrastructure.LanguagePackService.Instance.GetString("QR_Copied")
         Dim t As New Timer() With {.Interval = 1500}
         AddHandler t.Tick, Sub(s2, e2)
-                               btnCopyUrl.Text = "Copy URL"
+                               btnCopyUrl.Text = Services.Infrastructure.LanguagePackService.Instance.GetString("QR_CopyUrl")
                                t.Stop()
                                t.Dispose()
                            End Sub

@@ -494,22 +494,23 @@ Public Class FormOptions
                 pnlHwIndicator.BackColor = Drawing.Color.FromArgb(220, 40, 40)
         End Select
 
-        lblHwVerdict.Text = info.RatingDescription
+        Dim lp = LanguagePackService.Instance
+        lblHwVerdict.Text = info.GetRatingDescription(lp)
 
         ' Component breakdown
-        Dim gpuVram = If(info.GpuMemoryMB > 0, $"{info.GpuMemoryMB \ 1024}GB VRAM", "N/A")
-        lblHwGpu.Text = $"GPU:  [{info.GpuScore}/100]  {info.GpuName} ({gpuVram})"
+        Dim gpuVram = If(info.GpuMemoryMB > 0, String.Format(lp.GetString("Opt_HwVram"), info.GpuMemoryMB \ 1024), lp.GetString("Opt_HwVramNa"))
+        lblHwGpu.Text = String.Format(lp.GetString("Opt_HwGpu"), info.GpuScore, info.GpuName, gpuVram)
         Dim clockGHz = (info.CpuClockMHz / 1000.0).ToString("F1")
-        lblHwCpu.Text = $"CPU:  [{info.CpuScore}/100]  {info.CpuName} ({info.CpuCores} cores, {clockGHz} GHz)"
-        lblHwRam.Text = $"RAM:  [{info.RamScore}/100]  {info.RamTotalMB \ 1024}GB"
-        Dim diskGB = info.DiskFreeMB / 1024.0
-        lblHwDisk.Text = $"Disk:  [{info.DiskScore}/100]  {diskGB:F1}GB free"
-        lblHwOs.Text = $"OS:  [{info.OsScore}/100]  {info.OsDescription}"
+        lblHwCpu.Text = String.Format(lp.GetString("Opt_HwCpu"), info.CpuScore, info.CpuName, info.CpuCores, clockGHz)
+        lblHwRam.Text = String.Format(lp.GetString("Opt_HwRam"), info.RamScore, info.RamTotalMB \ 1024)
+        Dim diskGB = (info.DiskFreeMB / 1024.0).ToString("F1")
+        lblHwDisk.Text = String.Format(lp.GetString("Opt_HwDisk"), info.DiskScore, diskGB)
+        lblHwOs.Text = String.Format(lp.GetString("Opt_HwOs"), info.OsScore, info.OsDescription)
 
         ' Recommendations
-        Dim recs = info.GetRecommendations()
+        Dim recs = info.GetRecommendations(lp)
         If recs.Count = 0 Then
-            txtHwRecs.Text = LanguagePackService.Instance.GetString("Opt_HwNoRecs")
+            txtHwRecs.Text = lp.GetString("Opt_HwNoRecs")
         Else
             txtHwRecs.Text = String.Join(Environment.NewLine & Environment.NewLine, recs)
         End If

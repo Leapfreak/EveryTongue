@@ -219,7 +219,7 @@ Partial Class FormMain
         ' ── Portable mode detection ────────────────────────────────
         Dim flagPath = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "portable.flag")
         If IO.File.Exists(flagPath) Then
-            tslServerStatus.Text = "Portable | " & tslServerStatus.Text
+            tslServerStatus.Text = GetString("Shell_Portable") & " | " & tslServerStatus.Text
         End If
     End Sub
 
@@ -577,8 +577,8 @@ Partial Class FormMain
 
     Private Sub ShowQrCode()
         If _serverController Is Nothing OrElse _serverController.Port = 0 Then
-            MessageBox.Show("The server is not running. Start a live session first.",
-                "QR Code", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            MessageBox.Show(GetString("Shell_QrNotRunning"),
+                GetString("Shell_QrTitle"), MessageBoxButtons.OK, MessageBoxIcon.Information)
             Return
         End If
 
@@ -626,11 +626,12 @@ Partial Class FormMain
                             writer.WriteLine($"RAM: {hwInfo.RamTotalMB} MB ({hwInfo.RamTotalMB \ 1024} GB) — Score: {hwInfo.RamScore}/100")
                             writer.WriteLine($"Disk free: {hwInfo.DiskFreeMB} MB ({hwInfo.DiskFreeMB / 1024.0:F1} GB) — Score: {hwInfo.DiskScore}/100")
                             writer.WriteLine($"OS: {hwInfo.OsDescription} — Score: {hwInfo.OsScore}/100")
-                            writer.WriteLine($"Overall: {hwInfo.OverallScore}/100 ({hwInfo.Rating}) — {hwInfo.RatingDescription}")
+                            Dim lp = Services.Infrastructure.LanguagePackService.Instance
+                            writer.WriteLine($"Overall: {hwInfo.OverallScore}/100 ({hwInfo.Rating}) — {hwInfo.GetRatingDescription(lp)}")
                             writer.WriteLine()
 
                             ' Recommendations
-                            Dim recs = hwInfo.GetRecommendations()
+                            Dim recs = hwInfo.GetRecommendations(lp)
                             If recs.Count > 0 Then
                                 writer.WriteLine("=== Recommendations ===")
                                 For Each rec In recs
@@ -721,11 +722,11 @@ Partial Class FormMain
                     End Using
                 End Using
 
-                MessageBox.Show($"Diagnostics exported to:{Environment.NewLine}{dlg.FileName}",
-                    "Export Complete", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                MessageBox.Show(String.Format(GetString("Shell_ExportedTo"), dlg.FileName),
+                    GetString("Shell_ExportComplete"), MessageBoxButtons.OK, MessageBoxIcon.Information)
             Catch ex As Exception
-                MessageBox.Show($"Export failed: {ex.Message}",
-                    "Export Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+                MessageBox.Show(String.Format(GetString("Shell_ExportFailed"), ex.Message),
+                    GetString("Shell_ExportError"), MessageBoxButtons.OK, MessageBoxIcon.Error)
             End Try
         End Using
     End Sub
@@ -740,10 +741,8 @@ Partial Class FormMain
         mnuToolsVerifyIntegrity.Enabled = True
 
         If Not result.ManifestFound Then
-            MessageBox.Show("checksums.json not found — cannot verify file integrity." &
-                            Environment.NewLine & Environment.NewLine &
-                            "This file is generated during the build process.",
-                            "Verify File Integrity", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            MessageBox.Show(GetString("Shell_IntegrityNotFound"),
+                            GetString("Shell_IntegrityTitle"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
             Return
         End If
 
@@ -759,10 +758,10 @@ Partial Class FormMain
         Next
 
         sb.AppendLine()
-        sb.AppendLine($"Result: {result.PassCount} passed, {result.FailCount} failed, {result.MissingCount} missing")
+        sb.AppendLine(String.Format(GetString("Shell_IntegrityResult"), result.PassCount, result.FailCount, result.MissingCount))
 
         Dim msgIcon = If(result.AllPassed, MessageBoxIcon.Information, MessageBoxIcon.Warning)
-        Dim title = If(result.AllPassed, "All Files OK", "Integrity Issues Found")
+        Dim title = If(result.AllPassed, GetString("Shell_IntegrityAllOk"), GetString("Shell_IntegrityIssues"))
 
         ' Log full results to the daily log
         For Each line In Services.Infrastructure.IntegrityChecker.ToReportLines(result)
@@ -804,26 +803,26 @@ Partial Class FormMain
         If statusMain Is Nothing Then Return
 
         If _serverController IsNot Nothing AndAlso _serverController.IsRunning Then
-            tslServerStatus.Text = $"Server: Running :{_serverController.Port}"
+            tslServerStatus.Text = String.Format(GetString("Shell_ServerRunning"), _serverController.Port)
             tslServerStatus.ForeColor = Color.Green
         Else
-            tslServerStatus.Text = "Server: Stopped"
+            tslServerStatus.Text = GetString("Shell_ServerStopped")
             tslServerStatus.ForeColor = Color.Gray
         End If
 
         Dim svc = SubtitleSvc
         Dim clients = If(svc?.ConnectedClients, 0)
-        tslClients.Text = $"Clients: {clients}"
+        tslClients.Text = String.Format(GetString("Shell_Clients"), clients)
 
         If _liveController IsNot Nothing AndAlso _liveController.IsRunning Then
-            tslLiveStatus.Text = "Live: Running"
+            tslLiveStatus.Text = GetString("Shell_LiveRunning")
             tslLiveStatus.ForeColor = Color.Green
             If Not liveElapsedTimer.Enabled Then
                 _liveStartTime = DateTime.Now
                 liveElapsedTimer.Start()
             End If
         Else
-            tslLiveStatus.Text = "Ready"
+            tslLiveStatus.Text = GetString("Msg_Ready")
             tslLiveStatus.ForeColor = Color.Gray
             If liveElapsedTimer.Enabled Then
                 liveElapsedTimer.Stop()

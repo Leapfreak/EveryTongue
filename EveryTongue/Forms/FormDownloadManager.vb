@@ -77,7 +77,8 @@ Namespace Forms
         End Sub
 
         Private Async Sub LoadStateAsync()
-            lblProgress.Text = "Checking components..."
+            Dim lp = Services.Infrastructure.LanguagePackService.Instance
+            lblProgress.Text = lp.GetString("DM_CheckingComponents")
             btnDownloadAll.Enabled = False
             btnRefresh.Enabled = False
 
@@ -101,23 +102,23 @@ Namespace Forms
                     item.SubItems.Add(cat)
                     Select Case st.Status
                         Case ToolStatus.UpToDate
-                            item.SubItems.Add("Installed")
+                            item.SubItems.Add(lp.GetString("DM_StatusInstalled"))
                             item.SubItems.Add(If(st.InstalledVersion, ""))
                             item.ForeColor = Drawing.Color.DarkGreen
                         Case ToolStatus.Installed
-                            item.SubItems.Add("Installed")
+                            item.SubItems.Add(lp.GetString("DM_StatusInstalled"))
                             item.SubItems.Add(If(st.InstalledVersion, ""))
                             item.ForeColor = Drawing.Color.DarkGreen
                         Case ToolStatus.UpdateAvailable
-                            item.SubItems.Add("Update Available")
+                            item.SubItems.Add(lp.GetString("DM_StatusUpdateAvailable"))
                             item.SubItems.Add($"{st.InstalledVersion} -> {st.LatestVersion}")
                             item.ForeColor = Drawing.Color.DarkOrange
                         Case ToolStatus.Missing
-                            item.SubItems.Add("Not Installed")
+                            item.SubItems.Add(lp.GetString("DM_StatusNotInstalled"))
                             item.SubItems.Add("")
                             item.ForeColor = Drawing.Color.Red
                         Case ToolStatus.CheckFailed
-                            item.SubItems.Add("Check Failed")
+                            item.SubItems.Add(lp.GetString("DM_StatusCheckFailed"))
                             item.SubItems.Add("")
                             item.ForeColor = Drawing.Color.Gray
                     End Select
@@ -126,14 +127,14 @@ Namespace Forms
                 Next
 
                 ' Add Python Embedded
-                Dim pyItem As New ListViewItem("Python Embedded")
-                pyItem.SubItems.Add("Runtime")
+                Dim pyItem As New ListViewItem(lp.GetString("DM_PythonEmbedded"))
+                pyItem.SubItems.Add(lp.GetString("DM_Runtime"))
                 If pythonState.Status = ToolStatus.UpToDate Then
-                    pyItem.SubItems.Add("Installed")
+                    pyItem.SubItems.Add(lp.GetString("DM_StatusInstalled"))
                     pyItem.SubItems.Add("3.12")
                     pyItem.ForeColor = Drawing.Color.DarkGreen
                 Else
-                    pyItem.SubItems.Add("Not Installed")
+                    pyItem.SubItems.Add(lp.GetString("DM_StatusNotInstalled"))
                     pyItem.SubItems.Add("")
                     pyItem.ForeColor = Drawing.Color.Red
                 End If
@@ -141,15 +142,15 @@ Namespace Forms
                 lvTools.Items.Add(pyItem)
 
                 ' Add Python Packages
-                Dim pkgItem As New ListViewItem("Python Packages")
-                pkgItem.SubItems.Add("Runtime")
+                Dim pkgItem As New ListViewItem(lp.GetString("DM_PythonPackages"))
+                pkgItem.SubItems.Add(lp.GetString("DM_Runtime"))
                 Dim missingPkgs = _mgr.GetMissingPythonPackages()
                 If missingPkgs.Count = 0 Then
-                    pkgItem.SubItems.Add("Installed")
+                    pkgItem.SubItems.Add(lp.GetString("DM_StatusInstalled"))
                     pkgItem.SubItems.Add("ctranslate2, sentencepiece, fastapi, uvicorn, faster-whisper, sounddevice, edge-tts")
                     pkgItem.ForeColor = Drawing.Color.DarkGreen
                 Else
-                    pkgItem.SubItems.Add($"Missing ({missingPkgs.Count})")
+                    pkgItem.SubItems.Add(String.Format(lp.GetString("DM_PackagesMissing"), missingPkgs.Count))
                     pkgItem.SubItems.Add(String.Join(", ", missingPkgs))
                     pkgItem.ForeColor = Drawing.Color.Red
                 End If
@@ -187,8 +188,8 @@ Namespace Forms
             LoadCachedCatalog()
             PopulateBibleTree()
 
-            If lblProgress.Text = "Checking components..." Then
-                lblProgress.Text = "Ready"
+            If lblProgress.Text = lp.GetString("DM_CheckingComponents") Then
+                lblProgress.Text = lp.GetString("DM_Ready")
             End If
         End Sub
 
@@ -200,7 +201,8 @@ Namespace Forms
                 Dim installed = installedVoices.Contains(kvp.Key)
                 Dim item As New ListViewItem(GetLanguageDisplayName(kvp.Key))
                 item.SubItems.Add(If(modelFile, ""))
-                item.SubItems.Add(If(installed, "Installed", "Not installed"))
+                Dim lp = Services.Infrastructure.LanguagePackService.Instance
+                item.SubItems.Add(If(installed, lp.GetString("DM_StatusInstalled"), lp.GetString("DM_StatusNotInstalled")))
                 item.Tag = kvp.Key
                 If installed Then item.ForeColor = Drawing.Color.DarkGreen
                 lvVoices.Items.Add(item)
@@ -208,14 +210,15 @@ Namespace Forms
         End Sub
 
         Private Sub LoadMmsTtsStatus()
+            Dim lp = Services.Infrastructure.LanguagePackService.Instance
             Dim mmsTtsInstalled = MmsTtsBackend.CheckDepsInstalled()
             If mmsTtsInstalled Then
-                lblMmsTtsStatus.Text = "Installed — covers languages not in Piper"
-                btnInstallMmsTts.Text = "Installed"
+                lblMmsTtsStatus.Text = lp.GetString("DM_MmsTtsInstalledStatus")
+                btnInstallMmsTts.Text = lp.GetString("DM_StatusInstalled")
                 btnInstallMmsTts.Enabled = False
             Else
-                lblMmsTtsStatus.Text = "Not installed — CPU-only PyTorch (~200 MB)"
-                btnInstallMmsTts.Text = "Install (~200 MB)"
+                lblMmsTtsStatus.Text = lp.GetString("DM_MmsTtsNotInstalledStatus")
+                btnInstallMmsTts.Text = lp.GetString("DM_MmsTtsInstallSize")
                 btnInstallMmsTts.Enabled = True
             End If
         End Sub
@@ -271,7 +274,7 @@ Namespace Forms
             tvBibles.Nodes.Clear()
 
             If _catalog Is Nothing OrElse _catalog.Count = 0 Then
-                tvBibles.Nodes.Add("Click 'Fetch Catalog' to load available Bible translations from eBible.org")
+                tvBibles.Nodes.Add(Services.Infrastructure.LanguagePackService.Instance.GetString("DM_BiblePlaceholder"))
                 tvBibles.EndUpdate()
                 Return
             End If
@@ -296,14 +299,15 @@ Namespace Forms
                 langNode.Tag = Nothing
                 For Each entry In grp.OrderBy(Function(c) c.Title)
                     Dim installed = _installedBibles.Contains(entry.TranslationId)
-                    Dim status = If(installed, " [Installed]", "")
+                    Dim blp = Services.Infrastructure.LanguagePackService.Instance
+                    Dim status = If(installed, blp.GetString("DM_BibleInstalled"), "")
                     Dim books = ""
                     If entry.OTBooks > 0 AndAlso entry.NTBooks > 0 Then
-                        books = $" (OT+NT)"
+                        books = blp.GetString("DM_BibleOtNt")
                     ElseIf entry.NTBooks > 0 Then
-                        books = $" (NT only)"
+                        books = blp.GetString("DM_BibleNtOnly")
                     ElseIf entry.OTBooks > 0 Then
-                        books = $" (OT only)"
+                        books = blp.GetString("DM_BibleOtOnly")
                     End If
                     Dim nodeText = $"{entry.Title}{books}{status}"
                     Dim childNode As New TreeNode(nodeText)
@@ -390,7 +394,8 @@ Namespace Forms
         Private Async Sub btnFetchCatalog_Click(sender As Object, e As EventArgs) Handles btnFetchCatalog.Click
             If _downloading Then Return
             btnFetchCatalog.Enabled = False
-            lblProgress.Text = "Fetching Bible catalog from eBible.org..."
+            Dim lp = Services.Infrastructure.LanguagePackService.Instance
+            lblProgress.Text = lp.GetString("DM_FetchingCatalog")
             pbProgress.Style = ProgressBarStyle.Marquee
 
             Try
@@ -400,21 +405,21 @@ Namespace Forms
 
                 If File.Exists(cacheFile) AndAlso (DateTime.Now - File.GetLastWriteTime(cacheFile)).TotalHours < 24 Then
                     csvText = File.ReadAllText(cacheFile)
-                    lblProgress.Text = "Loaded cached catalog"
+                    lblProgress.Text = lp.GetString("DM_CachedCatalog")
                 Else
                     csvText = Await _httpClient.GetStringAsync(CatalogUrl)
                     If Not Directory.Exists(_biblesDir) Then Directory.CreateDirectory(_biblesDir)
                     File.WriteAllText(cacheFile, csvText)
-                    lblProgress.Text = "Catalog downloaded"
+                    lblProgress.Text = lp.GetString("DM_CatalogDownloaded")
                 End If
 
                 _catalog = ParseCatalogCsv(csvText)
                 LoadInstalledBibles()
                 PopulateBibleTree()
-                lblProgress.Text = $"Found {_catalog.Count} freely redistributable translations"
+                lblProgress.Text = String.Format(lp.GetString("DM_FoundTranslations"), _catalog.Count)
 
             Catch ex As Exception
-                lblProgress.Text = $"Error fetching catalog: {ex.Message}"
+                lblProgress.Text = String.Format(lp.GetString("DM_ErrorFetchingCatalog"), ex.Message)
             Finally
                 pbProgress.Style = ProgressBarStyle.Continuous
                 pbProgress.Value = 0
@@ -439,7 +444,7 @@ Namespace Forms
             Next
 
             If toDownload.Count = 0 Then
-                lblProgress.Text = "Check one or more translations to download."
+                lblProgress.Text = Services.Infrastructure.LanguagePackService.Instance.GetString("DM_SelectBibles")
                 Return
             End If
 
@@ -496,8 +501,9 @@ Namespace Forms
 
                         lblProgress.Text = $"Converted {entry.Title} ({sizeMb:F1} MB) ({i + 1}/{toDownload.Count})"
                     Else
-                        allIssues.Add($"{entry.Title}: conversion failed — no output file")
-                        lblProgress.Text = $"Warning: conversion may have failed for {entry.Title}"
+                        Dim dlp = Services.Infrastructure.LanguagePackService.Instance
+                        allIssues.Add(String.Format(dlp.GetString("DM_BibleConversionFailed"), entry.Title))
+                        lblProgress.Text = String.Format(dlp.GetString("DM_BibleConversionWarning"), entry.Title)
                     End If
 
                     ' Cleanup temp
@@ -510,7 +516,8 @@ Namespace Forms
                     pbProgress.Value = CInt((i + 1) * 100 \ toDownload.Count)
                 Next
 
-                lblProgress.Text = $"Downloaded and converted {toDownload.Count} Bible(s) successfully"
+                Dim blp2 = Services.Infrastructure.LanguagePackService.Instance
+                lblProgress.Text = String.Format(blp2.GetString("DM_DownloadedBibles"), toDownload.Count)
                 pbProgress.Value = 100
                 PathsUpdated = True
 
@@ -518,9 +525,8 @@ Namespace Forms
                 If allIssues.Count > 0 Then
                     Dim report = String.Join(vbCrLf, allIssues)
                     MessageBox.Show(
-                        $"Downloaded {toDownload.Count} Bible(s). The following issues were found:" &
-                        vbCrLf & vbCrLf & report,
-                        "Bible Integrity Report",
+                        String.Format(blp2.GetString("DM_BibleDownloadedWithIssues"), toDownload.Count, report),
+                        blp2.GetString("DM_BibleIntegrityReport"),
                         MessageBoxButtons.OK, MessageBoxIcon.Information)
                 End If
 
@@ -539,17 +545,18 @@ Namespace Forms
         End Sub
 
         Private Shared Function GetCategory(name As String) As String
+            Dim lp = Services.Infrastructure.LanguagePackService.Instance
             Select Case name
                 Case "yt-dlp", "FFmpeg", "Subtitle Edit"
-                    Return "Tool"
+                    Return lp.GetString("DM_CategoryTool")
                 Case "Whisper Model (ggml-large-v3)", "faster-whisper Model (large-v3)"
-                    Return "AI Model"
+                    Return lp.GetString("DM_CategoryAiModel")
                 Case "NLLB Translation Model"
-                    Return "AI Model"
+                    Return lp.GetString("DM_CategoryAiModel")
                 Case "Piper TTS"
-                    Return "TTS"
+                    Return lp.GetString("DM_CategoryTts")
                 Case Else
-                    Return "Other"
+                    Return lp.GetString("DM_CategoryOther")
             End Select
         End Function
 
@@ -578,7 +585,7 @@ Namespace Forms
             Next
 
             If toDownload.Count = 0 AndAlso Not needPython AndAlso Not needPythonDeps Then
-                lblProgress.Text = "Select one or more components to download."
+                lblProgress.Text = Services.Infrastructure.LanguagePackService.Instance.GetString("DM_SelectComponents")
                 Return
             End If
 
@@ -624,7 +631,7 @@ Namespace Forms
                 End If
 
                 pbProgress.Value = 100
-                lblProgress.Text = $"Downloaded {total} component(s) successfully"
+                lblProgress.Text = String.Format(Services.Infrastructure.LanguagePackService.Instance.GetString("DM_DownloadedComponents"), total)
                 PathsUpdated = True
 
             Catch ex As Exception
@@ -646,22 +653,25 @@ Namespace Forms
         Private Async Sub btnDownloadVoices_Click(sender As Object, e As EventArgs) Handles btnDownloadVoices.Click
             If _downloading Then Return
 
+            Dim lp = Services.Infrastructure.LanguagePackService.Instance
+            Dim installedVoices = _mgr.GetInstalledPiperVoices()
             Dim toDownload As New List(Of String)()
             For Each item As ListViewItem In lvVoices.CheckedItems
-                If item.SubItems(2).Text <> "Installed" Then
-                    toDownload.Add(DirectCast(item.Tag, String))
+                Dim lang = DirectCast(item.Tag, String)
+                If Not installedVoices.Contains(lang) Then
+                    toDownload.Add(lang)
                 End If
             Next
 
             If toDownload.Count = 0 Then
-                lblProgress.Text = "Select one or more uninstalled voices to download."
+                lblProgress.Text = lp.GetString("DM_SelectVoicesToDownload")
                 Return
             End If
 
             ' Check Piper engine first
             Dim piperState = Await _mgr.CheckPiperAsync()
             If piperState.Status <> ToolStatus.UpToDate Then
-                lblProgress.Text = "Piper TTS engine must be installed first. Use 'Download All Missing'."
+                lblProgress.Text = lp.GetString("DM_PiperRequired")
                 Return
             End If
 
@@ -685,7 +695,7 @@ Namespace Forms
                     Await _mgr.DownloadPiperVoiceAsync(lang, progress)
                 Next
 
-                lblProgress.Text = $"Downloaded {toDownload.Count} voice(s) successfully"
+                lblProgress.Text = String.Format(lp.GetString("DM_DownloadedVoices"), toDownload.Count)
                 pbProgress.Value = 100
             Catch ex As Exception
                 lblProgress.Text = $"Error: {ex.Message}"
@@ -697,22 +707,25 @@ Namespace Forms
         End Sub
 
         Private Sub btnRemoveVoices_Click(sender As Object, e As EventArgs) Handles btnRemoveVoices.Click
+            Dim lp = Services.Infrastructure.LanguagePackService.Instance
+            Dim installedVoices = _mgr.GetInstalledPiperVoices()
             Dim toRemove As New List(Of (lang As String, display As String))()
             For Each item As ListViewItem In lvVoices.CheckedItems
-                If item.SubItems(2).Text = "Installed" Then
-                    toRemove.Add((DirectCast(item.Tag, String), item.Text))
+                Dim lang = DirectCast(item.Tag, String)
+                If installedVoices.Contains(lang) Then
+                    toRemove.Add((lang, item.Text))
                 End If
             Next
 
             If toRemove.Count = 0 Then
-                lblProgress.Text = "Select one or more installed voices to remove."
+                lblProgress.Text = lp.GetString("DM_SelectVoicesToRemove")
                 Return
             End If
 
             Dim names = String.Join(", ", toRemove.Select(Function(r) r.display))
             Dim result = MessageBox.Show(
-                $"Remove {toRemove.Count} voice model(s)?" & vbCrLf & names,
-                "Remove Voices", MessageBoxButtons.YesNo, MessageBoxIcon.Question)
+                String.Format(lp.GetString("DM_RemoveVoicesConfirm"), toRemove.Count) & vbCrLf & names,
+                lp.GetString("DM_RemoveVoicesTitle"), MessageBoxButtons.YesNo, MessageBoxIcon.Question)
             If result <> DialogResult.Yes Then Return
 
             Dim voicesDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
@@ -733,7 +746,7 @@ Namespace Forms
                 End If
             Next
 
-            lblProgress.Text = $"Removed {removed} voice(s)"
+            lblProgress.Text = String.Format(lp.GetString("DM_RemovedVoices"), removed)
             LoadVoices()
         End Sub
 
@@ -742,11 +755,10 @@ Namespace Forms
         Private Async Sub btnInstallMmsTts_Click(sender As Object, e As EventArgs) Handles btnInstallMmsTts.Click
             If _downloading Then Return
 
+            Dim lp = Services.Infrastructure.LanguagePackService.Instance
             Dim result = MessageBox.Show(
-                "Install MMS-TTS (Meta's offline speech synthesis)?" & vbCrLf & vbCrLf &
-                "This will download CPU-only PyTorch (~200 MB) and the transformers library." & vbCrLf &
-                "MMS-TTS covers 1100+ languages for when Piper doesn't have a voice.",
-                "Install MMS-TTS", MessageBoxButtons.YesNo, MessageBoxIcon.Question)
+                lp.GetString("DM_MmsTtsInstallConfirm"),
+                lp.GetString("DM_MmsTtsInstallTitle"), MessageBoxButtons.YesNo, MessageBoxIcon.Question)
             If result <> DialogResult.Yes Then Return
 
             _downloading = True
@@ -754,7 +766,7 @@ Namespace Forms
             btnInstallMmsTts.Enabled = False
 
             Try
-                lblProgress.Text = "Installing MMS-TTS dependencies (this may take several minutes)..."
+                lblProgress.Text = lp.GetString("DM_MmsTtsInstalling")
                 pbProgress.Value = 0
                 pbProgress.Style = ProgressBarStyle.Marquee
 
@@ -764,11 +776,11 @@ Namespace Forms
                 pbProgress.Value = 100
 
                 If MmsTtsBackend.CheckDepsInstalled() Then
-                    lblMmsTtsStatus.Text = "Installed — covers languages not in Piper"
-                    btnInstallMmsTts.Text = "Installed"
-                    lblProgress.Text = "MMS-TTS installed successfully"
+                    lblMmsTtsStatus.Text = lp.GetString("DM_MmsTtsInstalledStatus")
+                    btnInstallMmsTts.Text = lp.GetString("DM_StatusInstalled")
+                    lblProgress.Text = lp.GetString("DM_MmsTtsInstallSuccess")
                 Else
-                    lblProgress.Text = "Installation may have failed — check Python is installed"
+                    lblProgress.Text = lp.GetString("DM_MmsTtsInstallFailed")
                     btnInstallMmsTts.Enabled = True
                 End If
             Catch ex As Exception
@@ -828,12 +840,13 @@ Namespace Forms
                 Dim item As New ListViewItem(l.Name)
                 item.SubItems.Add(If(l.Native, l.Name))
                 item.SubItems.Add(l.Iso1)
+                Dim lp = Services.Infrastructure.LanguagePackService.Instance
                 Dim isInstalled = installed.Any(Function(c) c.Equals(l.Iso1, StringComparison.OrdinalIgnoreCase))
                 If isInstalled Then
-                    item.SubItems.Add("Installed")
+                    item.SubItems.Add(lp.GetString("DM_StatusInstalled"))
                     item.ForeColor = Drawing.Color.DarkGreen
                 Else
-                    item.SubItems.Add("Not installed")
+                    item.SubItems.Add(lp.GetString("DM_StatusNotInstalled"))
                 End If
                 item.Tag = l.Iso1
                 lvLangPacks.Items.Add(item)
@@ -843,15 +856,18 @@ Namespace Forms
         Private Async Sub btnDownloadLangPacks_Click(sender As Object, e As EventArgs) Handles btnDownloadLangPacks.Click
             If _downloading Then Return
 
+            Dim lp = Services.Infrastructure.LanguagePackService.Instance
+            Dim installedLangs = lp.GetAvailableLanguages()
             Dim toDownload As New List(Of String)()
             For Each item As ListViewItem In lvLangPacks.CheckedItems
-                If item.SubItems(3).Text <> "Installed" Then
-                    toDownload.Add(DirectCast(item.Tag, String))
+                Dim code = DirectCast(item.Tag, String)
+                If Not installedLangs.Any(Function(c) c.Equals(code, StringComparison.OrdinalIgnoreCase)) Then
+                    toDownload.Add(code)
                 End If
             Next
 
             If toDownload.Count = 0 Then
-                lblProgress.Text = "No language packs selected for download"
+                lblProgress.Text = lp.GetString("DM_NoLangPacksSelected")
                 Return
             End If
 
@@ -866,18 +882,18 @@ Namespace Forms
                 Dim downloaded = 0
 
                 For Each code In toDownload
-                    lblProgress.Text = $"Downloading {code} language pack..."
+                    lblProgress.Text = String.Format(lp.GetString("DM_DownloadingLangPack"), code)
                     Dim ok = Await langPack.DownloadLanguageAsync(code)
                     If ok Then
                         downloaded += 1
                     Else
-                        lblProgress.Text = $"Failed to download {code} — not available on GitHub"
+                        lblProgress.Text = String.Format(lp.GetString("DM_LangPackNotAvailable"), code)
                     End If
                     pbProgress.Value = Math.Min(pbProgress.Value + 1, pbProgress.Maximum)
                 Next
 
                 pbProgress.Value = pbProgress.Maximum
-                lblProgress.Text = $"Downloaded {downloaded} of {toDownload.Count} language pack(s)"
+                lblProgress.Text = String.Format(lp.GetString("DM_DownloadedLangPacks"), downloaded, toDownload.Count)
             Catch ex As Exception
                 lblProgress.Text = $"Error: {ex.Message}"
             Finally
@@ -888,24 +904,25 @@ Namespace Forms
         End Sub
 
         Private Sub btnDeleteLangPacks_Click(sender As Object, e As EventArgs) Handles btnDeleteLangPacks.Click
+            Dim lp = Services.Infrastructure.LanguagePackService.Instance
+            Dim installedLangs = lp.GetAvailableLanguages()
             Dim toDelete As New List(Of String)()
             For Each item As ListViewItem In lvLangPacks.CheckedItems
                 Dim code = DirectCast(item.Tag, String)
-                If item.SubItems(3).Text = "Installed" Then
+                If installedLangs.Any(Function(c) c.Equals(code, StringComparison.OrdinalIgnoreCase)) Then
                     toDelete.Add(code)
                 End If
             Next
 
             If toDelete.Count = 0 Then
-                lblProgress.Text = "No installed language packs selected for uninstall"
+                lblProgress.Text = lp.GetString("DM_NoInstalledSelected")
                 Return
             End If
 
-            Dim langPack = Services.Infrastructure.LanguagePackService.Instance
             Dim deleted = 0
             For Each code In toDelete
                 Try
-                    Dim path = IO.Path.Combine(langPack.LocalesDirectory, $"{code}.json")
+                    Dim path = IO.Path.Combine(lp.LocalesDirectory, $"{code}.json")
                     If IO.File.Exists(path) Then
                         IO.File.Delete(path)
                         deleted += 1
@@ -915,7 +932,7 @@ Namespace Forms
                 End Try
             Next
 
-            lblProgress.Text = $"Uninstalled {deleted} language pack(s)"
+            lblProgress.Text = String.Format(lp.GetString("DM_UninstalledLangPacks"), deleted)
             LoadLangPacks()
         End Sub
 

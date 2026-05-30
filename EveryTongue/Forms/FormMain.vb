@@ -358,8 +358,8 @@ Public Class FormMain
         Dim needsWhisper = update.NeedsWhisperUpdate AndAlso Not String.IsNullOrWhiteSpace(update.WhisperZipUrl)
 
         Dim updateDesc = If(canModularUpdate AndAlso Not needsWhisper,
-            "A small app update is available.",
-            "An update is available.")
+            GetString("Main_SmallUpdate"),
+            GetString("Main_UpdateAvailable"))
 
         Dim confirm = MessageBox.Show(
             $"{GetString("Msg_NewVersionAvailable")} {update.TagName}" & vbCrLf & vbCrLf &
@@ -377,8 +377,8 @@ Public Class FormMain
             Catch ex As Exception
                 ' Modular update failed — fall back to installer
                 If String.IsNullOrWhiteSpace(update.InstallerUrl) Then
-                    MessageBox.Show($"Update failed: {ex.Message}" & vbCrLf & vbCrLf &
-                                   "Opening release page instead.",
+                    MessageBox.Show(String.Format(GetString("Main_UpdateFailed"), ex.Message) & vbCrLf & vbCrLf &
+                                   GetString("Main_OpeningReleasePage"),
                                    GetString("Msg_Error"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
                     Process.Start(New ProcessStartInfo(update.HtmlUrl) With {.UseShellExecute = True})
                     Return
@@ -408,8 +408,8 @@ Public Class FormMain
             _exitForReal = True
             Application.Exit()
         Catch ex As Exception
-            MessageBox.Show($"Update download failed: {ex.Message}" & vbCrLf & vbCrLf &
-                           "Opening release page instead.",
+            MessageBox.Show(String.Format(GetString("Main_UpdateDownloadFailed"), ex.Message) & vbCrLf & vbCrLf &
+                           GetString("Main_OpeningReleasePage"),
                            GetString("Msg_Error"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
             Process.Start(New ProcessStartInfo(update.HtmlUrl) With {.UseShellExecute = True})
         End Try
@@ -854,10 +854,10 @@ del ""%~f0""
             If File.Exists(helpFile) Then
                 rtbHelp.LoadFile(helpFile, RichTextBoxStreamType.RichText)
             Else
-                rtbHelp.Text = "Help file not found."
+                rtbHelp.Text = GetString("Main_HelpNotFound")
             End If
         Catch ex As Exception
-            rtbHelp.Text = "Error loading help: " & ex.Message
+            rtbHelp.Text = String.Format(GetString("Main_HelpLoadError"), ex.Message)
         End Try
     End Sub
 

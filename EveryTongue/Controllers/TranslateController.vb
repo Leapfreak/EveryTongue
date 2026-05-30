@@ -149,7 +149,7 @@ Namespace Controllers
             Dim targetLang = Pipeline.TranslationService.WhisperToNllbLang(targetWhisper)
 
             If String.IsNullOrEmpty(targetLang) Then
-                _lblStatus.Text = $"Unsupported target language: {targetWhisper}"
+                _lblStatus.Text = String.Format(_getString("Trans_UnsupportedLang"), targetWhisper)
                 _lblStatus.ForeColor = Drawing.Color.Red
                 Return
             End If
@@ -164,7 +164,7 @@ Namespace Controllers
 
             Dim textLines = SplitIntoLines(inputText)
             Dim totalSegments = textLines.Sum(Function(tl) tl.Sentences.Count)
-            _lblStatus.Text = $"Translating ({totalSegments} segment(s))..."
+            _lblStatus.Text = String.Format(_getString("Trans_Translating"), totalSegments)
             _lblStatus.ForeColor = Drawing.Color.FromArgb(0, 122, 204)
 
             Try
@@ -184,7 +184,7 @@ Namespace Controllers
                         Dim lineResult As New System.Text.StringBuilder()
                         For Each sentence In tl.Sentences
                             segNum += 1
-                            _lblStatus.Text = $"Translating {segNum}/{totalSegments}..."
+                            _lblStatus.Text = String.Format(_getString("Trans_TranslatingProgress"), segNum, totalSegments)
 
                             Dim bodyObj As New Dictionary(Of String, Object) From {
                                 {"text", sentence},
@@ -210,7 +210,7 @@ Namespace Controllers
                                     End If
                                 End If
                             Else
-                                _lblStatus.Text = $"Error: {response.StatusCode}"
+                                _lblStatus.Text = String.Format(_getString("Trans_TransError"), response.StatusCode)
                                 _lblStatus.ForeColor = Drawing.Color.Red
                                 _txtOutput.Text = output.ToString()
                                 Return
@@ -221,14 +221,14 @@ Namespace Controllers
                     Next
 
                     _txtOutput.Text = output.ToString()
-                    _lblStatus.Text = "Done"
+                    _lblStatus.Text = _getString("Trans_Done")
                     _lblStatus.ForeColor = Drawing.Color.Green
                 End Using
             Catch ex As System.Net.Http.HttpRequestException
-                _lblStatus.Text = "Translation server connection failed — try again"
+                _lblStatus.Text = _getString("Trans_ConnectionFailed")
                 _lblStatus.ForeColor = Drawing.Color.Red
             Catch ex As TaskCanceledException
-                _lblStatus.Text = "Request timed out"
+                _lblStatus.Text = _getString("Trans_Timeout")
                 _lblStatus.ForeColor = Drawing.Color.Red
             Catch ex As Exception
                 _lblStatus.Text = $"Error: {ex.Message}"
@@ -254,7 +254,7 @@ Namespace Controllers
                         _getString("Msg_DepsMissing"))
                     Return False
                 End If
-                _lblStatus.Text = "Starting translation engine..."
+                _lblStatus.Text = _getString("Trans_StartingEngine")
                 _lblStatus.ForeColor = Drawing.Color.FromArgb(0, 122, 204)
                 _debugLog("[TRANSLATE] Calling StartTranslationService...")
                 _startTranslationService()
@@ -266,7 +266,7 @@ Namespace Controllers
             ' Guard against null service (e.g. TranslationEnabled=False)
             If svc Is Nothing Then
                 _debugLog("[TRANSLATE] Service is Nothing after start attempt — TranslationEnabled is likely False")
-                _lblStatus.Text = "Translation is disabled in settings"
+                _lblStatus.Text = _getString("Trans_Disabled")
                 _lblStatus.ForeColor = Drawing.Color.Red
                 Return False
             End If
@@ -274,7 +274,7 @@ Namespace Controllers
             ' Reload model if server is running but model was unloaded
             If svc.IsRunning AndAlso Not svc.IsModelLoaded Then
                 _debugLog("[TRANSLATE] Server running but model not loaded — reloading...")
-                _lblStatus.Text = "Loading translation model..."
+                _lblStatus.Text = _getString("Trans_LoadingModel")
                 _lblStatus.ForeColor = Drawing.Color.FromArgb(0, 122, 204)
                 Try
                     Await svc.LoadModelAsync()
@@ -286,7 +286,7 @@ Namespace Controllers
             ' Wait for model to load (up to 120s)
             If Not svc.IsModelLoaded Then
                 _debugLog("[TRANSLATE] Waiting for model to load (up to 120s)...")
-                _lblStatus.Text = "Waiting for translation model..."
+                _lblStatus.Text = _getString("Trans_WaitingModel")
                 _lblStatus.ForeColor = Drawing.Color.FromArgb(0, 122, 204)
                 Dim waited = 0
                 While Not svc.IsModelLoaded AndAlso waited < 120000
@@ -295,7 +295,7 @@ Namespace Controllers
                 End While
                 _debugLog($"[TRANSLATE] Wait complete: waited={waited}ms, isModelLoaded={svc.IsModelLoaded}")
                 If Not svc.IsModelLoaded Then
-                    _lblStatus.Text = "Translation model failed to load"
+                    _lblStatus.Text = _getString("Trans_ModelFailed")
                     _lblStatus.ForeColor = Drawing.Color.Red
                     Return False
                 End If

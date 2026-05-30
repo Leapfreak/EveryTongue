@@ -263,7 +263,7 @@ Namespace Controllers
             _flpBibleNav.Controls.Clear()
             ClearBibleText()
             _btnBibleBack.Visible = False
-            _lblBibleNavTitle.Text = "Books"
+            _lblBibleNavTitle.Text = Services.Infrastructure.LanguagePackService.Instance.GetString("Bible_Books")
             If _cboBibleTrans.SelectedItem Is Nothing Then
                 _flpBibleNav.ResumeLayout()
                 Return
@@ -388,14 +388,14 @@ Namespace Controllers
                 Dim parsed = bibleSvc.ParseReferenceAsync(refText, "en", trans.Id, CancellationToken.None).GetAwaiter().GetResult()
                 If parsed Is Nothing OrElse Not parsed.IsValid Then
                     ClearBibleText()
-                    _rtbBibleText.AppendText($"Could not find: {refText}")
+                    _rtbBibleText.AppendText(String.Format(Services.Infrastructure.LanguagePackService.Instance.GetString("Bible_NotFound"), refText))
                     Return
                 End If
 
                 Dim chapter = bibleSvc.GetChapterAsync(trans.Id, parsed.Book, parsed.Chapter, CancellationToken.None).GetAwaiter().GetResult()
                 If chapter Is Nothing OrElse chapter.Verses Is Nothing OrElse chapter.Verses.Count = 0 Then
                     ClearBibleText()
-                    _rtbBibleText.AppendText($"No verses found for: {refText}")
+                    _rtbBibleText.AppendText(String.Format(Services.Infrastructure.LanguagePackService.Instance.GetString("Bible_NoVerses"), refText))
                     Return
                 End If
 

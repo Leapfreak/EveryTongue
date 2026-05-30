@@ -197,12 +197,13 @@ Namespace Controllers
         Public Sub VerifyAllPaths()
             Dim result = VerifyAllPathsCore()
 
+            Dim lps = Services.Infrastructure.LanguagePackService.Instance
             If result.AllOk Then
-                MessageBox.Show("All paths verified successfully." & Environment.NewLine & Environment.NewLine & result.Report,
-                    "Verify Paths", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                MessageBox.Show(lps.GetString("Server_AllPathsOk") & Environment.NewLine & Environment.NewLine & result.Report,
+                    lps.GetString("Msg_PathVerification"), MessageBoxButtons.OK, MessageBoxIcon.Information)
             Else
-                MessageBox.Show("Some paths are missing or not set:" & Environment.NewLine & Environment.NewLine & result.Report,
-                    "Verify Paths", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                MessageBox.Show(lps.GetString("Server_PathsMissing") & Environment.NewLine & Environment.NewLine & result.Report,
+                    lps.GetString("Msg_PathVerification"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
             End If
         End Sub
 

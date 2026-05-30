@@ -181,7 +181,7 @@ Namespace Controllers
         Private Sub RefreshDevices()
             _saveUiToConfig()
             _cboDevice.Items.Clear()
-            _cboDevice.Items.Add("Detecting devices...")
+            _cboDevice.Items.Add(_getString("Live_DetectingDevices"))
             _cboDevice.SelectedIndex = 0
             _cboDevice.Enabled = False
             _btnRefreshDevices.Enabled = False
@@ -201,7 +201,7 @@ Namespace Controllers
                              _debugLog($"[ERROR] Refresh devices failed: {ex.Message}")
                              _cboDevice.BeginInvoke(Sub()
                                                          _cboDevice.Items.Clear()
-                                                         _cboDevice.Items.Add("0: Default Device")
+                                                         _cboDevice.Items.Add(_getString("Live_DefaultDevice"))
                                                          _cboDevice.SelectedIndex = 0
                                                          _cboDevice.Enabled = True
                                                          _btnRefreshDevices.Enabled = True
@@ -380,20 +380,20 @@ Namespace Controllers
 
         Private Async Sub ShowTuneStats()
             If _liveRunner Is Nothing Then
-                MessageBox.Show("No session data available.", "Tune", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                MessageBox.Show(_getString("Live_NoSessionData"), _getString("Live_Tune"), MessageBoxButtons.OK, MessageBoxIcon.Information)
                 Return
             End If
 
             Dim json = Await _liveRunner.GetStatsAsync()
             If String.IsNullOrEmpty(json) Then
-                MessageBox.Show("No statistics available yet. Run the live transcription for a while first.", "Tune", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                MessageBox.Show(_getString("Live_NoStatsYet"), _getString("Live_Tune"), MessageBoxButtons.OK, MessageBoxIcon.Information)
                 Return
             End If
 
             Try
-                Dim result = ParseTuneStats(json, _trkMaxSegment.Value, _trkVadSilence.Value)
+                Dim result = ParseTuneStats(json, _trkMaxSegment.Value, _trkVadSilence.Value, _getString)
                 If result Is Nothing Then
-                    MessageBox.Show("No commits recorded yet. Let it run for a bit longer.", "Tune", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                    MessageBox.Show(_getString("Live_NoCommitsYet"), _getString("Live_Tune"), MessageBoxButtons.OK, MessageBoxIcon.Information)
                     Return
                 End If
 
@@ -402,17 +402,17 @@ Namespace Controllers
                     tips.Add($"• {tip}")
                 Next
                 tips.Add("")
-                tips.Add($"Session: {result.Commits} commits, {result.Hallucinations} hallucinations filtered")
-                tips.Add($"Commit types: {result.TypeInfo}")
-                If result.WpsAvg > 0 Then tips.Add($"Speaking rate: {result.WpsAvg.ToString("F1")} words/sec")
-                tips.Add($"Segment duration: avg {result.DurAvg.ToString("F1")}s, median {result.DurMedian.ToString("F1")}s, max {result.DurMax.ToString("F1")}s")
-                If result.HasGaps Then tips.Add($"Silence gaps: avg {result.GapAvg.ToString("F1")}s, median {result.GapMedian.ToString("F1")}s")
+                tips.Add(String.Format(_getString("Live_SessionStats"), result.Commits, result.Hallucinations))
+                tips.Add(String.Format(_getString("Live_CommitTypes"), result.TypeInfo))
+                If result.WpsAvg > 0 Then tips.Add(String.Format(_getString("Live_SpeakingRate"), result.WpsAvg.ToString("F1")))
+                tips.Add(String.Format(_getString("Live_SegmentDuration"), result.DurAvg.ToString("F1"), result.DurMedian.ToString("F1"), result.DurMax.ToString("F1")))
+                If result.HasGaps Then tips.Add(String.Format(_getString("Live_SilenceGaps"), result.GapAvg.ToString("F1"), result.GapMedian.ToString("F1")))
 
                 Dim msg = String.Join(Environment.NewLine, tips)
                 Dim dlgResult = MessageBox.Show(
                     msg & Environment.NewLine & Environment.NewLine &
-                    "Apply suggested slider values?",
-                    "Tuning Recommendations",
+                    _getString("Live_ApplySuggested"),
+                    _getString("Live_TuningRecommendations"),
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Information)
 
@@ -429,7 +429,7 @@ Namespace Controllers
                     PushLiveConfig()
                 End If
             Catch ex As Exception
-                MessageBox.Show($"Failed to parse stats: {ex.Message}", "Tune", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                MessageBox.Show(String.Format(_getString("Live_TuneParseError"), ex.Message), _getString("Live_Tune"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
             End Try
         End Sub
 
@@ -445,7 +445,7 @@ Namespace Controllers
             If String.IsNullOrEmpty(json) Then Return Nothing
 
             Try
-                Dim result = ParseTuneStats(json, _trkMaxSegment.Value, _trkVadSilence.Value)
+                Dim result = ParseTuneStats(json, _trkMaxSegment.Value, _trkVadSilence.Value, _getString)
                 If result Is Nothing Then Return Nothing
 
                 Dim ic = Globalization.CultureInfo.InvariantCulture
@@ -734,7 +734,7 @@ Namespace Controllers
             Public Property Tips As New List(Of String)
         End Class
 
-        Private Shared Function ParseTuneStats(json As String, currentMaxSeg As Integer, currentVadSilence As Integer) As TuneStatsResult
+        Private Shared Function ParseTuneStats(json As String, currentMaxSeg As Integer, currentVadSilence As Integer, getString As Func(Of String, String)) As TuneStatsResult
             Using doc = System.Text.Json.JsonDocument.Parse(json)
                 Dim root = doc.RootElement
 
@@ -790,32 +790,32 @@ Namespace Controllers
 
                 If forceRatio > 0.15 Then
                     Dim suggested = CInt(Math.Min(60, Math.Ceiling(r.DurMax * 1.3 / 5) * 5))
-                    r.Tips.Add($"Max Segment too low — {forceRatio.ToString("P0")} of commits are force-cut. Suggest: {suggested}s (currently {currentMaxSeg}s)")
+                    r.Tips.Add(String.Format(getString("Live_MaxSegTooLow"), forceRatio.ToString("P0"), suggested, currentMaxSeg))
                     r.SuggestedMaxSeg = suggested
                 ElseIf forceRatio = 0 AndAlso r.DurMax < currentMaxSeg * 0.5 Then
                     Dim suggested = CInt(Math.Max(10, Math.Ceiling(r.DurMax * 1.5 / 5) * 5))
-                    r.Tips.Add($"Max Segment could be tighter — longest {r.DurMax.ToString("F1")}s, limit {currentMaxSeg}s. Suggest: {suggested}s")
+                    r.Tips.Add(String.Format(getString("Live_MaxSegTighter"), r.DurMax.ToString("F1"), currentMaxSeg, suggested))
                     r.SuggestedMaxSeg = suggested
                 Else
-                    r.Tips.Add($"Max Segment ({currentMaxSeg}s) looks good.")
+                    r.Tips.Add(String.Format(getString("Live_MaxSegGood"), currentMaxSeg))
                 End If
 
                 If shortRatio > 0.4 Then
                     Dim suggested = CInt(Math.Min(1500, Math.Ceiling((currentVadSilence + 200) / 100) * 100))
-                    r.Tips.Add($"VAD Silence too low — {shortRatio.ToString("P0")} under 3s. Suggest: {suggested}ms (currently {currentVadSilence}ms)")
+                    r.Tips.Add(String.Format(getString("Live_VadTooLow"), shortRatio.ToString("P0"), suggested, currentVadSilence))
                     r.SuggestedVadSilence = suggested
                 ElseIf r.HasGaps AndAlso r.GapMedian > 3.0 AndAlso shortRatio < 0.1 Then
                     Dim suggested = CInt(Math.Max(200, Math.Floor((currentVadSilence - 100) / 100) * 100))
-                    r.Tips.Add($"VAD Silence could be lower — median gap {r.GapMedian.ToString("F1")}s. Suggest: {suggested}ms (currently {currentVadSilence}ms)")
+                    r.Tips.Add(String.Format(getString("Live_VadLower"), r.GapMedian.ToString("F1"), suggested, currentVadSilence))
                     r.SuggestedVadSilence = suggested
                 Else
-                    r.Tips.Add($"VAD Silence ({currentVadSilence}ms) looks good.")
+                    r.Tips.Add(String.Format(getString("Live_VadGood"), currentVadSilence))
                 End If
 
                 If r.LangInfo.Contains(",") Then
-                    r.Tips.Add($"Multiple languages detected: {r.LangInfo}. Consider forcing via Input Language.")
+                    r.Tips.Add(String.Format(getString("Live_MultiLangs"), r.LangInfo))
                 ElseIf r.LangInfo <> "" Then
-                    r.Tips.Add($"Language consistent: {r.LangInfo}")
+                    r.Tips.Add(String.Format(getString("Live_LangConsistent"), r.LangInfo))
                 End If
 
                 Return r

@@ -265,7 +265,7 @@ Namespace Controllers
                     MessageBox.Show(ex.Message, _getString("Msg_PipelineError"), MessageBoxButtons.OK, MessageBoxIcon.Error)
                 End If
             Catch ex As Exception
-                _lblStepStatus.Text = "Error"
+                _lblStepStatus.Text = _getString("Transcribe_Error")
                 LogToUnified($"UNEXPECTED ERROR: {ex.Message}", PipelineRunner.LogLevel.Err)
                 MessageBox.Show(ex.Message, _getString("Msg_UnexpectedError"), MessageBoxButtons.OK, MessageBoxIcon.Error)
             Finally
@@ -278,7 +278,7 @@ Namespace Controllers
             If _isRunning Then Return
 
             Using dlg As New FolderBrowserDialog()
-                dlg.Description = "Select an existing output folder to resume"
+                dlg.Description = _getString("Transcribe_SelectFolder")
                 If Not String.IsNullOrWhiteSpace(_config.PathOutputRoot) Then
                     dlg.SelectedPath = AppConfig.ResolvePath(_config.PathOutputRoot)
                 End If
@@ -329,7 +329,7 @@ Namespace Controllers
                     MessageBox.Show(ex.Message, _getString("Msg_PipelineError"), MessageBoxButtons.OK, MessageBoxIcon.Error)
                 End If
             Catch ex As Exception
-                _lblStepStatus.Text = "Error"
+                _lblStepStatus.Text = _getString("Transcribe_Error")
                 LogToUnified($"UNEXPECTED ERROR: {ex.Message}", PipelineRunner.LogLevel.Err)
                 MessageBox.Show(ex.Message, _getString("Msg_UnexpectedError"), MessageBoxButtons.OK, MessageBoxIcon.Error)
             Finally

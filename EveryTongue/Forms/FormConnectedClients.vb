@@ -17,6 +17,7 @@ Public Class FormConnectedClients
         _getSubtitleSvc = getSubtitleSvc
         _getMetrics = getMetrics
         ApplyTheme(theme)
+        ApplyLocale()
 
         AddHandler btnRefresh.Click, Sub(s, e) RefreshData()
         AddHandler chkAutoRefresh.CheckedChanged, Sub(s, e)
@@ -40,11 +41,17 @@ Public Class FormConnectedClients
         End Try
     End Sub
 
+    Private Sub ApplyLocale()
+        Dim lp = Services.Infrastructure.LanguagePackService.Instance
+        Me.Text = lp.GetString("CC_Title")
+    End Sub
+
     Private Sub RefreshGrid()
+        Dim lp = Services.Infrastructure.LanguagePackService.Instance
         Dim svc = _getSubtitleSvc?.Invoke()
         If svc Is Nothing Then
             dgvClients.Rows.Clear()
-            lblClientSummary.Text = "Server not running"
+            lblClientSummary.Text = lp.GetString("CC_ServerNotRunning")
             Return
         End If
 
@@ -56,7 +63,7 @@ Public Class FormConnectedClients
 
         For Each c In clients
             Dim duration = FormatDuration(now - c.ConnectedAt)
-            Dim lang = If(String.IsNullOrEmpty(c.Language), "(original)", c.Language)
+            Dim lang = If(String.IsNullOrEmpty(c.Language), lp.GetString("CC_OriginalLang"), c.Language)
             dgvClients.Rows.Add(
                 If(c.Device, ""),
                 If(c.OS, ""),
@@ -77,7 +84,7 @@ Public Class FormConnectedClients
         dgvClients.ResumeLayout()
 
         ' Summary line
-        Dim langGroups = clients.GroupBy(Function(c) If(String.IsNullOrEmpty(c.Language), "(original)", c.Language)).
+        Dim langGroups = clients.GroupBy(Function(c) If(String.IsNullOrEmpty(c.Language), lp.GetString("CC_OriginalLang"), c.Language)).
                                   OrderByDescending(Function(g) g.Count()).
                                   Select(Function(g) $"{g.Key}: {g.Count()}").
                                   ToList()
@@ -91,7 +98,7 @@ Public Class FormConnectedClients
                                 Select(Function(g) $"{g.Count()} {g.Key}").
                                 ToList()
 
-        Dim summary = $"{clients.Count} client{If(clients.Count <> 1, "s", "")}"
+        Dim summary = String.Format(lp.GetString("CC_ClientCount"), clients.Count)
         If langGroups.Count > 0 Then summary &= $"  —  {String.Join(", ", langGroups)}"
         If platforms.Count > 0 Then summary &= $"  —  {String.Join(", ", platforms)}"
         lblClientSummary.Text = summary
@@ -122,39 +129,37 @@ Public Class FormConnectedClients
         Dim metrics = _getMetrics?.Invoke()
         Dim snapshot = metrics?.GetSnapshot()
 
-        lblPerfCpu.Text = $"CPU Usage:  {cpuText}  ({Environment.ProcessorCount} cores)"
-        lblPerfGpu.Text = $"GPU:  {gpuText}"
-        lblPerfMemory.Text = $"Memory:  {memMb} MB"
+        Dim lp = Services.Infrastructure.LanguagePackService.Instance
+        lblPerfCpu.Text = String.Format(lp.GetString("CC_CpuUsage"), cpuText, Environment.ProcessorCount)
+        lblPerfGpu.Text = String.Format(lp.GetString("CC_Gpu"), gpuText)
+        lblPerfMemory.Text = String.Format(lp.GetString("CC_Memory"), memMb)
 
         If snapshot IsNot Nothing Then
-            lblPerfClients.Text = $"Connected Clients:  {snapshot.Clients.Connected}"
-            lblPerfBroadcast.Text = $"Broadcast Latency:  {snapshot.Broadcast.LatencyMs:F1} ms"
-            lblPerfTranslation.Text = $"Translation Latency:  {snapshot.Translation.LatencyMs:F1} ms" &
-                If(Not String.IsNullOrEmpty(snapshot.Translation.ActiveBackend),
-                   $"  ({snapshot.Translation.ActiveBackend})", "")
-            lblPerfMsgSent.Text = $"Messages Sent:  {snapshot.Broadcast.MessagesSent:N0}"
-            lblPerfMsgDropped.Text = $"Messages Dropped:  {snapshot.Broadcast.MessagesDropped:N0}"
+            lblPerfClients.Text = String.Format(lp.GetString("CC_ConnectedClients"), snapshot.Clients.Connected)
+            lblPerfBroadcast.Text = String.Format(lp.GetString("CC_BroadcastLatency"), snapshot.Broadcast.LatencyMs.ToString("F1"))
+            lblPerfTranslation.Text = String.Format(lp.GetString("CC_TranslationLatency"),
+                snapshot.Translation.LatencyMs.ToString("F1"))
+            lblPerfMsgSent.Text = String.Format(lp.GetString("CC_MessagesSent"), snapshot.Broadcast.MessagesSent.ToString("N0"))
+            lblPerfMsgDropped.Text = String.Format(lp.GetString("CC_MessagesDropped"), snapshot.Broadcast.MessagesDropped.ToString("N0"))
             If snapshot.Broadcast.MessagesDropped > 0 Then
                 lblPerfMsgDropped.ForeColor = Color.FromArgb(255, 100, 100)
             End If
-            lblPerfUptime.Text = $"Server Uptime:  {FormatDuration(TimeSpan.FromSeconds(snapshot.System.UptimeSeconds))}"
+            lblPerfUptime.Text = String.Format(lp.GetString("CC_ServerUptime"), FormatDuration(TimeSpan.FromSeconds(snapshot.System.UptimeSeconds)))
 
-            ' Network estimate from bytes sent
-            ' Not currently tracked in MetricsService — show client count as proxy
             Dim langBreakdown = ""
             If snapshot.Clients.ByLanguage?.Count > 0 Then
                 langBreakdown = "  —  " & String.Join(", ",
                     snapshot.Clients.ByLanguage.Select(Function(kv) $"{kv.Key}: {kv.Value}"))
             End If
-            lblPerfNetwork.Text = $"Languages Active:  {If(snapshot.Clients.ByLanguage?.Count, 0)}{langBreakdown}"
+            lblPerfNetwork.Text = String.Format(lp.GetString("CC_LanguagesActive"), If(snapshot.Clients.ByLanguage?.Count, 0), langBreakdown)
         Else
-            lblPerfClients.Text = "Connected Clients:  —"
-            lblPerfBroadcast.Text = "Broadcast Latency:  —"
-            lblPerfTranslation.Text = "Translation Latency:  —"
-            lblPerfMsgSent.Text = "Messages Sent:  —"
-            lblPerfMsgDropped.Text = "Messages Dropped:  —"
-            lblPerfUptime.Text = "Server Uptime:  —"
-            lblPerfNetwork.Text = "Languages Active:  —"
+            lblPerfClients.Text = String.Format(lp.GetString("CC_ConnectedClients"), "—")
+            lblPerfBroadcast.Text = String.Format(lp.GetString("CC_BroadcastLatency"), "—")
+            lblPerfTranslation.Text = String.Format(lp.GetString("CC_TranslationLatency"), "—")
+            lblPerfMsgSent.Text = String.Format(lp.GetString("CC_MessagesSent"), "—")
+            lblPerfMsgDropped.Text = String.Format(lp.GetString("CC_MessagesDropped"), "—")
+            lblPerfUptime.Text = String.Format(lp.GetString("CC_ServerUptime"), "—")
+            lblPerfNetwork.Text = String.Format(lp.GetString("CC_LanguagesActive"), "—", "")
         End If
     End Sub
 
@@ -167,10 +172,11 @@ Public Class FormConnectedClients
                 .CreateNoWindow = True
             }
             Using p = Process.Start(psi)
-                If p Is Nothing Then Return "N/A (nvidia-smi not found)"
+                Dim nlp = Services.Infrastructure.LanguagePackService.Instance
+                If p Is Nothing Then Return nlp.GetString("CC_GpuNotFound")
                 Dim output = p.StandardOutput.ReadToEnd().Trim()
                 p.WaitForExit(2000)
-                If String.IsNullOrEmpty(output) Then Return "N/A"
+                If String.IsNullOrEmpty(output) Then Return nlp.GetString("CC_GpuNa")
                 Dim parts = output.Split(","c)
                 If parts.Length >= 3 Then
                     Return $"{parts(0).Trim()}% utilisation,  {parts(1).Trim()} / {parts(2).Trim()} MB VRAM"
@@ -178,7 +184,7 @@ Public Class FormConnectedClients
                 Return output
             End Using
         Catch
-            Return "N/A (no NVIDIA GPU)"
+            Return Services.Infrastructure.LanguagePackService.Instance.GetString("CC_GpuNoNvidia")
         End Try
     End Function
 
