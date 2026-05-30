@@ -82,7 +82,8 @@ Namespace Services.Bible
         ''' Convert a directory of USFM files into a single SQLite3 database.
         ''' </summary>
         Public Shared Sub Convert(usfmDir As String, outputPath As String,
-                                  description As String, languageCode As String)
+                                  description As String, languageCode As String,
+                                  Optional copyright As String = Nothing)
 
             Dim parser As New USFMParser()
             Dim books As New List(Of ParsedBook)
@@ -136,6 +137,12 @@ Namespace Services.Bible
                     cmd.Parameters("@n").Value = "source"
                     cmd.Parameters("@v").Value = "eBible.org (USFM)"
                     cmd.ExecuteNonQuery()
+
+                    If Not String.IsNullOrWhiteSpace(copyright) Then
+                        cmd.Parameters("@n").Value = "copyright"
+                        cmd.Parameters("@v").Value = copyright
+                        cmd.ExecuteNonQuery()
+                    End If
                 End Using
 
                 Using tx = conn.BeginTransaction()

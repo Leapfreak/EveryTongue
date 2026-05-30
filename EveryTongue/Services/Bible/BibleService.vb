@@ -208,6 +208,7 @@ Namespace Services.Bible
 
             Dim name = id
             Dim lang = folderName  ' fallback: folder name
+            Dim copyright As String = Nothing
             Dim bookMap As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
 
             Using conn As New SqliteConnection(connStr)
@@ -216,7 +217,7 @@ Namespace Services.Bible
                 ' Read metadata from info table
                 Try
                     Using cmd = conn.CreateCommand()
-                        cmd.CommandText = "SELECT name, value FROM info WHERE name IN ('description', 'language')"
+                        cmd.CommandText = "SELECT name, value FROM info WHERE name IN ('description', 'language', 'copyright', 'detailed_info')"
                         Using reader = cmd.ExecuteReader()
                             While reader.Read()
                                 Dim key = reader.GetString(0)
@@ -227,6 +228,8 @@ Namespace Services.Bible
                                     Case "language"
                                         ' Use ISO code from DB, normalized to 3-letter (e.g. "ca" -> "cat")
                                         If Not String.IsNullOrEmpty(val) Then lang = NormalizeLangCode(val)
+                                    Case "copyright", "detailed_info"
+                                        If copyright Is Nothing AndAlso Not String.IsNullOrEmpty(val) Then copyright = val
                                 End Select
                             End While
                         End Using
@@ -255,7 +258,8 @@ Namespace Services.Bible
                     .Id = id,
                     .Language = lang,
                     .Name = name,
-                    .Abbreviation = id.ToUpper()
+                    .Abbreviation = id.ToUpper(),
+                    .Copyright = copyright
                 },
                 .DbPath = dbFile,
                 .BookMap = bookMap
@@ -629,29 +633,7 @@ Namespace Services.Bible
         ''' Handles both 2-letter (en, es) and 3-letter (eng, spa) inputs.
         ''' </summary>
         Private Shared Function NormalizeLangCode(code As String) As String
-            If String.IsNullOrEmpty(code) Then Return ""
-            If code.Length >= 3 Then Return code  ' already 3-letter
-
-            Static map As Dictionary(Of String, String) = Nothing
-            If map Is Nothing Then
-                map = New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
-                    {"af", "afr"}, {"am", "amh"}, {"ar", "arb"}, {"hy", "hye"}, {"az", "azj"},
-                    {"bn", "ben"}, {"bs", "bos"}, {"bg", "bul"}, {"my", "mya"}, {"ca", "cat"},
-                    {"zh", "zho"}, {"hr", "hrv"}, {"cs", "ces"}, {"cy", "cym"}, {"da", "dan"},
-                    {"nl", "nld"}, {"en", "eng"}, {"et", "est"}, {"fi", "fin"}, {"fr", "fra"},
-                    {"gl", "glg"}, {"ka", "kat"}, {"de", "deu"}, {"el", "ell"}, {"he", "heb"},
-                    {"hi", "hin"}, {"hu", "hun"}, {"is", "isl"}, {"id", "ind"}, {"it", "ita"},
-                    {"ja", "jpn"}, {"ko", "kor"}, {"lv", "lvs"}, {"lt", "lit"}, {"mk", "mkd"},
-                    {"ms", "zsm"}, {"mt", "mlt"}, {"ne", "npi"}, {"no", "nob"}, {"fa", "pes"},
-                    {"pl", "pol"}, {"pt", "por"}, {"ro", "ron"}, {"ru", "rus"}, {"sr", "srp"},
-                    {"sk", "slk"}, {"sl", "slv"}, {"es", "spa"}, {"sw", "swh"}, {"sv", "swe"},
-                    {"ta", "tam"}, {"te", "tel"}, {"th", "tha"}, {"tr", "tur"}, {"uk", "ukr"},
-                    {"vi", "vie"}, {"sq", "sqi"}, {"si", "sin"}
-                }
-            End If
-            Dim result As String = Nothing
-            If map.TryGetValue(code, result) Then Return result
-            Return code
+            Return Services.Infrastructure.LanguageCodeService.Instance.NormalizeToIso3(code)
         End Function
     End Class
 End Namespace

@@ -44,6 +44,15 @@ Namespace Forms
             btnFetchCatalog = New Button()
             btnDownloadBibles = New Button()
             btnOpenBiblesFolder = New Button()
+            tabLangPacks = New TabPage()
+            lvLangPacks = New ListView()
+            colLangName = New ColumnHeader()
+            colLangNative = New ColumnHeader()
+            colLangCode = New ColumnHeader()
+            colLangStatus = New ColumnHeader()
+            pnlLangPacksButtons = New Panel()
+            btnDownloadLangPacks = New Button()
+            btnDeleteLangPacks = New Button()
             pnlBottom = New Panel()
             pbProgress = New ProgressBar()
             lblProgress = New Label()
@@ -58,11 +67,14 @@ Namespace Forms
             tabBibles.SuspendLayout()
             pnlBibleSearch.SuspendLayout()
             pnlBiblesButtons.SuspendLayout()
+            tabLangPacks.SuspendLayout()
+            pnlLangPacksButtons.SuspendLayout()
             pnlBottom.SuspendLayout()
             SuspendLayout()
             ' 
             ' tabMain
             ' 
+            tabMain.Controls.Add(tabLangPacks)
             tabMain.Controls.Add(tabComponents)
             tabMain.Controls.Add(tabPiper)
             tabMain.Controls.Add(tabMmsTts)
@@ -313,9 +325,78 @@ Namespace Forms
             btnOpenBiblesFolder.Size = New Size(130, 30)
             btnOpenBiblesFolder.TabIndex = 2
             btnOpenBiblesFolder.Text = "Open Folder"
-            ' 
+            '
+            ' tabLangPacks
+            '
+            tabLangPacks.Controls.Add(lvLangPacks)
+            tabLangPacks.Controls.Add(pnlLangPacksButtons)
+            tabLangPacks.Location = New Point(4, 26)
+            tabLangPacks.Name = "tabLangPacks"
+            tabLangPacks.Padding = New Padding(8)
+            tabLangPacks.Size = New Size(692, 418)
+            tabLangPacks.TabIndex = 4
+            tabLangPacks.Text = "Language Packs"
+            '
+            ' lvLangPacks
+            '
+            lvLangPacks.CheckBoxes = True
+            lvLangPacks.Columns.AddRange(New ColumnHeader() {colLangName, colLangNative, colLangCode, colLangStatus})
+            lvLangPacks.Dock = DockStyle.Fill
+            lvLangPacks.FullRowSelect = True
+            lvLangPacks.GridLines = True
+            lvLangPacks.Location = New Point(8, 8)
+            lvLangPacks.Name = "lvLangPacks"
+            lvLangPacks.Size = New Size(676, 364)
+            lvLangPacks.TabIndex = 0
+            lvLangPacks.UseCompatibleStateImageBehavior = False
+            lvLangPacks.View = View.Details
+            '
+            ' colLangName
+            '
+            colLangName.Text = "Language"
+            colLangName.Width = 180
+            '
+            ' colLangNative
+            '
+            colLangNative.Text = "Native Name"
+            colLangNative.Width = 180
+            '
+            ' colLangCode
+            '
+            colLangCode.Text = "Code"
+            colLangCode.Width = 60
+            '
+            ' colLangStatus
+            '
+            colLangStatus.Text = "Status"
+            colLangStatus.Width = 220
+            '
+            ' pnlLangPacksButtons
+            '
+            pnlLangPacksButtons.Controls.Add(btnDownloadLangPacks)
+            pnlLangPacksButtons.Controls.Add(btnDeleteLangPacks)
+            pnlLangPacksButtons.Dock = DockStyle.Bottom
+            pnlLangPacksButtons.Height = 38
+            pnlLangPacksButtons.Name = "pnlLangPacksButtons"
+            '
+            ' btnDownloadLangPacks
+            '
+            btnDownloadLangPacks.Location = New Point(0, 4)
+            btnDownloadLangPacks.Name = "btnDownloadLangPacks"
+            btnDownloadLangPacks.Size = New Size(140, 30)
+            btnDownloadLangPacks.TabIndex = 0
+            btnDownloadLangPacks.Text = "Download Selected"
+            '
+            ' btnDeleteLangPacks
+            '
+            btnDeleteLangPacks.Location = New Point(148, 4)
+            btnDeleteLangPacks.Name = "btnDeleteLangPacks"
+            btnDeleteLangPacks.Size = New Size(120, 30)
+            btnDeleteLangPacks.TabIndex = 1
+            btnDeleteLangPacks.Text = "Delete Selected"
+            '
             ' pnlBottom
-            ' 
+            '
             pnlBottom.Controls.Add(pbProgress)
             pnlBottom.Controls.Add(lblProgress)
             pnlBottom.Controls.Add(btnOk)
@@ -382,6 +463,8 @@ Namespace Forms
             tabBibles.ResumeLayout(False)
             pnlBibleSearch.ResumeLayout(False)
             pnlBiblesButtons.ResumeLayout(False)
+            tabLangPacks.ResumeLayout(False)
+            pnlLangPacksButtons.ResumeLayout(False)
             pnlBottom.ResumeLayout(False)
             ResumeLayout(False)
         End Sub
@@ -416,6 +499,15 @@ Namespace Forms
         Friend WithEvents btnFetchCatalog As System.Windows.Forms.Button
         Friend WithEvents btnDownloadBibles As System.Windows.Forms.Button
         Friend WithEvents btnOpenBiblesFolder As System.Windows.Forms.Button
+        Friend WithEvents tabLangPacks As System.Windows.Forms.TabPage
+        Friend WithEvents lvLangPacks As System.Windows.Forms.ListView
+        Friend WithEvents colLangName As System.Windows.Forms.ColumnHeader
+        Friend WithEvents colLangNative As System.Windows.Forms.ColumnHeader
+        Friend WithEvents colLangCode As System.Windows.Forms.ColumnHeader
+        Friend WithEvents colLangStatus As System.Windows.Forms.ColumnHeader
+        Friend WithEvents pnlLangPacksButtons As System.Windows.Forms.Panel
+        Friend WithEvents btnDownloadLangPacks As System.Windows.Forms.Button
+        Friend WithEvents btnDeleteLangPacks As System.Windows.Forms.Button
         Friend WithEvents pnlBottom As System.Windows.Forms.Panel
         Friend WithEvents pbProgress As System.Windows.Forms.ProgressBar
         Friend WithEvents lblProgress As System.Windows.Forms.Label

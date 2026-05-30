@@ -92,6 +92,28 @@ Namespace Services.Subtitle
             Return False
         End Function
 
+        Public Function GetClientSnapshots() As List(Of Models.ClientSnapshot) Implements ISubtitleService.GetClientSnapshots
+            Dim result As New List(Of Models.ClientSnapshot)()
+            For Each kvp In _clients
+                Dim c = kvp.Value
+                If c.IsPreview Then Continue For
+                Dim parts = ParseUserAgentParts(c.UserAgent)
+                result.Add(New Models.ClientSnapshot With {
+                    .RemoteEndpoint = c.RemoteEndpoint,
+                    .Device = parts.Device,
+                    .OS = parts.OS,
+                    .Browser = parts.Browser,
+                    .Language = c.Language,
+                    .ConnectedAt = c.ConnectedAt,
+                    .LastMessageAt = c.LastMessageAt,
+                    .MessagesSent = c.MessagesSent,
+                    .MessagesDropped = c.MessagesDropped,
+                    .RawUserAgent = c.UserAgent
+                })
+            Next
+            Return result
+        End Function
+
         Public Function GetActiveTranslationLanguages() As List(Of String) Implements ISubtitleService.GetActiveTranslationLanguages
             Dim langs As New HashSet(Of String)()
             For Each kvp In _clients
@@ -662,6 +684,91 @@ Namespace Services.Subtitle
 
         Public Shared Function EscapeJson(s As String) As String
             Return Pipeline.ProcessHelper.EscapeJson(s)
+        End Function
+
+        Public Structure UserAgentParts
+            Public Device As String
+            Public OS As String
+            Public Browser As String
+        End Structure
+
+        Public Shared Function ParseUserAgentParts(ua As String) As UserAgentParts
+            Dim result As New UserAgentParts With {.Device = "", .OS = "", .Browser = ""}
+            If String.IsNullOrWhiteSpace(ua) Then Return result
+
+            ' Device
+            If ua.Contains("iPhone") Then
+                result.Device = "iPhone"
+            ElseIf ua.Contains("iPad") Then
+                result.Device = "iPad"
+            ElseIf ua.Contains("Android") Then
+                ' Try to extract model from "Build/..." or "; MODEL Build/"
+                Dim modelMatch = Text.RegularExpressions.Regex.Match(ua, ";\s*([^;)]+)\s+Build/")
+                If modelMatch.Success Then
+                    result.Device = modelMatch.Groups(1).Value.Trim()
+                Else
+                    result.Device = "Android"
+                End If
+            ElseIf ua.Contains("Windows") Then
+                result.Device = "Windows PC"
+            ElseIf ua.Contains("Macintosh") Then
+                result.Device = "Mac"
+            ElseIf ua.Contains("Linux") Then
+                result.Device = "Linux"
+            ElseIf ua.Contains("CrOS") Then
+                result.Device = "ChromeOS"
+            End If
+
+            ' OS
+            Dim m = Text.RegularExpressions.Regex.Match(ua, "iPhone OS (\d+[_\.]\d+)")
+            If m.Success Then
+                result.OS = "iOS " & m.Groups(1).Value.Replace("_", ".")
+            Else
+                m = Text.RegularExpressions.Regex.Match(ua, "CPU OS (\d+[_\.]\d+)")
+                If m.Success Then
+                    result.OS = "iPadOS " & m.Groups(1).Value.Replace("_", ".")
+                Else
+                    m = Text.RegularExpressions.Regex.Match(ua, "Android (\d+[\.\d]*)")
+                    If m.Success Then
+                        result.OS = "Android " & m.Groups(1).Value
+                    ElseIf ua.Contains("Windows NT 10.0") Then
+                        result.OS = "Windows 10/11"
+                    ElseIf ua.Contains("Windows NT") Then
+                        result.OS = "Windows"
+                    ElseIf ua.Contains("Mac OS X") Then
+                        Dim macM = Text.RegularExpressions.Regex.Match(ua, "Mac OS X (\d+[_\.]\d+[_\.\d]*)")
+                        If macM.Success Then result.OS = "macOS " & macM.Groups(1).Value.Replace("_", ".")
+                    End If
+                End If
+            End If
+
+            ' Browser
+            If ua.Contains("EdgA/") OrElse ua.Contains("Edg/") OrElse ua.Contains("Edge/") Then
+                result.Browser = "Edge"
+            ElseIf ua.Contains("SamsungBrowser/") Then
+                Dim sv = Text.RegularExpressions.Regex.Match(ua, "SamsungBrowser/([\d.]+)")
+                result.Browser = If(sv.Success, "Samsung " & sv.Groups(1).Value, "Samsung Browser")
+            ElseIf ua.Contains("OPR/") OrElse ua.Contains("Opera") Then
+                result.Browser = "Opera"
+            ElseIf ua.Contains("CriOS/") Then
+                Dim cv = Text.RegularExpressions.Regex.Match(ua, "CriOS/([\d]+)")
+                result.Browser = If(cv.Success, "Chrome " & cv.Groups(1).Value, "Chrome (iOS)")
+            ElseIf ua.Contains("FxiOS/") Then
+                result.Browser = "Firefox (iOS)"
+            ElseIf ua.Contains("Firefox/") Then
+                Dim fv = Text.RegularExpressions.Regex.Match(ua, "Firefox/([\d]+)")
+                result.Browser = If(fv.Success, "Firefox " & fv.Groups(1).Value, "Firefox")
+            ElseIf ua.Contains("Chrome/") Then
+                Dim cv = Text.RegularExpressions.Regex.Match(ua, "Chrome/([\d]+)")
+                result.Browser = If(cv.Success, "Chrome " & cv.Groups(1).Value, "Chrome")
+            ElseIf ua.Contains("Safari/") Then
+                Dim sv = Text.RegularExpressions.Regex.Match(ua, "Version/([\d.]+)")
+                result.Browser = If(sv.Success, "Safari " & sv.Groups(1).Value, "Safari")
+            ElseIf ua.Contains("MSIE") OrElse ua.Contains("Trident") Then
+                result.Browser = "IE"
+            End If
+
+            Return result
         End Function
 
         Public Shared Function ParseUserAgent(ua As String) As String

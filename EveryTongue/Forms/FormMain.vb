@@ -1,7 +1,7 @@
 Imports System.Diagnostics
 Imports System.Globalization
 Imports System.IO
-Imports System.Resources
+Imports EveryTongue.Services.Infrastructure
 Imports System.Runtime.InteropServices
 Imports System.Threading
 Imports Microsoft.Win32
@@ -24,7 +24,7 @@ Public Class FormMain
     Private _transcribeController As Controllers.TranscribeController
     Private _serverController As Controllers.ServerController
     Private _liveController As Controllers.LiveController
-    Private _resMgr As ResourceManager
+    Private _langPack As LanguagePackService
     Private _translationService As TranslationService
     Private _isInitializing As Boolean = True
     Private _isSyncingUi As Boolean = False
@@ -51,37 +51,15 @@ Public Class FormMain
         "ln", "mg", "mi", "nn", "oc", "sa", "tk", "wo", "yi", "yue"
     }
 
-    Private ReadOnly _langNames As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
-        {"auto", "Auto Detect"}, {"en", "English"}, {"es", "Spanish"}, {"fr", "French"},
-        {"de", "German"}, {"it", "Italian"}, {"pt", "Portuguese"}, {"nl", "Dutch"},
-        {"pl", "Polish"}, {"ru", "Russian"}, {"zh", "Chinese"}, {"ja", "Japanese"},
-        {"ko", "Korean"}, {"ar", "Arabic"}, {"hi", "Hindi"}, {"tr", "Turkish"},
-        {"vi", "Vietnamese"}, {"th", "Thai"}, {"cs", "Czech"}, {"el", "Greek"},
-        {"hu", "Hungarian"}, {"ro", "Romanian"}, {"da", "Danish"}, {"fi", "Finnish"},
-        {"no", "Norwegian"}, {"sv", "Swedish"}, {"sk", "Slovak"}, {"uk", "Ukrainian"},
-        {"bg", "Bulgarian"}, {"hr", "Croatian"}, {"ca", "Catalan"}, {"cy", "Welsh"},
-        {"et", "Estonian"}, {"ga", "Irish"}, {"lv", "Latvian"}, {"lt", "Lithuanian"},
-        {"mt", "Maltese"}, {"sl", "Slovenian"}, {"sq", "Albanian"}, {"mk", "Macedonian"},
-        {"sr", "Serbian"}, {"bs", "Bosnian"}, {"is", "Icelandic"}, {"ms", "Malay"},
-        {"sw", "Swahili"}, {"tl", "Tagalog"}, {"ta", "Tamil"}, {"te", "Telugu"},
-        {"ml", "Malayalam"}, {"si", "Sinhala"}, {"bn", "Bengali"}, {"gu", "Gujarati"},
-        {"kn", "Kannada"}, {"mr", "Marathi"}, {"ne", "Nepali"}, {"pa", "Punjabi"},
-        {"ur", "Urdu"}, {"my", "Myanmar"}, {"lo", "Lao"}, {"km", "Khmer"},
-        {"he", "Hebrew"}, {"fa", "Persian"}, {"id", "Indonesian"}, {"jw", "Javanese"},
-        {"la", "Latin"}, {"mn", "Mongolian"}, {"ps", "Pashto"}, {"sd", "Sindhi"},
-        {"sn", "Shona"}, {"so", "Somali"}, {"su", "Sundanese"}, {"tg", "Tajik"},
-        {"tt", "Tatar"}, {"uz", "Uzbek"}, {"yo", "Yoruba"}, {"af", "Afrikaans"},
-        {"am", "Amharic"}, {"as", "Assamese"}, {"az", "Azerbaijani"}, {"ba", "Bashkir"},
-        {"be", "Belarusian"}, {"br", "Breton"}, {"fo", "Faroese"}, {"gl", "Galician"},
-        {"ha", "Hausa"}, {"ht", "Haitian Creole"}, {"hy", "Armenian"}, {"ka", "Georgian"},
-        {"kk", "Kazakh"}, {"lb", "Luxembourgish"}, {"ln", "Lingala"}, {"mg", "Malagasy"},
-        {"mi", "Maori"}, {"nn", "Nynorsk"}, {"oc", "Occitan"}, {"sa", "Sanskrit"},
-        {"tk", "Turkmen"}, {"wo", "Wolof"}, {"yi", "Yiddish"}, {"yue", "Cantonese"}
-    }
+    Private Shared ReadOnly _langCodeService As LanguageCodeService = LanguageCodeService.Instance
 
     Private Function LangDisplayName(code As String) As String
-        Dim name As String = Nothing
-        If _langNames.TryGetValue(code, name) Then Return $"{name} ({code})"
+        If String.Equals(code, "auto", StringComparison.OrdinalIgnoreCase) Then Return "Auto Detect (auto)"
+        Dim nllb = _langCodeService.ToNllb(code)
+        If Not String.IsNullOrEmpty(nllb) Then
+            Dim name = _langCodeService.GetDisplayName(nllb)
+            If Not String.IsNullOrEmpty(name) Then Return $"{name} ({code})"
+        End If
         Return code
     End Function
 
@@ -99,26 +77,24 @@ Public Class FormMain
 
     Private Shared Function DiscoverUiLocales() As (Code As String, Name As String)()
         Dim result As New List(Of (Code As String, Name As String))()
-        ' English is always available (neutral/default culture)
+        ' English is always available
         result.Add(("en", "English"))
 
-        ' Scan for satellite assembly directories
-        Dim baseDir = AppDomain.CurrentDomain.BaseDirectory
+        ' Scan for locale JSON files
+        Dim localesDir = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "locales")
         Try
-            For Each subDir In IO.Directory.GetDirectories(baseDir)
-                Dim dirName = IO.Path.GetFileName(subDir)
-                Dim resFile = IO.Path.Combine(subDir, "EveryTongue.resources.dll")
-                If Not IO.File.Exists(resFile) Then Continue For
-                ' Skip "en" — already added above
-                If dirName.Equals("en", StringComparison.OrdinalIgnoreCase) Then Continue For
-                Try
-                    Dim ci = Globalization.CultureInfo.GetCultureInfo(dirName)
-                    result.Add((dirName, ci.NativeName.Substring(0, 1).ToUpper() & ci.NativeName.Substring(1)))
-                Catch ex As Exception
-                    ' Not a valid culture — skip
-                    WriteDebugLog($"[ERROR] DiscoverUiLocales: invalid culture '{dirName}': {ex.Message}")
-                End Try
-            Next
+            If IO.Directory.Exists(localesDir) Then
+                For Each f In IO.Directory.GetFiles(localesDir, "*.json")
+                    Dim code = IO.Path.GetFileNameWithoutExtension(f)
+                    If code.Equals("en", StringComparison.OrdinalIgnoreCase) Then Continue For
+                    Try
+                        Dim ci = Globalization.CultureInfo.GetCultureInfo(code)
+                        result.Add((code, ci.NativeName.Substring(0, 1).ToUpper() & ci.NativeName.Substring(1)))
+                    Catch ex As Exception
+                        result.Add((code, code))
+                    End Try
+                Next
+            End If
         Catch ex As Exception
             WriteDebugLog($"[ERROR] DiscoverUiLocales: {ex.Message}")
         End Try
@@ -129,7 +105,7 @@ Public Class FormMain
     Private Sub FormMain_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Services.Infrastructure.AppLogger.UiCallback = AddressOf AppendUnifiedLog
         Services.Infrastructure.AppLogger.OpenDownloadManager = AddressOf OpenDownloadManager
-        _resMgr = New ResourceManager("EveryTongue.Strings", GetType(FormMain).Assembly)
+        _langPack = LanguagePackService.Instance
 
         ' Load config
         _config = ConfigManager.Load()
@@ -137,16 +113,44 @@ Public Class FormMain
 
         ' First-run language picker — before anything else
         If Not _config.FirstRunComplete Then
-            Using picker As New FormLanguagePicker(_uiLocales)
+            Using picker As New FormLanguagePicker()
                 If picker.ShowDialog() = DialogResult.OK AndAlso Not String.IsNullOrEmpty(picker.SelectedLanguage) Then
                     _config.UiLanguage = picker.SelectedLanguage
                     ConfigManager.Save(_config)
+
+                    ' Download language pack if not English
+                    If Not picker.SelectedLanguage.Equals("en", StringComparison.OrdinalIgnoreCase) Then
+                        WriteDebugLog($"[FIRSTRUN] Downloading language pack: {picker.SelectedLanguage}")
+                        Try
+                            ' Use Task.Run to avoid deadlock on UI thread
+                            Dim ok = Task.Run(Function() _langPack.DownloadLanguageAsync(picker.SelectedLanguage)).GetAwaiter().GetResult()
+                            If ok Then
+                                WriteDebugLog($"[FIRSTRUN] Language pack downloaded: {picker.SelectedLanguage}")
+                            Else
+                                WriteDebugLog($"[FIRSTRUN] Language pack not available: {picker.SelectedLanguage}")
+                            End If
+                        Catch ex As Exception
+                            WriteDebugLog($"[FIRSTRUN] Language pack download failed: {ex.Message}")
+                        End Try
+                    End If
                 End If
             End Using
         End If
 
         ' Clean up old log files (keep last 30 days)
         Services.Infrastructure.AppLogger.CleanupOldLogFiles(30)
+
+        ' Run file integrity check at startup (log only, non-blocking)
+        Task.Run(Sub()
+                     Try
+                         Dim result = Services.Infrastructure.IntegrityChecker.Check()
+                         For Each line In Services.Infrastructure.IntegrityChecker.ToReportLines(result)
+                             WriteDebugLog($"[Integrity] {line}")
+                         Next
+                     Catch ex As Exception
+                         WriteDebugLog($"[Integrity] Check failed: {ex.Message}")
+                     End Try
+                 End Sub)
 
         ' Create transcribe controller
         _transcribeController = New Controllers.TranscribeController(
@@ -179,8 +183,7 @@ Public Class FormMain
         End If
 
         ' Apply locale
-        Dim culture = New CultureInfo(_config.UiLanguage)
-        Thread.CurrentThread.CurrentUICulture = culture
+        _langPack.LoadLanguage(_config.UiLanguage)
         ApplyLocale()
 
         ' Populate model dropdown
@@ -252,6 +255,15 @@ Public Class FormMain
             AddressOf UpdateShellStatus,
             AddressOf WriteDebugLog)
 
+        ' Run path verification at startup (log only, non-blocking)
+        Dim sc = _serverController
+        Task.Run(Sub()
+                     Try
+                         sc.VerifyAllPathsCore()
+                     Catch ex As Exception
+                         WriteDebugLog($"[VerifyPaths] Check failed: {ex.Message}")
+                     End Try
+                 End Sub)
 
         ' Fix tab switching rendering (progress bars don't repaint correctly)
         AddHandler tabMain.SelectedIndexChanged, Sub(s, ev)
@@ -494,13 +506,29 @@ del ""%~f0""
             End If
         End Try
 
-        ' First run: show hardware readiness, then open Download Manager
+        ' First run: Download Manager (Language Packs tab) → Options Hardware
         If isFirstRun Then
             WriteDebugLog("[FIRSTRUN] Setting FirstRunComplete=True")
             _config.FirstRunComplete = True
             ConfigManager.Save(_config)
 
-            ' Show Options dialog opened to Hardware panel so user sees readiness score
+            ' Show Download Manager opened to Language Packs tab
+            WriteDebugLog("[FIRSTRUN] Opening Download Manager → Language Packs")
+            Try
+                Dim biblesDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Bibles")
+                Using dlg As New Forms.FormDownloadManager(_config, biblesDir)
+                    dlg.SelectTab("tabLangPacks")
+                    dlg.ShowDialog(Me)
+                    If dlg.PathsUpdated Then
+                        UpdateConfigPaths(AppDomain.CurrentDomain.BaseDirectory)
+                    End If
+                End Using
+            Catch ex As Exception
+                WriteDebugLog($"[FIRSTRUN] Download Manager error: {ex.Message}")
+            End Try
+            WriteDebugLog("[FIRSTRUN] Download Manager closed")
+
+            ' Show Options dialog opened to Hardware panel
             WriteDebugLog("[FIRSTRUN] Opening Options → Hardware")
             Using opts As New FormOptions(_config, _uiLocales)
                 opts.SelectCategory("hardware")
@@ -509,10 +537,6 @@ del ""%~f0""
                     ApplyTheme(_config.Theme)
                 End If
             End Using
-
-            WriteDebugLog("[FIRSTRUN] Opening Download Manager")
-            OpenDownloadManager()
-            WriteDebugLog("[FIRSTRUN] Download Manager closed")
         End If
     End Sub
 
@@ -757,13 +781,7 @@ del ""%~f0""
     End Sub
 
     Private Function GetString(key As String) As String
-        Try
-            Dim val = _resMgr.GetString(key)
-            Return If(val, key)
-        Catch ex As Exception
-            WriteDebugLog($"[ERROR] GetString('{key}'): {ex.Message}")
-            Return key
-        End Try
+        Return _langPack.GetString(key)
     End Function
 
 #End Region
@@ -801,28 +819,41 @@ del ""%~f0""
         WriteDebugLog($"[THEME] ApplyTheme called with theme=""{theme}""")
         Dim backColor, foreColor, controlBack As Drawing.Color
 
+        Dim panelBack, buttonBack, borderColor As Drawing.Color
+
         Select Case theme
             Case Models.ThemeMode.Dark
-                backColor = Drawing.Color.FromArgb(30, 30, 30)
-                foreColor = Drawing.Color.FromArgb(220, 220, 220)
-                controlBack = Drawing.Color.FromArgb(45, 45, 48)
+                backColor = Drawing.Color.FromArgb(30, 30, 30)       ' main background
+                foreColor = Drawing.Color.FromArgb(220, 220, 220)    ' text
+                controlBack = Drawing.Color.FromArgb(60, 63, 65)     ' input fields — noticeably lighter
+                panelBack = Drawing.Color.FromArgb(37, 37, 38)       ' panels/groups — subtle depth
+                buttonBack = Drawing.Color.FromArgb(55, 55, 58)      ' buttons — distinct from panels
+                borderColor = Drawing.Color.FromArgb(62, 62, 66)     ' subtle borders
             Case Models.ThemeMode.Light
                 backColor = Drawing.Color.White
                 foreColor = Drawing.Color.Black
                 controlBack = Drawing.Color.White
+                panelBack = Drawing.Color.FromArgb(245, 245, 245)
+                buttonBack = Drawing.SystemColors.Control
+                borderColor = Drawing.Color.FromArgb(204, 204, 204)
             Case Else ' System
                 backColor = Drawing.SystemColors.Control
                 foreColor = Drawing.SystemColors.ControlText
                 controlBack = Drawing.SystemColors.Window
+                panelBack = Drawing.SystemColors.Control
+                buttonBack = Drawing.SystemColors.Control
+                borderColor = Drawing.SystemColors.ControlDark
         End Select
 
         Me.BackColor = backColor
         Me.ForeColor = foreColor
-        ApplyThemeToControls(Me, backColor, foreColor, controlBack)
+        ApplyThemeToControls(Me, backColor, foreColor, controlBack, panelBack, buttonBack, borderColor)
         ApplyShellTheme(theme)
     End Sub
 
-    Private Sub ApplyThemeToControls(parent As Control, backColor As Drawing.Color, foreColor As Drawing.Color, controlBack As Drawing.Color)
+    Private Sub ApplyThemeToControls(parent As Control, backColor As Drawing.Color, foreColor As Drawing.Color,
+                                       controlBack As Drawing.Color, panelBack As Drawing.Color,
+                                       buttonBack As Drawing.Color, borderColor As Drawing.Color)
         For Each ctrl As Control In parent.Controls
             ' Skip nav rail — themed by ApplyShellTheme
             If ctrl Is tsNavBar Then Continue For
@@ -831,26 +862,26 @@ del ""%~f0""
 
             If TypeOf ctrl Is TextBox OrElse TypeOf ctrl Is MaskedTextBox OrElse
                TypeOf ctrl Is RichTextBox OrElse TypeOf ctrl Is ComboBox OrElse
-               TypeOf ctrl Is NumericUpDown Then
+               TypeOf ctrl Is NumericUpDown OrElse TypeOf ctrl Is ListBox Then
                 ctrl.BackColor = controlBack
             ElseIf TypeOf ctrl Is TabControl Then
                 ' Don't change tab control background
             ElseIf TypeOf ctrl Is Button Then
-                ' Keep buttons readable
-                If backColor = Drawing.SystemColors.Control Then
-                    ctrl.BackColor = Drawing.SystemColors.Control
-                Else
-                    ctrl.BackColor = Drawing.Color.FromArgb(
-                        Math.Min(255, backColor.R + 30),
-                        Math.Min(255, backColor.G + 30),
-                        Math.Min(255, backColor.B + 30))
-                End If
+                ctrl.BackColor = buttonBack
+                Dim btn = DirectCast(ctrl, Button)
+                btn.FlatStyle = FlatStyle.Flat
+                btn.FlatAppearance.BorderColor = borderColor
+                btn.FlatAppearance.BorderSize = 1
+            ElseIf TypeOf ctrl Is GroupBox Then
+                ctrl.BackColor = panelBack
+            ElseIf TypeOf ctrl Is Panel Then
+                ctrl.BackColor = panelBack
             Else
                 ctrl.BackColor = backColor
             End If
 
             If ctrl.HasChildren Then
-                ApplyThemeToControls(ctrl, backColor, foreColor, controlBack)
+                ApplyThemeToControls(ctrl, backColor, foreColor, controlBack, panelBack, buttonBack, borderColor)
             End If
         Next
     End Sub
@@ -959,8 +990,9 @@ del ""%~f0""
         Try : trayIcon.Visible = False : Catch : End Try
         Try : trayIcon.Dispose() : Catch : End Try
 
-        ' Kill everything and exit NOW
+        ' Clean exit
         KillOrphanedPythonProcesses()
+        Try : IO.File.Delete(Program.CrashSentinelPath) : Catch : End Try
         Environment.Exit(0)
     End Sub
 

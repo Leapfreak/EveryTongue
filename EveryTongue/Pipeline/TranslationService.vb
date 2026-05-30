@@ -23,65 +23,8 @@ Namespace Pipeline
         Private _device As String = "cuda"
         Private _modelLoaded As Boolean = False
 
-        ' Whisper language code (ISO 639-1) -> NLLB-200 language code (FLORES-200)
-        Private Shared ReadOnly _langMap As New Dictionary(Of String, String) From {
-            {"en", "eng_Latn"}, {"es", "spa_Latn"}, {"fr", "fra_Latn"},
-            {"de", "deu_Latn"}, {"pt", "por_Latn"}, {"it", "ita_Latn"},
-            {"ca", "cat_Latn"}, {"ro", "ron_Latn"}, {"nl", "nld_Latn"},
-            {"pl", "pol_Latn"}, {"ru", "rus_Cyrl"}, {"uk", "ukr_Cyrl"},
-            {"zh", "zho_Hans"}, {"ja", "jpn_Jpan"}, {"ko", "kor_Hang"},
-            {"ar", "arb_Arab"}, {"hi", "hin_Deva"}, {"tr", "tur_Latn"},
-            {"vi", "vie_Latn"}, {"th", "tha_Thai"}, {"cs", "ces_Latn"},
-            {"el", "ell_Grek"}, {"hu", "hun_Latn"}, {"da", "dan_Latn"},
-            {"fi", "fin_Latn"}, {"no", "nob_Latn"}, {"sv", "swe_Latn"},
-            {"sk", "slk_Latn"}, {"bg", "bul_Cyrl"}, {"hr", "hrv_Latn"},
-            {"sr", "srp_Cyrl"}, {"sl", "slv_Latn"}, {"et", "est_Latn"},
-            {"lv", "lvs_Latn"}, {"lt", "lit_Latn"}, {"sq", "sqi_Latn"},
-            {"mk", "mkd_Cyrl"}, {"bs", "bos_Latn"}, {"is", "isl_Latn"},
-            {"ms", "zsm_Latn"}, {"sw", "swh_Latn"}, {"tl", "tgl_Latn"},
-            {"ta", "tam_Taml"}, {"te", "tel_Telu"}, {"ml", "mal_Mlym"},
-            {"bn", "ben_Beng"}, {"gu", "guj_Gujr"}, {"kn", "kan_Knda"},
-            {"mr", "mar_Deva"}, {"ne", "npi_Deva"}, {"pa", "pan_Guru"},
-            {"ur", "urd_Arab"}, {"my", "mya_Mymr"}, {"km", "khm_Khmr"},
-            {"ga", "gle_Latn"}, {"cy", "cym_Latn"}, {"mt", "mlt_Latn"},
-            {"af", "afr_Latn"}, {"am", "amh_Ethi"}, {"hy", "hye_Armn"},
-            {"az", "azj_Latn"}, {"eu", "eus_Latn"}, {"be", "bel_Cyrl"},
-            {"fa", "pes_Arab"}, {"gl", "glg_Latn"}, {"ka", "kat_Geor"},
-            {"ht", "hat_Latn"}, {"ha", "hau_Latn"}, {"he", "heb_Hebr"},
-            {"id", "ind_Latn"}, {"jw", "jav_Latn"}, {"kk", "kaz_Cyrl"},
-            {"lo", "lao_Laoo"}, {"lb", "ltz_Latn"}, {"mi", "mri_Latn"},
-            {"mn", "khk_Cyrl"}, {"ps", "pbt_Arab"}, {"sd", "snd_Arab"},
-            {"si", "sin_Sinh"}, {"sn", "sna_Latn"}, {"so", "som_Latn"},
-            {"su", "sun_Latn"}, {"tg", "tgk_Cyrl"}, {"tt", "tat_Cyrl"},
-            {"tk", "tuk_Latn"}, {"uz", "uzn_Latn"}, {"yo", "yor_Latn"},
-            {"zu", "zul_Latn"}
-        }
-
-        ' NLLB prefix (3-letter) -> ISO 639-1 display code
-        Private Shared ReadOnly _nllbToShortMap As New Dictionary(Of String, String) From {
-            {"ENG", "EN"}, {"SPA", "ES"}, {"FRA", "FR"}, {"DEU", "DE"},
-            {"POR", "PT"}, {"ITA", "IT"}, {"CAT", "CA"}, {"RON", "RO"},
-            {"NLD", "NL"}, {"POL", "PL"}, {"RUS", "RU"}, {"UKR", "UK"},
-            {"ZHO", "ZH"}, {"JPN", "JA"}, {"KOR", "KO"}, {"ARB", "AR"},
-            {"SWE", "SV"}, {"NOB", "NO"}, {"DAN", "DA"}, {"FIN", "FI"},
-            {"HUN", "HU"}, {"CES", "CS"}, {"SLK", "SK"}, {"SLV", "SL"},
-            {"HRV", "HR"}, {"SRP", "SR"}, {"BUL", "BG"}, {"ELL", "EL"},
-            {"TUR", "TR"}, {"LIT", "LT"}, {"LVS", "LV"}, {"EST", "ET"},
-            {"AFR", "AF"}, {"AMH", "AM"}, {"HYE", "HY"}, {"AZJ", "AZ"},
-            {"EUS", "EU"}, {"BEL", "BE"}, {"BEN", "BN"}, {"BOS", "BS"},
-            {"CYM", "CY"}, {"PES", "FA"}, {"GLG", "GL"}, {"KAT", "KA"},
-            {"GUJ", "GU"}, {"HAT", "HT"}, {"HAU", "HA"}, {"HEB", "HE"},
-            {"HIN", "HI"}, {"ISL", "IS"}, {"IND", "ID"}, {"JAV", "JW"},
-            {"KAN", "KN"}, {"KAZ", "KK"}, {"KHM", "KM"}, {"LAO", "LO"},
-            {"LTZ", "LB"}, {"MKD", "MK"}, {"ZSM", "MS"}, {"MAL", "ML"},
-            {"MLT", "MT"}, {"MRI", "MI"}, {"MAR", "MR"}, {"KHK", "MN"},
-            {"MYA", "MY"}, {"NPI", "NE"}, {"PBT", "PS"}, {"PAN", "PA"},
-            {"SND", "SD"}, {"SIN", "SI"}, {"SNA", "SN"}, {"SOM", "SO"},
-            {"SUN", "SU"}, {"SWH", "SW"}, {"TGL", "TL"}, {"TGK", "TG"},
-            {"TAM", "TA"}, {"TAT", "TT"}, {"TEL", "TE"}, {"THA", "TH"},
-            {"TUK", "TK"}, {"URD", "UR"}, {"UZN", "UZ"}, {"VIE", "VI"},
-            {"YOR", "YO"}, {"ZUL", "ZU"}, {"SQI", "SQ"}, {"GLE", "GA"}
-        }
+        Private Shared ReadOnly _langService As Services.Infrastructure.LanguageCodeService =
+            Services.Infrastructure.LanguageCodeService.Instance
 
         Public Sub New()
             AddHandler _host.StderrLine, Sub(s, line)
@@ -108,21 +51,15 @@ Namespace Pipeline
         End Property
 
         Public Shared Function WhisperToNllbLang(whisperLang As String) As String
-            Dim nllb As String = Nothing
-            If _langMap.TryGetValue(whisperLang, nllb) Then Return nllb
-            Return ""
+            Return _langService.WhisperToNllb(whisperLang)
         End Function
 
         Public Shared Function GetLangMap() As Dictionary(Of String, String)
-            Return _langMap
+            Return _langService.GetWhisperToNllbMap()
         End Function
 
         Public Shared Function NllbToShortCode(nllbCode As String) As String
-            If String.IsNullOrEmpty(nllbCode) Then Return "??"
-            Dim prefix = nllbCode.Split("_"c)(0).ToUpperInvariant()
-            Dim result As String = Nothing
-            If _nllbToShortMap.TryGetValue(prefix, result) Then Return result
-            Return prefix.Substring(0, Math.Min(2, prefix.Length))
+            Return _langService.NllbToShortCode(nllbCode)
         End Function
 
         Public Shared Function CheckDependenciesInstalled() As (pythonOk As Boolean, depsOk As Boolean, modelOk As Boolean)
@@ -166,7 +103,7 @@ Namespace Pipeline
             Dim resolvedModelPath = Models.AppConfig.ResolvePath(modelPath)
             Dim serverScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "nllb-server", "server.py")
 
-            Dim extraArgs = $"--model-path ""{resolvedModelPath}"" --device {device} --log-dir ""{AppDomain.CurrentDomain.BaseDirectory.TrimEnd({"\"c, "/"c})}"""
+            Dim extraArgs = $"--model-path ""{resolvedModelPath}"" --device {device}"
 
             If Not String.IsNullOrEmpty(glossaryPath) Then
                 Dim resolvedGlossary = Models.AppConfig.ResolvePath(glossaryPath)

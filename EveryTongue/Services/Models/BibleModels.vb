@@ -7,6 +7,7 @@ Namespace Services.Models
         Public Property Name As String
         Public Property Language As String
         Public Property Abbreviation As String
+        Public Property Copyright As String
     End Class
 
     ''' <summary>

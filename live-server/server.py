@@ -23,47 +23,22 @@ from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
 # ---------------------------------------------------------------------------
-# Logging — single file: pipeline-debug.log in app root (passed via --log-dir)
+# Logging — stderr only, captured by PythonSidecarHost → AppLogger
 # ---------------------------------------------------------------------------
 logger = logging.getLogger("live-server")
 logger.setLevel(logging.DEBUG)
 logger.propagate = False
-# Stderr handler for UI display (VB captures via ErrorDataReceived)
 _stderr_handler = logging.StreamHandler()
 _stderr_handler.setLevel(logging.DEBUG)
-_stderr_handler.setFormatter(logging.Formatter("%(message)s"))
+_stderr_handler.setFormatter(logging.Formatter("[LIVE] %(message)s"))
 logger.addHandler(_stderr_handler)
 
-# Suppress all other loggers
+# Suppress noisy loggers
 logging.basicConfig(level=logging.WARNING)
 logging.getLogger("faster_whisper").setLevel(logging.WARNING)
 logging.getLogger("ctranslate2").setLevel(logging.WARNING)
 logging.getLogger("uvicorn").setLevel(logging.WARNING)
 logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-
-
-class _SharedFileHandler(logging.Handler):
-    """File handler that opens/closes per write so other processes can share the file."""
-    def __init__(self, path):
-        super().__init__()
-        self._path = path
-
-    def emit(self, record):
-        try:
-            with open(self._path, "a", encoding="utf-8") as f:
-                f.write(self.format(record) + "\n")
-        except Exception:
-            pass
-
-
-def setup_logging(log_dir: str):
-    """Set up file logging to YYYYMMDD_pipeline-debug.log in the given directory."""
-    log_path = os.path.join(log_dir, time.strftime("%Y%m%d") + "_pipeline-debug.log")
-    handler = _SharedFileHandler(log_path)
-    handler.setFormatter(logging.Formatter("%(asctime)s [LIVE] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
-    handler.setLevel(logging.DEBUG)
-    logger.addHandler(handler)
-    logger.debug("Live server starting")
 
 
 app = FastAPI()
@@ -944,10 +919,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Live transcription server")
     parser.add_argument("--port", type=int, default=5091)
     parser.add_argument("--host", type=str, default="127.0.0.1")
-    parser.add_argument("--log-dir", type=str, default=".")
     args = parser.parse_args()
-
-    setup_logging(args.log_dir)
     _load_hallucination_phrases()
 
     import uvicorn

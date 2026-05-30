@@ -84,6 +84,10 @@ Namespace Services.Infrastructure
                         IO.File.Delete(f)
                     End If
                 Next
+                ' Clean up legacy pipeline-debug log files
+                For Each f In IO.Directory.GetFiles(logDir, "*_pipeline-debug.log")
+                    IO.File.Delete(f)
+                Next
             Catch
             End Try
         End Sub

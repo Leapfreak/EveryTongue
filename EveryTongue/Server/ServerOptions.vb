@@ -44,6 +44,9 @@ Namespace Server
         ''' </summary>
         Public Property AdminPin As String = ""
 
+        ''' <summary>Whether to display Bible copyright notices on the phone client.</summary>
+        Public Property ShowBibleCopyright As Boolean = True
+
         ''' <summary>Computed HTTPS port.</summary>
         Public ReadOnly Property HttpsPort As Integer
             Get

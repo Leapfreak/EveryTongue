@@ -175,15 +175,26 @@ Namespace Pipeline
         Public Sub [Stop](Optional waitMs As Integer = 5000)
             _cts?.Cancel()
 
-            ' Try graceful HTTP shutdown if configured
+            ' Nothing to stop if no process is running
+            If _process Is Nothing OrElse _process.HasExited Then
+                SyncLock _lock
+                    _isRestarting = False
+                    _isRunning = False
+                    _process = Nothing
+                End SyncLock
+                Return
+            End If
+
+            ' Try graceful HTTP shutdown first
             If GracefulShutdownPath IsNot Nothing Then
                 Try
+                    Services.Infrastructure.AppLogger.Log($"[{Label}] Requesting graceful shutdown on port {Port}...")
                     Using client As New Net.Http.HttpClient() With {.Timeout = TimeSpan.FromSeconds(3)}
                         Dim content As New Net.Http.StringContent("{}", Encoding.UTF8, "application/json")
                         client.PostAsync($"http://127.0.0.1:{Port}{GracefulShutdownPath}", content).Wait(3000)
                     End Using
                 Catch ex As Exception
-                    Services.Infrastructure.AppLogger.Log($"[ERROR] Stop: Graceful shutdown request failed on port {Port} — {ex.Message}")
+                    Services.Infrastructure.AppLogger.Log($"[{Label}] Graceful shutdown failed, force-killing: {ex.Message}")
                 End Try
             End If
 

@@ -19,11 +19,13 @@ Namespace Controllers
         Private ReadOnly _lblBibleNavTitle As Label
         Private ReadOnly _flpBibleNav As FlowLayoutPanel
         Private ReadOnly _rtbBibleText As RichTextBox
+        Private ReadOnly _lblCopyright As Label
 
         ' Service accessor (deferred because server may not be started yet)
         Private ReadOnly _getBibleService As Func(Of IBibleService)
         Private ReadOnly _getDefaultLang As Func(Of String)
         Private ReadOnly _log As Action(Of String)
+        Private ReadOnly _config As Models.AppConfig
 
         ' State
         Private _bibleBooks As IReadOnlyList(Of BibleBook)
@@ -40,9 +42,11 @@ Namespace Controllers
                        lblBibleNavTitle As Label,
                        flpBibleNav As FlowLayoutPanel,
                        rtbBibleText As RichTextBox,
+                       lblCopyright As Label,
                        getBibleService As Func(Of IBibleService),
                        getDefaultLang As Func(Of String),
-                       log As Action(Of String))
+                       log As Action(Of String),
+                       config As Models.AppConfig)
             _cboBibleLang = cboBibleLang
             _cboBibleTrans = cboBibleTrans
             _txtBibleRef = txtBibleRef
@@ -51,9 +55,17 @@ Namespace Controllers
             _lblBibleNavTitle = lblBibleNavTitle
             _flpBibleNav = flpBibleNav
             _rtbBibleText = rtbBibleText
+            _lblCopyright = lblCopyright
             _getBibleService = getBibleService
             _getDefaultLang = getDefaultLang
             _log = log
+            _config = config
+        End Sub
+
+        Private Sub ClearBibleText()
+            _rtbBibleText.Clear()
+            _lblCopyright.Text = ""
+            _lblCopyright.Visible = False
         End Sub
 
         ''' <summary>Wire up event handlers. Call once during form init.</summary>
@@ -69,6 +81,99 @@ Namespace Controllers
                                                   End If
                                               End Sub
         End Sub
+
+        ''' <summary>Wire context menu handlers for the Bible RichTextBox.</summary>
+        Public Sub WireContextMenu(ctxCopySelection As ToolStripMenuItem,
+                                   ctxCopyVerse As ToolStripMenuItem,
+                                   ctxCopyChapter As ToolStripMenuItem)
+            AddHandler _rtbBibleText.ContextMenuStrip.Opening, Sub(s, e)
+                                                                    ctxCopySelection.Enabled = _rtbBibleText.SelectionLength > 0
+                                                                    ctxCopyVerse.Enabled = _bibleViewChapter > 0
+                                                                    ctxCopyChapter.Enabled = _bibleViewChapter > 0
+                                                                End Sub
+
+            AddHandler ctxCopySelection.Click, Sub(s, e)
+                                                    If _rtbBibleText.SelectionLength > 0 Then
+                                                        Clipboard.SetText(_rtbBibleText.SelectedText)
+                                                    End If
+                                                End Sub
+
+            AddHandler ctxCopyVerse.Click, Sub(s, e) CopyVerseWithReference()
+            AddHandler ctxCopyChapter.Click, Sub(s, e) CopyChapter()
+        End Sub
+
+        Private Sub CopyVerseWithReference()
+            Try
+                Dim trans = TryCast(_cboBibleTrans.SelectedItem, BibleTranslation)
+                If trans Is Nothing OrElse _bibleViewChapter < 1 Then Return
+                Dim bibleSvc = _getBibleService()
+                If bibleSvc Is Nothing Then Return
+
+                Dim bookName = GetCurrentBookName()
+                If String.IsNullOrEmpty(bookName) Then Return
+
+                Dim chapter = bibleSvc.GetChapterAsync(trans.Id, GetCurrentBookShortName(),
+                    _bibleViewChapter, CancellationToken.None).GetAwaiter().GetResult()
+                If chapter Is Nothing OrElse chapter.Verses Is Nothing Then Return
+
+                Dim vStart = If(_bibleViewVerseStart > 0, _bibleViewVerseStart, 1)
+                Dim vEnd = If(_bibleViewVerseEnd > 0, _bibleViewVerseEnd, vStart)
+
+                Dim sb As New System.Text.StringBuilder()
+                Dim refText = $"{bookName} {_bibleViewChapter}:{vStart}"
+                If vEnd > vStart Then refText &= $"-{vEnd}"
+
+                sb.AppendLine(refText)
+                For Each v In chapter.Verses
+                    If v.Verse >= vStart AndAlso v.Verse <= vEnd Then
+                        sb.AppendLine($"{v.Verse} {v.Text}")
+                    End If
+                Next
+
+                Clipboard.SetText(sb.ToString().TrimEnd())
+            Catch ex As Exception
+                _log($"[ERROR] BibleController.CopyVerse: {ex.Message}")
+            End Try
+        End Sub
+
+        Private Sub CopyChapter()
+            Try
+                Dim trans = TryCast(_cboBibleTrans.SelectedItem, BibleTranslation)
+                If trans Is Nothing OrElse _bibleViewChapter < 1 Then Return
+                Dim bibleSvc = _getBibleService()
+                If bibleSvc Is Nothing Then Return
+
+                Dim bookName = GetCurrentBookName()
+                If String.IsNullOrEmpty(bookName) Then Return
+
+                Dim chapter = bibleSvc.GetChapterAsync(trans.Id, GetCurrentBookShortName(),
+                    _bibleViewChapter, CancellationToken.None).GetAwaiter().GetResult()
+                If chapter Is Nothing OrElse chapter.Verses Is Nothing Then Return
+
+                Dim sb As New System.Text.StringBuilder()
+                sb.AppendLine($"{bookName} {_bibleViewChapter}")
+                sb.AppendLine()
+                For Each v In chapter.Verses
+                    sb.AppendLine($"{v.Verse} {v.Text}")
+                Next
+
+                Clipboard.SetText(sb.ToString().TrimEnd())
+            Catch ex As Exception
+                _log($"[ERROR] BibleController.CopyChapter: {ex.Message}")
+            End Try
+        End Sub
+
+        Private Function GetCurrentBookName() As String
+            If _bibleBooks Is Nothing Then Return Nothing
+            Dim book = _bibleBooks.FirstOrDefault(Function(b) b.Number = _bibleViewBookNumber)
+            Return book?.LongName
+        End Function
+
+        Private Function GetCurrentBookShortName() As String
+            If _bibleBooks Is Nothing Then Return Nothing
+            Dim book = _bibleBooks.FirstOrDefault(Function(b) b.Number = _bibleViewBookNumber)
+            Return book?.ShortName
+        End Function
 
         ''' <summary>
         ''' Populate the Bible tab language combo with available languages.
@@ -113,7 +218,7 @@ Namespace Controllers
         Private Sub LoadBibleTranslations()
             _cboBibleTrans.Items.Clear()
             _flpBibleNav.Controls.Clear()
-            _rtbBibleText.Clear()
+            ClearBibleText()
             If _cboBibleLang.SelectedItem Is Nothing Then Return
             Try
                 Dim lang = _cboBibleLang.SelectedItem.ToString()
@@ -156,7 +261,7 @@ Namespace Controllers
         Private Sub ShowBookButtons()
             _flpBibleNav.SuspendLayout()
             _flpBibleNav.Controls.Clear()
-            _rtbBibleText.Clear()
+            ClearBibleText()
             _btnBibleBack.Visible = False
             _lblBibleNavTitle.Text = "Books"
             If _cboBibleTrans.SelectedItem Is Nothing Then
@@ -238,7 +343,7 @@ Namespace Controllers
 
         Private Sub DisplayVerses(title As String, chapterNum As Integer, verses As List(Of BibleVerse),
                                   Optional highlightStart As Integer = 0, Optional highlightEnd As Integer = 0)
-            _rtbBibleText.Clear()
+            ClearBibleText()
             _rtbBibleText.SelectionFont = New Font(_rtbBibleText.Font.FontFamily, 16, FontStyle.Bold)
             _rtbBibleText.AppendText($"{title} {chapterNum}")
             _rtbBibleText.AppendText(vbCrLf & vbCrLf)
@@ -259,6 +364,16 @@ Namespace Controllers
 
             _rtbBibleText.SelectionStart = 0
             _rtbBibleText.ScrollToCaret()
+
+            ' Copyright in separate label (not part of selectable text)
+            Dim trans = TryCast(_cboBibleTrans.SelectedItem, BibleTranslation)
+            If _config.ShowBibleCopyright AndAlso trans IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(trans.Copyright) Then
+                _lblCopyright.Text = trans.Copyright
+                _lblCopyright.Visible = True
+            Else
+                _lblCopyright.Text = ""
+                _lblCopyright.Visible = False
+            End If
         End Sub
 
         Private Sub GoToReference()
@@ -272,14 +387,14 @@ Namespace Controllers
 
                 Dim parsed = bibleSvc.ParseReferenceAsync(refText, "en", trans.Id, CancellationToken.None).GetAwaiter().GetResult()
                 If parsed Is Nothing OrElse Not parsed.IsValid Then
-                    _rtbBibleText.Clear()
+                    ClearBibleText()
                     _rtbBibleText.AppendText($"Could not find: {refText}")
                     Return
                 End If
 
                 Dim chapter = bibleSvc.GetChapterAsync(trans.Id, parsed.Book, parsed.Chapter, CancellationToken.None).GetAwaiter().GetResult()
                 If chapter Is Nothing OrElse chapter.Verses Is Nothing OrElse chapter.Verses.Count = 0 Then
-                    _rtbBibleText.Clear()
+                    ClearBibleText()
                     _rtbBibleText.AppendText($"No verses found for: {refText}")
                     Return
                 End If

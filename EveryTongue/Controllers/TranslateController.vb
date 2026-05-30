@@ -83,6 +83,31 @@ Namespace Controllers
             AddHandler _btnOutClear.Click, Sub(s, e) _txtOutput.Clear()
         End Sub
 
+        ''' <summary>Wire context menu handlers for the Translate textboxes.</summary>
+        Public Sub WireContextMenus(ctxInputCut As ToolStripMenuItem, ctxInputCopy As ToolStripMenuItem,
+                                    ctxInputPaste As ToolStripMenuItem, ctxInputSelectAll As ToolStripMenuItem,
+                                    ctxOutputCopy As ToolStripMenuItem, ctxOutputSelectAll As ToolStripMenuItem)
+            ' Input context menu
+            AddHandler _txtInput.ContextMenuStrip.Opening, Sub(s, e)
+                                                                ctxInputCut.Enabled = _txtInput.SelectionLength > 0
+                                                                ctxInputCopy.Enabled = _txtInput.SelectionLength > 0
+                                                                ctxInputPaste.Enabled = Clipboard.ContainsText()
+                                                                ctxInputSelectAll.Enabled = _txtInput.TextLength > 0
+                                                            End Sub
+            AddHandler ctxInputCut.Click, Sub(s, e) _txtInput.Cut()
+            AddHandler ctxInputCopy.Click, Sub(s, e) _txtInput.Copy()
+            AddHandler ctxInputPaste.Click, Sub(s, e) _txtInput.Paste()
+            AddHandler ctxInputSelectAll.Click, Sub(s, e) _txtInput.SelectAll()
+
+            ' Output context menu
+            AddHandler _txtOutput.ContextMenuStrip.Opening, Sub(s, e)
+                                                                 ctxOutputCopy.Enabled = _txtOutput.SelectionLength > 0
+                                                                 ctxOutputSelectAll.Enabled = _txtOutput.TextLength > 0
+                                                             End Sub
+            AddHandler ctxOutputCopy.Click, Sub(s, e) _txtOutput.Copy()
+            AddHandler ctxOutputSelectAll.Click, Sub(s, e) _txtOutput.SelectAll()
+        End Sub
+
         Public Sub PopulateLanguageDropdowns()
             For Each lang In _whisperLanguages
                 If lang = "auto" Then Continue For
@@ -137,8 +162,9 @@ Namespace Controllers
                 Return
             End If
 
-            Dim sentences = SplitIntoSentences(inputText)
-            _lblStatus.Text = $"Translating ({sentences.Count} segment(s))..."
+            Dim textLines = SplitIntoLines(inputText)
+            Dim totalSegments = textLines.Sum(Function(tl) tl.Sentences.Count)
+            _lblStatus.Text = $"Translating ({totalSegments} segment(s))..."
             _lblStatus.ForeColor = Drawing.Color.FromArgb(0, 122, 204)
 
             Try
@@ -146,49 +172,55 @@ Namespace Controllers
                 Using client As New System.Net.Http.HttpClient()
                     client.Timeout = TimeSpan.FromSeconds(60)
                     Dim url = $"http://127.0.0.1:{port}/translate"
-                    Dim results As New System.Text.StringBuilder()
+                    Dim output As New System.Text.StringBuilder()
+                    Dim segNum = 0
 
-                    For idx = 0 To sentences.Count - 1
-                        Dim sentence = sentences(idx)
-                        If String.IsNullOrWhiteSpace(sentence) Then
-                            results.AppendLine()
-                            Continue For
-                        End If
+                    For lineIdx = 0 To textLines.Count - 1
+                        Dim tl = textLines(lineIdx)
+                        If lineIdx > 0 Then output.Append(vbCrLf)
 
-                        _lblStatus.Text = $"Translating {idx + 1}/{sentences.Count}..."
+                        If tl.IsBlank Then Continue For
 
-                        Dim bodyObj As New Dictionary(Of String, Object) From {
-                            {"text", sentence},
-                            {"source_lang", sourceLang},
-                            {"target_langs", New String() {targetLang}}
-                        }
-                        Dim bodyJson = System.Text.Json.JsonSerializer.Serialize(bodyObj)
-                        Dim content As New System.Net.Http.StringContent(
-                            bodyJson, System.Text.Encoding.UTF8, "application/json")
+                        Dim lineResult As New System.Text.StringBuilder()
+                        For Each sentence In tl.Sentences
+                            segNum += 1
+                            _lblStatus.Text = $"Translating {segNum}/{totalSegments}..."
 
-                        Dim response = Await client.PostAsync(url, content)
-                        If response.IsSuccessStatusCode Then
-                            Dim json = Await response.Content.ReadAsStringAsync()
-                            Dim doc = System.Text.Json.JsonDocument.Parse(json)
-                            Dim root = doc.RootElement
+                            Dim bodyObj As New Dictionary(Of String, Object) From {
+                                {"text", sentence},
+                                {"source_lang", sourceLang},
+                                {"target_langs", New String() {targetLang}}
+                            }
+                            Dim bodyJson = System.Text.Json.JsonSerializer.Serialize(bodyObj)
+                            Dim content As New System.Net.Http.StringContent(
+                                bodyJson, System.Text.Encoding.UTF8, "application/json")
 
-                            Dim translationsEl As System.Text.Json.JsonElement
-                            Dim resultEl As System.Text.Json.JsonElement
-                            If root.TryGetProperty("translations", translationsEl) Then
-                                If translationsEl.TryGetProperty(targetLang, resultEl) Then
-                                    If results.Length > 0 Then results.Append(" ")
-                                    results.Append(resultEl.GetString())
+                            Dim response = Await client.PostAsync(url, content)
+                            If response.IsSuccessStatusCode Then
+                                Dim json = Await response.Content.ReadAsStringAsync()
+                                Dim doc = System.Text.Json.JsonDocument.Parse(json)
+                                Dim root = doc.RootElement
+
+                                Dim translationsEl As System.Text.Json.JsonElement
+                                Dim resultEl As System.Text.Json.JsonElement
+                                If root.TryGetProperty("translations", translationsEl) Then
+                                    If translationsEl.TryGetProperty(targetLang, resultEl) Then
+                                        If lineResult.Length > 0 Then lineResult.Append(" ")
+                                        lineResult.Append(resultEl.GetString())
+                                    End If
                                 End If
+                            Else
+                                _lblStatus.Text = $"Error: {response.StatusCode}"
+                                _lblStatus.ForeColor = Drawing.Color.Red
+                                _txtOutput.Text = output.ToString()
+                                Return
                             End If
-                        Else
-                            _lblStatus.Text = $"Error: {response.StatusCode}"
-                            _lblStatus.ForeColor = Drawing.Color.Red
-                            _txtOutput.Text = results.ToString()
-                            Return
-                        End If
+                        Next
+
+                        output.Append(lineResult.ToString())
                     Next
 
-                    _txtOutput.Text = results.ToString()
+                    _txtOutput.Text = output.ToString()
                     _lblStatus.Text = "Done"
                     _lblStatus.ForeColor = Drawing.Color.Green
                 End Using
@@ -273,21 +305,34 @@ Namespace Controllers
             Return True
         End Function
 
-        Private Shared Function SplitIntoSentences(text As String) As List(Of String)
-            Dim result As New List(Of String)()
+        Private Class TextLine
+            Public IsBlank As Boolean
+            Public Sentences As New List(Of String)()
+        End Class
+
+        ''' <summary>
+        ''' Splits input preserving every line break. Each line is further split
+        ''' into sentences for NLLB. Blank lines are kept as-is.
+        ''' </summary>
+        Private Shared Function SplitIntoLines(text As String) As List(Of TextLine)
+            Dim result As New List(Of TextLine)()
             Dim lines = text.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None)
+
             For Each line In lines
+                Dim tl As New TextLine()
                 Dim trimmed = line.Trim()
                 If String.IsNullOrEmpty(trimmed) Then
-                    result.Add("")
-                    Continue For
+                    tl.IsBlank = True
+                Else
+                    Dim sentences = Regex.Split(trimmed, "(?<=[.!?])\s+")
+                    For Each s In sentences
+                        Dim st = s.Trim()
+                        If st.Length > 0 Then tl.Sentences.Add(st)
+                    Next
                 End If
-                Dim sentences = Regex.Split(trimmed, "(?<=[.!?])\s+")
-                For Each s In sentences
-                    Dim st = s.Trim()
-                    If st.Length > 0 Then result.Add(st)
-                Next
+                result.Add(tl)
             Next
+
             Return result
         End Function
 

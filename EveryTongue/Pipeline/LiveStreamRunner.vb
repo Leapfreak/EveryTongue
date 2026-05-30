@@ -152,8 +152,7 @@ Namespace Pipeline
                 _serverReady = False
 
                 Dim serverScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "live-server", "server.py")
-                Dim logDir = AppDomain.CurrentDomain.BaseDirectory
-                _host.Start(serverScript, $"--log-dir ""{logDir.TrimEnd({"\"c, "/"c})}""")
+                _host.Start(serverScript, "")
             End If
 
             ' Wait for server ready, then start capture

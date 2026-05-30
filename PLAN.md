@@ -1,4 +1,4 @@
-# EveryTongue — TODO (updated 2026-05-30)
+# EveryTongue — TODO (updated 2026-05-31)
 
 ## Plan Status Summary
 
@@ -8,17 +8,17 @@ All 10 phases done. Legacy HttpListener/SslStream server removed. Kestrel in-pro
 ### Code Quality (all done)
 All 11 items complete: controller extraction, tune stats dedup, language code consolidation, ThemeMode enum, silent error fix, BibleRefs typing, PythonSidecarHost, LiveStreamRunner stop dedup, thread-safe RemoteCommandHandler, AppLogger decoupling, KestrelHost.Dispose, SubtitleService constructor injection. Config architecture (item B) merged into UI Redesign Plan.
 
-Additional cleanup (2026-05-31): Removed all dead hidden tab controls (tabPageServer, tabPagePaths, tabPageSettings and ~35+ child controls from FormMain.Designer.vb). Eliminated AppendServerLog indirection — all logging now routes directly through WriteDebugLog/AppLogger. ServerController constructor simplified from 18 params to 4 (config, webview, statusCallback, logCallback). LiveController cleaned of dead dependencies (btnSetupTranslation, checkDeps, appendServerLog). FormOptions is now the single source of truth for paths/settings/server config.
+Additional cleanup (2026-05-31): Removed all dead hidden tab controls (tabPageServer, tabPagePaths, tabPageSettings and ~35+ child controls from FormMain.Designer.vb). Eliminated AppendServerLog indirection — all logging now routes directly through WriteDebugLog/AppLogger. ServerController constructor simplified from 18 params to 4 (config, webview, statusCallback, logCallback). LiveController cleaned of dead dependencies (btnSetupTranslation, checkDeps, appendServerLog). FormOptions is now the single source of truth for paths/settings/server config. Dead menu items cleaned up. Dark mode visual hierarchy improved. Options dialog expanded to 7 panels (General, Paths, Translation, Server, Hardware, Advanced, About). TTS and Translation backend registries added for pluggable engine discovery.
 
 ## User-Reported Issues & Tasks
-- [ ] TTS preference path (configurable path for TTS models/voices)
-- [ ] Implement stubs (menu items / features that are wired but do nothing yet)
+- [x] Implement stubs — most former stubs now implemented (QR Code, Hardware Score, Diagnostics Export, File Integrity, Translate workspace). Remaining stubs: Session Wizard, Audio Level Monitor, Glossary Simple Mode, Event Profiles, Spec Sheet Generator, Portable Mode, Feedback prompt
+- [x] Connected Clients dialog — popup form showing all currently connected phones with model, OS, browser, language, TTS capability, connection time. Precursor to full Device Compatibility (#11C).
 - [ ] Audio routing: NDI or Direct Audio output
 
 ## Suggested Next Priorities
-1. Diagnostic Bundle (#4d) — finish file integrity checksums (build-time manifest + runtime verification)
-2. Audio Level Monitor (#3) — critical for operator feedback
-3. Pluggable Translation UI (#14c) — backend selector + API key config
+1. Audio Level Monitor (#3) — critical for operator feedback, prevents #1 failure mode (bad audio)
+2. Setup Wizard expansion (#2) — integrates QR, audio monitor, hardware score into pre-event checklist
+3. Glossary Management simplified (#5) — easier for non-technical users
 
 ---
 
@@ -35,7 +35,7 @@ Implementation plan for making Every Tongue field-deployable by a non-technical 
 | [1](#1-qr-code-connection) | QR Code Connection | **Done** | 1 |
 | [2](#2-setup-wizard--event-setup-mode) | Setup Wizard — Event Setup Mode | Improve | 2 |
 | [3](#3-audio-level-monitor) | Audio Level Monitor | New | 1 |
-| [4](#4-diagnostic-bundle--remote-support) | Diagnostic Bundle / Remote Support | **In Progress** | 1 |
+| [4](#4-diagnostic-bundle--remote-support) | Diagnostic Bundle / Remote Support | **Done** (a-d) | 1 |
 | [5](#5-glossary-management--simplified-for-non-technical-users) | Glossary Management — Simplified | Improve | 2 |
 | [6](#6-text-to-speech--server-side-engine) | Text-to-Speech — Server-Side Engine | Done | 4 |
 | [7](#7-portable-usb-deployment) | Portable USB Deployment | New | 5 |
@@ -46,10 +46,10 @@ Implementation plan for making Every Tongue field-deployable by a non-technical 
 | [11B](#11b-glossary-enrichment-pipeline) | Glossary Enrichment Pipeline | New | 4 |
 | [11C](#11c-device-compatibility--suitability-scoring) | Device Compatibility & Suitability Scoring | New | 4 |
 | [12](#12-hardware-readiness-score) | Hardware Readiness Score | **Done** | 1 |
-| [13](#13-recommended-specifications-generator) | Recommended Specifications Generator | New | 1 |
-| [14](#14-pluggable-translation-backends) | Pluggable Translation Backends (Cloud APIs) | Scaffolded | 4 |
+| [13](#13-recommended-specifications-generator) | Recommended Specifications Generator | Moved to [Documentation](#documentation) | — |
+| [14](#14-pluggable-translation-backends) | Pluggable Translation Backends (Cloud APIs) | Partial (a-e done) | 4 |
 | [15](#15-server-infrastructure-upgrade--kestrel) | Server Infrastructure Upgrade (Kestrel) | **Done** | 3 |
-| [16](#16-bible-integration) | Bible Integration | **Done** (a-f), partial (g-h) | 4 |
+| [16](#16-bible-integration) | Bible Integration | **Done** (a-g), partial (h) | 4 |
 
 **[Implementation Order](#implementation-order)** | **[Development Notes](#development-notes)** | **[Notes](#notes)**
 
@@ -161,7 +161,7 @@ Add steps after the current two:
 
 ## 4. Diagnostic Bundle / Remote Support
 
-**Status:** In progress. Sections (a) system info, (b) log bundling (last 30 days, compressed), and (c) export button (File → Export Diagnostics) are implemented. Section (d) file integrity checksums not yet done.
+**Status:** Done. All sub-features complete: (a) system info collector with HardwareScanner, (b) log bundling (last 30 days, compressed), (c) export button (File → Export Diagnostics with ZIP), (d) file integrity checksums with build-time manifest generation and runtime verification.
 
 **Problem:** A dev team supporting deployments across 36 countries needs to diagnose problems remotely. Currently requires back-and-forth asking operators to find and send log files.
 
@@ -791,6 +791,43 @@ This avoids building any server infrastructure — it's a file-based workflow th
 
 **Implementation:**
 
+### Pre-requisite: Connected Clients Dialog
+
+Before the full scoring system, build a simple popup form (`FormConnectedClients`) that the operator can open from the menu or status bar to see who's connected right now.
+
+**Data per client row:**
+- Device model (parsed from User-Agent, e.g. "Samsung Galaxy A54", "iPhone 13")
+- OS + version (e.g. "Android 14", "iOS 17.4")
+- Browser + version (e.g. "Chrome 125", "Safari 17.4")
+- Selected language (the translation language they're receiving)
+- TTS status (has voices for their language: yes/no/server-only)
+- Connection time (how long connected, e.g. "12m ago")
+- Screen size
+
+**Implementation:**
+- Phone client sends a `deviceInfo` WebSocket message on connect (User-Agent, platform, screen, capabilities, selected language)
+- `SubtitleHub` / `SubtitleService` stores client info alongside existing connection tracking
+- `FormConnectedClients.vb` — DataGridView popup, refreshes on a timer (every 5s), sortable columns
+- Accessible from: View menu → "Connected Clients" or click the client count in the status bar
+- Summary row at bottom: "12 clients — 4 languages — 3 Android, 8 iOS, 1 other"
+
+**Server stats panel (top of dialog):**
+- CPU usage (process %) and GPU usage (nvidia-smi, if available)
+- Network throughput (bytes out/sec, current bandwidth)
+- Memory usage
+- Transcription/translation lag
+- Pulled from existing `MetricsService` — same data as the status bar, just displayed in the dialog header for context when reviewing client load
+
+**Files to modify:**
+- `wwwroot/js/app.js` — send `deviceInfo` message on WebSocket connect
+- `Server/Hubs/SubtitleHub.vb` — handle `deviceInfo` message, store in client registry
+- `Services/Subtitle/SubtitleService.vb` — `ClientInfo` class with device fields, expose connected client list
+- `Services/Infrastructure/MetricsService.vb` — expose current metrics for the dialog
+- New file: `Forms/FormConnectedClients.vb` + `.Designer.vb` — popup dialog with server stats panel + client DataGridView
+- `Forms/FormMain.Shell.vb` — menu item and status bar click handler
+
+**Complexity:** Low-Medium. User-Agent parsing is the fiddly part; server stats reuse MetricsService; the rest is straightforward WinForms.
+
 ### a) Device Fingerprinting (on connection)
 
 When a phone connects via WebSocket, the client JS immediately sends a capability report:
@@ -1340,18 +1377,18 @@ For languages not yet in the UI (e.g., before Feature #9 adds Polish/Romanian), 
 
 ## 14. Pluggable Translation Backends (Cloud APIs)
 
-**Status:** Scaffolded on `feature/kestrel-migration` branch.
+**Status:** Partially implemented.
 
 **What's done:**
 - **(a) Backend Abstraction** — `ITranslationBackend` interface with `TranslateAsync`, `GetSupportedLanguagesAsync`, `CheckHealthAsync`, `IsAvailable`, `RequiresInternet`, `Name`. `TranslationOrchestrator` implements `ITranslationService` with fallback chain and per-language backend overrides.
 - **(b) Cloud Backend Implementations** — `DeepLBackend`, `GoogleBackend`, `AzureBackend` all coded in `Services/Translation/CloudTranslationBackend.vb`. Each has `Configure(apiKey)` method. Return `IsAvailable=False` until API keys set.
 - `NllbBackend` wraps existing `TranslationService` as an `ITranslationBackend`
 - All backends registered in Kestrel DI container
+- **(c) Configuration UI** — `TranslationBackendRegistry` with engine selector combo in Options → Translation panel. `AppConfig.TranslationBackend` stores selection. Options dialog auto-populates from registry.
+- **(d) Language Mapping** — `language-codes.json` (161 languages) with `LanguageCodeService` singleton providing cross-format conversion (NLLB ↔ ISO 639-1 ↔ ISO 639-3 ↔ DeepL ↔ Google ↔ Azure ↔ Whisper). Replaces all hardcoded dictionaries in `TranslationService` and `BibleService`.
 - **(e) Hybrid Mode** — `TranslationOrchestrator.LanguageOverrides` dictionary supports per-language backend selection with NLLB as always-available fallback
 
 **What's NOT done:**
-- **(c) Configuration UI** — No Settings tab UI for backend selection or API key entry
-- **(d) Language Mapping** — `ILanguageMapService` interface defined but not implemented (no `language-codes.json`)
 - **(f) Cost Awareness** — No usage tracking or budget limits
 - **(g) Latency Considerations** — No batching or latency indicators
 - **(h) Glossary Integration** — Not wired to cloud backends
@@ -1794,7 +1831,7 @@ Include a `metrics-snapshot.json` in the diagnostics ZIP:
 
 ## 16. Bible Integration
 
-**Status:** Implemented. Sub-features (a)-(f) complete. (g)-(h) partially done.
+**Status:** Implemented. Sub-features (a)-(g) complete. (h) partially done.
 
 **What's done:**
 - **(a) Bible Data Source** — `Services/Bible/BibleService.vb` scans `Bibles/` for SQLite files (one per translation). Reads ISO language codes from DB `info` table. MyBible-compatible book numbering (10, 20, 30...). `RescanTranslations()` allows runtime refresh without restart.
@@ -1805,7 +1842,10 @@ Include a `metrics-snapshot.json` in the diagnostics ZIP:
 - **(f) Offline Bible Bundles** — Download Manager (`FormDownloadManager.vb`) fetches eBible.org catalog, downloads USFM Bibles, converts to SQLite via `UsfmConverter.vb` (USFMToolsSharp-based with workarounds for nested markers, descriptive titles, footnotes). Auto-loads cached catalog, parallel tool checking. Translation dropdown refreshes after download.
 
 **What's NOT done:**
-- **(g)/(h) Copyright/licensing** — Public domain translations from eBible.org are used. No per-verse copyright display yet. No licensing agreements for modern translations.
+- **(h) Licensing agreements** — No licensing agreements for modern copyrighted translations (NIV, ESV, NLT, etc.). Currently uses public domain and freely redistributable translations from eBible.org.
+
+**Recently completed:**
+- **(g) Copyright display** — Copyright metadata stored in SQLite `info` table during USFM→SQLite conversion. `BibleService` reads `copyright` and `detailed_info` fields. Copyright footer displayed in both viewers: phone client (`appendCopyrightFooter()` in app.js) and desktop Bible tab (RichTextBox in `BibleController.DisplayVerses`). Toggleable via `AppConfig.ShowBibleCopyright` (default on) in Options → Advanced.
 
 **Original problem description (kept for context):**
 
@@ -2320,6 +2360,19 @@ Key advice for operators:
 - **#11A (Field Feedback)** — collects data (phone UI + file I/O)
 - **#11B (Glossary Enrichment)** — processes data (desktop review UI, depends on #11A)
 - **#11C (Device Compatibility)** — independent system (client-side detection + server logging, can ship without #11A/#11B)
+
+---
+
+## Documentation
+
+The following developer/user documentation needs to be written. These may live in the repo (e.g. `docs/`) or be generated into the app's Help system.
+
+| Topic | Audience | Status | Notes |
+|---|---|---|---|
+| How to add a TTS engine | Developer | Partial (in CLAUDE.md) | Implement `ITtsBackend`, register in DI, add to `TtsBackendRegistry`. Options dialog auto-populates. |
+| How to add a translation engine | Developer | Partial (in CLAUDE.md) | Implement `ITranslationBackend`, register in DI, add to `TranslationBackendRegistry`. Options dialog auto-populates. |
+| Accepted Bible formats | User/Developer | Not started | SQLite databases with `info`, `books`, `verses` tables (MyBible schema). Auto-scanned from `Bibles/` directory. Can be downloaded via Download Manager (eBible.org USFM → SQLite conversion) or manually placed. Copyright metadata in `info` table displayed automatically. |
+| Recommended specifications | User | Not started | Localised spec sheet generator (#13). Three tiers (Minimum/Recommended/Optimal) based on usage profile. Generated from `specs.json`, printable HTML output. Answers "what laptop should I buy?" |
 
 ---
 
@@ -3159,19 +3212,19 @@ This avoids layout shifts as features are added later.
 |---|---|---|
 | **Live workspace** | Implemented | Extract from current Live tab |
 | **Transcribe workspace** | Implemented | Extract from current Job tab |
-| **Translate workspace** | STUB | Placeholder — future text-to-text (Feature #14) |
+| **Translate workspace** | Implemented | Text-to-text translation with language selectors, sentence splitting, backend selection via registry |
 | **Bible workspace** | Implemented | BibleService + web client exist; native desktop = WebView2 |
 | **Options dialog** | Implemented | VS-style tree dialog, consolidate from current tabs |
 | **Log panel** | Implemented | Unify current job log + server log |
 | **Session Wizard** | STUB | Shell with steps, wired to existing settings where possible |
-| **QR Code window** | STUB | Menu item + toolbar button disabled until QRCoder added |
+| **QR Code window** | Implemented | FormQrCode with QRCoder, accessible from session wizard and menu |
 | **Audio Level Monitor** | STUB | Meter UI placeholder in Live workspace, no backend yet |
-| **Hardware Score** | STUB | Options > Hardware section shows "Run scan" button, no HardwareScanner yet |
-| **Diagnostics Export** | STUB | File menu item disabled |
+| **Hardware Score** | Implemented | Options → Hardware panel with HardwareScanner, weighted scoring, traffic light, recommendations |
+| **Diagnostics Export** | Implemented | File → Export Diagnostics creates ZIP with system info, logs, config, integrity check |
 | **Glossary Simple Mode** | STUB | FormFilterEditor toggle exists but simple mode not built |
 | **Event Profiles** | STUB | Wizard step 5 "Save as profile" disabled |
-| **Spec Sheet Generator** | STUB | Help menu item disabled |
-| **File Integrity Check** | STUB | Tools menu item disabled |
+| **Spec Sheet Generator** | Moved | Reclassified as documentation task (see Documentation section) |
+| **File Integrity Check** | Implemented | Part of Diagnostics Export (#4d), build-time manifest + runtime verification |
 | **Portable Mode** | STUB | Detection logic placeholder |
 | **Feedback prompt** | STUB | Post-session dialog placeholder |
 | **Localization Editor** | Implemented | Tools menu, DataGridView editor, NLLB auto-fill, CSV import/export |

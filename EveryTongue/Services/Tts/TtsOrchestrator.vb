@@ -85,12 +85,12 @@ Namespace Services.Tts
                     Try
                         Dim supported = Await backend.IsLanguageSupportedAsync(language, ct)
                         If Not supported Then
-                            _logger.LogDebug("TTS backend {Backend} does not support {Language}",
+                            _logger.LogInformation("TTS backend {Backend} does not support {Language}",
                                 backend.Name, language)
                             Continue For
                         End If
 
-                        _logger.LogDebug("TTS trying {Backend} for {Language}, commit {Id}",
+                        _logger.LogInformation("TTS trying {Backend} for {Language}, commit {Id}",
                             backend.Name, language, commitId)
                         Dim result = Await backend.SynthesiseAsync(text, language, ct)
                         If result IsNot Nothing AndAlso result.AudioData IsNot Nothing Then

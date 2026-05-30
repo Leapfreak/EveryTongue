@@ -72,7 +72,8 @@ Namespace Controllers
                     .FgColor = _config.SubtitleFgColor,
                     .AdminPin = If(_config.AdminPin, ""),
                     .BiblesDirectory = resolvedBiblesDir,
-                    .TtsBackends = If(_config.TtsBackends, "")
+                    .TtsBackends = If(_config.TtsBackends, ""),
+                    .ShowBibleCopyright = _config.ShowBibleCopyright
                 }
 
                 _kestrelHost.Start(kestrelOptions, Sub(msg) _log($"[Server] {msg}"))
@@ -129,6 +130,11 @@ Namespace Controllers
                 GetType(Services.Interfaces.ISubtitleService)), Services.Interfaces.ISubtitleService)
         End Function
 
+        Public Function GetMetricsService() As Services.Interfaces.IMetricsService
+            Return TryCast(_kestrelHost?.Services?.GetService(
+                GetType(Services.Interfaces.IMetricsService)), Services.Interfaces.IMetricsService)
+        End Function
+
         Public Sub CopyPhoneUrl()
             If _kestrelHost IsNot Nothing AndAlso _kestrelHost.IsRunning Then
                 Dim url = $"https://{GetLocalIpAddress()}:{_serverPort + 1}"
@@ -146,7 +152,10 @@ Namespace Controllers
             End Try
         End Sub
 
-        Public Sub VerifyAllPaths()
+        ''' <summary>
+        ''' Verifies all configured paths and logs results. Returns True if all OK.
+        ''' </summary>
+        Public Function VerifyAllPathsCore() As (AllOk As Boolean, Report As String)
             Dim sb As New Text.StringBuilder()
             Dim allOk = True
 
@@ -160,25 +169,39 @@ Namespace Controllers
                 ("Bibles", AppConfig.ResolvePath(_config.BiblesDirectory), True)
             }
 
+            _log("[VerifyPaths] Starting path verification...")
             For Each item In checks
                 Dim resolved = item.Path
                 Dim exists = If(item.IsDir, IO.Directory.Exists(resolved), IO.File.Exists(resolved))
                 If String.IsNullOrWhiteSpace(resolved) Then
-                    sb.AppendLine($"  NOT SET: {item.Label}")
+                    Dim line = $"  NOT SET: {item.Label}"
+                    sb.AppendLine(line)
+                    _log($"[VerifyPaths] {line}")
                     allOk = False
                 ElseIf Not exists Then
-                    sb.AppendLine($"  MISSING: {item.Label} → {resolved}")
+                    Dim line = $"  MISSING: {item.Label} → {resolved}"
+                    sb.AppendLine(line)
+                    _log($"[VerifyPaths] {line}")
                     allOk = False
                 Else
-                    sb.AppendLine($"  OK: {item.Label}")
+                    Dim line = $"  OK: {item.Label}"
+                    sb.AppendLine(line)
+                    _log($"[VerifyPaths] {line}")
                 End If
             Next
+            _log($"[VerifyPaths] Result: {If(allOk, "All paths OK", "Some paths missing or not set")}")
 
-            If allOk Then
-                MessageBox.Show("All paths verified successfully." & Environment.NewLine & Environment.NewLine & sb.ToString(),
+            Return (allOk, sb.ToString())
+        End Function
+
+        Public Sub VerifyAllPaths()
+            Dim result = VerifyAllPathsCore()
+
+            If result.AllOk Then
+                MessageBox.Show("All paths verified successfully." & Environment.NewLine & Environment.NewLine & result.Report,
                     "Verify Paths", MessageBoxButtons.OK, MessageBoxIcon.Information)
             Else
-                MessageBox.Show("Some paths are missing or not set:" & Environment.NewLine & Environment.NewLine & sb.ToString(),
+                MessageBox.Show("Some paths are missing or not set:" & Environment.NewLine & Environment.NewLine & result.Report,
                     "Verify Paths", MessageBoxButtons.OK, MessageBoxIcon.Warning)
             End If
         End Sub

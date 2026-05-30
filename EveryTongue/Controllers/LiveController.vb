@@ -211,7 +211,7 @@ Namespace Controllers
         End Sub
 
         Private Sub EditFilters()
-            Using frm As New FormFilterEditor(AppDomain.CurrentDomain.BaseDirectory, _config.LiveServerPort, _config.TranslationPort, Nothing)
+            Using frm As New FormFilterEditor(AppDomain.CurrentDomain.BaseDirectory, _config.LiveServerPort, _config.TranslationPort)
                 frm.Icon = _formIcon
                 frm.ShowDialog(_ownerForm)
             End Using

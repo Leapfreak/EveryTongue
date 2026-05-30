@@ -21,6 +21,7 @@ Namespace Server
         Public Sub MapAllEndpoints(app As IEndpointRouteBuilder)
             MapWebSocketEndpoint(app)
             MapCoreEndpoints(app)
+            MapLocaleEndpoints(app)
             MapControlEndpoint(app)
             MapBibleEndpoints(app)
             MapAudioEndpoints(app)
@@ -102,6 +103,7 @@ Namespace Server
                                               .wsUrl = wsUrl,
                                               .httpsEnabled = True,
                                               .hasAdminPin = Not String.IsNullOrEmpty(serverOpts.AdminPin),
+                                              .showBibleCopyright = serverOpts.ShowBibleCopyright,
                                               .version = If(GetType(EndpointRegistration).Assembly.
                                                   GetName().Version?.ToString(), "unknown")
                                           })
@@ -146,6 +148,29 @@ Namespace Server
                                            Dim wavBytes = GenerateSilentWav()
                                            Return Results.File(wavBytes, "audio/wav", "nosleep.wav")
                                        End Function)
+
+        End Sub
+
+        Private Sub MapLocaleEndpoints(app As IEndpointRouteBuilder)
+
+            ' Serve web client translations as JSON — /api/locale
+            ' Returns only web.* keys (with prefix stripped) for the current UI language.
+            app.MapGet("/api/locale", Function(context As HttpContext) As Task
+                                          context.Response.Headers.CacheControl = "no-cache"
+                                          Dim langPack = LanguagePackService.Instance
+                                          Dim strings = langPack.GetWebStrings()
+                                          Return context.Response.WriteAsJsonAsync(strings)
+                                      End Function)
+
+            ' Serve language list from language-codes.json — /api/languages
+            ' Returns array of [nllbCode, nativeName, englishName, iso1Code]
+            app.MapGet("/api/languages", Function(context As HttpContext) As Task
+                                              context.Response.Headers.CacheControl = "public, max-age=3600"
+                                              Dim langSvc = LanguageCodeService.Instance
+                                              Dim langs = langSvc.GetAllLanguagesForWeb()
+                                              Dim result = langs.Select(Function(l) New Object() {l.Nllb, l.Native, l.Name, l.Iso1}).ToArray()
+                                              Return context.Response.WriteAsJsonAsync(result)
+                                          End Function)
 
         End Sub
 

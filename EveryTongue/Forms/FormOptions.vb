@@ -79,7 +79,10 @@ Public Class FormOptions
         pnlGeneral.Visible = (e.Node.Name = "general")
         pnlPaths.Visible = (e.Node.Name = "paths")
         pnlServer.Visible = (e.Node.Name = "server")
+        pnlTranslation.Visible = (e.Node.Name = "translation")
+        pnlTts.Visible = (e.Node.Name = "tts")
         pnlHardware.Visible = (e.Node.Name = "hardware")
+        pnlAdvanced.Visible = (e.Node.Name = "advanced")
 
         ' Auto-scan on first visit to hardware panel
         If e.Node.Name = "hardware" AndAlso _hwInfo Is Nothing Then
@@ -126,7 +129,6 @@ Public Class FormOptions
         ' Server
         nudPort.Value = _config.SubtitleServerPort
         nudLivePort.Value = _config.LiveServerPort
-        nudTransPort.Value = _config.TranslationPort
         chkFirewall.Checked = _config.AllowFirewall
         txtPin.Text = _config.AdminPin
 
@@ -136,10 +138,75 @@ Public Class FormOptions
         nudFontSize.Value = CDec(_config.SubtitleFontSize)
         chkBold.Checked = _config.SubtitleFontBold
 
+        ' Translation
+        PopulateTransBackendCombo()
+        SelectTransBackend(_config.TranslationBackend)
         chkTransEnabled.Checked = _config.TranslationEnabled
         SelectItem(cboDevice, _config.TranslationDevice)
         nudUnload.Value = _config.TranslationUnloadMinutes
-        txtTts.Text = _config.TtsBackends
+        nudTransPort.Value = _config.TranslationPort
+
+        ' TTS
+        PopulateTtsCombos()
+        LoadTtsPreferences(_config.TtsBackends)
+
+        ' Advanced — Pipeline
+        nudParallelJobs.Value = _config.ParallelJobs
+        nudChunkSize.Value = _config.ChunkSizeSec
+        nudPollInterval.Value = _config.PollIntervalMs
+        nudChunkTimeout.Value = _config.ChunkTimeoutMin
+        chkKeepChunks.Checked = _config.KeepChunkFiles
+        chkKeepPreview.Checked = _config.KeepPreview
+        chkSkipDownload.Checked = _config.SkipDownloadIfExists
+
+        ' Advanced — Output formats
+        chkOutSrt.Checked = _config.OutputSrt
+        chkOutVtt.Checked = _config.OutputVtt
+        chkOutTxt.Checked = _config.OutputTxt
+        chkOutJson.Checked = _config.OutputJson
+        chkOutCsv.Checked = _config.OutputCsv
+        chkOutLrc.Checked = _config.OutputLrc
+
+        ' Advanced — Whisper parameters
+        nudThreads.Value = _config.Threads
+        nudProcessors.Value = _config.Processors
+        nudBeamSize.Value = _config.BeamSize
+        nudBestOf.Value = _config.BestOf
+        nudTemperature.Value = CDec(_config.Temperature)
+        nudTempInc.Value = CDec(_config.TemperatureInc)
+        nudMaxContext.Value = _config.MaxContext
+        nudMaxSegLen.Value = _config.MaxSegmentLength
+        nudMaxTokens.Value = _config.MaxTokens
+        nudAudioContext.Value = _config.AudioContext
+        nudWordThresh.Value = CDec(_config.WordThreshold)
+        nudEntropyThresh.Value = CDec(_config.EntropyThreshold)
+        nudLogProbThresh.Value = CDec(_config.LogProbThreshold)
+        nudNoSpeechThresh.Value = CDec(_config.NoSpeechThreshold)
+        nudVadThresh.Value = CDec(_config.VadThreshold)
+        nudFreqThresh.Value = _config.FreqThreshold
+        txtInitialPrompt.Text = _config.InitialPrompt
+        txtHotwords.Text = _config.Hotwords
+
+        ' Advanced — Whisper flags
+        chkSplitOnWord.Checked = _config.SplitOnWord
+        chkNoGpu.Checked = _config.NoGpu
+        chkFlashAttn.Checked = _config.FlashAttn
+        chkDiarize.Checked = _config.Diarize
+        chkTinyDiarize.Checked = _config.Tinydiarize
+        chkTranslateEn.Checked = _config.TranslateToEnglish
+        chkNoTimestamps.Checked = _config.NoTimestamps
+        chkPrintProgress.Checked = _config.PrintProgress
+        chkPrintColours.Checked = _config.PrintColours
+        chkPrintRealtime.Checked = _config.PrintRealtime
+
+        ' Advanced — Bible
+        chkShowBibleCopyright.Checked = _config.ShowBibleCopyright
+
+        ' Advanced — Live transcription
+        SelectItem(cboComputeType, _config.LiveComputeType)
+        nudLiveVadSilence.Value = _config.LiveVadSilenceMs
+        nudLiveMaxSeg.Value = _config.LiveMaxSegmentSec
+        nudLiveInterim.Value = _config.LiveInterimIntervalMs
     End Sub
 
     Private Sub ApplyToConfig()
@@ -175,7 +242,6 @@ Public Class FormOptions
         ' Server
         _config.SubtitleServerPort = CInt(nudPort.Value)
         _config.LiveServerPort = CInt(nudLivePort.Value)
-        _config.TranslationPort = CInt(nudTransPort.Value)
         _config.AllowFirewall = chkFirewall.Checked
         _config.AdminPin = txtPin.Text.Trim()
         _config.SubtitleBgColor = Drawing.ColorTranslator.ToHtml(btnBgColor.BackColor)
@@ -183,10 +249,76 @@ Public Class FormOptions
         _config.SubtitleFontFamily = If(cboFont.SelectedItem?.ToString(), "Segoe UI")
         _config.SubtitleFontSize = CSng(nudFontSize.Value)
         _config.SubtitleFontBold = chkBold.Checked
+
+        ' Translation
+        If cboTransBackend.SelectedIndex >= 0 AndAlso cboTransBackend.SelectedIndex < _transKeys.Length Then
+            _config.TranslationBackend = _transKeys(cboTransBackend.SelectedIndex)
+        End If
         _config.TranslationEnabled = chkTransEnabled.Checked
         If cboDevice.SelectedItem IsNot Nothing Then _config.TranslationDevice = cboDevice.SelectedItem.ToString()
         _config.TranslationUnloadMinutes = CInt(nudUnload.Value)
-        _config.TtsBackends = txtTts.Text.Trim()
+        _config.TranslationPort = CInt(nudTransPort.Value)
+
+        ' TTS
+        _config.TtsBackends = BuildTtsBackendsString()
+
+        ' Advanced — Pipeline
+        _config.ParallelJobs = CInt(nudParallelJobs.Value)
+        _config.ChunkSizeSec = CInt(nudChunkSize.Value)
+        _config.PollIntervalMs = CInt(nudPollInterval.Value)
+        _config.ChunkTimeoutMin = CInt(nudChunkTimeout.Value)
+        _config.KeepChunkFiles = chkKeepChunks.Checked
+        _config.KeepPreview = chkKeepPreview.Checked
+        _config.SkipDownloadIfExists = chkSkipDownload.Checked
+
+        ' Advanced — Output formats
+        _config.OutputSrt = chkOutSrt.Checked
+        _config.OutputVtt = chkOutVtt.Checked
+        _config.OutputTxt = chkOutTxt.Checked
+        _config.OutputJson = chkOutJson.Checked
+        _config.OutputCsv = chkOutCsv.Checked
+        _config.OutputLrc = chkOutLrc.Checked
+
+        ' Advanced — Whisper parameters
+        _config.Threads = CInt(nudThreads.Value)
+        _config.Processors = CInt(nudProcessors.Value)
+        _config.BeamSize = CInt(nudBeamSize.Value)
+        _config.BestOf = CInt(nudBestOf.Value)
+        _config.Temperature = CSng(nudTemperature.Value)
+        _config.TemperatureInc = CSng(nudTempInc.Value)
+        _config.MaxContext = CInt(nudMaxContext.Value)
+        _config.MaxSegmentLength = CInt(nudMaxSegLen.Value)
+        _config.MaxTokens = CInt(nudMaxTokens.Value)
+        _config.AudioContext = CInt(nudAudioContext.Value)
+        _config.WordThreshold = CSng(nudWordThresh.Value)
+        _config.EntropyThreshold = CSng(nudEntropyThresh.Value)
+        _config.LogProbThreshold = CSng(nudLogProbThresh.Value)
+        _config.NoSpeechThreshold = CSng(nudNoSpeechThresh.Value)
+        _config.VadThreshold = CSng(nudVadThresh.Value)
+        _config.FreqThreshold = CInt(nudFreqThresh.Value)
+        _config.InitialPrompt = txtInitialPrompt.Text
+        _config.Hotwords = txtHotwords.Text
+
+        ' Advanced — Whisper flags
+        _config.SplitOnWord = chkSplitOnWord.Checked
+        _config.NoGpu = chkNoGpu.Checked
+        _config.FlashAttn = chkFlashAttn.Checked
+        _config.Diarize = chkDiarize.Checked
+        _config.Tinydiarize = chkTinyDiarize.Checked
+        _config.TranslateToEnglish = chkTranslateEn.Checked
+        _config.NoTimestamps = chkNoTimestamps.Checked
+        _config.PrintProgress = chkPrintProgress.Checked
+        _config.PrintColours = chkPrintColours.Checked
+        _config.PrintRealtime = chkPrintRealtime.Checked
+
+        ' Advanced — Bible
+        _config.ShowBibleCopyright = chkShowBibleCopyright.Checked
+
+        ' Advanced — Live transcription
+        If cboComputeType.SelectedItem IsNot Nothing Then _config.LiveComputeType = cboComputeType.SelectedItem.ToString()
+        _config.LiveVadSilenceMs = CInt(nudLiveVadSilence.Value)
+        _config.LiveMaxSegmentSec = CInt(nudLiveMaxSeg.Value)
+        _config.LiveInterimIntervalMs = CInt(nudLiveInterim.Value)
 
         FormMain.WriteDebugLog($"[OPTIONS] ApplyToConfig: Language={_config.Language}, OutputLanguage={_config.OutputLanguage}, BiblesDirectory={_config.BiblesDirectory}, Theme={_config.Theme}, UiLanguage={_config.UiLanguage}, TranslationEnabled={_config.TranslationEnabled}")
         ConfigManager.Save(_config)
@@ -248,6 +380,84 @@ Public Class FormOptions
 
         FormMain.WriteDebugLog($"[HW] Scan complete: Overall={info.OverallScore}, GPU={info.GpuScore}, CPU={info.CpuScore}, RAM={info.RamScore}, Disk={info.DiskScore}, OS={info.OsScore}, Rating={info.Rating}")
     End Sub
+
+    ' ═══════════════════════════════════════════════════════════════
+    ' Translation backend combo — driven by TranslationBackendRegistry
+    ' ═══════════════════════════════════════════════════════════════
+    Private _transKeys As String()
+
+    Private Sub PopulateTransBackendCombo()
+        Dim entries = Services.Translation.TranslationBackendRegistry.GetAll()
+        _transKeys = New String(entries.Count - 1) {}
+        cboTransBackend.Items.Clear()
+        For i = 0 To entries.Count - 1
+            _transKeys(i) = entries(i).Key
+            cboTransBackend.Items.Add(entries(i).DisplayName)
+        Next
+    End Sub
+
+    Private Sub SelectTransBackend(key As String)
+        Dim idx = Array.IndexOf(_transKeys, If(key, "nllb"))
+        cboTransBackend.SelectedIndex = If(idx >= 0, idx, 0)
+    End Sub
+
+    ' ═══════════════════════════════════════════════════════════════
+    ' TTS preference combos — driven by TtsBackendRegistry
+    ' ═══════════════════════════════════════════════════════════════
+    Private _ttsDisplayNames As String()
+    Private _ttsKeys As String()
+
+    Private Sub PopulateTtsCombos()
+        Dim entries = Services.Tts.TtsBackendRegistry.GetAll()
+        _ttsDisplayNames = New String(entries.Count) {}
+        _ttsKeys = New String(entries.Count) {}
+        _ttsDisplayNames(0) = "(none)"
+        _ttsKeys(0) = ""
+        For i = 0 To entries.Count - 1
+            _ttsDisplayNames(i + 1) = entries(i).DisplayName
+            _ttsKeys(i + 1) = entries(i).Key
+        Next
+
+        For Each cbo In {cboTtsPref1, cboTtsPref2, cboTtsPref3}
+            cbo.Items.Clear()
+            cbo.Items.AddRange(_ttsDisplayNames)
+        Next
+    End Sub
+
+    Private Sub LoadTtsPreferences(backendsStr As String)
+        Dim backends As String() = {}
+        If Not String.IsNullOrWhiteSpace(backendsStr) Then
+            backends = backendsStr.Split(","c).
+                Select(Function(s) s.Trim().ToLower()).
+                Where(Function(s) s.Length > 0).ToArray()
+        End If
+
+        ' Default: all backends in registry order
+        If backends.Length = 0 Then
+            backends = _ttsKeys.Where(Function(k) k.Length > 0).ToArray()
+        End If
+
+        Dim combos = {cboTtsPref1, cboTtsPref2, cboTtsPref3}
+        For i = 0 To 2
+            If i < backends.Length Then
+                Dim idx = Array.IndexOf(_ttsKeys, backends(i))
+                combos(i).SelectedIndex = If(idx >= 0, idx, 0)
+            Else
+                combos(i).SelectedIndex = 0
+            End If
+        Next
+    End Sub
+
+    Private Function BuildTtsBackendsString() As String
+        Dim result As New List(Of String)
+        For Each cbo In {cboTtsPref1, cboTtsPref2, cboTtsPref3}
+            If cbo.SelectedIndex > 0 Then
+                Dim key = _ttsKeys(cbo.SelectedIndex)
+                If Not result.Contains(key) Then result.Add(key)
+            End If
+        Next
+        Return String.Join(",", result)
+    End Function
 
     ' ═══════════════════════════════════════════════════════════════
     ' Helpers

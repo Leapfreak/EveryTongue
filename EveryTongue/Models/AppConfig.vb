@@ -150,8 +150,9 @@ Namespace Models
         Public Property LiveMaxSegmentSec As Integer = 15
         Public Property LiveInterimIntervalMs As Integer = 1500
 
-        ' --- Translation (NLLB-200) ---
+        ' --- Translation ---
 
+        Public Property TranslationBackend As String = "nllb"
         Public Property TranslationEnabled As Boolean = True
         Public Property TranslationPort As Integer = 5090
         Public Property TranslationModelPath As String = ".\nllb-model"
@@ -174,6 +175,7 @@ Namespace Models
         Public Property AdminPin As String = "1234"
 
         Public Property BiblesDirectory As String = ".\Bibles"
+        Public Property ShowBibleCopyright As Boolean = True
 
         Public Property MinimizeToTray As Boolean = True
 

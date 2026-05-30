@@ -33,13 +33,9 @@ Partial Class FormMain
         mnuToolsLocalization = New ToolStripMenuItem()
         mnuToolsSep2 = New ToolStripSeparator()
         mnuToolsDownloadMgr = New ToolStripMenuItem()
-        mnuToolsCheckDeps = New ToolStripMenuItem()
         mnuToolsVerifyPaths = New ToolStripMenuItem()
         mnuToolsVerifyIntegrity = New ToolStripMenuItem()
         mnuToolsSep3 = New ToolStripSeparator()
-        mnuToolsPaths = New ToolStripMenuItem()
-        mnuToolsServer = New ToolStripMenuItem()
-        mnuToolsSep4 = New ToolStripSeparator()
         mnuToolsOptions = New ToolStripMenuItem()
         mnuSession = New ToolStripMenuItem()
         mnuSessionStart = New ToolStripMenuItem()
@@ -55,6 +51,8 @@ Partial Class FormMain
         mnuViewThemeLight = New ToolStripMenuItem()
         mnuViewThemeDark = New ToolStripMenuItem()
         mnuViewSep2 = New ToolStripSeparator()
+        mnuViewClients = New ToolStripMenuItem()
+        mnuViewSep3 = New ToolStripSeparator()
         mnuViewFullScreen = New ToolStripMenuItem()
         mnuHelpMenu = New ToolStripMenuItem()
         mnuHelpQuickStart = New ToolStripMenuItem()
@@ -183,6 +181,7 @@ Partial Class FormMain
         lblBibleNavTitle = New Label()
         flpBibleNav = New FlowLayoutPanel()
         rtbBibleText = New RichTextBox()
+        lblBibleCopyright = New Label()
         splitterLog = New Splitter()
         pnlLogPanel = New Panel()
         rtbUnifiedLog = New RichTextBox()
@@ -193,6 +192,18 @@ Partial Class FormMain
         cboLogFilter = New ComboBox()
         btnLogClear = New Button()
         btnLogCopy = New Button()
+        ctxBible = New ContextMenuStrip(components)
+        ctxBibleCopySelection = New ToolStripMenuItem()
+        ctxBibleCopyVerse = New ToolStripMenuItem()
+        ctxBibleCopyChapter = New ToolStripMenuItem()
+        ctxTransInput = New ContextMenuStrip(components)
+        ctxTransInputCut = New ToolStripMenuItem()
+        ctxTransInputCopy = New ToolStripMenuItem()
+        ctxTransInputPaste = New ToolStripMenuItem()
+        ctxTransInputSelectAll = New ToolStripMenuItem()
+        ctxTransOutput = New ContextMenuStrip(components)
+        ctxTransOutputCopy = New ToolStripMenuItem()
+        ctxTransOutputSelectAll = New ToolStripMenuItem()
         trayMenu = New ContextMenuStrip(components)
         trayMenuAbout = New ToolStripMenuItem()
         traySep1 = New ToolStripSeparator()
@@ -288,7 +299,7 @@ Partial Class FormMain
         ' 
         ' mnuTools
         ' 
-        mnuTools.DropDownItems.AddRange(New ToolStripItem() {mnuToolsTranscribe, mnuToolsTranslate, mnuToolsBible, mnuToolsSep1, mnuToolsGlossary, mnuToolsLocalization, mnuToolsSep2, mnuToolsDownloadMgr, mnuToolsCheckDeps, mnuToolsVerifyPaths, mnuToolsVerifyIntegrity, mnuToolsSep3, mnuToolsPaths, mnuToolsServer, mnuToolsSep4, mnuToolsOptions})
+        mnuTools.DropDownItems.AddRange(New ToolStripItem() {mnuToolsTranscribe, mnuToolsTranslate, mnuToolsBible, mnuToolsSep1, mnuToolsGlossary, mnuToolsLocalization, mnuToolsSep2, mnuToolsDownloadMgr, mnuToolsVerifyPaths, mnuToolsVerifyIntegrity, mnuToolsSep3, mnuToolsOptions})
         mnuTools.Name = "mnuTools"
         mnuTools.Size = New Size(47, 20)
         mnuTools.Text = "&Tools"
@@ -340,11 +351,6 @@ Partial Class FormMain
         mnuToolsDownloadMgr.Size = New Size(184, 22)
         mnuToolsDownloadMgr.Text = "Download Manager"
         ' 
-        ' mnuToolsCheckDeps
-        ' 
-        mnuToolsCheckDeps.Name = "mnuToolsCheckDeps"
-        mnuToolsCheckDeps.Size = New Size(184, 22)
-        mnuToolsCheckDeps.Text = "Check Dependencies"
         ' 
         ' mnuToolsVerifyPaths
         ' 
@@ -354,7 +360,6 @@ Partial Class FormMain
         ' 
         ' mnuToolsVerifyIntegrity
         ' 
-        mnuToolsVerifyIntegrity.Enabled = False
         mnuToolsVerifyIntegrity.Name = "mnuToolsVerifyIntegrity"
         mnuToolsVerifyIntegrity.Size = New Size(184, 22)
         mnuToolsVerifyIntegrity.Text = "Verify File Integrity"
@@ -364,22 +369,6 @@ Partial Class FormMain
         mnuToolsSep3.Name = "mnuToolsSep3"
         mnuToolsSep3.Size = New Size(181, 6)
         ' 
-        ' mnuToolsPaths
-        ' 
-        mnuToolsPaths.Name = "mnuToolsPaths"
-        mnuToolsPaths.Size = New Size(184, 22)
-        mnuToolsPaths.Text = "Tool Paths..."
-        ' 
-        ' mnuToolsServer
-        ' 
-        mnuToolsServer.Name = "mnuToolsServer"
-        mnuToolsServer.Size = New Size(184, 22)
-        mnuToolsServer.Text = "Server Settings..."
-        ' 
-        ' mnuToolsSep4
-        ' 
-        mnuToolsSep4.Name = "mnuToolsSep4"
-        mnuToolsSep4.Size = New Size(181, 6)
         ' 
         ' mnuToolsOptions
         ' 
@@ -429,7 +418,7 @@ Partial Class FormMain
         ' 
         ' mnuView
         ' 
-        mnuView.DropDownItems.AddRange(New ToolStripItem() {mnuViewLogPanel, mnuViewSep1, mnuViewTheme, mnuViewSep2, mnuViewFullScreen})
+        mnuView.DropDownItems.AddRange(New ToolStripItem() {mnuViewLogPanel, mnuViewSep1, mnuViewTheme, mnuViewSep2, mnuViewClients, mnuViewSep3, mnuViewFullScreen})
         mnuView.Name = "mnuView"
         mnuView.Size = New Size(44, 20)
         mnuView.Text = "&View"
@@ -475,7 +464,18 @@ Partial Class FormMain
         ' 
         mnuViewSep2.Name = "mnuViewSep2"
         mnuViewSep2.Size = New Size(195, 6)
-        ' 
+        '
+        ' mnuViewClients
+        '
+        mnuViewClients.Name = "mnuViewClients"
+        mnuViewClients.Size = New Size(198, 22)
+        mnuViewClients.Text = "Connected Clients..."
+        '
+        ' mnuViewSep3
+        '
+        mnuViewSep3.Name = "mnuViewSep3"
+        mnuViewSep3.Size = New Size(195, 6)
+        '
         ' mnuViewFullScreen
         ' 
         mnuViewFullScreen.Name = "mnuViewFullScreen"
@@ -510,7 +510,6 @@ Partial Class FormMain
         ' 
         ' mnuHelpHardware
         ' 
-        mnuHelpHardware.Enabled = False
         mnuHelpHardware.Name = "mnuHelpHardware"
         mnuHelpHardware.Size = New Size(190, 22)
         mnuHelpHardware.Text = "Hardware Report"
@@ -1510,18 +1509,16 @@ Partial Class FormMain
         pnlTransBottom.Dock = DockStyle.Bottom
         pnlTransBottom.Location = New Point(8, 543)
         pnlTransBottom.Name = "pnlTransBottom"
-        pnlTransBottom.Size = New Size(776, 20)
+        pnlTransBottom.Size = New Size(776, 24)
         pnlTransBottom.TabIndex = 1
         '
         ' lblTransStatus
         '
-        lblTransStatus.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        lblTransStatus.AutoSize = True
+        lblTransStatus.Dock = DockStyle.Fill
         lblTransStatus.ForeColor = Color.Gray
-        lblTransStatus.Location = New Point(560, 10)
         lblTransStatus.Name = "lblTransStatus"
-        lblTransStatus.Size = New Size(0, 15)
         lblTransStatus.TabIndex = 2
+        lblTransStatus.TextAlign = ContentAlignment.MiddleRight
         '
         ' splitTrans — 50/50 horizontal split for input/output
         '
@@ -1554,6 +1551,7 @@ Partial Class FormMain
         txtTransInput.ScrollBars = ScrollBars.Vertical
         txtTransInput.Size = New Size(385, 495)
         txtTransInput.TabIndex = 0
+        txtTransInput.ContextMenuStrip = ctxTransInput
         '
         ' txtTransOutput
         '
@@ -1566,6 +1564,7 @@ Partial Class FormMain
         txtTransOutput.ScrollBars = ScrollBars.Vertical
         txtTransOutput.Size = New Size(385, 495)
         txtTransOutput.TabIndex = 0
+        txtTransOutput.ContextMenuStrip = ctxTransOutput
         ' 
         ' tabPageBibleWs
         '
@@ -1691,9 +1690,22 @@ Partial Class FormMain
         flpBibleNav.TabIndex = 0
         flpBibleNav.WrapContents = True
         '
+        ' lblBibleCopyright
+        '
+        lblBibleCopyright.Dock = DockStyle.Bottom
+        lblBibleCopyright.Font = New Font("Segoe UI", 8F)
+        lblBibleCopyright.ForeColor = Color.Gray
+        lblBibleCopyright.Name = "lblBibleCopyright"
+        lblBibleCopyright.Padding = New Padding(4, 2, 4, 2)
+        lblBibleCopyright.Size = New Size(568, 0)
+        lblBibleCopyright.AutoSize = True
+        lblBibleCopyright.MaximumSize = New Size(568, 0)
+        lblBibleCopyright.Text = ""
+        '
         ' rtbBibleText (Panel2)
         '
         splitBible.Panel2.Controls.Add(rtbBibleText)
+        splitBible.Panel2.Controls.Add(lblBibleCopyright)
         rtbBibleText.BackColor = Color.White
         rtbBibleText.BorderStyle = BorderStyle.None
         rtbBibleText.Dock = DockStyle.Fill
@@ -1703,6 +1715,7 @@ Partial Class FormMain
         rtbBibleText.ReadOnly = True
         rtbBibleText.Size = New Size(568, 555)
         rtbBibleText.TabIndex = 0
+        rtbBibleText.ContextMenuStrip = ctxBible
         ' 
         ' splitterLog
         ' 
@@ -1809,8 +1822,54 @@ Partial Class FormMain
         btnLogSearchNext.TabIndex = 5
         btnLogSearchNext.Text = "Find"
         '
+        ' ctxBible
+        ctxBible.Items.AddRange(New ToolStripItem() {ctxBibleCopySelection, ctxBibleCopyVerse, ctxBibleCopyChapter})
+        ctxBible.Name = "ctxBible"
+
+        ctxBibleCopySelection.Name = "ctxBibleCopySelection"
+        ctxBibleCopySelection.Text = "Copy Selection"
+        ctxBibleCopySelection.ShortcutKeys = Keys.Control Or Keys.C
+
+        ctxBibleCopyVerse.Name = "ctxBibleCopyVerse"
+        ctxBibleCopyVerse.Text = "Copy Verse with Reference"
+
+        ctxBibleCopyChapter.Name = "ctxBibleCopyChapter"
+        ctxBibleCopyChapter.Text = "Copy Chapter"
+
+        ' ctxTransInput
+        ctxTransInput.Items.AddRange(New ToolStripItem() {ctxTransInputCut, ctxTransInputCopy, ctxTransInputPaste, ctxTransInputSelectAll})
+        ctxTransInput.Name = "ctxTransInput"
+
+        ctxTransInputCut.Name = "ctxTransInputCut"
+        ctxTransInputCut.Text = "Cut"
+        ctxTransInputCut.ShortcutKeys = Keys.Control Or Keys.X
+
+        ctxTransInputCopy.Name = "ctxTransInputCopy"
+        ctxTransInputCopy.Text = "Copy"
+        ctxTransInputCopy.ShortcutKeys = Keys.Control Or Keys.C
+
+        ctxTransInputPaste.Name = "ctxTransInputPaste"
+        ctxTransInputPaste.Text = "Paste"
+        ctxTransInputPaste.ShortcutKeys = Keys.Control Or Keys.V
+
+        ctxTransInputSelectAll.Name = "ctxTransInputSelectAll"
+        ctxTransInputSelectAll.Text = "Select All"
+        ctxTransInputSelectAll.ShortcutKeys = Keys.Control Or Keys.A
+
+        ' ctxTransOutput
+        ctxTransOutput.Items.AddRange(New ToolStripItem() {ctxTransOutputCopy, ctxTransOutputSelectAll})
+        ctxTransOutput.Name = "ctxTransOutput"
+
+        ctxTransOutputCopy.Name = "ctxTransOutputCopy"
+        ctxTransOutputCopy.Text = "Copy"
+        ctxTransOutputCopy.ShortcutKeys = Keys.Control Or Keys.C
+
+        ctxTransOutputSelectAll.Name = "ctxTransOutputSelectAll"
+        ctxTransOutputSelectAll.Text = "Select All"
+        ctxTransOutputSelectAll.ShortcutKeys = Keys.Control Or Keys.A
+
         ' trayMenu
-        ' 
+        '
         trayMenu.Items.AddRange(New ToolStripItem() {trayMenuAbout, traySep1, trayMenuShow, traySep2, trayMenuExit})
         trayMenu.Name = "trayMenu"
         trayMenu.Size = New Size(117, 82)
@@ -1943,13 +2002,9 @@ Partial Class FormMain
     Friend WithEvents mnuToolsLocalization As ToolStripMenuItem
     Friend WithEvents mnuToolsSep2 As ToolStripSeparator
     Friend WithEvents mnuToolsDownloadMgr As ToolStripMenuItem
-    Friend WithEvents mnuToolsCheckDeps As ToolStripMenuItem
     Friend WithEvents mnuToolsVerifyPaths As ToolStripMenuItem
     Friend WithEvents mnuToolsVerifyIntegrity As ToolStripMenuItem
     Friend WithEvents mnuToolsSep3 As ToolStripSeparator
-    Friend WithEvents mnuToolsPaths As ToolStripMenuItem
-    Friend WithEvents mnuToolsServer As ToolStripMenuItem
-    Friend WithEvents mnuToolsSep4 As ToolStripSeparator
     Friend WithEvents mnuToolsOptions As ToolStripMenuItem
     Friend WithEvents mnuSession As ToolStripMenuItem
     Friend WithEvents mnuSessionStart As ToolStripMenuItem
@@ -1965,6 +2020,8 @@ Partial Class FormMain
     Friend WithEvents mnuViewThemeLight As ToolStripMenuItem
     Friend WithEvents mnuViewThemeDark As ToolStripMenuItem
     Friend WithEvents mnuViewSep2 As ToolStripSeparator
+    Friend WithEvents mnuViewClients As ToolStripMenuItem
+    Friend WithEvents mnuViewSep3 As ToolStripSeparator
     Friend WithEvents mnuViewFullScreen As ToolStripMenuItem
     Friend WithEvents mnuHelpMenu As ToolStripMenuItem
     Friend WithEvents mnuHelpQuickStart As ToolStripMenuItem
@@ -2123,6 +2180,21 @@ Partial Class FormMain
     Friend WithEvents lblBibleNavTitle As Label
     Friend WithEvents flpBibleNav As FlowLayoutPanel
     Friend WithEvents rtbBibleText As RichTextBox
+    Friend WithEvents lblBibleCopyright As Label
+
+    ' Context menus
+    Friend WithEvents ctxBible As ContextMenuStrip
+    Friend WithEvents ctxBibleCopySelection As ToolStripMenuItem
+    Friend WithEvents ctxBibleCopyVerse As ToolStripMenuItem
+    Friend WithEvents ctxBibleCopyChapter As ToolStripMenuItem
+    Friend WithEvents ctxTransInput As ContextMenuStrip
+    Friend WithEvents ctxTransInputCut As ToolStripMenuItem
+    Friend WithEvents ctxTransInputCopy As ToolStripMenuItem
+    Friend WithEvents ctxTransInputPaste As ToolStripMenuItem
+    Friend WithEvents ctxTransInputSelectAll As ToolStripMenuItem
+    Friend WithEvents ctxTransOutput As ContextMenuStrip
+    Friend WithEvents ctxTransOutputCopy As ToolStripMenuItem
+    Friend WithEvents ctxTransOutputSelectAll As ToolStripMenuItem
 
     ' Tab: Server
 

@@ -4,236 +4,64 @@
 function LOG(msg){try{console.log('[TT] '+msg)}catch(e){}}
 
 /* ── i18n ── */
-var T={};
+var T={connecting:'Connecting...',connected:'Connected',disconnected:'Disconnected - reconnecting...',
+    wakeTitle:'Keep Screen On',wakeDesc:'A secure connection is needed (one-time setup):',
+    stepTap:'Tap the button below',stepWarn:'You will see a warning page \u2014 this is normal',
+    stepAdv:'Tap "Advanced"',stepProceed:'Tap "Proceed to {0}"',
+    stepAccept:'Tap "Accept the Risk and Continue"',
+    stepDetails:'Tap "Show Details"',stepVisit:'Tap "visit this website"',
+    stepRetry:'Tap the screen wake button again',
+    openSecure:'Open Secure Page',cancel:'Cancel',
+    sending:'Sending...',cmdSent:' command sent',cmdFail:'Failed to send command',
+    liveRun:'Live: RUNNING',stopped:'Status: STOPPED',
+    noServer:'Unable to reach server',checking:'Checking...',
+    dfltVoice:'Default',title:'Every Tongue',
+    bold:'Bold',font:'Font',style:'Style',voice:'Voice',speed:'Speed',color:'Text Color',
+    slow:'Slow',normal:'Normal',fast:'Fast',vfast:'Very Fast',
+    start:'Start',stop:'Stop',restart:'Restart',clear:'Clear',
+    saveTranscript:'Save Transcript',transLang:'Translation',remote:'Remote Control',settings:'Settings',readAloud:'Read aloud',keepScreen:'Keep screen on',scrollDir:'Scroll Direction',scrollUp:'Bottom-up (newest at bottom)',scrollDown:'Top-down (newest at top)',tags:'Tags',tagOff:'Off',tagLang:'Language',tagTime:'Time',tagBoth:'Language + Time',bible:'Bible',bibleOT:'Old Testament',bibleNT:'New Testament',bibleSearch:'Search',bibleNoResults:'No results found',bibleSelectTrans:'Select a translation',cloudVoice:'Every Tongue Voices',ttsBehind:'{0} behind \u2014 tap to skip',readAll:'Read All',readVerse:'Read',chooseLang:'Choose your language',lpPopular:'Popular',lpAll:'All Languages',searchLangs:'Search languages...',noTranslation:'No translation',browseAll:'Browse All',adminLabel:'Administrator',adminPin:'PIN',adminBad:'Invalid PIN',adminOk:'Admin access granted'};
+/* Fetch server-side locale (overlays English defaults) */
 (function(){
-  var lang=(navigator.language||'en').toLowerCase();
-  var lc=lang.split('-')[0];
-  var tr={
-    en:{connecting:'Connecting...',connected:'Connected',disconnected:'Disconnected - reconnecting...',
-        wakeTitle:'Keep Screen On',wakeDesc:'A secure connection is needed (one-time setup):',
-        stepTap:'Tap the button below',stepWarn:'You will see a warning page \u2014 this is normal',
-        stepAdv:'Tap "Advanced"',stepProceed:'Tap "Proceed to {0}"',
-        stepAccept:'Tap "Accept the Risk and Continue"',
-        stepDetails:'Tap "Show Details"',stepVisit:'Tap "visit this website"',
-        stepRetry:'Tap the screen wake button again',
-        openSecure:'Open Secure Page',cancel:'Cancel',
-        sending:'Sending...',cmdSent:' command sent',cmdFail:'Failed to send command',
-        liveRun:'Live: RUNNING',stopped:'Status: STOPPED',
-        noServer:'Unable to reach server',checking:'Checking...',
-        dfltVoice:'Default',title:'Every Tongue',
-        bold:'Bold',font:'Font',style:'Style',voice:'Voice',speed:'Speed',color:'Text Color',
-        slow:'Slow',normal:'Normal',fast:'Fast',vfast:'Very Fast',
-        start:'Start',stop:'Stop',restart:'Restart',clear:'Clear',
-        saveTranscript:'Save Transcript',transLang:'Translation',remote:'Remote Control',settings:'Settings',readAloud:'Read aloud',keepScreen:'Keep screen on',scrollDir:'Scroll Direction',scrollUp:'Bottom-up (newest at bottom)',scrollDown:'Top-down (newest at top)',tags:'Tags',tagOff:'Off',tagLang:'Language',tagTime:'Time',tagBoth:'Language + Time',bible:'Bible',bibleOT:'Old Testament',bibleNT:'New Testament',bibleSearch:'Search',bibleNoResults:'No results found',bibleSelectTrans:'Select a translation',cloudVoice:'Every Tongue Voices',ttsBehind:'{0} behind \u2014 tap to skip',readAll:'Read All',readVerse:'Read',chooseLang:'Choose your language',lpPopular:'Popular',lpAll:'All Languages',searchLangs:'Search languages...',noTranslation:'No translation',browseAll:'Browse All',adminLabel:'Administrator',adminPin:'PIN',adminBad:'Invalid PIN',adminOk:'Admin access granted'},
-    es:{connecting:'Conectando...',connected:'Conectado',disconnected:'Desconectado - reconectando...',
-        wakeTitle:'Mantener Pantalla',wakeDesc:'Se necesita conexi\u00f3n segura (configuraci\u00f3n \u00fanica):',
-        stepTap:'Toca el bot\u00f3n de abajo',stepWarn:'Ver\u00e1s una advertencia \u2014 es normal',
-        stepAdv:'Toca "Avanzado"',stepProceed:'Toca "Continuar a {0}"',
-        stepAccept:'Toca "Aceptar el riesgo y continuar"',
-        stepDetails:'Toca "Mostrar detalles"',stepVisit:'Toca "visitar este sitio web"',
-        stepRetry:'Toca el bot\u00f3n de pantalla de nuevo',
-        openSecure:'Abrir P\u00e1gina Segura',cancel:'Cancelar',
-        sending:'Enviando...',cmdSent:' comando enviado',cmdFail:'Error al enviar comando',
-        liveRun:'En vivo: ACTIVO',stopped:'Estado: DETENIDO',
-        noServer:'No se puede conectar',checking:'Comprobando...',
-        dfltVoice:'Predeterminado',title:'Every Tongue',
-        bold:'Negrita',font:'Fuente',style:'Estilo',voice:'Voz',speed:'Velocidad',color:'Color de texto',
-        slow:'Lento',normal:'Normal',fast:'R\u00e1pido',vfast:'Muy R\u00e1pido',
-        start:'Iniciar',stop:'Detener',restart:'Reiniciar',clear:'Limpiar',
-        saveTranscript:'Guardar Transcripci\u00f3n',transLang:'Traducci\u00f3n',remote:'Control Remoto',settings:'Ajustes',readAloud:'Leer en voz alta',keepScreen:'Mantener pantalla',scrollDir:'Direcci\u00f3n de desplazamiento',scrollUp:'Abajo-arriba (reciente abajo)',scrollDown:'Arriba-abajo (reciente arriba)',tags:'Etiquetas',tagOff:'Desactivado',tagLang:'Idioma',tagTime:'Hora',tagBoth:'Idioma + Hora',bible:'Biblia',bibleOT:'Antiguo Testamento',bibleNT:'Nuevo Testamento',bibleSearch:'Buscar',bibleNoResults:'Sin resultados',bibleSelectTrans:'Selecciona una traducci\u00f3n',cloudVoice:'Every Tongue Voices',ttsBehind:'{0} atr\u00e1s \u2014 toca para saltar',readAll:'Leer todo',readVerse:'Leer',chooseLang:'Elige tu idioma',lpPopular:'Populares',lpAll:'Todos los idiomas',searchLangs:'Buscar idiomas...',noTranslation:'Sin traducci\u00f3n',browseAll:'Ver todos',adminLabel:'Administrador',adminPin:'PIN',adminBad:'PIN incorrecto',adminOk:'Acceso de administrador concedido'},
-    fr:{connecting:'Connexion...',connected:'Connect\u00e9',disconnected:'D\u00e9connect\u00e9 - reconnexion...',
-        wakeTitle:'\u00c9cran Allum\u00e9',wakeDesc:'Connexion s\u00e9curis\u00e9e requise (une seule fois) :',
-        stepTap:'Appuyez sur le bouton ci-dessous',stepWarn:'Un avertissement s\'affichera \u2014 c\'est normal',
-        stepAdv:'Appuyez sur "Avanc\u00e9"',stepProceed:'Appuyez sur "Continuer vers {0}"',
-        stepAccept:'Appuyez sur "Accepter le risque"',
-        stepDetails:'Appuyez sur "Afficher les d\u00e9tails"',stepVisit:'Appuyez sur "acc\u00e9der \u00e0 ce site"',
-        stepRetry:'Appuyez \u00e0 nouveau sur le bouton veille',
-        openSecure:'Ouvrir Page S\u00e9curis\u00e9e',cancel:'Annuler',
-        sending:'Envoi...',cmdSent:' commande envoy\u00e9e',cmdFail:'Erreur d\'envoi',
-        liveRun:'En direct : ACTIF',stopped:'\u00c9tat : ARR\u00caT\u00c9',
-        noServer:'Serveur inaccessible',checking:'V\u00e9rification...',
-        dfltVoice:'Par d\u00e9faut',title:'Every Tongue',
-        bold:'Gras',font:'Police',style:'Style',voice:'Voix',speed:'Vitesse',color:'Couleur du texte',
-        slow:'Lent',normal:'Normal',fast:'Rapide',vfast:'Tr\u00e8s Rapide',
-        start:'D\u00e9marrer',stop:'Arr\u00eater',restart:'Red\u00e9marrer',clear:'Effacer',
-        saveTranscript:'Enregistrer',transLang:'Traduction',remote:'T\u00e9l\u00e9commande',settings:'Param\u00e8tres',readAloud:'Lire \u00e0 voix haute',keepScreen:'\u00c9cran allum\u00e9',scrollDir:'Direction du d\u00e9filement',scrollUp:'Bas en haut (r\u00e9cent en bas)',scrollDown:'Haut en bas (r\u00e9cent en haut)',tags:'\u00c9tiquettes',tagOff:'D\u00e9sactiv\u00e9',tagLang:'Langue',tagTime:'Heure',tagBoth:'Langue + Heure',bible:'Bible',bibleOT:'Old Testament',bibleNT:'New Testament',bibleSearch:'Search',bibleNoResults:'No results found',bibleSelectTrans:'Select a translation',cloudVoice:'Every Tongue Voices',ttsBehind:'{0} en retard \u2014 appuyez pour sauter',readAll:'Tout lire',readVerse:'Lire',chooseLang:'Choisissez votre langue',lpPopular:'Populaires',lpAll:'Toutes les langues',searchLangs:'Rechercher...',noTranslation:'Pas de traduction',browseAll:'Parcourir tout',adminLabel:'Administrateur',adminPin:'PIN',adminBad:'PIN incorrect',adminOk:'Acc\u00e8s admin accord\u00e9'},
-    de:{connecting:'Verbinde...',connected:'Verbunden',disconnected:'Getrennt - verbinde erneut...',
-        wakeTitle:'Bildschirm An',wakeDesc:'Sichere Verbindung erforderlich (einmalig):',
-        stepTap:'Tippen Sie auf den Button unten',stepWarn:'Sie sehen eine Warnung \u2014 das ist normal',
-        stepAdv:'Tippen Sie auf "Erweitert"',stepProceed:'Tippen Sie auf "Weiter zu {0}"',
-        stepAccept:'Tippen Sie auf "Risiko akzeptieren"',
-        stepDetails:'Tippen Sie auf "Details anzeigen"',stepVisit:'Tippen Sie auf "Website besuchen"',
-        stepRetry:'Tippen Sie erneut auf den Wach-Button',
-        openSecure:'Sichere Seite \u00d6ffnen',cancel:'Abbrechen',
-        sending:'Sende...',cmdSent:' Befehl gesendet',cmdFail:'Befehl fehlgeschlagen',
-        liveRun:'Live: L\u00c4UFT',stopped:'Status: GESTOPPT',
-        noServer:'Server nicht erreichbar',checking:'Pr\u00fcfe...',
-        dfltVoice:'Standard',title:'Every Tongue',
-        bold:'Fett',font:'Schrift',style:'Stil',voice:'Stimme',speed:'Geschwindigkeit',color:'Textfarbe',
-        slow:'Langsam',normal:'Normal',fast:'Schnell',vfast:'Sehr Schnell',
-        start:'Starten',stop:'Stoppen',restart:'Neustarten',clear:'L\u00f6schen',
-        saveTranscript:'Speichern',transLang:'\u00dcbersetzung',remote:'Fernsteuerung',settings:'Einstellungen',readAloud:'Vorlesen',keepScreen:'Bildschirm an',scrollDir:'Scrollrichtung',scrollUp:'Unten nach oben (neueste unten)',scrollDown:'Oben nach unten (neueste oben)',tags:'Tags',tagOff:'Aus',tagLang:'Sprache',tagTime:'Zeit',tagBoth:'Sprache + Zeit',bible:'Bibel',bibleOT:'Altes Testament',bibleNT:'Neues Testament',bibleSearch:'Suchen',bibleNoResults:'Keine Ergebnisse',bibleSelectTrans:'W\u00e4hle eine \u00dcbersetzung',cloudVoice:'Every Tongue Voices',ttsBehind:'{0} zur\u00fcck \u2014 tippen zum \u00fcberspringen',readAll:'Alles vorlesen',readVerse:'Vorlesen',chooseLang:'W\u00e4hle deine Sprache',lpPopular:'Beliebt',lpAll:'Alle Sprachen',searchLangs:'Sprachen suchen...',noTranslation:'Keine \u00dcbersetzung',browseAll:'Alle durchsuchen',adminLabel:'Administrator',adminPin:'PIN',adminBad:'Falscher PIN',adminOk:'Adminzugang gew\u00e4hrt'},
-    ca:{connecting:'Connectant...',connected:'Connectat',disconnected:'Desconnectat - reconnectant...',
-        wakeTitle:'Mantenir Pantalla',wakeDesc:'Cal connexi\u00f3 segura (configuraci\u00f3 \u00fanica):',
-        stepTap:'Toca el bot\u00f3 de sota',stepWarn:'Veur\u00e0s un av\u00eds \u2014 \u00e9s normal',
-        stepAdv:'Toca "Avan\u00e7at"',stepProceed:'Toca "Continuar a {0}"',
-        stepAccept:'Toca "Acceptar el risc i continuar"',
-        stepDetails:'Toca "Mostrar detalls"',stepVisit:'Toca "visitar aquest lloc"',
-        stepRetry:'Toca el bot\u00f3 de pantalla de nou',
-        openSecure:'Obrir P\u00e0gina Segura',cancel:'Cancel\u00b7lar',
-        sending:'Enviant...',cmdSent:' comanda enviada',cmdFail:'Error en enviar',
-        liveRun:'En directe: ACTIU',stopped:'Estat: ATURAT',
-        noServer:'No es pot connectar',checking:'Comprovant...',
-        dfltVoice:'Per defecte',title:'Every Tongue',
-        bold:'Negreta',font:'Tipus de lletra',style:'Estil',voice:'Veu',speed:'Velocitat',color:'Color del text',
-        slow:'Lent',normal:'Normal',fast:'R\u00e0pid',vfast:'Molt R\u00e0pid',
-        start:'Iniciar',stop:'Aturar',restart:'Reiniciar',clear:'Netejar',
-        saveTranscript:'Desar Transcripci\u00f3',transLang:'Traducci\u00f3',remote:'Control Remot',settings:'Ajustos',readAloud:'Llegir en veu alta',keepScreen:'Mantenir pantalla',scrollDir:'Direcci\u00f3 de despla\u00e7ament',scrollUp:'Baix a dalt (recent a baix)',scrollDown:'Dalt a baix (recent a dalt)',tags:'Etiquetes',tagOff:'Desactivat',tagLang:'Idioma',tagTime:'Hora',tagBoth:'Idioma + Hora',bible:'B\u00edblia',bibleOT:'Antic Testament',bibleNT:'Nou Testament',bibleSearch:'Cercar',bibleNoResults:'Sense resultats',bibleSelectTrans:'Selecciona una traducci\u00f3',cloudVoice:'Every Tongue Voices',ttsBehind:'{0} endarrere \u2014 toca per saltar',readAll:'Llegir-ho tot',readVerse:'Llegir',chooseLang:'Tria el teu idioma',lpPopular:'Populars',lpAll:'Tots els idiomes',searchLangs:'Cercar idiomes...',noTranslation:'Sense traducci\u00f3',browseAll:'Veure tots',adminLabel:'Administrador',adminPin:'PIN',adminBad:'PIN incorrecte',adminOk:'Acc\u00e9s d\'administrador concedit'},
-    pt:{connecting:'Conectando...',connected:'Conectado',disconnected:'Desconectado - reconectando...',
-        wakeTitle:'Manter Tela Ligada',wakeDesc:'Conex\u00e3o segura necess\u00e1ria (apenas uma vez):',
-        stepTap:'Toque no bot\u00e3o abaixo',stepWarn:'Voc\u00ea ver\u00e1 um aviso \u2014 isso \u00e9 normal',
-        stepAdv:'Toque em "Avan\u00e7ado"',stepProceed:'Toque em "Prosseguir para {0}"',
-        stepAccept:'Toque em "Aceitar o risco e continuar"',
-        stepDetails:'Toque em "Mostrar detalhes"',stepVisit:'Toque em "visitar este site"',
-        stepRetry:'Toque no bot\u00e3o de tela novamente',
-        openSecure:'Abrir P\u00e1gina Segura',cancel:'Cancelar',
-        sending:'Enviando...',cmdSent:' comando enviado',cmdFail:'Falha ao enviar',
-        liveRun:'Ao vivo: ATIVO',stopped:'Status: PARADO',
-        noServer:'N\u00e3o foi poss\u00edvel conectar',checking:'Verificando...',
-        dfltVoice:'Padr\u00e3o',title:'Every Tongue',
-        bold:'Negrito',font:'Fonte',style:'Estilo',voice:'Voz',speed:'Velocidade',color:'Cor do texto',
-        slow:'Lento',normal:'Normal',fast:'R\u00e1pido',vfast:'Muito R\u00e1pido',
-        start:'Iniciar',stop:'Parar',restart:'Reiniciar',clear:'Limpar',
-        saveTranscript:'Salvar Transcri\u00e7\u00e3o',transLang:'Tradu\u00e7\u00e3o',remote:'Controle Remoto',settings:'Configura\u00e7\u00f5es',readAloud:'Ler em voz alta',keepScreen:'Manter tela ligada',scrollDir:'Dire\u00e7\u00e3o de rolagem',scrollUp:'Baixo para cima (recente embaixo)',scrollDown:'Cima para baixo (recente em cima)',tags:'Etiquetas',tagOff:'Desativado',tagLang:'Idioma',tagTime:'Hora',tagBoth:'Idioma + Hora',bible:'B\u00edblia',bibleOT:'Antigo Testamento',bibleNT:'Novo Testamento',bibleSearch:'Pesquisar',bibleNoResults:'Sem resultados',bibleSelectTrans:'Selecione uma tradu\u00e7\u00e3o',cloudVoice:'Every Tongue Voices',ttsBehind:'{0} atr\u00e1s \u2014 toque para pular',readAll:'Ler tudo',readVerse:'Ler',chooseLang:'Escolha seu idioma',lpPopular:'Populares',lpAll:'Todos os idiomas',searchLangs:'Pesquisar idiomas...',noTranslation:'Sem tradu\u00e7\u00e3o',browseAll:'Ver todos',adminLabel:'Administrador',adminPin:'PIN',adminBad:'PIN incorreto',adminOk:'Acesso de admin concedido'},
-    ja:{connecting:'\u63a5\u7d9a\u4e2d...',connected:'\u63a5\u7d9a\u6e08\u307f',disconnected:'\u5207\u65ad - \u518d\u63a5\u7d9a\u4e2d...',
-        wakeTitle:'\u753b\u9762\u3092\u70b9\u706f',wakeDesc:'\u5b89\u5168\u306a\u63a5\u7d9a\u304c\u5fc5\u8981\u3067\u3059\uff08\u521d\u56de\u306e\u307f\uff09:',
-        stepTap:'\u4e0b\u306e\u30dc\u30bf\u30f3\u3092\u30bf\u30c3\u30d7',stepWarn:'\u8b66\u544a\u304c\u8868\u793a\u3055\u308c\u307e\u3059 \u2014 \u6b63\u5e38\u3067\u3059',
-        stepAdv:'"\u8a73\u7d30\u8a2d\u5b9a"\u3092\u30bf\u30c3\u30d7',stepProceed:'"{0}\u306b\u30a2\u30af\u30bb\u30b9"\u3092\u30bf\u30c3\u30d7',
-        stepAccept:'"\u30ea\u30b9\u30af\u3092\u627f\u8afe\u3057\u3066\u7d9a\u884c"\u3092\u30bf\u30c3\u30d7',
-        stepDetails:'"\u8a73\u7d30\u3092\u8868\u793a"\u3092\u30bf\u30c3\u30d7',stepVisit:'"\u3053\u306e\u30b5\u30a4\u30c8\u3092\u8a2a\u554f"\u3092\u30bf\u30c3\u30d7',
-        stepRetry:'\u753b\u9762\u70b9\u706f\u30dc\u30bf\u30f3\u3092\u518d\u5ea6\u30bf\u30c3\u30d7',
-        openSecure:'\u5b89\u5168\u306a\u30da\u30fc\u30b8\u3092\u958b\u304f',cancel:'\u30ad\u30e3\u30f3\u30bb\u30eb',
-        sending:'\u9001\u4fe1\u4e2d...',cmdSent:'\u30b3\u30de\u30f3\u30c9\u9001\u4fe1\u6e08\u307f',cmdFail:'\u30b3\u30de\u30f3\u30c9\u9001\u4fe1\u5931\u6557',
-        liveRun:'\u30e9\u30a4\u30d6: \u5b9f\u884c\u4e2d',stopped:'\u30b9\u30c6\u30fc\u30bf\u30b9: \u505c\u6b62',
-        noServer:'\u30b5\u30fc\u30d0\u30fc\u306b\u63a5\u7d9a\u3067\u304d\u307e\u305b\u3093',checking:'\u78ba\u8a8d\u4e2d...',
-        dfltVoice:'\u30c7\u30d5\u30a9\u30eb\u30c8',title:'Every Tongue',
-        bold:'\u592a\u5b57',font:'\u30d5\u30a9\u30f3\u30c8',style:'\u30b9\u30bf\u30a4\u30eb',voice:'\u97f3\u58f0',speed:'\u901f\u5ea6',color:'\u6587\u5b57\u8272',
-        slow:'\u9045\u3044',normal:'\u666e\u901a',fast:'\u901f\u3044',vfast:'\u3068\u3066\u3082\u901f\u3044',
-        start:'\u958b\u59cb',stop:'\u505c\u6b62',restart:'\u518d\u958b',clear:'\u30af\u30ea\u30a2',
-        saveTranscript:'\u4fdd\u5b58',transLang:'\u7ffb\u8a33',remote:'\u30ea\u30e2\u30fc\u30c8',settings:'\u8a2d\u5b9a',readAloud:'\u8aad\u307f\u4e0a\u3052',keepScreen:'\u753b\u9762\u70b9\u706f',scrollDir:'\u30b9\u30af\u30ed\u30fc\u30eb\u65b9\u5411',scrollUp:'\u4e0b\u304b\u3089\u4e0a (\u6700\u65b0\u304c\u4e0b)',scrollDown:'\u4e0a\u304b\u3089\u4e0b (\u6700\u65b0\u304c\u4e0a)',tags:'\u30bf\u30b0',tagOff:'\u30aa\u30d5',tagLang:'\u8a00\u8a9e',tagTime:'\u6642\u523b',tagBoth:'\u8a00\u8a9e + \u6642\u523b',bible:'\u8056\u66f8',bibleOT:'\u65e7\u7d04\u8056\u66f8',bibleNT:'\u65b0\u7d04\u8056\u66f8',bibleSearch:'\u691c\u7d22',bibleNoResults:'\u7d50\u679c\u306a\u3057',bibleSelectTrans:'\u7ffb\u8a33\u3092\u9078\u629e',cloudVoice:'Every Tongue Voices',ttsBehind:'{0}\u904e\u53bb \u2014 \u30bf\u30c3\u30d7\u3067\u30b9\u30ad\u30c3\u30d7',readAll:'\u3059\u3079\u3066\u8aad\u3080',readVerse:'\u8aad\u3080',chooseLang:'\u8a00\u8a9e\u3092\u9078\u629e',lpPopular:'\u4eba\u6c17',lpAll:'\u3059\u3079\u3066\u306e\u8a00\u8a9e',searchLangs:'\u8a00\u8a9e\u3092\u691c\u7d22...',noTranslation:'\u7ffb\u8a33\u306a\u3057',browseAll:'\u3059\u3079\u3066\u8868\u793a',adminLabel:'\u7ba1\u7406\u8005',adminPin:'PIN',adminBad:'PIN\u304c\u9055\u3044\u307e\u3059',adminOk:'\u7ba1\u7406\u8005\u30a2\u30af\u30bb\u30b9\u8a31\u53ef'},
-    zh:{connecting:'\u8fde\u63a5\u4e2d...',connected:'\u5df2\u8fde\u63a5',disconnected:'\u5df2\u65ad\u5f00 - \u91cd\u65b0\u8fde\u63a5...',
-        wakeTitle:'\u4fdd\u6301\u5c4f\u5e55\u5e38\u4eae',wakeDesc:'\u9700\u8981\u5b89\u5168\u8fde\u63a5\uff08\u4ec5\u9700\u4e00\u6b21\uff09:',
-        stepTap:'\u70b9\u51fb\u4e0b\u65b9\u6309\u94ae',stepWarn:'\u60a8\u5c06\u770b\u5230\u8b66\u544a\u9875\u9762 \u2014 \u8fd9\u662f\u6b63\u5e38\u7684',
-        stepAdv:'\u70b9\u51fb"\u9ad8\u7ea7"',stepProceed:'\u70b9\u51fb"\u7ee7\u7eed\u8bbf\u95ee{0}"',
-        stepAccept:'\u70b9\u51fb"\u63a5\u53d7\u98ce\u9669\u5e76\u7ee7\u7eed"',
-        stepDetails:'\u70b9\u51fb"\u663e\u793a\u8be6\u60c5"',stepVisit:'\u70b9\u51fb"\u8bbf\u95ee\u6b64\u7f51\u7ad9"',
-        stepRetry:'\u518d\u6b21\u70b9\u51fb\u5c4f\u5e55\u5e38\u4eae\u6309\u94ae',
-        openSecure:'\u6253\u5f00\u5b89\u5168\u9875\u9762',cancel:'\u53d6\u6d88',
-        sending:'\u53d1\u9001\u4e2d...',cmdSent:'\u547d\u4ee4\u5df2\u53d1\u9001',cmdFail:'\u53d1\u9001\u5931\u8d25',
-        liveRun:'\u76f4\u64ad: \u8fd0\u884c\u4e2d',stopped:'\u72b6\u6001: \u5df2\u505c\u6b62',
-        noServer:'\u65e0\u6cd5\u8fde\u63a5\u670d\u52a1\u5668',checking:'\u68c0\u67e5\u4e2d...',
-        dfltVoice:'\u9ed8\u8ba4',title:'Every Tongue',
-        bold:'\u7c97\u4f53',font:'\u5b57\u4f53',style:'\u6837\u5f0f',voice:'\u8bed\u97f3',speed:'\u901f\u5ea6',color:'\u6587\u5b57\u989c\u8272',
-        slow:'\u6162',normal:'\u6b63\u5e38',fast:'\u5feb',vfast:'\u975e\u5e38\u5feb',
-        start:'\u5f00\u59cb',stop:'\u505c\u6b62',restart:'\u91cd\u542f',clear:'\u6e05\u9664',
-        saveTranscript:'\u4fdd\u5b58',transLang:'\u7ffb\u8bd1',remote:'\u8fdc\u7a0b\u63a7\u5236',settings:'\u8bbe\u7f6e',readAloud:'\u6717\u8bfb',keepScreen:'\u4fdd\u6301\u5c4f\u5e55',scrollDir:'\u6eda\u52a8\u65b9\u5411',scrollUp:'\u4ece\u4e0b\u5f80\u4e0a (\u6700\u65b0\u5728\u4e0b)',scrollDown:'\u4ece\u4e0a\u5f80\u4e0b (\u6700\u65b0\u5728\u4e0a)',tags:'\u6807\u7b7e',tagOff:'\u5173\u95ed',tagLang:'\u8bed\u8a00',tagTime:'\u65f6\u95f4',tagBoth:'\u8bed\u8a00 + \u65f6\u95f4',bible:'\u5723\u7ecf',bibleOT:'\u65e7\u7ea6',bibleNT:'\u65b0\u7ea6',bibleSearch:'\u641c\u7d22',bibleNoResults:'\u6ca1\u6709\u7ed3\u679c',bibleSelectTrans:'\u9009\u62e9\u8bd1\u672c',cloudVoice:'Every Tongue Voices',ttsBehind:'{0}\u6761\u843d\u540e \u2014 \u70b9\u51fb\u8df3\u8fc7',readAll:'\u5168\u90e8\u6717\u8bfb',readVerse:'\u6717\u8bfb',chooseLang:'\u9009\u62e9\u4f60\u7684\u8bed\u8a00',lpPopular:'\u70ed\u95e8',lpAll:'\u6240\u6709\u8bed\u8a00',searchLangs:'\u641c\u7d22\u8bed\u8a00...',noTranslation:'\u4e0d\u7ffb\u8bd1',browseAll:'\u6d4f\u89c8\u5168\u90e8',adminLabel:'\u7ba1\u7406\u5458',adminPin:'PIN',adminBad:'PIN\u9519\u8bef',adminOk:'\u7ba1\u7406\u5458\u8bbf\u95ee\u5df2\u6388\u6743'}
-  };
-  if(lang.indexOf('zh')===0)T=tr.zh;
-  else T=tr[lc]||tr.en;
+  try{
+    var xhr=new XMLHttpRequest();
+    xhr.open('GET','/api/locale',true);
+    xhr.onload=function(){
+      if(xhr.status===200){
+        try{
+          var data=JSON.parse(xhr.responseText);
+          for(var k in data){if(data.hasOwnProperty(k))T[k]=data[k]}
+        }catch(e){LOG('locale parse error: '+e)}
+      }
+    };
+    xhr.send();
+  }catch(e){LOG('locale fetch error: '+e)}
 })();
 function t(k){return T[k]||k}
 
 /* ── Language data: [nllbCode, nativeName, englishName, bcp47Prefix] ── */
-var LANGS=[
-['afr_Latn','Afrikaans','Afrikaans','af'],
-['amh_Ethi','\u12A0\u121B\u122D\u129B','Amharic','am'],
-['arb_Arab','\u0627\u0644\u0639\u0631\u0628\u064A\u0629','Arabic','ar'],
-['hye_Armn','\u0540\u0561\u0575\u0565\u0580\u0565\u0576','Armenian','hy'],
-['azj_Latn','Az\u0259rbaycan','Azerbaijani','az'],
-['eus_Latn','Euskara','Basque','eu'],
-['bel_Cyrl','\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F','Belarusian','be'],
-['ben_Beng','\u09AC\u09BE\u0982\u09B2\u09BE','Bengali','bn'],
-['bos_Latn','Bosanski','Bosnian','bs'],
-['bul_Cyrl','\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438','Bulgarian','bg'],
-['cat_Latn','Catal\u00E0','Catalan','ca'],
-['ces_Latn','\u010Ce\u0161tina','Czech','cs'],
-['zho_Hans','\u4E2D\u6587','Chinese','zh'],
-['hrv_Latn','Hrvatski','Croatian','hr'],
-['dan_Latn','Dansk','Danish','da'],
-['nld_Latn','Nederlands','Dutch','nl'],
-['eng_Latn','English','English','en'],
-['est_Latn','Eesti','Estonian','et'],
-['fin_Latn','Suomi','Finnish','fi'],
-['fra_Latn','Fran\u00E7ais','French','fr'],
-['glg_Latn','Galego','Galician','gl'],
-['kat_Geor','\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8','Georgian','ka'],
-['deu_Latn','Deutsch','German','de'],
-['ell_Grek','\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC','Greek','el'],
-['guj_Gujr','\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0','Gujarati','gu'],
-['hat_Latn','Krey\u00F2l Ayisyen','Haitian Creole','ht'],
-['hau_Latn','Hausa','Hausa','ha'],
-['heb_Hebr','\u05E2\u05D1\u05E8\u05D9\u05EA','Hebrew','he'],
-['hin_Deva','\u0939\u093F\u0928\u094D\u0926\u0940','Hindi','hi'],
-['hun_Latn','Magyar','Hungarian','hu'],
-['isl_Latn','\u00CDslenska','Icelandic','is'],
-['ind_Latn','Bahasa Indonesia','Indonesian','id'],
-['ita_Latn','Italiano','Italian','it'],
-['jpn_Jpan','\u65E5\u672C\u8A9E','Japanese','ja'],
-['jav_Latn','Basa Jawa','Javanese','jv'],
-['kan_Knda','\u0C95\u0CA8\u0CCD\u0CA8\u0CA1','Kannada','kn'],
-['kaz_Cyrl','\u049A\u0430\u0437\u0430\u049B','Kazakh','kk'],
-['khm_Khmr','\u1781\u17D2\u1798\u17C2\u179A','Khmer','km'],
-['kor_Hang','\uD55C\uAD6D\uC5B4','Korean','ko'],
-['lao_Laoo','\u0EA5\u0EB2\u0EA7','Lao','lo'],
-['lvs_Latn','Latvie\u0161u','Latvian','lv'],
-['lit_Latn','Lietuvi\u0173','Lithuanian','lt'],
-['ltz_Latn','L\u00EBtzebuergesch','Luxembourgish','lb'],
-['mkd_Cyrl','\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438','Macedonian','mk'],
-['zsm_Latn','Bahasa Melayu','Malay','ms'],
-['mal_Mlym','\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02','Malayalam','ml'],
-['mlt_Latn','Malti','Maltese','mt'],
-['mri_Latn','Te Reo M\u0101ori','Maori','mi'],
-['mar_Deva','\u092E\u0930\u093E\u0920\u0940','Marathi','mr'],
-['khk_Cyrl','\u041C\u043E\u043D\u0433\u043E\u043B','Mongolian','mn'],
-['mya_Mymr','\u1019\u103C\u1014\u103A\u1019\u102C','Myanmar','my'],
-['npi_Deva','\u0928\u0947\u092A\u093E\u0932\u0940','Nepali','ne'],
-['nob_Latn','Norsk','Norwegian','no'],
-['pes_Arab','\u0641\u0627\u0631\u0633\u06CC','Persian','fa'],
-['pol_Latn','Polski','Polish','pl'],
-['por_Latn','Portugu\u00EAs','Portuguese','pt'],
-['pan_Guru','\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40','Punjabi','pa'],
-['ron_Latn','Rom\u00E2n\u0103','Romanian','ro'],
-['rus_Cyrl','\u0420\u0443\u0441\u0441\u043A\u0438\u0439','Russian','ru'],
-['srp_Cyrl','\u0421\u0440\u043F\u0441\u043A\u0438','Serbian','sr'],
-['sna_Latn','Shona','Shona','sn'],
-['snd_Arab','\u0633\u0646\u068C\u064A','Sindhi','sd'],
-['sin_Sinh','\u0DC3\u0DD2\u0D82\u0DC4\u0DBD','Sinhala','si'],
-['slk_Latn','Sloven\u010Dina','Slovak','sk'],
-['slv_Latn','Sloven\u0161\u010Dina','Slovenian','sl'],
-['som_Latn','Soomaali','Somali','so'],
-['spa_Latn','Espa\u00F1ol','Spanish','es'],
-['sun_Latn','Basa Sunda','Sundanese','su'],
-['swh_Latn','Kiswahili','Swahili','sw'],
-['swe_Latn','Svenska','Swedish','sv'],
-['tgl_Latn','Tagalog','Filipino','tl'],
-['tgk_Cyrl','\u0422\u043E\u04B7\u0438\u043A\u04E3','Tajik','tg'],
-['tam_Taml','\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD','Tamil','ta'],
-['tat_Cyrl','\u0422\u0430\u0442\u0430\u0440','Tatar','tt'],
-['tel_Telu','\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41','Telugu','te'],
-['tha_Thai','\u0E20\u0E32\u0E29\u0E32\u0E44\u0E17\u0E22','Thai','th'],
-['tur_Latn','T\u00FCrk\u00E7e','Turkish','tr'],
-['tuk_Latn','T\u00FCrkmen','Turkmen','tk'],
-['ukr_Cyrl','\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430','Ukrainian','uk'],
-['urd_Arab','\u0627\u0631\u062F\u0648','Urdu','ur'],
-['uzn_Latn','O\u2018zbek','Uzbek','uz'],
-['vie_Latn','Ti\u1EBFng Vi\u1EC7t','Vietnamese','vi'],
-['cym_Latn','Cymraeg','Welsh','cy'],
-['yor_Latn','Yor\u00F9b\u00E1','Yoruba','yo'],
-['zul_Latn','isiZulu','Zulu','zu']
-];
+/* Loaded from /api/languages; minimal fallback until fetch completes */
+var LANGS=[['eng_Latn','English','English','en']];
+var _langsLoaded=false;
 
 /* Popular languages shown at top of picker */
 var POPULAR_LANGS=['eng_Latn','spa_Latn','fra_Latn','por_Latn','deu_Latn','cat_Latn','zho_Hans','arb_Arab','rus_Cyrl','hin_Deva','kor_Hang','jpn_Jpan','ita_Latn'];
+
+/* Fetch full language list from server */
+(function(){
+  try{
+    var xhr=new XMLHttpRequest();
+    xhr.open('GET','/api/languages',true);
+    xhr.onload=function(){
+      if(xhr.status===200){
+        try{
+          var data=JSON.parse(xhr.responseText);
+          if(data&&data.length>0){LANGS=data;_langsLoaded=true}
+        }catch(e){LOG('languages parse error: '+e)}
+      }
+    };
+    xhr.send();
+  }catch(e){LOG('languages fetch error: '+e)}
+})();
 
 /* ── Language Picker ── */
 function showLangPicker(){
@@ -260,7 +88,7 @@ function pickLang(code){
   if(!voiceManuallySet&&!serverTtsActive){autoSelectVoiceForLang(code)}
 }
 function autoSelectVoiceForLang(nllbCode){
-  var bcp=nllbToBcp47[nllbCode];
+  var bcp=nllbToBcp47Lookup(nllbCode);
   if(!bcp){LOG('autoSelectVoice: no BCP47 mapping for '+nllbCode);return}
   var voices=synth.getVoices();
   for(var i=0;i<voices.length;i++){
@@ -436,18 +264,16 @@ var ttsQueue=[];
 var ttsPlaying=false;
 var ttsSkipIndicator=null;
 
-/* NLLB language code to BCP47 prefix for browser voice matching */
-var nllbToBcp47={
-  eng_Latn:'en',spa_Latn:'es',fra_Latn:'fr',deu_Latn:'de',cat_Latn:'ca',
-  por_Latn:'pt',ita_Latn:'it',jpn_Jpan:'ja',zho_Hans:'zh',kor_Hang:'ko',
-  arb_Arab:'ar',hin_Deva:'hi',rus_Cyrl:'ru',nld_Latn:'nl',pol_Latn:'pl',
-  tur_Latn:'tr',swe_Latn:'sv',ukr_Cyrl:'uk',vie_Latn:'vi',tha_Thai:'th'
-};
+/* NLLB language code to BCP47 prefix — built dynamically from LANGS */
+function nllbToBcp47Lookup(nllb){
+  for(var i=0;i<LANGS.length;i++){if(LANGS[i][0]===nllb)return LANGS[i][3]}
+  return '';
+}
 
 function hasBrowserVoiceForLang(){
   var transLang=localStorage.getItem('transLang')||'';
   if(!transLang)return true; /* original language — browser usually has it */
-  var bcp=nllbToBcp47[transLang];
+  var bcp=nllbToBcp47Lookup(transLang);
   if(!bcp)return false;
   var voices=synth.getVoices();
   for(var i=0;i<voices.length;i++){
@@ -754,6 +580,7 @@ var rOpts=rateSelect.options;rOpts[0].textContent=t('slow');rOpts[1].textContent
 /* ── Fetch config and apply dynamic colors, then connect ── */
 (function(){
   fetch('/api/config').then(function(r){return r.json()}).then(function(cfg){
+    if(cfg.showBibleCopyright===false){showBibleCopyright=false}
     if(cfg.bgColor){document.documentElement.style.setProperty('--bg-color',cfg.bgColor)}
     if(cfg.fgColor){
       document.documentElement.style.setProperty('--fg-color',cfg.fgColor);
@@ -924,10 +751,10 @@ function getBibleLang(){
   if(tl){
     for(var i=0;i<LANGS.length;i++){if(LANGS[i][0]===tl)return LANGS[i][0].substring(0,3)}
   }
-  /* 3. Fall back to browser language mapped to 3-letter */
+  /* 3. Fall back to browser language — look up ISO 639-1 in LANGS to get 3-letter code */
   var iso2=(navigator.language||'en').split('-')[0];
-  var map2to3={af:'afr',am:'amh',ar:'arb',hy:'hye',az:'azj',bn:'ben',bs:'bos',bg:'bul',my:'mya',ca:'cat',zh:'zho',hr:'hrv',cs:'ces',da:'dan',nl:'nld',en:'eng',et:'est',fi:'fin',fr:'fra',gl:'glg',ka:'kat',de:'deu',el:'ell',gu:'guj',ha:'hau',he:'heb',hi:'hin',hu:'hun',is:'isl',ig:'ibo',id:'ind',ga:'gle',it:'ita',ja:'jpn',jv:'jav',kn:'kan',kk:'kaz',km:'khm',ko:'kor',lo:'lao',lv:'lvs',lt:'lit',mk:'mkd',ms:'zsm',ml:'mal',mt:'mlt',mi:'mri',mr:'mar',mn:'khk',ne:'npi',no:'nob',fa:'pes',pl:'pol',pt:'por',pa:'pan',ro:'ron',ru:'rus',sr:'srp',sk:'slk',sl:'slv',so:'som',es:'spa',sw:'swh',sv:'swe',tl:'tgl',ta:'tam',te:'tel',th:'tha',tr:'tur',uk:'ukr',ur:'urd',uz:'uzn',vi:'vie',cy:'cym',yo:'yor',zu:'zul'};
-  return map2to3[iso2]||'eng';
+  for(var i=0;i<LANGS.length;i++){if(LANGS[i][3]===iso2)return LANGS[i][0].substring(0,3)}
+  return 'eng';
 }
 
 function loadBibleTranslations(){
@@ -1144,6 +971,20 @@ function showChapters(book){
   });
 }
 
+var showBibleCopyright=true;
+function appendCopyrightFooter(){
+  if(!showBibleCopyright)return;
+  for(var i=0;i<bibleTranslations.length;i++){
+    if(bibleTranslations[i].id===currentBibleTrans&&bibleTranslations[i].copyright){
+      var d=document.createElement('div');
+      d.style.cssText='margin-top:16px;padding:8px 0;border-top:1px solid #444;font-size:11px;color:#888;line-height:1.4';
+      d.textContent=bibleTranslations[i].copyright;
+      bibleContent.appendChild(d);
+      break;
+    }
+  }
+}
+
 function showVerses(book,chapter){
   LOG('showVerses: '+book+' ch='+chapter);
   if(!currentBibleTrans){bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleSelectTrans')+'</div>';return}
@@ -1168,6 +1009,7 @@ function showVerses(book,chapter){
       bibleContent.appendChild(div);
     }
     addReadAllBtn();
+    appendCopyrightFooter();
     bibleContent.scrollTop=0;
   }).catch(function(){
     bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">Failed to load</div>';
@@ -1204,6 +1046,7 @@ function lookupRef(){LOG('lookupRef');
           bibleContent.appendChild(div);
         }
         addReadAllBtn();
+        appendCopyrightFooter();
       }).catch(function(){});
     }else{
       showVerses(ref.book,ref.chapter);
@@ -1247,6 +1090,7 @@ function bibleSearch(){LOG('bibleSearch');
       bibleContent.appendChild(div);
     }
     addReadAllBtn();
+    appendCopyrightFooter();
     bibleContent.scrollTop=0;
   }).catch(function(){
     bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">Search failed</div>';
@@ -1330,13 +1174,11 @@ function speakBibleVerseServer(text){
   synth.cancel();
   bibleTtsActive=true;
   if(!wsRef||wsRef.readyState!==1){LOG('speakBibleVerseServer BAIL: ws not open');bibleTtsActive=false;return}
-  var lang='eng_Latn';
+  /* Bible language codes (ISO 639-3: eng, spa, fra) match NLLB prefixes directly */
+  var lang='eng';
   for(var i=0;i<bibleTranslations.length;i++){
     if(bibleTranslations[i].id===currentBibleTrans){
-      var bl=bibleTranslations[i].language||'en';
-      var isoToNllb={en:'eng',es:'spa',fr:'fra',de:'deu',ca:'cat',pt:'por',it:'ita',ja:'jpn',zh:'zho',ko:'kor',ar:'arb',hi:'hin',ru:'rus',nl:'nld'};
-      var nllb=isoToNllb[bl.substring(0,2)];
-      if(nllb)lang=nllb;
+      lang=bibleTranslations[i].language||'eng';
       break;
     }
   }

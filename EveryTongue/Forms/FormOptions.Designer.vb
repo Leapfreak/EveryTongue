@@ -96,14 +96,23 @@ Partial Class FormOptions
         Me.txtHwRecs = New System.Windows.Forms.TextBox()
         Me.btnHwRescan = New System.Windows.Forms.Button()
         Me.pnlServer = New System.Windows.Forms.Panel()
-        Me.txtTts = New System.Windows.Forms.TextBox()
-        Me.lblTts = New System.Windows.Forms.Label()
+        Me.pnlTranslation = New System.Windows.Forms.Panel()
+        Me.pnlTts = New System.Windows.Forms.Panel()
         Me.lblTtsSep = New System.Windows.Forms.Label()
         Me.lblTtsHeader = New System.Windows.Forms.Label()
+        Me.lblTtsPref1 = New System.Windows.Forms.Label()
+        Me.cboTtsPref1 = New System.Windows.Forms.ComboBox()
+        Me.lblTtsPref2 = New System.Windows.Forms.Label()
+        Me.cboTtsPref2 = New System.Windows.Forms.ComboBox()
+        Me.lblTtsPref3 = New System.Windows.Forms.Label()
+        Me.cboTtsPref3 = New System.Windows.Forms.ComboBox()
+        Me.lblTtsNote = New System.Windows.Forms.Label()
         Me.nudUnload = New System.Windows.Forms.NumericUpDown()
         Me.lblUnload = New System.Windows.Forms.Label()
         Me.cboDevice = New System.Windows.Forms.ComboBox()
         Me.lblDevice = New System.Windows.Forms.Label()
+        Me.cboTransBackend = New System.Windows.Forms.ComboBox()
+        Me.lblTransBackend = New System.Windows.Forms.Label()
         Me.chkTransEnabled = New System.Windows.Forms.CheckBox()
         Me.lblTranslationSep = New System.Windows.Forms.Label()
         Me.lblTranslationHeader = New System.Windows.Forms.Label()
@@ -129,6 +138,92 @@ Partial Class FormOptions
         Me.lblPort = New System.Windows.Forms.Label()
         Me.lblNetworkSep = New System.Windows.Forms.Label()
         Me.lblNetworkHeader = New System.Windows.Forms.Label()
+        ' ── Advanced panel controls ──
+        Me.pnlAdvanced = New System.Windows.Forms.Panel()
+        Me.lblAdvPipelineHeader = New System.Windows.Forms.Label()
+        Me.lblAdvPipelineSep = New System.Windows.Forms.Label()
+        Me.nudParallelJobs = New System.Windows.Forms.NumericUpDown()
+        Me.lblParallelJobs = New System.Windows.Forms.Label()
+        Me.nudChunkSize = New System.Windows.Forms.NumericUpDown()
+        Me.lblChunkSize = New System.Windows.Forms.Label()
+        Me.nudPollInterval = New System.Windows.Forms.NumericUpDown()
+        Me.lblPollInterval = New System.Windows.Forms.Label()
+        Me.nudChunkTimeout = New System.Windows.Forms.NumericUpDown()
+        Me.lblChunkTimeout = New System.Windows.Forms.Label()
+        Me.chkKeepChunks = New System.Windows.Forms.CheckBox()
+        Me.chkKeepPreview = New System.Windows.Forms.CheckBox()
+        Me.chkSkipDownload = New System.Windows.Forms.CheckBox()
+        Me.lblAdvOutputHeader = New System.Windows.Forms.Label()
+        Me.lblAdvOutputSep = New System.Windows.Forms.Label()
+        Me.chkOutSrt = New System.Windows.Forms.CheckBox()
+        Me.chkOutVtt = New System.Windows.Forms.CheckBox()
+        Me.chkOutTxt = New System.Windows.Forms.CheckBox()
+        Me.chkOutJson = New System.Windows.Forms.CheckBox()
+        Me.chkOutCsv = New System.Windows.Forms.CheckBox()
+        Me.chkOutLrc = New System.Windows.Forms.CheckBox()
+        Me.lblAdvWhisperHeader = New System.Windows.Forms.Label()
+        Me.lblAdvWhisperSep = New System.Windows.Forms.Label()
+        Me.nudThreads = New System.Windows.Forms.NumericUpDown()
+        Me.lblThreads = New System.Windows.Forms.Label()
+        Me.nudProcessors = New System.Windows.Forms.NumericUpDown()
+        Me.lblProcessors = New System.Windows.Forms.Label()
+        Me.nudBeamSize = New System.Windows.Forms.NumericUpDown()
+        Me.lblBeamSize = New System.Windows.Forms.Label()
+        Me.nudBestOf = New System.Windows.Forms.NumericUpDown()
+        Me.lblBestOf = New System.Windows.Forms.Label()
+        Me.nudTemperature = New System.Windows.Forms.NumericUpDown()
+        Me.lblTemperature = New System.Windows.Forms.Label()
+        Me.nudTempInc = New System.Windows.Forms.NumericUpDown()
+        Me.lblTempInc = New System.Windows.Forms.Label()
+        Me.nudMaxContext = New System.Windows.Forms.NumericUpDown()
+        Me.lblMaxContext = New System.Windows.Forms.Label()
+        Me.nudMaxSegLen = New System.Windows.Forms.NumericUpDown()
+        Me.lblMaxSegLen = New System.Windows.Forms.Label()
+        Me.nudMaxTokens = New System.Windows.Forms.NumericUpDown()
+        Me.lblMaxTokens = New System.Windows.Forms.Label()
+        Me.nudAudioContext = New System.Windows.Forms.NumericUpDown()
+        Me.lblAudioContext = New System.Windows.Forms.Label()
+        Me.nudWordThresh = New System.Windows.Forms.NumericUpDown()
+        Me.lblWordThresh = New System.Windows.Forms.Label()
+        Me.nudEntropyThresh = New System.Windows.Forms.NumericUpDown()
+        Me.lblEntropyThresh = New System.Windows.Forms.Label()
+        Me.nudLogProbThresh = New System.Windows.Forms.NumericUpDown()
+        Me.lblLogProbThresh = New System.Windows.Forms.Label()
+        Me.nudNoSpeechThresh = New System.Windows.Forms.NumericUpDown()
+        Me.lblNoSpeechThresh = New System.Windows.Forms.Label()
+        Me.nudVadThresh = New System.Windows.Forms.NumericUpDown()
+        Me.lblVadThresh = New System.Windows.Forms.Label()
+        Me.nudFreqThresh = New System.Windows.Forms.NumericUpDown()
+        Me.lblFreqThresh = New System.Windows.Forms.Label()
+        Me.txtInitialPrompt = New System.Windows.Forms.TextBox()
+        Me.lblInitialPrompt = New System.Windows.Forms.Label()
+        Me.txtHotwords = New System.Windows.Forms.TextBox()
+        Me.lblHotwords = New System.Windows.Forms.Label()
+        Me.lblAdvFlagsHeader = New System.Windows.Forms.Label()
+        Me.lblAdvFlagsSep = New System.Windows.Forms.Label()
+        Me.chkSplitOnWord = New System.Windows.Forms.CheckBox()
+        Me.chkNoGpu = New System.Windows.Forms.CheckBox()
+        Me.chkFlashAttn = New System.Windows.Forms.CheckBox()
+        Me.chkDiarize = New System.Windows.Forms.CheckBox()
+        Me.chkTinyDiarize = New System.Windows.Forms.CheckBox()
+        Me.chkTranslateEn = New System.Windows.Forms.CheckBox()
+        Me.chkNoTimestamps = New System.Windows.Forms.CheckBox()
+        Me.chkPrintProgress = New System.Windows.Forms.CheckBox()
+        Me.chkPrintColours = New System.Windows.Forms.CheckBox()
+        Me.chkPrintRealtime = New System.Windows.Forms.CheckBox()
+        Me.lblAdvLiveHeader = New System.Windows.Forms.Label()
+        Me.lblAdvLiveSep = New System.Windows.Forms.Label()
+        Me.cboComputeType = New System.Windows.Forms.ComboBox()
+        Me.lblComputeType = New System.Windows.Forms.Label()
+        Me.nudLiveVadSilence = New System.Windows.Forms.NumericUpDown()
+        Me.lblLiveVadSilence = New System.Windows.Forms.Label()
+        Me.nudLiveMaxSeg = New System.Windows.Forms.NumericUpDown()
+        Me.lblLiveMaxSeg = New System.Windows.Forms.Label()
+        Me.nudLiveInterim = New System.Windows.Forms.NumericUpDown()
+        Me.lblLiveInterim = New System.Windows.Forms.Label()
+        Me.lblAdvBibleHeader = New System.Windows.Forms.Label()
+        Me.lblAdvBibleSep = New System.Windows.Forms.Label()
+        Me.chkShowBibleCopyright = New System.Windows.Forms.CheckBox()
         CType(Me.splitter, System.ComponentModel.ISupportInitialize).BeginInit()
         Me.splitter.Panel1.SuspendLayout()
         Me.splitter.Panel2.SuspendLayout()
@@ -136,7 +231,33 @@ Partial Class FormOptions
         Me.pnlGeneral.SuspendLayout()
         Me.pnlPaths.SuspendLayout()
         Me.pnlServer.SuspendLayout()
+        Me.pnlTranslation.SuspendLayout()
+        Me.pnlTts.SuspendLayout()
         Me.pnlHardware.SuspendLayout()
+        Me.pnlAdvanced.SuspendLayout()
+        CType(Me.nudParallelJobs, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudChunkSize, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudPollInterval, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudChunkTimeout, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudThreads, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudProcessors, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudBeamSize, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudBestOf, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudTemperature, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudTempInc, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudMaxContext, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudMaxSegLen, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudMaxTokens, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudAudioContext, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudWordThresh, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudEntropyThresh, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudLogProbThresh, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudNoSpeechThresh, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudVadThresh, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudFreqThresh, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudLiveVadSilence, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudLiveMaxSeg, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudLiveInterim, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudPort, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudLivePort, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudTransPort, System.ComponentModel.ISupportInitialize).BeginInit()
@@ -195,7 +316,7 @@ Partial Class FormOptions
         Me.treeNav.ItemHeight = 28
         Me.treeNav.Location = New System.Drawing.Point(0, 0)
         Me.treeNav.Name = "treeNav"
-        Me.treeNav.Nodes.AddRange(New System.Windows.Forms.TreeNode() {New System.Windows.Forms.TreeNode("General") With {.Name = "general"}, New System.Windows.Forms.TreeNode("Tool Paths") With {.Name = "paths"}, New System.Windows.Forms.TreeNode("Server & Subtitles") With {.Name = "server"}, New System.Windows.Forms.TreeNode("Hardware") With {.Name = "hardware"}})
+        Me.treeNav.Nodes.AddRange(New System.Windows.Forms.TreeNode() {New System.Windows.Forms.TreeNode("General") With {.Name = "general"}, New System.Windows.Forms.TreeNode("Tool Paths") With {.Name = "paths"}, New System.Windows.Forms.TreeNode("Server & Subtitles") With {.Name = "server"}, New System.Windows.Forms.TreeNode("Translation") With {.Name = "translation"}, New System.Windows.Forms.TreeNode("Text-to-Speech") With {.Name = "tts"}, New System.Windows.Forms.TreeNode("Hardware") With {.Name = "hardware"}, New System.Windows.Forms.TreeNode("Advanced") With {.Name = "advanced"}})
         Me.treeNav.ShowLines = False
         Me.treeNav.ShowPlusMinus = False
         Me.treeNav.ShowRootLines = False
@@ -207,7 +328,10 @@ Partial Class FormOptions
         Me.pnlPages.Controls.Add(Me.pnlGeneral)
         Me.pnlPages.Controls.Add(Me.pnlPaths)
         Me.pnlPages.Controls.Add(Me.pnlServer)
+        Me.pnlPages.Controls.Add(Me.pnlTranslation)
+        Me.pnlPages.Controls.Add(Me.pnlTts)
         Me.pnlPages.Controls.Add(Me.pnlHardware)
+        Me.pnlPages.Controls.Add(Me.pnlAdvanced)
         Me.pnlPages.Dock = System.Windows.Forms.DockStyle.Fill
         Me.pnlPages.Location = New System.Drawing.Point(0, 0)
         Me.pnlPages.Name = "pnlPages"
@@ -846,17 +970,6 @@ Partial Class FormOptions
         ' pnlServer
         '
         Me.pnlServer.AutoScroll = True
-        Me.pnlServer.Controls.Add(Me.txtTts)
-        Me.pnlServer.Controls.Add(Me.lblTts)
-        Me.pnlServer.Controls.Add(Me.lblTtsSep)
-        Me.pnlServer.Controls.Add(Me.lblTtsHeader)
-        Me.pnlServer.Controls.Add(Me.nudUnload)
-        Me.pnlServer.Controls.Add(Me.lblUnload)
-        Me.pnlServer.Controls.Add(Me.cboDevice)
-        Me.pnlServer.Controls.Add(Me.lblDevice)
-        Me.pnlServer.Controls.Add(Me.chkTransEnabled)
-        Me.pnlServer.Controls.Add(Me.lblTranslationSep)
-        Me.pnlServer.Controls.Add(Me.lblTranslationHeader)
         Me.pnlServer.Controls.Add(Me.chkBold)
         Me.pnlServer.Controls.Add(Me.nudFontSize)
         Me.pnlServer.Controls.Add(Me.lblFontSize)
@@ -871,8 +984,6 @@ Partial Class FormOptions
         Me.pnlServer.Controls.Add(Me.txtPin)
         Me.pnlServer.Controls.Add(Me.lblPin)
         Me.pnlServer.Controls.Add(Me.chkFirewall)
-        Me.pnlServer.Controls.Add(Me.nudTransPort)
-        Me.pnlServer.Controls.Add(Me.lblTransPort)
         Me.pnlServer.Controls.Add(Me.nudLivePort)
         Me.pnlServer.Controls.Add(Me.lblLivePort)
         Me.pnlServer.Controls.Add(Me.nudPort)
@@ -947,26 +1058,26 @@ Partial Class FormOptions
         ' lblTransPort
         '
         Me.lblTransPort.AutoSize = True
-        Me.lblTransPort.Location = New System.Drawing.Point(200, 94)
+        Me.lblTransPort.Location = New System.Drawing.Point(12, 170)
         Me.lblTransPort.Name = "lblTransPort"
         Me.lblTransPort.Size = New System.Drawing.Size(97, 15)
-        Me.lblTransPort.TabIndex = 6
+        Me.lblTransPort.TabIndex = 9
         Me.lblTransPort.Text = "Translation port:"
         '
         ' nudTransPort
         '
-        Me.nudTransPort.Location = New System.Drawing.Point(200, 112)
+        Me.nudTransPort.Location = New System.Drawing.Point(12, 188)
         Me.nudTransPort.Maximum = New Decimal(New Integer() {65535, 0, 0, 0})
         Me.nudTransPort.Minimum = New Decimal(New Integer() {1024, 0, 0, 0})
         Me.nudTransPort.Name = "nudTransPort"
         Me.nudTransPort.Size = New System.Drawing.Size(80, 23)
-        Me.nudTransPort.TabIndex = 7
+        Me.nudTransPort.TabIndex = 10
         Me.nudTransPort.Value = New Decimal(New Integer() {5090, 0, 0, 0})
         '
         ' chkFirewall
         '
         Me.chkFirewall.AutoSize = True
-        Me.chkFirewall.Location = New System.Drawing.Point(400, 114)
+        Me.chkFirewall.Location = New System.Drawing.Point(200, 114)
         Me.chkFirewall.Name = "chkFirewall"
         Me.chkFirewall.Size = New System.Drawing.Size(196, 19)
         Me.chkFirewall.TabIndex = 8
@@ -1101,10 +1212,10 @@ Partial Class FormOptions
         '
         Me.lblTranslationHeader.AutoSize = True
         Me.lblTranslationHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
-        Me.lblTranslationHeader.Location = New System.Drawing.Point(8, 292)
+        Me.lblTranslationHeader.Location = New System.Drawing.Point(8, 12)
         Me.lblTranslationHeader.Name = "lblTranslationHeader"
         Me.lblTranslationHeader.Size = New System.Drawing.Size(96, 20)
-        Me.lblTranslationHeader.TabIndex = 22
+        Me.lblTranslationHeader.TabIndex = 0
         Me.lblTranslationHeader.Text = "Translation"
         '
         ' lblTranslationSep
@@ -1112,28 +1223,46 @@ Partial Class FormOptions
         Me.lblTranslationSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.lblTranslationSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
-        Me.lblTranslationSep.Location = New System.Drawing.Point(8, 314)
+        Me.lblTranslationSep.Location = New System.Drawing.Point(8, 34)
         Me.lblTranslationSep.Name = "lblTranslationSep"
         Me.lblTranslationSep.Size = New System.Drawing.Size(520, 1)
-        Me.lblTranslationSep.TabIndex = 23
+        Me.lblTranslationSep.TabIndex = 1
         '
         ' chkTransEnabled
         '
         Me.chkTransEnabled.AutoSize = True
-        Me.chkTransEnabled.Location = New System.Drawing.Point(12, 322)
+        Me.chkTransEnabled.Location = New System.Drawing.Point(12, 42)
         Me.chkTransEnabled.Name = "chkTransEnabled"
         Me.chkTransEnabled.Size = New System.Drawing.Size(137, 19)
-        Me.chkTransEnabled.TabIndex = 24
+        Me.chkTransEnabled.TabIndex = 2
         Me.chkTransEnabled.Text = "Translation enabled"
         Me.chkTransEnabled.UseVisualStyleBackColor = True
+        '
+        ' lblTransBackend
+        '
+        Me.lblTransBackend.AutoSize = True
+        Me.lblTransBackend.Location = New System.Drawing.Point(12, 68)
+        Me.lblTransBackend.Name = "lblTransBackend"
+        Me.lblTransBackend.Size = New System.Drawing.Size(47, 15)
+        Me.lblTransBackend.TabIndex = 3
+        Me.lblTransBackend.Text = "Engine:"
+        '
+        ' cboTransBackend
+        '
+        Me.cboTransBackend.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboTransBackend.FormattingEnabled = True
+        Me.cboTransBackend.Location = New System.Drawing.Point(12, 86)
+        Me.cboTransBackend.Name = "cboTransBackend"
+        Me.cboTransBackend.Size = New System.Drawing.Size(200, 23)
+        Me.cboTransBackend.TabIndex = 4
         '
         ' lblDevice
         '
         Me.lblDevice.AutoSize = True
-        Me.lblDevice.Location = New System.Drawing.Point(12, 350)
+        Me.lblDevice.Location = New System.Drawing.Point(12, 118)
         Me.lblDevice.Name = "lblDevice"
         Me.lblDevice.Size = New System.Drawing.Size(45, 15)
-        Me.lblDevice.TabIndex = 25
+        Me.lblDevice.TabIndex = 5
         Me.lblDevice.Text = "Device:"
         '
         ' cboDevice
@@ -1141,37 +1270,37 @@ Partial Class FormOptions
         Me.cboDevice.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
         Me.cboDevice.FormattingEnabled = True
         Me.cboDevice.Items.AddRange(New Object() {"cuda", "cpu"})
-        Me.cboDevice.Location = New System.Drawing.Point(12, 368)
+        Me.cboDevice.Location = New System.Drawing.Point(12, 136)
         Me.cboDevice.Name = "cboDevice"
         Me.cboDevice.Size = New System.Drawing.Size(90, 23)
-        Me.cboDevice.TabIndex = 26
+        Me.cboDevice.TabIndex = 6
         '
         ' lblUnload
         '
         Me.lblUnload.AutoSize = True
-        Me.lblUnload.Location = New System.Drawing.Point(120, 350)
+        Me.lblUnload.Location = New System.Drawing.Point(120, 118)
         Me.lblUnload.Name = "lblUnload"
         Me.lblUnload.Size = New System.Drawing.Size(81, 15)
-        Me.lblUnload.TabIndex = 27
+        Me.lblUnload.TabIndex = 7
         Me.lblUnload.Text = "Unload (min):"
         '
         ' nudUnload
         '
-        Me.nudUnload.Location = New System.Drawing.Point(120, 368)
+        Me.nudUnload.Location = New System.Drawing.Point(120, 136)
         Me.nudUnload.Maximum = New Decimal(New Integer() {1440, 0, 0, 0})
         Me.nudUnload.Name = "nudUnload"
         Me.nudUnload.Size = New System.Drawing.Size(60, 23)
-        Me.nudUnload.TabIndex = 28
+        Me.nudUnload.TabIndex = 8
         Me.nudUnload.Value = New Decimal(New Integer() {10, 0, 0, 0})
         '
         ' lblTtsHeader
         '
         Me.lblTtsHeader.AutoSize = True
         Me.lblTtsHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
-        Me.lblTtsHeader.Location = New System.Drawing.Point(8, 408)
+        Me.lblTtsHeader.Location = New System.Drawing.Point(8, 12)
         Me.lblTtsHeader.Name = "lblTtsHeader"
         Me.lblTtsHeader.Size = New System.Drawing.Size(122, 20)
-        Me.lblTtsHeader.TabIndex = 29
+        Me.lblTtsHeader.TabIndex = 0
         Me.lblTtsHeader.Text = "Text-to-Speech"
         '
         ' lblTtsSep
@@ -1179,26 +1308,119 @@ Partial Class FormOptions
         Me.lblTtsSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.lblTtsSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
-        Me.lblTtsSep.Location = New System.Drawing.Point(8, 430)
+        Me.lblTtsSep.Location = New System.Drawing.Point(8, 34)
         Me.lblTtsSep.Name = "lblTtsSep"
         Me.lblTtsSep.Size = New System.Drawing.Size(520, 1)
-        Me.lblTtsSep.TabIndex = 30
+        Me.lblTtsSep.TabIndex = 1
         '
-        ' lblTts
+        ' lblTtsPref1
         '
-        Me.lblTts.AutoSize = True
-        Me.lblTts.Location = New System.Drawing.Point(12, 438)
-        Me.lblTts.Name = "lblTts"
-        Me.lblTts.Size = New System.Drawing.Size(267, 15)
-        Me.lblTts.TabIndex = 31
-        Me.lblTts.Text = "TTS backends (comma-separated, empty = all):"
+        Me.lblTtsPref1.AutoSize = True
+        Me.lblTtsPref1.Location = New System.Drawing.Point(12, 44)
+        Me.lblTtsPref1.Name = "lblTtsPref1"
+        Me.lblTtsPref1.Size = New System.Drawing.Size(90, 15)
+        Me.lblTtsPref1.TabIndex = 2
+        Me.lblTtsPref1.Text = "1st preference:"
         '
-        ' txtTts
+        ' cboTtsPref1
         '
-        Me.txtTts.Location = New System.Drawing.Point(12, 456)
-        Me.txtTts.Name = "txtTts"
-        Me.txtTts.Size = New System.Drawing.Size(300, 23)
-        Me.txtTts.TabIndex = 32
+        Me.cboTtsPref1.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboTtsPref1.Location = New System.Drawing.Point(130, 41)
+        Me.cboTtsPref1.Name = "cboTtsPref1"
+        Me.cboTtsPref1.Size = New System.Drawing.Size(200, 23)
+        Me.cboTtsPref1.TabIndex = 3
+        '
+        ' lblTtsPref2
+        '
+        Me.lblTtsPref2.AutoSize = True
+        Me.lblTtsPref2.Location = New System.Drawing.Point(12, 74)
+        Me.lblTtsPref2.Name = "lblTtsPref2"
+        Me.lblTtsPref2.Size = New System.Drawing.Size(93, 15)
+        Me.lblTtsPref2.TabIndex = 4
+        Me.lblTtsPref2.Text = "2nd preference:"
+        '
+        ' cboTtsPref2
+        '
+        Me.cboTtsPref2.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboTtsPref2.Location = New System.Drawing.Point(130, 71)
+        Me.cboTtsPref2.Name = "cboTtsPref2"
+        Me.cboTtsPref2.Size = New System.Drawing.Size(200, 23)
+        Me.cboTtsPref2.TabIndex = 5
+        '
+        ' lblTtsPref3
+        '
+        Me.lblTtsPref3.AutoSize = True
+        Me.lblTtsPref3.Location = New System.Drawing.Point(12, 104)
+        Me.lblTtsPref3.Name = "lblTtsPref3"
+        Me.lblTtsPref3.Size = New System.Drawing.Size(90, 15)
+        Me.lblTtsPref3.TabIndex = 6
+        Me.lblTtsPref3.Text = "3rd preference:"
+        '
+        ' cboTtsPref3
+        '
+        Me.cboTtsPref3.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboTtsPref3.Location = New System.Drawing.Point(130, 101)
+        Me.cboTtsPref3.Name = "cboTtsPref3"
+        Me.cboTtsPref3.Size = New System.Drawing.Size(200, 23)
+        Me.cboTtsPref3.TabIndex = 7
+        '
+        ' lblTtsNote
+        '
+        Me.lblTtsNote.AutoSize = True
+        Me.lblTtsNote.ForeColor = System.Drawing.SystemColors.GrayText
+        Me.lblTtsNote.Location = New System.Drawing.Point(12, 134)
+        Me.lblTtsNote.Name = "lblTtsNote"
+        Me.lblTtsNote.Size = New System.Drawing.Size(350, 15)
+        Me.lblTtsNote.TabIndex = 8
+        Me.lblTtsNote.Text = "Set to (none) to disable. Falls back to next preference if unavailable."
+        '
+        ' ══════════════════════════════════════════════════════════════
+        ' TRANSLATION PANEL
+        ' ══════════════════════════════════════════════════════════════
+        '
+        ' pnlTranslation
+        '
+        Me.pnlTranslation.AutoScroll = True
+        Me.pnlTranslation.Controls.Add(Me.nudTransPort)
+        Me.pnlTranslation.Controls.Add(Me.lblTransPort)
+        Me.pnlTranslation.Controls.Add(Me.nudUnload)
+        Me.pnlTranslation.Controls.Add(Me.lblUnload)
+        Me.pnlTranslation.Controls.Add(Me.cboDevice)
+        Me.pnlTranslation.Controls.Add(Me.lblDevice)
+        Me.pnlTranslation.Controls.Add(Me.cboTransBackend)
+        Me.pnlTranslation.Controls.Add(Me.lblTransBackend)
+        Me.pnlTranslation.Controls.Add(Me.chkTransEnabled)
+        Me.pnlTranslation.Controls.Add(Me.lblTranslationSep)
+        Me.pnlTranslation.Controls.Add(Me.lblTranslationHeader)
+        Me.pnlTranslation.Dock = System.Windows.Forms.DockStyle.Fill
+        Me.pnlTranslation.Location = New System.Drawing.Point(0, 0)
+        Me.pnlTranslation.Name = "pnlTranslation"
+        Me.pnlTranslation.Size = New System.Drawing.Size(564, 469)
+        Me.pnlTranslation.TabIndex = 4
+        Me.pnlTranslation.Visible = False
+        '
+        ' ══════════════════════════════════════════════════════════════
+        ' TTS PANEL
+        ' ══════════════════════════════════════════════════════════════
+        '
+        ' pnlTts
+        '
+        Me.pnlTts.AutoScroll = True
+        Me.pnlTts.Controls.Add(Me.lblTtsNote)
+        Me.pnlTts.Controls.Add(Me.cboTtsPref3)
+        Me.pnlTts.Controls.Add(Me.lblTtsPref3)
+        Me.pnlTts.Controls.Add(Me.cboTtsPref2)
+        Me.pnlTts.Controls.Add(Me.lblTtsPref2)
+        Me.pnlTts.Controls.Add(Me.cboTtsPref1)
+        Me.pnlTts.Controls.Add(Me.lblTtsPref1)
+        Me.pnlTts.Controls.Add(Me.lblTtsSep)
+        Me.pnlTts.Controls.Add(Me.lblTtsHeader)
+        Me.pnlTts.Dock = System.Windows.Forms.DockStyle.Fill
+        Me.pnlTts.Location = New System.Drawing.Point(0, 0)
+        Me.pnlTts.Name = "pnlTts"
+        Me.pnlTts.Size = New System.Drawing.Size(564, 469)
+        Me.pnlTts.TabIndex = 5
+        Me.pnlTts.Visible = False
         '
         ' ══════════════════════════════════════════════════════════════
         ' HARDWARE PANEL
@@ -1409,6 +1631,936 @@ Partial Class FormOptions
         Me.btnHwRescan.Text = "Re-scan"
         Me.btnHwRescan.UseVisualStyleBackColor = True
         '
+        ' ══════════════════════════════════════════════════════════════
+        ' ADVANCED PANEL
+        ' ══════════════════════════════════════════════════════════════
+        '
+        ' pnlAdvanced
+        '
+        Me.pnlAdvanced.AutoScroll = True
+        Me.pnlAdvanced.Controls.Add(Me.lblAdvPipelineHeader)
+        Me.pnlAdvanced.Controls.Add(Me.lblAdvPipelineSep)
+        Me.pnlAdvanced.Controls.Add(Me.lblParallelJobs)
+        Me.pnlAdvanced.Controls.Add(Me.nudParallelJobs)
+        Me.pnlAdvanced.Controls.Add(Me.lblChunkSize)
+        Me.pnlAdvanced.Controls.Add(Me.nudChunkSize)
+        Me.pnlAdvanced.Controls.Add(Me.lblPollInterval)
+        Me.pnlAdvanced.Controls.Add(Me.nudPollInterval)
+        Me.pnlAdvanced.Controls.Add(Me.lblChunkTimeout)
+        Me.pnlAdvanced.Controls.Add(Me.nudChunkTimeout)
+        Me.pnlAdvanced.Controls.Add(Me.chkKeepChunks)
+        Me.pnlAdvanced.Controls.Add(Me.chkKeepPreview)
+        Me.pnlAdvanced.Controls.Add(Me.chkSkipDownload)
+        Me.pnlAdvanced.Controls.Add(Me.lblAdvOutputHeader)
+        Me.pnlAdvanced.Controls.Add(Me.lblAdvOutputSep)
+        Me.pnlAdvanced.Controls.Add(Me.chkOutSrt)
+        Me.pnlAdvanced.Controls.Add(Me.chkOutVtt)
+        Me.pnlAdvanced.Controls.Add(Me.chkOutTxt)
+        Me.pnlAdvanced.Controls.Add(Me.chkOutJson)
+        Me.pnlAdvanced.Controls.Add(Me.chkOutCsv)
+        Me.pnlAdvanced.Controls.Add(Me.chkOutLrc)
+        Me.pnlAdvanced.Controls.Add(Me.lblAdvWhisperHeader)
+        Me.pnlAdvanced.Controls.Add(Me.lblAdvWhisperSep)
+        Me.pnlAdvanced.Controls.Add(Me.lblThreads)
+        Me.pnlAdvanced.Controls.Add(Me.nudThreads)
+        Me.pnlAdvanced.Controls.Add(Me.lblProcessors)
+        Me.pnlAdvanced.Controls.Add(Me.nudProcessors)
+        Me.pnlAdvanced.Controls.Add(Me.lblBeamSize)
+        Me.pnlAdvanced.Controls.Add(Me.nudBeamSize)
+        Me.pnlAdvanced.Controls.Add(Me.lblBestOf)
+        Me.pnlAdvanced.Controls.Add(Me.nudBestOf)
+        Me.pnlAdvanced.Controls.Add(Me.lblTemperature)
+        Me.pnlAdvanced.Controls.Add(Me.nudTemperature)
+        Me.pnlAdvanced.Controls.Add(Me.lblTempInc)
+        Me.pnlAdvanced.Controls.Add(Me.nudTempInc)
+        Me.pnlAdvanced.Controls.Add(Me.lblMaxContext)
+        Me.pnlAdvanced.Controls.Add(Me.nudMaxContext)
+        Me.pnlAdvanced.Controls.Add(Me.lblMaxSegLen)
+        Me.pnlAdvanced.Controls.Add(Me.nudMaxSegLen)
+        Me.pnlAdvanced.Controls.Add(Me.lblMaxTokens)
+        Me.pnlAdvanced.Controls.Add(Me.nudMaxTokens)
+        Me.pnlAdvanced.Controls.Add(Me.lblAudioContext)
+        Me.pnlAdvanced.Controls.Add(Me.nudAudioContext)
+        Me.pnlAdvanced.Controls.Add(Me.lblWordThresh)
+        Me.pnlAdvanced.Controls.Add(Me.nudWordThresh)
+        Me.pnlAdvanced.Controls.Add(Me.lblEntropyThresh)
+        Me.pnlAdvanced.Controls.Add(Me.nudEntropyThresh)
+        Me.pnlAdvanced.Controls.Add(Me.lblLogProbThresh)
+        Me.pnlAdvanced.Controls.Add(Me.nudLogProbThresh)
+        Me.pnlAdvanced.Controls.Add(Me.lblNoSpeechThresh)
+        Me.pnlAdvanced.Controls.Add(Me.nudNoSpeechThresh)
+        Me.pnlAdvanced.Controls.Add(Me.lblVadThresh)
+        Me.pnlAdvanced.Controls.Add(Me.nudVadThresh)
+        Me.pnlAdvanced.Controls.Add(Me.lblFreqThresh)
+        Me.pnlAdvanced.Controls.Add(Me.nudFreqThresh)
+        Me.pnlAdvanced.Controls.Add(Me.lblInitialPrompt)
+        Me.pnlAdvanced.Controls.Add(Me.txtInitialPrompt)
+        Me.pnlAdvanced.Controls.Add(Me.lblHotwords)
+        Me.pnlAdvanced.Controls.Add(Me.txtHotwords)
+        Me.pnlAdvanced.Controls.Add(Me.lblAdvFlagsHeader)
+        Me.pnlAdvanced.Controls.Add(Me.lblAdvFlagsSep)
+        Me.pnlAdvanced.Controls.Add(Me.chkSplitOnWord)
+        Me.pnlAdvanced.Controls.Add(Me.chkNoGpu)
+        Me.pnlAdvanced.Controls.Add(Me.chkFlashAttn)
+        Me.pnlAdvanced.Controls.Add(Me.chkDiarize)
+        Me.pnlAdvanced.Controls.Add(Me.chkTinyDiarize)
+        Me.pnlAdvanced.Controls.Add(Me.chkTranslateEn)
+        Me.pnlAdvanced.Controls.Add(Me.chkNoTimestamps)
+        Me.pnlAdvanced.Controls.Add(Me.chkPrintProgress)
+        Me.pnlAdvanced.Controls.Add(Me.chkPrintColours)
+        Me.pnlAdvanced.Controls.Add(Me.chkPrintRealtime)
+        Me.pnlAdvanced.Controls.Add(Me.lblAdvLiveHeader)
+        Me.pnlAdvanced.Controls.Add(Me.lblAdvLiveSep)
+        Me.pnlAdvanced.Controls.Add(Me.lblComputeType)
+        Me.pnlAdvanced.Controls.Add(Me.cboComputeType)
+        Me.pnlAdvanced.Controls.Add(Me.lblLiveVadSilence)
+        Me.pnlAdvanced.Controls.Add(Me.nudLiveVadSilence)
+        Me.pnlAdvanced.Controls.Add(Me.lblLiveMaxSeg)
+        Me.pnlAdvanced.Controls.Add(Me.nudLiveMaxSeg)
+        Me.pnlAdvanced.Controls.Add(Me.lblLiveInterim)
+        Me.pnlAdvanced.Controls.Add(Me.nudLiveInterim)
+        Me.pnlAdvanced.Controls.Add(Me.lblAdvBibleHeader)
+        Me.pnlAdvanced.Controls.Add(Me.lblAdvBibleSep)
+        Me.pnlAdvanced.Controls.Add(Me.chkShowBibleCopyright)
+        Me.pnlAdvanced.Dock = System.Windows.Forms.DockStyle.Fill
+        Me.pnlAdvanced.Location = New System.Drawing.Point(0, 0)
+        Me.pnlAdvanced.Name = "pnlAdvanced"
+        Me.pnlAdvanced.Size = New System.Drawing.Size(564, 469)
+        Me.pnlAdvanced.TabIndex = 7
+        Me.pnlAdvanced.Visible = False
+        '
+        ' ── Section 1: Transcription Pipeline ──
+        '
+        ' lblAdvPipelineHeader
+        '
+        Me.lblAdvPipelineHeader.AutoSize = True
+        Me.lblAdvPipelineHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
+        Me.lblAdvPipelineHeader.Location = New System.Drawing.Point(8, 12)
+        Me.lblAdvPipelineHeader.Name = "lblAdvPipelineHeader"
+        Me.lblAdvPipelineHeader.Size = New System.Drawing.Size(176, 20)
+        Me.lblAdvPipelineHeader.TabIndex = 0
+        Me.lblAdvPipelineHeader.Text = "Transcription Pipeline"
+        '
+        ' lblAdvPipelineSep
+        '
+        Me.lblAdvPipelineSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.lblAdvPipelineSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
+        Me.lblAdvPipelineSep.Location = New System.Drawing.Point(8, 34)
+        Me.lblAdvPipelineSep.Name = "lblAdvPipelineSep"
+        Me.lblAdvPipelineSep.Size = New System.Drawing.Size(520, 1)
+        Me.lblAdvPipelineSep.TabIndex = 1
+        '
+        ' lblParallelJobs
+        '
+        Me.lblParallelJobs.AutoSize = True
+        Me.lblParallelJobs.Location = New System.Drawing.Point(12, 42)
+        Me.lblParallelJobs.Name = "lblParallelJobs"
+        Me.lblParallelJobs.Size = New System.Drawing.Size(74, 15)
+        Me.lblParallelJobs.TabIndex = 2
+        Me.lblParallelJobs.Text = "Parallel jobs:"
+        '
+        ' nudParallelJobs
+        '
+        Me.nudParallelJobs.Location = New System.Drawing.Point(130, 40)
+        Me.nudParallelJobs.Maximum = New Decimal(New Integer() {16, 0, 0, 0})
+        Me.nudParallelJobs.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
+        Me.nudParallelJobs.Name = "nudParallelJobs"
+        Me.nudParallelJobs.Size = New System.Drawing.Size(60, 23)
+        Me.nudParallelJobs.TabIndex = 3
+        Me.nudParallelJobs.Value = New Decimal(New Integer() {4, 0, 0, 0})
+        '
+        ' lblChunkSize
+        '
+        Me.lblChunkSize.AutoSize = True
+        Me.lblChunkSize.Location = New System.Drawing.Point(220, 42)
+        Me.lblChunkSize.Name = "lblChunkSize"
+        Me.lblChunkSize.Size = New System.Drawing.Size(110, 15)
+        Me.lblChunkSize.TabIndex = 4
+        Me.lblChunkSize.Text = "Chunk size (seconds):"
+        '
+        ' nudChunkSize
+        '
+        Me.nudChunkSize.Location = New System.Drawing.Point(370, 40)
+        Me.nudChunkSize.Maximum = New Decimal(New Integer() {1800, 0, 0, 0})
+        Me.nudChunkSize.Minimum = New Decimal(New Integer() {30, 0, 0, 0})
+        Me.nudChunkSize.Name = "nudChunkSize"
+        Me.nudChunkSize.Size = New System.Drawing.Size(70, 23)
+        Me.nudChunkSize.TabIndex = 5
+        Me.nudChunkSize.Value = New Decimal(New Integer() {300, 0, 0, 0})
+        '
+        ' lblPollInterval
+        '
+        Me.lblPollInterval.AutoSize = True
+        Me.lblPollInterval.Location = New System.Drawing.Point(12, 70)
+        Me.lblPollInterval.Name = "lblPollInterval"
+        Me.lblPollInterval.Size = New System.Drawing.Size(94, 15)
+        Me.lblPollInterval.TabIndex = 6
+        Me.lblPollInterval.Text = "Poll interval (ms):"
+        '
+        ' nudPollInterval
+        '
+        Me.nudPollInterval.Location = New System.Drawing.Point(130, 68)
+        Me.nudPollInterval.Maximum = New Decimal(New Integer() {10000, 0, 0, 0})
+        Me.nudPollInterval.Minimum = New Decimal(New Integer() {500, 0, 0, 0})
+        Me.nudPollInterval.Name = "nudPollInterval"
+        Me.nudPollInterval.Size = New System.Drawing.Size(70, 23)
+        Me.nudPollInterval.TabIndex = 7
+        Me.nudPollInterval.Value = New Decimal(New Integer() {2000, 0, 0, 0})
+        '
+        ' lblChunkTimeout
+        '
+        Me.lblChunkTimeout.AutoSize = True
+        Me.lblChunkTimeout.Location = New System.Drawing.Point(220, 70)
+        Me.lblChunkTimeout.Name = "lblChunkTimeout"
+        Me.lblChunkTimeout.Size = New System.Drawing.Size(130, 15)
+        Me.lblChunkTimeout.TabIndex = 8
+        Me.lblChunkTimeout.Text = "Chunk timeout (minutes):"
+        '
+        ' nudChunkTimeout
+        '
+        Me.nudChunkTimeout.Location = New System.Drawing.Point(370, 68)
+        Me.nudChunkTimeout.Maximum = New Decimal(New Integer() {240, 0, 0, 0})
+        Me.nudChunkTimeout.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
+        Me.nudChunkTimeout.Name = "nudChunkTimeout"
+        Me.nudChunkTimeout.Size = New System.Drawing.Size(70, 23)
+        Me.nudChunkTimeout.TabIndex = 9
+        Me.nudChunkTimeout.Value = New Decimal(New Integer() {60, 0, 0, 0})
+        '
+        ' chkKeepChunks
+        '
+        Me.chkKeepChunks.AutoSize = True
+        Me.chkKeepChunks.Location = New System.Drawing.Point(12, 98)
+        Me.chkKeepChunks.Name = "chkKeepChunks"
+        Me.chkKeepChunks.Size = New System.Drawing.Size(113, 19)
+        Me.chkKeepChunks.TabIndex = 10
+        Me.chkKeepChunks.Text = "Keep chunk files"
+        Me.chkKeepChunks.UseVisualStyleBackColor = True
+        '
+        ' chkKeepPreview
+        '
+        Me.chkKeepPreview.AutoSize = True
+        Me.chkKeepPreview.Location = New System.Drawing.Point(170, 98)
+        Me.chkKeepPreview.Name = "chkKeepPreview"
+        Me.chkKeepPreview.Size = New System.Drawing.Size(120, 19)
+        Me.chkKeepPreview.TabIndex = 11
+        Me.chkKeepPreview.Text = "Keep preview files"
+        Me.chkKeepPreview.UseVisualStyleBackColor = True
+        '
+        ' chkSkipDownload
+        '
+        Me.chkSkipDownload.AutoSize = True
+        Me.chkSkipDownload.Location = New System.Drawing.Point(330, 98)
+        Me.chkSkipDownload.Name = "chkSkipDownload"
+        Me.chkSkipDownload.Size = New System.Drawing.Size(150, 19)
+        Me.chkSkipDownload.TabIndex = 12
+        Me.chkSkipDownload.Text = "Skip download if exists"
+        Me.chkSkipDownload.UseVisualStyleBackColor = True
+        '
+        ' ── Section 2: Output Formats ──
+        '
+        ' lblAdvOutputHeader
+        '
+        Me.lblAdvOutputHeader.AutoSize = True
+        Me.lblAdvOutputHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
+        Me.lblAdvOutputHeader.Location = New System.Drawing.Point(8, 128)
+        Me.lblAdvOutputHeader.Name = "lblAdvOutputHeader"
+        Me.lblAdvOutputHeader.Size = New System.Drawing.Size(120, 20)
+        Me.lblAdvOutputHeader.TabIndex = 13
+        Me.lblAdvOutputHeader.Text = "Output Formats"
+        '
+        ' lblAdvOutputSep
+        '
+        Me.lblAdvOutputSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.lblAdvOutputSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
+        Me.lblAdvOutputSep.Location = New System.Drawing.Point(8, 150)
+        Me.lblAdvOutputSep.Name = "lblAdvOutputSep"
+        Me.lblAdvOutputSep.Size = New System.Drawing.Size(520, 1)
+        Me.lblAdvOutputSep.TabIndex = 14
+        '
+        ' chkOutSrt
+        '
+        Me.chkOutSrt.AutoSize = True
+        Me.chkOutSrt.Location = New System.Drawing.Point(12, 158)
+        Me.chkOutSrt.Name = "chkOutSrt"
+        Me.chkOutSrt.Size = New System.Drawing.Size(47, 19)
+        Me.chkOutSrt.TabIndex = 15
+        Me.chkOutSrt.Text = "SRT"
+        Me.chkOutSrt.UseVisualStyleBackColor = True
+        '
+        ' chkOutVtt
+        '
+        Me.chkOutVtt.AutoSize = True
+        Me.chkOutVtt.Location = New System.Drawing.Point(170, 158)
+        Me.chkOutVtt.Name = "chkOutVtt"
+        Me.chkOutVtt.Size = New System.Drawing.Size(47, 19)
+        Me.chkOutVtt.TabIndex = 16
+        Me.chkOutVtt.Text = "VTT"
+        Me.chkOutVtt.UseVisualStyleBackColor = True
+        '
+        ' chkOutTxt
+        '
+        Me.chkOutTxt.AutoSize = True
+        Me.chkOutTxt.Location = New System.Drawing.Point(330, 158)
+        Me.chkOutTxt.Name = "chkOutTxt"
+        Me.chkOutTxt.Size = New System.Drawing.Size(75, 19)
+        Me.chkOutTxt.TabIndex = 17
+        Me.chkOutTxt.Text = "Plain text"
+        Me.chkOutTxt.UseVisualStyleBackColor = True
+        '
+        ' chkOutJson
+        '
+        Me.chkOutJson.AutoSize = True
+        Me.chkOutJson.Location = New System.Drawing.Point(12, 183)
+        Me.chkOutJson.Name = "chkOutJson"
+        Me.chkOutJson.Size = New System.Drawing.Size(54, 19)
+        Me.chkOutJson.TabIndex = 18
+        Me.chkOutJson.Text = "JSON"
+        Me.chkOutJson.UseVisualStyleBackColor = True
+        '
+        ' chkOutCsv
+        '
+        Me.chkOutCsv.AutoSize = True
+        Me.chkOutCsv.Location = New System.Drawing.Point(170, 183)
+        Me.chkOutCsv.Name = "chkOutCsv"
+        Me.chkOutCsv.Size = New System.Drawing.Size(48, 19)
+        Me.chkOutCsv.TabIndex = 19
+        Me.chkOutCsv.Text = "CSV"
+        Me.chkOutCsv.UseVisualStyleBackColor = True
+        '
+        ' chkOutLrc
+        '
+        Me.chkOutLrc.AutoSize = True
+        Me.chkOutLrc.Location = New System.Drawing.Point(330, 183)
+        Me.chkOutLrc.Name = "chkOutLrc"
+        Me.chkOutLrc.Size = New System.Drawing.Size(46, 19)
+        Me.chkOutLrc.TabIndex = 20
+        Me.chkOutLrc.Text = "LRC"
+        Me.chkOutLrc.UseVisualStyleBackColor = True
+        '
+        ' ── Section 3: Whisper Parameters ──
+        '
+        ' lblAdvWhisperHeader
+        '
+        Me.lblAdvWhisperHeader.AutoSize = True
+        Me.lblAdvWhisperHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
+        Me.lblAdvWhisperHeader.Location = New System.Drawing.Point(8, 213)
+        Me.lblAdvWhisperHeader.Name = "lblAdvWhisperHeader"
+        Me.lblAdvWhisperHeader.Size = New System.Drawing.Size(156, 20)
+        Me.lblAdvWhisperHeader.TabIndex = 21
+        Me.lblAdvWhisperHeader.Text = "Whisper Parameters"
+        '
+        ' lblAdvWhisperSep
+        '
+        Me.lblAdvWhisperSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.lblAdvWhisperSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
+        Me.lblAdvWhisperSep.Location = New System.Drawing.Point(8, 235)
+        Me.lblAdvWhisperSep.Name = "lblAdvWhisperSep"
+        Me.lblAdvWhisperSep.Size = New System.Drawing.Size(520, 1)
+        Me.lblAdvWhisperSep.TabIndex = 22
+        '
+        ' Row 1: Threads (left), Processors (right) — Y=243
+        '
+        ' lblThreads
+        '
+        Me.lblThreads.AutoSize = True
+        Me.lblThreads.Location = New System.Drawing.Point(12, 245)
+        Me.lblThreads.Name = "lblThreads"
+        Me.lblThreads.Size = New System.Drawing.Size(52, 15)
+        Me.lblThreads.TabIndex = 23
+        Me.lblThreads.Text = "Threads:"
+        '
+        ' nudThreads
+        '
+        Me.nudThreads.Location = New System.Drawing.Point(130, 243)
+        Me.nudThreads.Maximum = New Decimal(New Integer() {32, 0, 0, 0})
+        Me.nudThreads.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
+        Me.nudThreads.Name = "nudThreads"
+        Me.nudThreads.Size = New System.Drawing.Size(60, 23)
+        Me.nudThreads.TabIndex = 24
+        Me.nudThreads.Value = New Decimal(New Integer() {4, 0, 0, 0})
+        '
+        ' lblProcessors
+        '
+        Me.lblProcessors.AutoSize = True
+        Me.lblProcessors.Location = New System.Drawing.Point(280, 245)
+        Me.lblProcessors.Name = "lblProcessors"
+        Me.lblProcessors.Size = New System.Drawing.Size(67, 15)
+        Me.lblProcessors.TabIndex = 25
+        Me.lblProcessors.Text = "Processors:"
+        '
+        ' nudProcessors
+        '
+        Me.nudProcessors.Location = New System.Drawing.Point(400, 243)
+        Me.nudProcessors.Maximum = New Decimal(New Integer() {8, 0, 0, 0})
+        Me.nudProcessors.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
+        Me.nudProcessors.Name = "nudProcessors"
+        Me.nudProcessors.Size = New System.Drawing.Size(60, 23)
+        Me.nudProcessors.TabIndex = 26
+        Me.nudProcessors.Value = New Decimal(New Integer() {1, 0, 0, 0})
+        '
+        ' Row 2: Beam size (left), Best of (right) — Y=271
+        '
+        ' lblBeamSize
+        '
+        Me.lblBeamSize.AutoSize = True
+        Me.lblBeamSize.Location = New System.Drawing.Point(12, 273)
+        Me.lblBeamSize.Name = "lblBeamSize"
+        Me.lblBeamSize.Size = New System.Drawing.Size(61, 15)
+        Me.lblBeamSize.TabIndex = 27
+        Me.lblBeamSize.Text = "Beam size:"
+        '
+        ' nudBeamSize
+        '
+        Me.nudBeamSize.Location = New System.Drawing.Point(130, 271)
+        Me.nudBeamSize.Maximum = New Decimal(New Integer() {20, 0, 0, 0})
+        Me.nudBeamSize.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
+        Me.nudBeamSize.Name = "nudBeamSize"
+        Me.nudBeamSize.Size = New System.Drawing.Size(60, 23)
+        Me.nudBeamSize.TabIndex = 28
+        Me.nudBeamSize.Value = New Decimal(New Integer() {7, 0, 0, 0})
+        '
+        ' lblBestOf
+        '
+        Me.lblBestOf.AutoSize = True
+        Me.lblBestOf.Location = New System.Drawing.Point(280, 273)
+        Me.lblBestOf.Name = "lblBestOf"
+        Me.lblBestOf.Size = New System.Drawing.Size(46, 15)
+        Me.lblBestOf.TabIndex = 29
+        Me.lblBestOf.Text = "Best of:"
+        '
+        ' nudBestOf
+        '
+        Me.nudBestOf.Location = New System.Drawing.Point(400, 271)
+        Me.nudBestOf.Maximum = New Decimal(New Integer() {10, 0, 0, 0})
+        Me.nudBestOf.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
+        Me.nudBestOf.Name = "nudBestOf"
+        Me.nudBestOf.Size = New System.Drawing.Size(60, 23)
+        Me.nudBestOf.TabIndex = 30
+        Me.nudBestOf.Value = New Decimal(New Integer() {5, 0, 0, 0})
+        '
+        ' Row 3: Temperature (left), Temperature increment (right) — Y=299
+        '
+        ' lblTemperature
+        '
+        Me.lblTemperature.AutoSize = True
+        Me.lblTemperature.Location = New System.Drawing.Point(12, 301)
+        Me.lblTemperature.Name = "lblTemperature"
+        Me.lblTemperature.Size = New System.Drawing.Size(76, 15)
+        Me.lblTemperature.TabIndex = 31
+        Me.lblTemperature.Text = "Temperature:"
+        '
+        ' nudTemperature
+        '
+        Me.nudTemperature.DecimalPlaces = 2
+        Me.nudTemperature.Increment = New Decimal(New Integer() {5, 0, 0, 131072})
+        Me.nudTemperature.Location = New System.Drawing.Point(130, 299)
+        Me.nudTemperature.Maximum = New Decimal(New Integer() {1, 0, 0, 0})
+        Me.nudTemperature.Name = "nudTemperature"
+        Me.nudTemperature.Size = New System.Drawing.Size(60, 23)
+        Me.nudTemperature.TabIndex = 32
+        '
+        ' lblTempInc
+        '
+        Me.lblTempInc.AutoSize = True
+        Me.lblTempInc.Location = New System.Drawing.Point(280, 301)
+        Me.lblTempInc.Name = "lblTempInc"
+        Me.lblTempInc.Size = New System.Drawing.Size(120, 15)
+        Me.lblTempInc.TabIndex = 33
+        Me.lblTempInc.Text = "Temperature increment:"
+        '
+        ' nudTempInc
+        '
+        Me.nudTempInc.DecimalPlaces = 2
+        Me.nudTempInc.Increment = New Decimal(New Integer() {5, 0, 0, 131072})
+        Me.nudTempInc.Location = New System.Drawing.Point(400, 299)
+        Me.nudTempInc.Maximum = New Decimal(New Integer() {1, 0, 0, 0})
+        Me.nudTempInc.Name = "nudTempInc"
+        Me.nudTempInc.Size = New System.Drawing.Size(60, 23)
+        Me.nudTempInc.TabIndex = 34
+        '
+        ' Row 4: Max context (left), Max segment length (right) — Y=327
+        '
+        ' lblMaxContext
+        '
+        Me.lblMaxContext.AutoSize = True
+        Me.lblMaxContext.Location = New System.Drawing.Point(12, 329)
+        Me.lblMaxContext.Name = "lblMaxContext"
+        Me.lblMaxContext.Size = New System.Drawing.Size(74, 15)
+        Me.lblMaxContext.TabIndex = 35
+        Me.lblMaxContext.Text = "Max context:"
+        '
+        ' nudMaxContext
+        '
+        Me.nudMaxContext.Location = New System.Drawing.Point(130, 327)
+        Me.nudMaxContext.Maximum = New Decimal(New Integer() {1024, 0, 0, 0})
+        Me.nudMaxContext.Name = "nudMaxContext"
+        Me.nudMaxContext.Size = New System.Drawing.Size(60, 23)
+        Me.nudMaxContext.TabIndex = 36
+        '
+        ' lblMaxSegLen
+        '
+        Me.lblMaxSegLen.AutoSize = True
+        Me.lblMaxSegLen.Location = New System.Drawing.Point(280, 329)
+        Me.lblMaxSegLen.Name = "lblMaxSegLen"
+        Me.lblMaxSegLen.Size = New System.Drawing.Size(108, 15)
+        Me.lblMaxSegLen.TabIndex = 37
+        Me.lblMaxSegLen.Text = "Max segment length:"
+        '
+        ' nudMaxSegLen
+        '
+        Me.nudMaxSegLen.Location = New System.Drawing.Point(400, 327)
+        Me.nudMaxSegLen.Maximum = New Decimal(New Integer() {1000, 0, 0, 0})
+        Me.nudMaxSegLen.Name = "nudMaxSegLen"
+        Me.nudMaxSegLen.Size = New System.Drawing.Size(60, 23)
+        Me.nudMaxSegLen.TabIndex = 38
+        '
+        ' Row 5: Max tokens (left), Audio context (right) — Y=355
+        '
+        ' lblMaxTokens
+        '
+        Me.lblMaxTokens.AutoSize = True
+        Me.lblMaxTokens.Location = New System.Drawing.Point(12, 357)
+        Me.lblMaxTokens.Name = "lblMaxTokens"
+        Me.lblMaxTokens.Size = New System.Drawing.Size(72, 15)
+        Me.lblMaxTokens.TabIndex = 39
+        Me.lblMaxTokens.Text = "Max tokens:"
+        '
+        ' nudMaxTokens
+        '
+        Me.nudMaxTokens.Location = New System.Drawing.Point(130, 355)
+        Me.nudMaxTokens.Maximum = New Decimal(New Integer() {1000, 0, 0, 0})
+        Me.nudMaxTokens.Name = "nudMaxTokens"
+        Me.nudMaxTokens.Size = New System.Drawing.Size(60, 23)
+        Me.nudMaxTokens.TabIndex = 40
+        '
+        ' lblAudioContext
+        '
+        Me.lblAudioContext.AutoSize = True
+        Me.lblAudioContext.Location = New System.Drawing.Point(280, 357)
+        Me.lblAudioContext.Name = "lblAudioContext"
+        Me.lblAudioContext.Size = New System.Drawing.Size(83, 15)
+        Me.lblAudioContext.TabIndex = 41
+        Me.lblAudioContext.Text = "Audio context:"
+        '
+        ' nudAudioContext
+        '
+        Me.nudAudioContext.Location = New System.Drawing.Point(400, 355)
+        Me.nudAudioContext.Maximum = New Decimal(New Integer() {1024, 0, 0, 0})
+        Me.nudAudioContext.Name = "nudAudioContext"
+        Me.nudAudioContext.Size = New System.Drawing.Size(60, 23)
+        Me.nudAudioContext.TabIndex = 42
+        '
+        ' Row 6: Word threshold (left), Entropy threshold (right) — Y=383
+        '
+        ' lblWordThresh
+        '
+        Me.lblWordThresh.AutoSize = True
+        Me.lblWordThresh.Location = New System.Drawing.Point(12, 385)
+        Me.lblWordThresh.Name = "lblWordThresh"
+        Me.lblWordThresh.Size = New System.Drawing.Size(91, 15)
+        Me.lblWordThresh.TabIndex = 43
+        Me.lblWordThresh.Text = "Word threshold:"
+        '
+        ' nudWordThresh
+        '
+        Me.nudWordThresh.DecimalPlaces = 2
+        Me.nudWordThresh.Increment = New Decimal(New Integer() {1, 0, 0, 131072})
+        Me.nudWordThresh.Location = New System.Drawing.Point(130, 383)
+        Me.nudWordThresh.Maximum = New Decimal(New Integer() {1, 0, 0, 0})
+        Me.nudWordThresh.Name = "nudWordThresh"
+        Me.nudWordThresh.Size = New System.Drawing.Size(60, 23)
+        Me.nudWordThresh.TabIndex = 44
+        '
+        ' lblEntropyThresh
+        '
+        Me.lblEntropyThresh.AutoSize = True
+        Me.lblEntropyThresh.Location = New System.Drawing.Point(280, 385)
+        Me.lblEntropyThresh.Name = "lblEntropyThresh"
+        Me.lblEntropyThresh.Size = New System.Drawing.Size(103, 15)
+        Me.lblEntropyThresh.TabIndex = 45
+        Me.lblEntropyThresh.Text = "Entropy threshold:"
+        '
+        ' nudEntropyThresh
+        '
+        Me.nudEntropyThresh.DecimalPlaces = 1
+        Me.nudEntropyThresh.Increment = New Decimal(New Integer() {1, 0, 0, 65536})
+        Me.nudEntropyThresh.Location = New System.Drawing.Point(400, 383)
+        Me.nudEntropyThresh.Maximum = New Decimal(New Integer() {10, 0, 0, 0})
+        Me.nudEntropyThresh.Name = "nudEntropyThresh"
+        Me.nudEntropyThresh.Size = New System.Drawing.Size(60, 23)
+        Me.nudEntropyThresh.TabIndex = 46
+        '
+        ' Row 7: Log prob threshold (left), No speech threshold (right) — Y=411
+        '
+        ' lblLogProbThresh
+        '
+        Me.lblLogProbThresh.AutoSize = True
+        Me.lblLogProbThresh.Location = New System.Drawing.Point(12, 413)
+        Me.lblLogProbThresh.Name = "lblLogProbThresh"
+        Me.lblLogProbThresh.Size = New System.Drawing.Size(106, 15)
+        Me.lblLogProbThresh.TabIndex = 47
+        Me.lblLogProbThresh.Text = "Log prob threshold:"
+        '
+        ' nudLogProbThresh
+        '
+        Me.nudLogProbThresh.DecimalPlaces = 1
+        Me.nudLogProbThresh.Increment = New Decimal(New Integer() {1, 0, 0, 65536})
+        Me.nudLogProbThresh.Location = New System.Drawing.Point(130, 411)
+        Me.nudLogProbThresh.Maximum = New Decimal(New Integer() {0, 0, 0, 0})
+        Me.nudLogProbThresh.Minimum = New Decimal(New Integer() {5, 0, 0, -2147483648})
+        Me.nudLogProbThresh.Name = "nudLogProbThresh"
+        Me.nudLogProbThresh.Size = New System.Drawing.Size(60, 23)
+        Me.nudLogProbThresh.TabIndex = 48
+        Me.nudLogProbThresh.Value = New Decimal(New Integer() {10, 0, 0, -2147418112})
+        '
+        ' lblNoSpeechThresh
+        '
+        Me.lblNoSpeechThresh.AutoSize = True
+        Me.lblNoSpeechThresh.Location = New System.Drawing.Point(280, 413)
+        Me.lblNoSpeechThresh.Name = "lblNoSpeechThresh"
+        Me.lblNoSpeechThresh.Size = New System.Drawing.Size(116, 15)
+        Me.lblNoSpeechThresh.TabIndex = 49
+        Me.lblNoSpeechThresh.Text = "No speech threshold:"
+        '
+        ' nudNoSpeechThresh
+        '
+        Me.nudNoSpeechThresh.DecimalPlaces = 2
+        Me.nudNoSpeechThresh.Increment = New Decimal(New Integer() {5, 0, 0, 131072})
+        Me.nudNoSpeechThresh.Location = New System.Drawing.Point(400, 411)
+        Me.nudNoSpeechThresh.Maximum = New Decimal(New Integer() {1, 0, 0, 0})
+        Me.nudNoSpeechThresh.Name = "nudNoSpeechThresh"
+        Me.nudNoSpeechThresh.Size = New System.Drawing.Size(60, 23)
+        Me.nudNoSpeechThresh.TabIndex = 50
+        '
+        ' Row 8: VAD threshold (left), Frequency threshold (right) — Y=439
+        '
+        ' lblVadThresh
+        '
+        Me.lblVadThresh.AutoSize = True
+        Me.lblVadThresh.Location = New System.Drawing.Point(12, 441)
+        Me.lblVadThresh.Name = "lblVadThresh"
+        Me.lblVadThresh.Size = New System.Drawing.Size(85, 15)
+        Me.lblVadThresh.TabIndex = 51
+        Me.lblVadThresh.Text = "VAD threshold:"
+        '
+        ' nudVadThresh
+        '
+        Me.nudVadThresh.DecimalPlaces = 2
+        Me.nudVadThresh.Increment = New Decimal(New Integer() {5, 0, 0, 131072})
+        Me.nudVadThresh.Location = New System.Drawing.Point(130, 439)
+        Me.nudVadThresh.Maximum = New Decimal(New Integer() {1, 0, 0, 0})
+        Me.nudVadThresh.Name = "nudVadThresh"
+        Me.nudVadThresh.Size = New System.Drawing.Size(60, 23)
+        Me.nudVadThresh.TabIndex = 52
+        '
+        ' lblFreqThresh
+        '
+        Me.lblFreqThresh.AutoSize = True
+        Me.lblFreqThresh.Location = New System.Drawing.Point(280, 441)
+        Me.lblFreqThresh.Name = "lblFreqThresh"
+        Me.lblFreqThresh.Size = New System.Drawing.Size(116, 15)
+        Me.lblFreqThresh.TabIndex = 53
+        Me.lblFreqThresh.Text = "Frequency threshold:"
+        '
+        ' nudFreqThresh
+        '
+        Me.nudFreqThresh.Location = New System.Drawing.Point(400, 439)
+        Me.nudFreqThresh.Maximum = New Decimal(New Integer() {1000, 0, 0, 0})
+        Me.nudFreqThresh.Name = "nudFreqThresh"
+        Me.nudFreqThresh.Size = New System.Drawing.Size(60, 23)
+        Me.nudFreqThresh.TabIndex = 54
+        '
+        ' Row 9: Initial prompt — Y=467
+        '
+        ' lblInitialPrompt
+        '
+        Me.lblInitialPrompt.AutoSize = True
+        Me.lblInitialPrompt.Location = New System.Drawing.Point(12, 469)
+        Me.lblInitialPrompt.Name = "lblInitialPrompt"
+        Me.lblInitialPrompt.Size = New System.Drawing.Size(82, 15)
+        Me.lblInitialPrompt.TabIndex = 55
+        Me.lblInitialPrompt.Text = "Initial prompt:"
+        '
+        ' txtInitialPrompt
+        '
+        Me.txtInitialPrompt.Location = New System.Drawing.Point(130, 467)
+        Me.txtInitialPrompt.Name = "txtInitialPrompt"
+        Me.txtInitialPrompt.Size = New System.Drawing.Size(400, 23)
+        Me.txtInitialPrompt.TabIndex = 56
+        '
+        ' Row 10: Hotwords — Y=495
+        '
+        ' lblHotwords
+        '
+        Me.lblHotwords.AutoSize = True
+        Me.lblHotwords.Location = New System.Drawing.Point(12, 497)
+        Me.lblHotwords.Name = "lblHotwords"
+        Me.lblHotwords.Size = New System.Drawing.Size(62, 15)
+        Me.lblHotwords.TabIndex = 57
+        Me.lblHotwords.Text = "Hotwords:"
+        '
+        ' txtHotwords
+        '
+        Me.txtHotwords.Location = New System.Drawing.Point(130, 495)
+        Me.txtHotwords.Name = "txtHotwords"
+        Me.txtHotwords.Size = New System.Drawing.Size(400, 23)
+        Me.txtHotwords.TabIndex = 58
+        '
+        ' ── Section 4: Whisper Flags ──
+        '
+        ' lblAdvFlagsHeader
+        '
+        Me.lblAdvFlagsHeader.AutoSize = True
+        Me.lblAdvFlagsHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
+        Me.lblAdvFlagsHeader.Location = New System.Drawing.Point(8, 528)
+        Me.lblAdvFlagsHeader.Name = "lblAdvFlagsHeader"
+        Me.lblAdvFlagsHeader.Size = New System.Drawing.Size(112, 20)
+        Me.lblAdvFlagsHeader.TabIndex = 59
+        Me.lblAdvFlagsHeader.Text = "Whisper Flags"
+        '
+        ' lblAdvFlagsSep
+        '
+        Me.lblAdvFlagsSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.lblAdvFlagsSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
+        Me.lblAdvFlagsSep.Location = New System.Drawing.Point(8, 550)
+        Me.lblAdvFlagsSep.Name = "lblAdvFlagsSep"
+        Me.lblAdvFlagsSep.Size = New System.Drawing.Size(520, 1)
+        Me.lblAdvFlagsSep.TabIndex = 60
+        '
+        ' chkSplitOnWord — row 1
+        '
+        Me.chkSplitOnWord.AutoSize = True
+        Me.chkSplitOnWord.Location = New System.Drawing.Point(12, 558)
+        Me.chkSplitOnWord.Name = "chkSplitOnWord"
+        Me.chkSplitOnWord.Size = New System.Drawing.Size(98, 19)
+        Me.chkSplitOnWord.TabIndex = 61
+        Me.chkSplitOnWord.Text = "Split on word"
+        Me.chkSplitOnWord.UseVisualStyleBackColor = True
+        '
+        ' chkNoGpu
+        '
+        Me.chkNoGpu.AutoSize = True
+        Me.chkNoGpu.Location = New System.Drawing.Point(170, 558)
+        Me.chkNoGpu.Name = "chkNoGpu"
+        Me.chkNoGpu.Size = New System.Drawing.Size(92, 19)
+        Me.chkNoGpu.TabIndex = 62
+        Me.chkNoGpu.Text = "Disable GPU"
+        Me.chkNoGpu.UseVisualStyleBackColor = True
+        '
+        ' chkFlashAttn
+        '
+        Me.chkFlashAttn.AutoSize = True
+        Me.chkFlashAttn.Location = New System.Drawing.Point(330, 558)
+        Me.chkFlashAttn.Name = "chkFlashAttn"
+        Me.chkFlashAttn.Size = New System.Drawing.Size(107, 19)
+        Me.chkFlashAttn.TabIndex = 63
+        Me.chkFlashAttn.Text = "Flash attention"
+        Me.chkFlashAttn.UseVisualStyleBackColor = True
+        '
+        ' chkDiarize — row 2
+        '
+        Me.chkDiarize.AutoSize = True
+        Me.chkDiarize.Location = New System.Drawing.Point(12, 583)
+        Me.chkDiarize.Name = "chkDiarize"
+        Me.chkDiarize.Size = New System.Drawing.Size(68, 19)
+        Me.chkDiarize.TabIndex = 64
+        Me.chkDiarize.Text = "Diarize"
+        Me.chkDiarize.UseVisualStyleBackColor = True
+        '
+        ' chkTinyDiarize
+        '
+        Me.chkTinyDiarize.AutoSize = True
+        Me.chkTinyDiarize.Location = New System.Drawing.Point(170, 583)
+        Me.chkTinyDiarize.Name = "chkTinyDiarize"
+        Me.chkTinyDiarize.Size = New System.Drawing.Size(94, 19)
+        Me.chkTinyDiarize.TabIndex = 65
+        Me.chkTinyDiarize.Text = "Tiny diarize"
+        Me.chkTinyDiarize.UseVisualStyleBackColor = True
+        '
+        ' chkTranslateEn
+        '
+        Me.chkTranslateEn.AutoSize = True
+        Me.chkTranslateEn.Location = New System.Drawing.Point(330, 583)
+        Me.chkTranslateEn.Name = "chkTranslateEn"
+        Me.chkTranslateEn.Size = New System.Drawing.Size(130, 19)
+        Me.chkTranslateEn.TabIndex = 66
+        Me.chkTranslateEn.Text = "Translate to English"
+        Me.chkTranslateEn.UseVisualStyleBackColor = True
+        '
+        ' chkNoTimestamps — row 3
+        '
+        Me.chkNoTimestamps.AutoSize = True
+        Me.chkNoTimestamps.Location = New System.Drawing.Point(12, 608)
+        Me.chkNoTimestamps.Name = "chkNoTimestamps"
+        Me.chkNoTimestamps.Size = New System.Drawing.Size(104, 19)
+        Me.chkNoTimestamps.TabIndex = 67
+        Me.chkNoTimestamps.Text = "No timestamps"
+        Me.chkNoTimestamps.UseVisualStyleBackColor = True
+        '
+        ' chkPrintProgress
+        '
+        Me.chkPrintProgress.AutoSize = True
+        Me.chkPrintProgress.Location = New System.Drawing.Point(170, 608)
+        Me.chkPrintProgress.Name = "chkPrintProgress"
+        Me.chkPrintProgress.Size = New System.Drawing.Size(101, 19)
+        Me.chkPrintProgress.TabIndex = 68
+        Me.chkPrintProgress.Text = "Print progress"
+        Me.chkPrintProgress.UseVisualStyleBackColor = True
+        '
+        ' chkPrintColours
+        '
+        Me.chkPrintColours.AutoSize = True
+        Me.chkPrintColours.Location = New System.Drawing.Point(330, 608)
+        Me.chkPrintColours.Name = "chkPrintColours"
+        Me.chkPrintColours.Size = New System.Drawing.Size(97, 19)
+        Me.chkPrintColours.TabIndex = 69
+        Me.chkPrintColours.Text = "Print colours"
+        Me.chkPrintColours.UseVisualStyleBackColor = True
+        '
+        ' chkPrintRealtime — row 4
+        '
+        Me.chkPrintRealtime.AutoSize = True
+        Me.chkPrintRealtime.Location = New System.Drawing.Point(12, 633)
+        Me.chkPrintRealtime.Name = "chkPrintRealtime"
+        Me.chkPrintRealtime.Size = New System.Drawing.Size(100, 19)
+        Me.chkPrintRealtime.TabIndex = 70
+        Me.chkPrintRealtime.Text = "Print realtime"
+        Me.chkPrintRealtime.UseVisualStyleBackColor = True
+        '
+        ' ── Section 5: Live Transcription ──
+        '
+        ' lblAdvLiveHeader
+        '
+        Me.lblAdvLiveHeader.AutoSize = True
+        Me.lblAdvLiveHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
+        Me.lblAdvLiveHeader.Location = New System.Drawing.Point(8, 663)
+        Me.lblAdvLiveHeader.Name = "lblAdvLiveHeader"
+        Me.lblAdvLiveHeader.Size = New System.Drawing.Size(145, 20)
+        Me.lblAdvLiveHeader.TabIndex = 71
+        Me.lblAdvLiveHeader.Text = "Live Transcription"
+        '
+        ' lblAdvLiveSep
+        '
+        Me.lblAdvLiveSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.lblAdvLiveSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
+        Me.lblAdvLiveSep.Location = New System.Drawing.Point(8, 685)
+        Me.lblAdvLiveSep.Name = "lblAdvLiveSep"
+        Me.lblAdvLiveSep.Size = New System.Drawing.Size(520, 1)
+        Me.lblAdvLiveSep.TabIndex = 72
+        '
+        ' lblComputeType
+        '
+        Me.lblComputeType.AutoSize = True
+        Me.lblComputeType.Location = New System.Drawing.Point(12, 693)
+        Me.lblComputeType.Name = "lblComputeType"
+        Me.lblComputeType.Size = New System.Drawing.Size(82, 15)
+        Me.lblComputeType.TabIndex = 73
+        Me.lblComputeType.Text = "Compute type:"
+        '
+        ' cboComputeType
+        '
+        Me.cboComputeType.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboComputeType.FormattingEnabled = True
+        Me.cboComputeType.Items.AddRange(New Object() {"int8", "int8_float16", "float16", "float32"})
+        Me.cboComputeType.Location = New System.Drawing.Point(130, 690)
+        Me.cboComputeType.Name = "cboComputeType"
+        Me.cboComputeType.Size = New System.Drawing.Size(120, 23)
+        Me.cboComputeType.TabIndex = 74
+        '
+        ' lblLiveVadSilence
+        '
+        Me.lblLiveVadSilence.AutoSize = True
+        Me.lblLiveVadSilence.Location = New System.Drawing.Point(280, 693)
+        Me.lblLiveVadSilence.Name = "lblLiveVadSilence"
+        Me.lblLiveVadSilence.Size = New System.Drawing.Size(92, 15)
+        Me.lblLiveVadSilence.TabIndex = 75
+        Me.lblLiveVadSilence.Text = "VAD silence (ms):"
+        '
+        ' nudLiveVadSilence
+        '
+        Me.nudLiveVadSilence.Location = New System.Drawing.Point(400, 691)
+        Me.nudLiveVadSilence.Maximum = New Decimal(New Integer() {5000, 0, 0, 0})
+        Me.nudLiveVadSilence.Minimum = New Decimal(New Integer() {100, 0, 0, 0})
+        Me.nudLiveVadSilence.Name = "nudLiveVadSilence"
+        Me.nudLiveVadSilence.Size = New System.Drawing.Size(70, 23)
+        Me.nudLiveVadSilence.TabIndex = 76
+        Me.nudLiveVadSilence.Value = New Decimal(New Integer() {800, 0, 0, 0})
+        '
+        ' lblLiveMaxSeg
+        '
+        Me.lblLiveMaxSeg.AutoSize = True
+        Me.lblLiveMaxSeg.Location = New System.Drawing.Point(12, 721)
+        Me.lblLiveMaxSeg.Name = "lblLiveMaxSeg"
+        Me.lblLiveMaxSeg.Size = New System.Drawing.Size(120, 15)
+        Me.lblLiveMaxSeg.TabIndex = 77
+        Me.lblLiveMaxSeg.Text = "Max segment (seconds):"
+        '
+        ' nudLiveMaxSeg
+        '
+        Me.nudLiveMaxSeg.Location = New System.Drawing.Point(160, 719)
+        Me.nudLiveMaxSeg.Maximum = New Decimal(New Integer() {60, 0, 0, 0})
+        Me.nudLiveMaxSeg.Minimum = New Decimal(New Integer() {5, 0, 0, 0})
+        Me.nudLiveMaxSeg.Name = "nudLiveMaxSeg"
+        Me.nudLiveMaxSeg.Size = New System.Drawing.Size(60, 23)
+        Me.nudLiveMaxSeg.TabIndex = 78
+        Me.nudLiveMaxSeg.Value = New Decimal(New Integer() {15, 0, 0, 0})
+        '
+        ' lblLiveInterim
+        '
+        Me.lblLiveInterim.AutoSize = True
+        Me.lblLiveInterim.Location = New System.Drawing.Point(280, 721)
+        Me.lblLiveInterim.Name = "lblLiveInterim"
+        Me.lblLiveInterim.Size = New System.Drawing.Size(112, 15)
+        Me.lblLiveInterim.TabIndex = 79
+        Me.lblLiveInterim.Text = "Interim interval (ms):"
+        '
+        ' nudLiveInterim
+        '
+        Me.nudLiveInterim.Location = New System.Drawing.Point(400, 719)
+        Me.nudLiveInterim.Maximum = New Decimal(New Integer() {10000, 0, 0, 0})
+        Me.nudLiveInterim.Minimum = New Decimal(New Integer() {500, 0, 0, 0})
+        Me.nudLiveInterim.Name = "nudLiveInterim"
+        Me.nudLiveInterim.Size = New System.Drawing.Size(70, 23)
+        Me.nudLiveInterim.TabIndex = 80
+        Me.nudLiveInterim.Value = New Decimal(New Integer() {1500, 0, 0, 0})
+        '
+        ' ── Section 6: Bible ──
+        '
+        ' lblAdvBibleHeader
+        '
+        Me.lblAdvBibleHeader.AutoSize = True
+        Me.lblAdvBibleHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
+        Me.lblAdvBibleHeader.Location = New System.Drawing.Point(8, 760)
+        Me.lblAdvBibleHeader.Name = "lblAdvBibleHeader"
+        Me.lblAdvBibleHeader.Size = New System.Drawing.Size(45, 20)
+        Me.lblAdvBibleHeader.TabIndex = 81
+        Me.lblAdvBibleHeader.Text = "Bible"
+        '
+        ' lblAdvBibleSep
+        '
+        Me.lblAdvBibleSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.lblAdvBibleSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
+        Me.lblAdvBibleSep.Location = New System.Drawing.Point(8, 782)
+        Me.lblAdvBibleSep.Name = "lblAdvBibleSep"
+        Me.lblAdvBibleSep.Size = New System.Drawing.Size(520, 1)
+        Me.lblAdvBibleSep.TabIndex = 82
+        '
+        ' chkShowBibleCopyright
+        '
+        Me.chkShowBibleCopyright.AutoSize = True
+        Me.chkShowBibleCopyright.Location = New System.Drawing.Point(12, 790)
+        Me.chkShowBibleCopyright.Name = "chkShowBibleCopyright"
+        Me.chkShowBibleCopyright.Size = New System.Drawing.Size(201, 19)
+        Me.chkShowBibleCopyright.TabIndex = 83
+        Me.chkShowBibleCopyright.Text = "Show Bible copyright notices"
+        Me.chkShowBibleCopyright.UseVisualStyleBackColor = True
+        '
         ' FormOptions
         '
         Me.AcceptButton = Me.btnOk
@@ -1438,8 +2590,37 @@ Partial Class FormOptions
         Me.pnlPaths.PerformLayout()
         Me.pnlServer.ResumeLayout(False)
         Me.pnlServer.PerformLayout()
+        Me.pnlTranslation.ResumeLayout(False)
+        Me.pnlTranslation.PerformLayout()
+        Me.pnlTts.ResumeLayout(False)
+        Me.pnlTts.PerformLayout()
         Me.pnlHardware.ResumeLayout(False)
         Me.pnlHardware.PerformLayout()
+        Me.pnlAdvanced.ResumeLayout(False)
+        Me.pnlAdvanced.PerformLayout()
+        CType(Me.nudParallelJobs, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudChunkSize, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudPollInterval, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudChunkTimeout, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudThreads, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudProcessors, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudBeamSize, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudBestOf, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudTemperature, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudTempInc, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudMaxContext, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudMaxSegLen, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudMaxTokens, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudAudioContext, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudWordThresh, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudEntropyThresh, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudLogProbThresh, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudNoSpeechThresh, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudVadThresh, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudFreqThresh, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudLiveVadSilence, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudLiveMaxSeg, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudLiveInterim, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudPort, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudLivePort, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudTransPort, System.ComponentModel.ISupportInitialize).EndInit()
@@ -1462,6 +2643,8 @@ Partial Class FormOptions
     Friend WithEvents pnlGeneral As System.Windows.Forms.Panel
     Friend WithEvents pnlPaths As System.Windows.Forms.Panel
     Friend WithEvents pnlServer As System.Windows.Forms.Panel
+    Friend WithEvents pnlTranslation As System.Windows.Forms.Panel
+    Friend WithEvents pnlTts As System.Windows.Forms.Panel
 
     ' General panel
     Friend WithEvents lblAppearanceHeader As System.Windows.Forms.Label
@@ -1531,18 +2714,12 @@ Partial Class FormOptions
     Friend WithEvents lblNetworkSep As System.Windows.Forms.Label
     Friend WithEvents lblSubtitleAppearanceHeader As System.Windows.Forms.Label
     Friend WithEvents lblSubtitleAppearanceSep As System.Windows.Forms.Label
-    Friend WithEvents lblTranslationHeader As System.Windows.Forms.Label
-    Friend WithEvents lblTranslationSep As System.Windows.Forms.Label
-    Friend WithEvents lblTtsHeader As System.Windows.Forms.Label
-    Friend WithEvents lblTtsSep As System.Windows.Forms.Label
 
     ' Server panel — network
     Friend WithEvents lblPort As System.Windows.Forms.Label
     Friend WithEvents nudPort As System.Windows.Forms.NumericUpDown
     Friend WithEvents lblLivePort As System.Windows.Forms.Label
     Friend WithEvents nudLivePort As System.Windows.Forms.NumericUpDown
-    Friend WithEvents lblTransPort As System.Windows.Forms.Label
-    Friend WithEvents nudTransPort As System.Windows.Forms.NumericUpDown
     Friend WithEvents chkFirewall As System.Windows.Forms.CheckBox
     Friend WithEvents lblPin As System.Windows.Forms.Label
     Friend WithEvents txtPin As System.Windows.Forms.TextBox
@@ -1558,16 +2735,29 @@ Partial Class FormOptions
     Friend WithEvents nudFontSize As System.Windows.Forms.NumericUpDown
     Friend WithEvents chkBold As System.Windows.Forms.CheckBox
 
-    ' Server panel — translation
+    ' Translation panel
+    Friend WithEvents lblTranslationHeader As System.Windows.Forms.Label
+    Friend WithEvents lblTranslationSep As System.Windows.Forms.Label
     Friend WithEvents chkTransEnabled As System.Windows.Forms.CheckBox
+    Friend WithEvents lblTransBackend As System.Windows.Forms.Label
+    Friend WithEvents cboTransBackend As System.Windows.Forms.ComboBox
     Friend WithEvents lblDevice As System.Windows.Forms.Label
     Friend WithEvents cboDevice As System.Windows.Forms.ComboBox
     Friend WithEvents lblUnload As System.Windows.Forms.Label
     Friend WithEvents nudUnload As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblTransPort As System.Windows.Forms.Label
+    Friend WithEvents nudTransPort As System.Windows.Forms.NumericUpDown
 
-    ' Server panel — TTS
-    Friend WithEvents lblTts As System.Windows.Forms.Label
-    Friend WithEvents txtTts As System.Windows.Forms.TextBox
+    ' TTS panel
+    Friend WithEvents lblTtsHeader As System.Windows.Forms.Label
+    Friend WithEvents lblTtsSep As System.Windows.Forms.Label
+    Friend WithEvents lblTtsPref1 As System.Windows.Forms.Label
+    Friend WithEvents cboTtsPref1 As System.Windows.Forms.ComboBox
+    Friend WithEvents lblTtsPref2 As System.Windows.Forms.Label
+    Friend WithEvents cboTtsPref2 As System.Windows.Forms.ComboBox
+    Friend WithEvents lblTtsPref3 As System.Windows.Forms.Label
+    Friend WithEvents cboTtsPref3 As System.Windows.Forms.ComboBox
+    Friend WithEvents lblTtsNote As System.Windows.Forms.Label
 
     ' Hardware panel
     Friend WithEvents pnlHardware As System.Windows.Forms.Panel
@@ -1588,5 +2778,92 @@ Partial Class FormOptions
     Friend WithEvents lblHwRecsSep As System.Windows.Forms.Label
     Friend WithEvents txtHwRecs As System.Windows.Forms.TextBox
     Friend WithEvents btnHwRescan As System.Windows.Forms.Button
+
+    ' Advanced panel
+    Friend WithEvents pnlAdvanced As System.Windows.Forms.Panel
+    Friend WithEvents lblAdvPipelineHeader As System.Windows.Forms.Label
+    Friend WithEvents lblAdvPipelineSep As System.Windows.Forms.Label
+    Friend WithEvents nudParallelJobs As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblParallelJobs As System.Windows.Forms.Label
+    Friend WithEvents nudChunkSize As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblChunkSize As System.Windows.Forms.Label
+    Friend WithEvents nudPollInterval As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblPollInterval As System.Windows.Forms.Label
+    Friend WithEvents nudChunkTimeout As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblChunkTimeout As System.Windows.Forms.Label
+    Friend WithEvents chkKeepChunks As System.Windows.Forms.CheckBox
+    Friend WithEvents chkKeepPreview As System.Windows.Forms.CheckBox
+    Friend WithEvents chkSkipDownload As System.Windows.Forms.CheckBox
+    Friend WithEvents lblAdvOutputHeader As System.Windows.Forms.Label
+    Friend WithEvents lblAdvOutputSep As System.Windows.Forms.Label
+    Friend WithEvents chkOutSrt As System.Windows.Forms.CheckBox
+    Friend WithEvents chkOutVtt As System.Windows.Forms.CheckBox
+    Friend WithEvents chkOutTxt As System.Windows.Forms.CheckBox
+    Friend WithEvents chkOutJson As System.Windows.Forms.CheckBox
+    Friend WithEvents chkOutCsv As System.Windows.Forms.CheckBox
+    Friend WithEvents chkOutLrc As System.Windows.Forms.CheckBox
+    Friend WithEvents lblAdvWhisperHeader As System.Windows.Forms.Label
+    Friend WithEvents lblAdvWhisperSep As System.Windows.Forms.Label
+    Friend WithEvents nudThreads As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblThreads As System.Windows.Forms.Label
+    Friend WithEvents nudProcessors As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblProcessors As System.Windows.Forms.Label
+    Friend WithEvents nudBeamSize As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblBeamSize As System.Windows.Forms.Label
+    Friend WithEvents nudBestOf As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblBestOf As System.Windows.Forms.Label
+    Friend WithEvents nudTemperature As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblTemperature As System.Windows.Forms.Label
+    Friend WithEvents nudTempInc As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblTempInc As System.Windows.Forms.Label
+    Friend WithEvents nudMaxContext As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblMaxContext As System.Windows.Forms.Label
+    Friend WithEvents nudMaxSegLen As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblMaxSegLen As System.Windows.Forms.Label
+    Friend WithEvents nudMaxTokens As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblMaxTokens As System.Windows.Forms.Label
+    Friend WithEvents nudAudioContext As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblAudioContext As System.Windows.Forms.Label
+    Friend WithEvents nudWordThresh As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblWordThresh As System.Windows.Forms.Label
+    Friend WithEvents nudEntropyThresh As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblEntropyThresh As System.Windows.Forms.Label
+    Friend WithEvents nudLogProbThresh As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblLogProbThresh As System.Windows.Forms.Label
+    Friend WithEvents nudNoSpeechThresh As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblNoSpeechThresh As System.Windows.Forms.Label
+    Friend WithEvents nudVadThresh As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblVadThresh As System.Windows.Forms.Label
+    Friend WithEvents nudFreqThresh As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblFreqThresh As System.Windows.Forms.Label
+    Friend WithEvents txtInitialPrompt As System.Windows.Forms.TextBox
+    Friend WithEvents lblInitialPrompt As System.Windows.Forms.Label
+    Friend WithEvents txtHotwords As System.Windows.Forms.TextBox
+    Friend WithEvents lblHotwords As System.Windows.Forms.Label
+    Friend WithEvents lblAdvFlagsHeader As System.Windows.Forms.Label
+    Friend WithEvents lblAdvFlagsSep As System.Windows.Forms.Label
+    Friend WithEvents chkSplitOnWord As System.Windows.Forms.CheckBox
+    Friend WithEvents chkNoGpu As System.Windows.Forms.CheckBox
+    Friend WithEvents chkFlashAttn As System.Windows.Forms.CheckBox
+    Friend WithEvents chkDiarize As System.Windows.Forms.CheckBox
+    Friend WithEvents chkTinyDiarize As System.Windows.Forms.CheckBox
+    Friend WithEvents chkTranslateEn As System.Windows.Forms.CheckBox
+    Friend WithEvents chkNoTimestamps As System.Windows.Forms.CheckBox
+    Friend WithEvents chkPrintProgress As System.Windows.Forms.CheckBox
+    Friend WithEvents chkPrintColours As System.Windows.Forms.CheckBox
+    Friend WithEvents chkPrintRealtime As System.Windows.Forms.CheckBox
+    Friend WithEvents lblAdvLiveHeader As System.Windows.Forms.Label
+    Friend WithEvents lblAdvLiveSep As System.Windows.Forms.Label
+    Friend WithEvents cboComputeType As System.Windows.Forms.ComboBox
+    Friend WithEvents lblComputeType As System.Windows.Forms.Label
+    Friend WithEvents nudLiveVadSilence As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblLiveVadSilence As System.Windows.Forms.Label
+    Friend WithEvents nudLiveMaxSeg As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblLiveMaxSeg As System.Windows.Forms.Label
+    Friend WithEvents nudLiveInterim As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblLiveInterim As System.Windows.Forms.Label
+    Friend WithEvents lblAdvBibleHeader As System.Windows.Forms.Label
+    Friend WithEvents lblAdvBibleSep As System.Windows.Forms.Label
+    Friend WithEvents chkShowBibleCopyright As System.Windows.Forms.CheckBox
 
 End Class

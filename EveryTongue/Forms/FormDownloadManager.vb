@@ -25,6 +25,16 @@ Namespace Forms
             InitializeComponent()
         End Sub
 
+        Public Sub SelectTab(tabName As String)
+            For i = 0 To tabMain.TabCount - 1
+                If tabMain.TabPages(i).Name.Equals(tabName, StringComparison.OrdinalIgnoreCase) OrElse
+                   tabMain.TabPages(i).Text.Equals(tabName, StringComparison.OrdinalIgnoreCase) Then
+                    tabMain.SelectedIndex = i
+                    Exit For
+                End If
+            Next
+        End Sub
+
         Protected Overrides Sub OnShown(e As EventArgs)
             MyBase.OnShown(e)
             LoadStateAsync()
@@ -132,6 +142,9 @@ Namespace Forms
 
             ' Load MMS-TTS status
             LoadMmsTtsStatus()
+
+            ' Load language packs
+            LoadLangPacks()
 
             ' Load installed Bibles and cached catalog if available
             LoadInstalledBibles()
@@ -428,7 +441,7 @@ Namespace Forms
                     If Not Directory.Exists(langDir) Then Directory.CreateDirectory(langDir)
                     Dim dbPath = Path.Combine(langDir, entry.TranslationId & ".sqlite3")
 
-                    Await Task.Run(Sub() UsfmConverter.Convert(tempDir, dbPath, entry.Title, entry.LanguageCode))
+                    Await Task.Run(Sub() UsfmConverter.Convert(tempDir, dbPath, entry.Title, entry.LanguageCode, entry.Copyright))
 
                     pbProgress.Style = ProgressBarStyle.Continuous
 
@@ -755,44 +768,133 @@ Namespace Forms
             btnInstallMmsTts.Enabled = enabled
             btnFetchCatalog.Enabled = enabled
             btnDownloadBibles.Enabled = enabled
+            btnDownloadLangPacks.Enabled = enabled
+            btnDeleteLangPacks.Enabled = enabled
             btnOk.Enabled = enabled
             btnCancel.Enabled = enabled
         End Sub
 
-        Private Shared Function GetLanguageDisplayName(nllbCode As String) As String
-            Select Case nllbCode
-                Case "eng" : Return "English"
-                Case "spa" : Return "Spanish"
-                Case "fra" : Return "French"
-                Case "deu" : Return "German"
-                Case "cat" : Return "Catalan"
-                Case "por" : Return "Portuguese"
-                Case "ita" : Return "Italian"
-                Case "zho" : Return "Chinese"
-                Case "nld" : Return "Dutch"
-                Case "pol" : Return "Polish"
-                Case "rus" : Return "Russian"
-                Case "ukr" : Return "Ukrainian"
-                Case "ces" : Return "Czech"
-                Case "dan" : Return "Danish"
-                Case "fin" : Return "Finnish"
-                Case "ell" : Return "Greek"
-                Case "hun" : Return "Hungarian"
-                Case "isl" : Return "Icelandic"
-                Case "nor" : Return "Norwegian"
-                Case "ron" : Return "Romanian"
-                Case "slk" : Return "Slovak"
-                Case "slv" : Return "Slovenian"
-                Case "srp" : Return "Serbian"
-                Case "swe" : Return "Swedish"
-                Case "swh" : Return "Swahili"
-                Case "tur" : Return "Turkish"
-                Case "vie" : Return "Vietnamese"
-                Case "kat" : Return "Georgian"
-                Case "kaz" : Return "Kazakh"
-                Case "nep" : Return "Nepali"
-                Case Else : Return nllbCode
-            End Select
+        ' ── Language Packs ──
+
+        Private Sub LoadLangPacks()
+            lvLangPacks.Items.Clear()
+            Dim langPack = Services.Infrastructure.LanguagePackService.Instance
+            Dim langSvc = Services.Infrastructure.LanguageCodeService.Instance
+            Dim all = langSvc.GetAllLanguagesForWeb()
+            Dim installed = langPack.GetAvailableLanguages()
+
+            For Each l In all
+                If String.IsNullOrEmpty(l.Iso1) Then Continue For
+                Dim item As New ListViewItem(l.Name)
+                item.SubItems.Add(If(l.Native, l.Name))
+                item.SubItems.Add(l.Iso1)
+                Dim isInstalled = installed.Any(Function(c) c.Equals(l.Iso1, StringComparison.OrdinalIgnoreCase))
+                If isInstalled Then
+                    item.SubItems.Add("Installed")
+                    item.ForeColor = Drawing.Color.DarkGreen
+                Else
+                    item.SubItems.Add("Not installed")
+                End If
+                item.Tag = l.Iso1
+                lvLangPacks.Items.Add(item)
+            Next
+        End Sub
+
+        Private Async Sub btnDownloadLangPacks_Click(sender As Object, e As EventArgs) Handles btnDownloadLangPacks.Click
+            If _downloading Then Return
+
+            Dim toDownload As New List(Of String)()
+            For Each item As ListViewItem In lvLangPacks.CheckedItems
+                If item.SubItems(3).Text <> "Installed" Then
+                    toDownload.Add(DirectCast(item.Tag, String))
+                End If
+            Next
+
+            If toDownload.Count = 0 Then
+                lblProgress.Text = "No language packs selected for download"
+                Return
+            End If
+
+            _downloading = True
+            SetAllButtonsEnabled(False)
+            pbProgress.Style = ProgressBarStyle.Continuous
+            pbProgress.Value = 0
+            pbProgress.Maximum = toDownload.Count
+
+            Try
+                Dim langPack = Services.Infrastructure.LanguagePackService.Instance
+                Dim downloaded = 0
+
+                For Each code In toDownload
+                    lblProgress.Text = $"Downloading {code} language pack..."
+                    Dim ok = Await langPack.DownloadLanguageAsync(code)
+                    If ok Then
+                        downloaded += 1
+                    Else
+                        lblProgress.Text = $"Failed to download {code} — not available on GitHub"
+                    End If
+                    pbProgress.Value = Math.Min(pbProgress.Value + 1, pbProgress.Maximum)
+                Next
+
+                pbProgress.Value = pbProgress.Maximum
+                lblProgress.Text = $"Downloaded {downloaded} of {toDownload.Count} language pack(s)"
+            Catch ex As Exception
+                lblProgress.Text = $"Error: {ex.Message}"
+            Finally
+                _downloading = False
+                SetAllButtonsEnabled(True)
+                LoadLangPacks()
+            End Try
+        End Sub
+
+        Private Sub btnDeleteLangPacks_Click(sender As Object, e As EventArgs) Handles btnDeleteLangPacks.Click
+            Dim toDelete As New List(Of String)()
+            For Each item As ListViewItem In lvLangPacks.CheckedItems
+                Dim code = DirectCast(item.Tag, String)
+                ' Never delete English
+                If code.Equals("en", StringComparison.OrdinalIgnoreCase) Then Continue For
+                If item.SubItems(3).Text = "Installed" Then
+                    toDelete.Add(code)
+                End If
+            Next
+
+            If toDelete.Count = 0 Then
+                lblProgress.Text = "No installed language packs selected for deletion"
+                Return
+            End If
+
+            Dim result = MessageBox.Show(
+                $"Delete {toDelete.Count} language pack(s)?" & vbCrLf & String.Join(", ", toDelete),
+                "Delete Language Packs", MessageBoxButtons.YesNo, MessageBoxIcon.Question)
+            If result <> DialogResult.Yes Then Return
+
+            Dim langPack = Services.Infrastructure.LanguagePackService.Instance
+            Dim deleted = 0
+            For Each code In toDelete
+                Try
+                    Dim path = IO.Path.Combine(langPack.LocalesDirectory, $"{code}.json")
+                    If IO.File.Exists(path) Then
+                        IO.File.Delete(path)
+                        deleted += 1
+                    End If
+                Catch ex As Exception
+                    FormMain.WriteDebugLog($"[LangPack] Failed to delete {code}: {ex.Message}")
+                End Try
+            Next
+
+            lblProgress.Text = $"Deleted {deleted} language pack(s)"
+            LoadLangPacks()
+        End Sub
+
+        Private Shared Function GetLanguageDisplayName(iso3Code As String) As String
+            If String.IsNullOrEmpty(iso3Code) Then Return iso3Code
+            Dim langSvc = Services.Infrastructure.LanguageCodeService.Instance
+            Dim nllb = langSvc.Iso3ToNllb(iso3Code)
+            If Not String.IsNullOrEmpty(nllb) Then
+                Dim name = langSvc.GetDisplayName(nllb)
+                If Not String.IsNullOrEmpty(name) Then Return name
+            End If
+            Return iso3Code
         End Function
 
     End Class

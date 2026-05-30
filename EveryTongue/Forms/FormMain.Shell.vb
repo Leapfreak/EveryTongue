@@ -79,15 +79,13 @@ Partial Class FormMain
                                             SwitchWorkspace(tabPageBibleWs, btnNavBible)
                                         End Sub
         AddHandler mnuToolsGlossary.Click, Sub(s, e)
-                                                Using dlg As New FormFilterEditor(AppDomain.CurrentDomain.BaseDirectory, _config.LiveServerPort, _config.TranslationPort, _resMgr)
+                                                Using dlg As New FormFilterEditor(AppDomain.CurrentDomain.BaseDirectory, _config.LiveServerPort, _config.TranslationPort)
                                                     dlg.ShowDialog(Me)
                                                 End Using
                                             End Sub
         AddHandler mnuToolsDownloadMgr.Click, Sub(s, e) OpenDownloadManager()
-        AddHandler mnuToolsCheckDeps.Click, Sub(s, e) CheckDependenciesAsync()
         AddHandler mnuToolsVerifyPaths.Click, Sub(s, e) VerifyAllPaths()
-        AddHandler mnuToolsPaths.Click, Sub(s, e) ShowOptionsDialog("paths")
-        AddHandler mnuToolsServer.Click, Sub(s, e) ShowOptionsDialog("server")
+        AddHandler mnuToolsVerifyIntegrity.Click, Sub(s, e) VerifyFileIntegrity()
         AddHandler mnuToolsOptions.Click, Sub(s, e) ShowOptionsDialog("general")
 
         AddHandler mnuSessionStart.Click, Sub(s, e)
@@ -102,6 +100,7 @@ Partial Class FormMain
         AddHandler mnuViewThemeSystem.Click, Sub(s, e) SetThemeFromMenu(Models.ThemeMode.System)
         AddHandler mnuViewThemeLight.Click, Sub(s, e) SetThemeFromMenu(Models.ThemeMode.Light)
         AddHandler mnuViewThemeDark.Click, Sub(s, e) SetThemeFromMenu(Models.ThemeMode.Dark)
+        AddHandler mnuViewClients.Click, Sub(s, e) ShowConnectedClients()
         AddHandler mnuViewFullScreen.Click, Sub(s, e) ToggleFullScreen()
 
         AddHandler mnuHelpQuickStart.Click, Sub(s, e) ShowLegacyTab(tabPageHelp)
@@ -121,6 +120,7 @@ Partial Class FormMain
                                                     "Keyboard Shortcuts",
                                                     MessageBoxButtons.OK, MessageBoxIcon.Information)
                                             End Sub
+        AddHandler mnuHelpHardware.Click, Sub(s, e) ShowOptionsDialog("hardware")
         AddHandler mnuHelpUpdates.Click, Sub(s, e) CheckForUpdatesAsync()
         AddHandler mnuHelpAbout.Click, Sub(s, e)
                                             Using dlg As New FormAbout()
@@ -147,12 +147,19 @@ Partial Class FormMain
         _bibleController = New Controllers.BibleController(
             cboBibleLang, cboBibleTrans, txtBibleRef, btnBibleGo,
             btnBibleBack, lblBibleNavTitle, flpBibleNav, rtbBibleText,
+            lblBibleCopyright,
             AddressOf GetBibleService,
             Function() WhisperToIso3(If(_config?.OutputLanguage, "en")),
-            AddressOf WriteDebugLog)
+            AddressOf WriteDebugLog,
+            _config)
         _bibleController.WireEvents()
+        _bibleController.WireContextMenu(ctxBibleCopySelection, ctxBibleCopyVerse, ctxBibleCopyChapter)
 
         ' ── Wire status bar handlers ─────────────────────────────
+        tslClients.IsLink = True
+        tslClients.LinkBehavior = LinkBehavior.HoverUnderline
+        tslClients.LinkColor = tslClients.ForeColor
+        AddHandler tslClients.Click, Sub(s, e) ShowConnectedClients()
         AddHandler tslLogToggle.Click, Sub(s, e) ToggleLogPanel()
         AddHandler liveElapsedTimer.Tick, Sub(s, e)
                                                Dim elapsed = DateTime.Now - _liveStartTime
@@ -199,6 +206,8 @@ Partial Class FormMain
             Sub(msg) WriteDebugLog(msg),
             AddressOf GetString)
         _translateController.WireEvents()
+        _translateController.WireContextMenus(ctxTransInputCut, ctxTransInputCopy, ctxTransInputPaste,
+                                              ctxTransInputSelectAll, ctxTransOutputCopy, ctxTransOutputSelectAll)
         _translateController.PopulateLanguageDropdowns()
 
         ' ── Keyboard shortcuts ─────────────────────────────────────
@@ -529,7 +538,7 @@ Partial Class FormMain
             If text <> "Detecting devices..." Then devices.Add(text)
         Next
 
-        Using dlg As New FormSessionWizard(_config, devices.ToArray(), _whisperLanguages, _langNames)
+        Using dlg As New FormSessionWizard(_config, devices.ToArray(), _whisperLanguages)
             If dlg.ShowDialog(Me) = DialogResult.OK AndAlso dlg.StartSession Then
                 LoadConfigToUi()
                 SwitchWorkspace(tabPageLive, btnNavLive)
@@ -547,6 +556,20 @@ Partial Class FormMain
                 If _config.StartWithWindows Then RegisterStartup() Else UnregisterStartup()
             End If
         End Using
+    End Sub
+
+    Private _formClients As FormConnectedClients
+
+    Private Sub ShowConnectedClients()
+        If _formClients Is Nothing OrElse _formClients.IsDisposed Then
+            _formClients = New FormConnectedClients(
+                Function() SubtitleSvc,
+                Function() _serverController?.GetMetricsService(),
+                _config.Theme)
+            _formClients.Show(Me)
+        Else
+            _formClients.BringToFront()
+        End If
     End Sub
 
     Private Sub ShowQrCode()
@@ -678,6 +701,15 @@ Partial Class FormMain
                             End If
                         Next
 
+                        ' ── Integrity check ──
+                        Dim integrityResult = Services.Infrastructure.IntegrityChecker.Check()
+                        Dim intEntry = archive.CreateEntry("integrity_check.txt")
+                        Using iw As New IO.StreamWriter(intEntry.Open())
+                            For Each line In Services.Infrastructure.IntegrityChecker.ToReportLines(integrityResult)
+                                iw.WriteLine(line)
+                            Next
+                        End Using
+
                         ' ── Glossary ──
                         Dim glossaryPath = Models.AppConfig.ResolvePath(_config.TranslationGlossaryPath)
                         If IO.File.Exists(glossaryPath) Then
@@ -693,6 +725,48 @@ Partial Class FormMain
                     "Export Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
             End Try
         End Using
+    End Sub
+
+    Private Async Sub VerifyFileIntegrity()
+        mnuToolsVerifyIntegrity.Enabled = False
+        WriteDebugLog("[Integrity] Starting file integrity check...")
+
+        Dim result = Await Threading.Tasks.Task.Run(
+            Function() Services.Infrastructure.IntegrityChecker.Check())
+
+        mnuToolsVerifyIntegrity.Enabled = True
+
+        If Not result.ManifestFound Then
+            MessageBox.Show("checksums.json not found — cannot verify file integrity." &
+                            Environment.NewLine & Environment.NewLine &
+                            "This file is generated during the build process.",
+                            "Verify File Integrity", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return
+        End If
+
+        Dim sb As New System.Text.StringBuilder()
+        sb.AppendLine($"Manifest version: {result.ManifestVersion}")
+        sb.AppendLine($"Generated: {result.ManifestGenerated}")
+        sb.AppendLine()
+
+        For Each f In result.Files
+            Dim icon = If(f.Status = Services.Infrastructure.IntegrityChecker.FileStatus.Pass, "PASS",
+                       If(f.Status = Services.Infrastructure.IntegrityChecker.FileStatus.Fail, "FAIL", "MISSING"))
+            sb.AppendLine($"  [{icon}]  {f.RelativePath}")
+        Next
+
+        sb.AppendLine()
+        sb.AppendLine($"Result: {result.PassCount} passed, {result.FailCount} failed, {result.MissingCount} missing")
+
+        Dim msgIcon = If(result.AllPassed, MessageBoxIcon.Information, MessageBoxIcon.Warning)
+        Dim title = If(result.AllPassed, "All Files OK", "Integrity Issues Found")
+
+        ' Log full results to the daily log
+        For Each line In Services.Infrastructure.IntegrityChecker.ToReportLines(result)
+            WriteDebugLog($"[Integrity] {line}")
+        Next
+
+        MessageBox.Show(sb.ToString(), title, MessageBoxButtons.OK, msgIcon)
     End Sub
 
     Private Sub SetThemeFromMenu(theme As Models.ThemeMode)
@@ -789,14 +863,17 @@ Partial Class FormMain
             Select Case theme
                 Case Models.ThemeMode.Light
                     _logDarkMode = False
-                    rtbUnifiedLog.BackColor = Color.FromArgb(255, 255, 255)
+                    rtbUnifiedLog.BackColor = Color.White
                     rtbUnifiedLog.ForeColor = Color.FromArgb(30, 30, 30)
+                Case Models.ThemeMode.Dark
+                    _logDarkMode = True
+                    rtbUnifiedLog.BackColor = Color.FromArgb(24, 24, 24)
+                    rtbUnifiedLog.ForeColor = Color.FromArgb(200, 200, 200)
                 Case Else
                     _logDarkMode = True
-                    rtbUnifiedLog.BackColor = Color.FromArgb(30, 30, 30)
-                    rtbUnifiedLog.ForeColor = Color.FromArgb(200, 200, 200)
+                    rtbUnifiedLog.BackColor = SystemColors.Window
+                    rtbUnifiedLog.ForeColor = SystemColors.WindowText
             End Select
-            ' Re-render with correct colors
             _lastLogFilter = ""
             FlushUnifiedLog()
         End If
@@ -805,9 +882,9 @@ Partial Class FormMain
         If txtTransInput IsNot Nothing Then
             Select Case theme
                 Case Models.ThemeMode.Dark
-                    txtTransInput.BackColor = Color.FromArgb(45, 45, 48)
+                    txtTransInput.BackColor = Color.FromArgb(60, 63, 65)
                     txtTransInput.ForeColor = Color.FromArgb(220, 220, 220)
-                    txtTransOutput.BackColor = Color.FromArgb(45, 45, 48)
+                    txtTransOutput.BackColor = Color.FromArgb(60, 63, 65)
                     txtTransOutput.ForeColor = Color.FromArgb(220, 220, 220)
                 Case Models.ThemeMode.Light
                     txtTransInput.BackColor = Color.White
@@ -834,30 +911,9 @@ Partial Class FormMain
     ''' Map 2-letter Whisper/ISO 639-1 codes to 3-letter ISO 639-3 codes for Bible matching.
     ''' </summary>
     Private Shared Function WhisperToIso3(code As String) As String
-        Static map As Dictionary(Of String, String) = Nothing
-        If map Is Nothing Then
-            map = New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
-                {"af", "afr"}, {"am", "amh"}, {"ar", "arb"}, {"hy", "hye"}, {"az", "azj"},
-                {"bn", "ben"}, {"bs", "bos"}, {"bg", "bul"}, {"my", "mya"}, {"ca", "cat"},
-                {"zh", "zho"}, {"hr", "hrv"}, {"cs", "ces"}, {"cy", "cym"}, {"da", "dan"},
-                {"nl", "nld"}, {"en", "eng"}, {"et", "est"}, {"fi", "fin"}, {"fr", "fra"},
-                {"gl", "glg"}, {"ka", "kat"}, {"de", "deu"}, {"el", "ell"}, {"gu", "guj"},
-                {"ha", "hau"}, {"he", "heb"}, {"hi", "hin"}, {"hu", "hun"}, {"is", "isl"},
-                {"id", "ind"}, {"ga", "gle"}, {"it", "ita"}, {"ja", "jpn"}, {"jv", "jav"},
-                {"kn", "kan"}, {"kk", "kaz"}, {"km", "khm"}, {"ko", "kor"}, {"lo", "lao"},
-                {"lv", "lvs"}, {"lt", "lit"}, {"mk", "mkd"}, {"ms", "zsm"}, {"ml", "mal"},
-                {"mt", "mlt"}, {"mi", "mri"}, {"mr", "mar"}, {"mn", "khk"}, {"ne", "npi"},
-                {"no", "nob"}, {"fa", "pes"}, {"pl", "pol"}, {"pt", "por"}, {"pa", "pan"},
-                {"ro", "ron"}, {"ru", "rus"}, {"sr", "srp"}, {"sk", "slk"}, {"sl", "slv"},
-                {"so", "som"}, {"es", "spa"}, {"sw", "swh"}, {"sv", "swe"}, {"tl", "tgl"},
-                {"ta", "tam"}, {"te", "tel"}, {"th", "tha"}, {"tr", "tur"}, {"uk", "ukr"},
-                {"ur", "urd"}, {"uz", "uzn"}, {"vi", "vie"}, {"yo", "yor"}, {"zu", "zul"},
-                {"sq", "sqi"}, {"si", "sin"}
-            }
-        End If
-        Dim result As String = Nothing
-        If map.TryGetValue(code, result) Then Return result
-        Return code ' return as-is if no mapping
+        If String.IsNullOrEmpty(code) Then Return code
+        Dim result = Services.Infrastructure.LanguageCodeService.Instance.Iso1ToIso3(code)
+        Return If(Not String.IsNullOrEmpty(result), result, code)
     End Function
 
 End Class

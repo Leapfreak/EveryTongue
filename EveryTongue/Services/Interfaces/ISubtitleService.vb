@@ -30,6 +30,7 @@ Namespace Services.Interfaces
         Function AddClient(client As ClientConnection) As Boolean
         Function RemoveClient(clientId As String) As Boolean
         Function GetActiveTranslationLanguages() As List(Of String)
+        Function GetClientSnapshots() As List(Of Models.ClientSnapshot)
 
         ' ── Message processing ──
 

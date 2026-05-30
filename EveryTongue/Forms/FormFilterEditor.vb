@@ -9,8 +9,6 @@ Partial Public Class FormFilterEditor
     Private ReadOnly _livePort As Integer
     Private ReadOnly _nllbPort As Integer
     Private ReadOnly _httpClient As New HttpClient() With {.Timeout = TimeSpan.FromSeconds(5)}
-    Private ReadOnly _resMgr As Resources.ResourceManager
-
     ' File paths
     Private ReadOnly _hallucinationsPath As String
     Private ReadOnly _glossaryPath As String
@@ -25,21 +23,13 @@ Partial Public Class FormFilterEditor
     Private _dirty As Boolean = False
 
     Private Function S(key As String) As String
-        If _resMgr Is Nothing Then Return key
-        Try
-            Dim val = _resMgr.GetString(key)
-            Return If(val, key)
-        Catch ex As Exception
-            FormMain.WriteDebugLog($"[ERROR] FormFilterEditor.S: {ex.Message}")
-            Return key
-        End Try
+        Return Services.Infrastructure.LanguagePackService.Instance.GetString(key)
     End Function
 
-    Public Sub New(baseDir As String, livePort As Integer, nllbPort As Integer, Optional resMgr As Resources.ResourceManager = Nothing)
+    Public Sub New(baseDir As String, livePort As Integer, nllbPort As Integer)
         _baseDir = baseDir
         _livePort = livePort
         _nllbPort = nllbPort
-        _resMgr = resMgr
 
         _hallucinationsPath = Path.Combine(baseDir, "live-server", "hallucinations.json")
         _glossaryPath = Path.Combine(baseDir, "nllb-server", "glossary.json")
