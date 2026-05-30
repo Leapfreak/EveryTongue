@@ -55,7 +55,14 @@ var POPULAR_LANGS=['eng_Latn','spa_Latn','fra_Latn','por_Latn','deu_Latn','cat_L
       if(xhr.status===200){
         try{
           var data=JSON.parse(xhr.responseText);
-          if(data&&data.length>0){LANGS=data;_langsLoaded=true}
+          if(data&&data.length>0){
+            LANGS=data;_langsLoaded=true;
+            /* Re-render picker if it's already open */
+            var picker=document.getElementById('langPicker');
+            if(picker&&picker.classList.contains('open')){renderLangList('');detectAndSuggest()}
+            /* Re-populate transLangSelect */
+            populateTransLangSelect();
+          }
         }catch(e){LOG('languages parse error: '+e)}
       }
     };
@@ -168,8 +175,9 @@ function goHome(){
 }
 
 /* Populate transLangSelect dropdown dynamically from LANGS */
-(function(){
+function populateTransLangSelect(){
   var sel=document.getElementById('transLangSelect');
+  sel.innerHTML='';
   for(var i=0;i<LANGS.length;i++){
     var opt=document.createElement('option');opt.value=LANGS[i][0];
     opt.textContent=LANGS[i][1]+' ('+LANGS[i][2]+')';
@@ -177,7 +185,8 @@ function goHome(){
   }
   var saved=localStorage.getItem('transLang')||'';
   for(var j=0;j<sel.options.length;j++){if(sel.options[j].value===saved){sel.selectedIndex=j;break}}
-})();
+}
+populateTransLangSelect();
 
 /* ── DOM references ── */
 var fontSize=28;

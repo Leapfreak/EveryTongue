@@ -27,6 +27,142 @@ Public Class FormOptions
         WireEvents()
         PopulateFontCombo()
         LoadFromConfig()
+        ApplyLocale()
+    End Sub
+
+    ' ═══════════════════════════════════════════════════════════════
+    ' Localization
+    ' ═══════════════════════════════════════════════════════════════
+    Private Sub ApplyLocale()
+        Dim langPack = LanguagePackService.Instance
+
+        Me.Text = langPack.GetString("Opt_Title")
+        btnOk.Text = langPack.GetString("Opt_OK")
+        btnCancel.Text = langPack.GetString("Opt_Cancel")
+
+        ' Tree nav nodes
+        treeNav.Nodes("general").Text = langPack.GetString("Opt_NavGeneral")
+        treeNav.Nodes("paths").Text = langPack.GetString("Opt_NavPaths")
+        treeNav.Nodes("server").Text = langPack.GetString("Opt_NavServer")
+        treeNav.Nodes("translation").Text = langPack.GetString("Opt_NavTranslation")
+        treeNav.Nodes("tts").Text = langPack.GetString("Opt_NavTts")
+        treeNav.Nodes("hardware").Text = langPack.GetString("Opt_NavHardware")
+        treeNav.Nodes("advanced").Text = langPack.GetString("Opt_NavAdvanced")
+
+        ' General panel
+        lblAppearanceHeader.Text = langPack.GetString("Opt_AppearanceHeader")
+        lblUiLang.Text = langPack.GetString("Opt_UiLanguage")
+        lblTheme.Text = langPack.GetString("Opt_Theme")
+        lblStartupHeader.Text = langPack.GetString("Opt_StartupHeader")
+        chkStartWindows.Text = langPack.GetString("Opt_StartWithWindows")
+        chkMinimizeToTray.Text = langPack.GetString("Opt_MinimizeToTray")
+        chkResetFirstRun.Text = langPack.GetString("Opt_ResetFirstRun")
+
+        ' Paths panel
+        lblToolPathsHeader.Text = langPack.GetString("Opt_ToolPathsHeader")
+        lblWhisperPath.Text = langPack.GetString("Opt_WhisperPath")
+        lblYtdlpPath.Text = langPack.GetString("Opt_YtdlpPath")
+        lblFfmpegPath.Text = langPack.GetString("Opt_FfmpegPath")
+        lblFfprobePath.Text = langPack.GetString("Opt_FfprobePath")
+        lblSubtitleEditPath.Text = langPack.GetString("Opt_SubtitleEditPath")
+        lblModelPathsHeader.Text = langPack.GetString("Opt_ModelPathsHeader")
+        lblFasterWhisperPath.Text = langPack.GetString("Opt_FasterWhisperPath")
+        lblNllbModelPath.Text = langPack.GetString("Opt_NllbModelPath")
+        lblModelPath.Text = langPack.GetString("Opt_ModelPath")
+        lblModelAudioPath.Text = langPack.GetString("Opt_ModelAudioPath")
+        lblDirectoriesHeader.Text = langPack.GetString("Opt_DirectoriesHeader")
+        lblOutputRootPath.Text = langPack.GetString("Opt_OutputRootPath")
+        lblGlossaryPath.Text = langPack.GetString("Opt_GlossaryPath")
+        lblBiblesPath.Text = langPack.GetString("Opt_BiblesPath")
+        lblAdvancedHeader.Text = langPack.GetString("Opt_PathsAdvancedHeader")
+        lblYtdlpFormat.Text = langPack.GetString("Opt_YtdlpFormat")
+
+        ' Server panel
+        lblNetworkHeader.Text = langPack.GetString("Opt_NetworkHeader")
+        lblPort.Text = langPack.GetString("Opt_SubtitlePort")
+        lblLivePort.Text = langPack.GetString("Opt_LivePort")
+        lblTransPort.Text = langPack.GetString("Opt_TransPort")
+        chkFirewall.Text = langPack.GetString("Opt_AllowFirewall")
+        lblPin.Text = langPack.GetString("Opt_AdminPin")
+        lblSubtitleAppearanceHeader.Text = langPack.GetString("Opt_SubtitleAppearanceHeader")
+        lblBgColor.Text = langPack.GetString("Opt_BgColor")
+        lblFgColor.Text = langPack.GetString("Opt_FgColor")
+        lblFont.Text = langPack.GetString("Opt_Font")
+        lblFontSize.Text = langPack.GetString("Opt_FontSize")
+        chkBold.Text = langPack.GetString("Opt_Bold")
+
+        ' Translation panel
+        lblTranslationHeader.Text = langPack.GetString("Opt_TranslationHeader")
+        chkTransEnabled.Text = langPack.GetString("Opt_TransEnabled")
+        lblTransBackend.Text = langPack.GetString("Opt_TransBackend")
+        lblDevice.Text = langPack.GetString("Opt_TransDevice")
+        lblUnload.Text = langPack.GetString("Opt_TransUnload")
+
+        ' TTS panel
+        lblTtsHeader.Text = langPack.GetString("Opt_TtsHeader")
+        lblTtsPref1.Text = langPack.GetString("Opt_TtsPref1")
+        lblTtsPref2.Text = langPack.GetString("Opt_TtsPref2")
+        lblTtsPref3.Text = langPack.GetString("Opt_TtsPref3")
+        lblTtsNote.Text = langPack.GetString("Opt_TtsNote")
+
+        ' Hardware panel
+        lblHwHeader.Text = langPack.GetString("Opt_HwHeader")
+        lblHwOverallCaption.Text = langPack.GetString("Opt_HwOverallCaption")
+        lblHwBreakdownHeader.Text = langPack.GetString("Opt_HwBreakdownHeader")
+        lblHwRecsHeader.Text = langPack.GetString("Opt_HwRecsHeader")
+        btnHwRescan.Text = langPack.GetString("Opt_HwRescan")
+        If _hwInfo Is Nothing Then
+            lblHwVerdict.Text = langPack.GetString("Opt_HwVerdict")
+        End If
+
+        ' Advanced panel
+        lblAdvPipelineHeader.Text = langPack.GetString("Opt_AdvPipelineHeader")
+        lblParallelJobs.Text = langPack.GetString("Opt_ParallelJobs")
+        lblChunkSize.Text = langPack.GetString("Opt_ChunkSize")
+        lblPollInterval.Text = langPack.GetString("Opt_PollInterval")
+        lblChunkTimeout.Text = langPack.GetString("Opt_ChunkTimeout")
+        chkKeepChunks.Text = langPack.GetString("Opt_KeepChunks")
+        chkKeepPreview.Text = langPack.GetString("Opt_KeepPreview")
+        chkSkipDownload.Text = langPack.GetString("Opt_SkipDownload")
+        lblAdvOutputHeader.Text = langPack.GetString("Opt_AdvOutputHeader")
+        chkOutTxt.Text = langPack.GetString("Opt_OutPlainText")
+        lblAdvWhisperHeader.Text = langPack.GetString("Opt_AdvWhisperHeader")
+        lblThreads.Text = langPack.GetString("Opt_Threads")
+        lblProcessors.Text = langPack.GetString("Opt_Processors")
+        lblBeamSize.Text = langPack.GetString("Opt_BeamSize")
+        lblBestOf.Text = langPack.GetString("Opt_BestOf")
+        lblTemperature.Text = langPack.GetString("Opt_Temperature")
+        lblTempInc.Text = langPack.GetString("Opt_TempInc")
+        lblMaxContext.Text = langPack.GetString("Opt_MaxContext")
+        lblMaxSegLen.Text = langPack.GetString("Opt_MaxSegLen")
+        lblMaxTokens.Text = langPack.GetString("Opt_MaxTokens")
+        lblAudioContext.Text = langPack.GetString("Opt_AudioContext")
+        lblWordThresh.Text = langPack.GetString("Opt_WordThresh")
+        lblEntropyThresh.Text = langPack.GetString("Opt_EntropyThresh")
+        lblLogProbThresh.Text = langPack.GetString("Opt_LogProbThresh")
+        lblNoSpeechThresh.Text = langPack.GetString("Opt_NoSpeechThresh")
+        lblVadThresh.Text = langPack.GetString("Opt_VadThresh")
+        lblFreqThresh.Text = langPack.GetString("Opt_FreqThresh")
+        lblInitialPrompt.Text = langPack.GetString("Opt_InitialPrompt")
+        lblHotwords.Text = langPack.GetString("Opt_Hotwords")
+        lblAdvFlagsHeader.Text = langPack.GetString("Opt_AdvFlagsHeader")
+        chkSplitOnWord.Text = langPack.GetString("Opt_SplitOnWord")
+        chkNoGpu.Text = langPack.GetString("Opt_NoGpu")
+        chkFlashAttn.Text = langPack.GetString("Opt_FlashAttn")
+        chkDiarize.Text = langPack.GetString("Opt_Diarize")
+        chkTinyDiarize.Text = langPack.GetString("Opt_TinyDiarize")
+        chkTranslateEn.Text = langPack.GetString("Opt_TranslateEn")
+        chkNoTimestamps.Text = langPack.GetString("Opt_NoTimestamps")
+        chkPrintProgress.Text = langPack.GetString("Opt_PrintProgress")
+        chkPrintColours.Text = langPack.GetString("Opt_PrintColours")
+        chkPrintRealtime.Text = langPack.GetString("Opt_PrintRealtime")
+        lblAdvLiveHeader.Text = langPack.GetString("Opt_AdvLiveHeader")
+        lblComputeType.Text = langPack.GetString("Opt_ComputeType")
+        lblLiveVadSilence.Text = langPack.GetString("Opt_LiveVadSilence")
+        lblLiveMaxSeg.Text = langPack.GetString("Opt_LiveMaxSeg")
+        lblLiveInterim.Text = langPack.GetString("Opt_LiveInterim")
+        lblAdvBibleHeader.Text = langPack.GetString("Opt_AdvBibleHeader")
+        chkShowBibleCopyright.Text = langPack.GetString("Opt_ShowBibleCopyright")
     End Sub
 
     ' ═══════════════════════════════════════════════════════════════
@@ -330,7 +466,7 @@ Public Class FormOptions
     ' ═══════════════════════════════════════════════════════════════
     Private Sub RunHardwareScan()
         btnHwRescan.Enabled = False
-        lblHwVerdict.Text = "Scanning hardware..."
+        lblHwVerdict.Text = LanguagePackService.Instance.GetString("Opt_HwScanning")
         Me.Cursor = Cursors.WaitCursor
 
         Threading.ThreadPool.QueueUserWorkItem(
@@ -373,7 +509,7 @@ Public Class FormOptions
         ' Recommendations
         Dim recs = info.GetRecommendations()
         If recs.Count = 0 Then
-            txtHwRecs.Text = "No recommendations — your hardware looks great!"
+            txtHwRecs.Text = LanguagePackService.Instance.GetString("Opt_HwNoRecs")
         Else
             txtHwRecs.Text = String.Join(Environment.NewLine & Environment.NewLine, recs)
         End If

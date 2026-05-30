@@ -74,23 +74,12 @@ Namespace Services.Infrastructure
 
             _strings.Clear()
 
-            ' Always load English first as fallback
-            Dim enPath = Path.Combine(_localesDir, "en.json")
-            If File.Exists(enPath) Then
-                LoadJsonInto(enPath, _strings)
+            ' Load from disk if available, otherwise fall back to embedded English
+            Dim langPath = Path.Combine(_localesDir, $"{normalized}.json")
+            If File.Exists(langPath) Then
+                LoadJsonInto(langPath, _strings)
             Else
-                ' Fall back to embedded en.json resource
                 LoadEmbeddedEnglish(_strings)
-            End If
-
-            ' Then overlay the requested language
-            If Not normalized.Equals("en", StringComparison.OrdinalIgnoreCase) Then
-                Dim langPath = Path.Combine(_localesDir, $"{normalized}.json")
-                If File.Exists(langPath) Then
-                    LoadJsonInto(langPath, _strings)
-                Else
-                    AppLogger.Log($"[LanguagePack] {normalized}.json not found locally, will attempt download")
-                End If
             End If
 
             _currentLang = normalized

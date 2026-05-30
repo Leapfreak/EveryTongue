@@ -1,5 +1,5 @@
 ' FormLanguagePicker.vb — First-run language selection
-' Shows logo + combo box of ALL languages from language-codes.json.
+' Shows logo + search box with filtered language list.
 ' After selection, downloads/generates the language pack if needed.
 
 Imports System.Drawing
@@ -13,7 +13,8 @@ Public Class FormLanguagePicker
     Public Property SelectedLanguage As String = ""
 
     Private ReadOnly _langs As List(Of (Code As String, Native As String, Name As String))
-    Private WithEvents _cboLang As ComboBox
+    Private _txtSearch As TextBox
+    Private _lstLangs As ListBox
     Private WithEvents _btnOk As Button
 
     Public Sub New()
@@ -57,7 +58,7 @@ Public Class FormLanguagePicker
 
         ' Logo (embedded black logo)
         Dim picLogo As New PictureBox() With {
-            .Size = New Size(560, 260),
+            .Size = New Size(560, 220),
             .Location = New Point((600 - 560) \ 2, 10),
             .SizeMode = PictureBoxSizeMode.Zoom,
             .BackColor = Color.Transparent
@@ -73,30 +74,40 @@ Public Class FormLanguagePicker
         End Try
         Me.Controls.Add(picLogo)
 
-        ' Language combo box
-        _cboLang = New ComboBox() With {
-            .Size = New Size(400, 36),
-            .Location = New Point((600 - 400) \ 2, 290),
-            .DropDownStyle = ComboBoxStyle.DropDown,
-            .AutoCompleteMode = AutoCompleteMode.SuggestAppend,
-            .AutoCompleteSource = AutoCompleteSource.ListItems,
-            .Font = New Font("Segoe UI", 14),
+        ' Search text box
+        _txtSearch = New TextBox() With {
+            .Size = New Size(400, 32),
+            .Location = New Point((600 - 400) \ 2, 240),
+            .Font = New Font("Segoe UI", 12),
             .BackColor = Color.FromArgb(50, 50, 55),
             .ForeColor = Color.White,
-            .FlatStyle = FlatStyle.Flat,
-            .MaxDropDownItems = 8,
-            .DropDownHeight = 200
+            .BorderStyle = BorderStyle.FixedSingle
         }
-        For Each lang In _langs
-            _cboLang.Items.Add($"{lang.Native}  ({lang.Name})")
-        Next
-        _cboLang.SelectedIndex = 0 ' English is first
-        Me.Controls.Add(_cboLang)
+        _txtSearch.PlaceholderText = "Search languages..."
+        AddHandler _txtSearch.TextChanged, AddressOf SearchChanged
+        AddHandler _txtSearch.KeyDown, AddressOf SearchKeyDown
+        Me.Controls.Add(_txtSearch)
+
+        ' Language list box
+        _lstLangs = New ListBox() With {
+            .Size = New Size(400, 150),
+            .Location = New Point((600 - 400) \ 2, 278),
+            .Font = New Font("Segoe UI", 12),
+            .BackColor = Color.FromArgb(50, 50, 55),
+            .ForeColor = Color.White,
+            .BorderStyle = BorderStyle.FixedSingle,
+            .IntegralHeight = False
+        }
+        AddHandler _lstLangs.DoubleClick, AddressOf ListDoubleClick
+        Me.Controls.Add(_lstLangs)
+
+        ' Populate list
+        PopulateList("")
 
         ' OK button
         _btnOk = New Button() With {
-            .Size = New Size(300, 50),
-            .Location = New Point((600 - 300) \ 2, 345),
+            .Size = New Size(300, 45),
+            .Location = New Point((600 - 300) \ 2, 438),
             .FlatStyle = FlatStyle.Flat,
             .BackColor = Color.FromArgb(0, 122, 204),
             .ForeColor = Color.White,
@@ -111,20 +122,77 @@ Public Class FormLanguagePicker
         Me.ResumeLayout(False)
     End Sub
 
-    Private Sub BtnOk_Click(sender As Object, e As EventArgs) Handles _btnOk.Click
-        If _cboLang.SelectedIndex >= 0 AndAlso _cboLang.SelectedIndex < _langs.Count Then
-            SelectedLanguage = _langs(_cboLang.SelectedIndex).Code
-        Else
-            ' Match typed text against items
-            Dim typed = _cboLang.Text.Trim()
-            For i = 0 To _langs.Count - 1
-                If _cboLang.Items(i).ToString().Equals(typed, StringComparison.OrdinalIgnoreCase) Then
-                    SelectedLanguage = _langs(i).Code
-                    Exit For
+    Private Sub PopulateList(filter As String)
+        _lstLangs.BeginUpdate()
+        _lstLangs.Items.Clear()
+        Dim q = filter.Trim().ToLowerInvariant()
+        For Each lang In _langs
+            If q.Length > 0 Then
+                If lang.Native.ToLowerInvariant().IndexOf(q) < 0 AndAlso
+                   lang.Name.ToLowerInvariant().IndexOf(q) < 0 AndAlso
+                   lang.Code.ToLowerInvariant().IndexOf(q) < 0 Then
+                    Continue For
                 End If
-            Next
+            End If
+            _lstLangs.Items.Add(New LangItem With {.Code = lang.Code, .Display = $"{lang.Native}  ({lang.Name})"})
+        Next
+        If _lstLangs.Items.Count > 0 Then _lstLangs.SelectedIndex = 0
+        _lstLangs.EndUpdate()
+    End Sub
+
+    Private Sub SearchChanged(sender As Object, e As EventArgs)
+        PopulateList(_txtSearch.Text)
+    End Sub
+
+    Private Sub SearchKeyDown(sender As Object, e As KeyEventArgs)
+        If e.KeyCode = Keys.Down Then
+            If _lstLangs.Items.Count > 0 Then
+                Dim idx = _lstLangs.SelectedIndex
+                If idx < _lstLangs.Items.Count - 1 Then
+                    _lstLangs.SelectedIndex = idx + 1
+                End If
+            End If
+            e.Handled = True
+        ElseIf e.KeyCode = Keys.Up Then
+            If _lstLangs.Items.Count > 0 Then
+                Dim idx = _lstLangs.SelectedIndex
+                If idx > 0 Then
+                    _lstLangs.SelectedIndex = idx - 1
+                End If
+            End If
+            e.Handled = True
+        ElseIf e.KeyCode = Keys.Enter Then
+            If _lstLangs.SelectedItem IsNot Nothing Then
+                SelectedLanguage = DirectCast(_lstLangs.SelectedItem, LangItem).Code
+                Me.DialogResult = DialogResult.OK
+                Me.Close()
+            End If
+            e.Handled = True
+            e.SuppressKeyPress = True
+        End If
+    End Sub
+
+    Private Sub ListDoubleClick(sender As Object, e As EventArgs)
+        If _lstLangs.SelectedItem IsNot Nothing Then
+            SelectedLanguage = DirectCast(_lstLangs.SelectedItem, LangItem).Code
+            Me.DialogResult = DialogResult.OK
+            Me.Close()
+        End If
+    End Sub
+
+    Private Sub BtnOk_Click(sender As Object, e As EventArgs) Handles _btnOk.Click
+        If _lstLangs.SelectedItem IsNot Nothing Then
+            SelectedLanguage = DirectCast(_lstLangs.SelectedItem, LangItem).Code
         End If
         Me.DialogResult = DialogResult.OK
         Me.Close()
     End Sub
+
+    Private Class LangItem
+        Public Property Code As String
+        Public Property Display As String
+        Public Overrides Function ToString() As String
+            Return Display
+        End Function
+    End Class
 End Class

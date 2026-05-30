@@ -61,13 +61,13 @@
   },
   "ast_Latn": {
     "iso3": "ast",
-    "name": "",
-    "native": ""
+    "name": "Asturian",
+    "native": "Asturianu"
   },
   "awa_Deva": {
     "iso3": "awa",
-    "name": "",
-    "native": ""
+    "name": "Awadhi",
+    "native": "अवधी"
   },
   "ayr_Latn": {
     "iso3": "ayr",
@@ -77,7 +77,7 @@
     "google": "ay",
     "azure": "ay",
     "name": "Aymara",
-    "native": "aymar aru"
+    "native": "Aymar aru"
   },
   "azb_Arab": {
     "iso3": "azb",
@@ -86,13 +86,13 @@
     "deepl": "AZ",
     "google": "az",
     "azure": "az",
-    "name": "Azerbaijani",
-    "native": "azərbaycan dili"
+    "name": "Azerbaijani (South)",
+    "native": "تۆرکجه"
   },
   "azj_Latn": {
     "iso3": "azj",
-    "name": "",
-    "native": ""
+    "name": "Azerbaijani",
+    "native": "Azərbaycan"
   },
   "bak_Cyrl": {
     "iso3": "bak",
@@ -102,7 +102,7 @@
     "google": "ba",
     "azure": "ba",
     "name": "Bashkir",
-    "native": "башҡорт теле"
+    "native": "Башҡортса"
   },
   "bam_Latn": {
     "iso3": "bam",
@@ -112,12 +112,12 @@
     "google": "bm",
     "azure": "bm",
     "name": "Bambara",
-    "native": "bamanankan"
+    "native": "Bamanankan"
   },
   "ban_Latn": {
     "iso3": "ban",
-    "name": "",
-    "native": ""
+    "name": "Balinese",
+    "native": "Basa Bali"
   },
   "bel_Cyrl": {
     "iso3": "bel",
@@ -127,12 +127,12 @@
     "google": "be",
     "azure": "be",
     "name": "Belarusian",
-    "native": "беларуская мова"
+    "native": "Беларуская"
   },
   "bem_Latn": {
     "iso3": "bem",
-    "name": "",
-    "native": ""
+    "name": "Bemba",
+    "native": "Ichibemba"
   },
   "ben_Beng": {
     "iso3": "ben",
@@ -141,13 +141,13 @@
     "deepl": "BN",
     "google": "bn",
     "azure": "bn",
-    "name": "Bengali, Bangla",
+    "name": "Bengali",
     "native": "বাংলা"
   },
   "bho_Deva": {
     "iso3": "bho",
-    "name": "",
-    "native": ""
+    "name": "Bhojpuri",
+    "native": "भोजपुरी"
   },
   "bod_Tibt": {
     "iso3": "bod",
@@ -156,7 +156,7 @@
     "deepl": "BO",
     "google": "bo",
     "azure": "bo",
-    "name": "Tibetan Standard, Tibetan, Central",
+    "name": "Tibetan",
     "native": "བོད་ཡིག"
   },
   "bos_Latn": {
@@ -167,12 +167,12 @@
     "google": "bs",
     "azure": "bs",
     "name": "Bosnian",
-    "native": "bosanski jezik"
+    "native": "Bosanski"
   },
   "bug_Latn": {
     "iso3": "bug",
-    "name": "",
-    "native": ""
+    "name": "Buginese",
+    "native": "Basa Ugi"
   },
   "bul_Cyrl": {
     "iso3": "bul",
@@ -182,7 +182,7 @@
     "google": "bg",
     "azure": "bg",
     "name": "Bulgarian",
-    "native": "български език"
+    "native": "Български"
   },
   "cat_Latn": {
     "iso3": "cat",
@@ -192,12 +192,12 @@
     "google": "ca",
     "azure": "ca",
     "name": "Catalan",
-    "native": "català"
+    "native": "Català"
   },
   "ceb_Latn": {
     "iso3": "ceb",
-    "name": "",
-    "native": ""
+    "name": "Cebuano",
+    "native": "Sinugbuanon"
   },
   "ces_Latn": {
     "iso3": "ces",
@@ -207,12 +207,12 @@
     "google": "cs",
     "azure": "cs",
     "name": "Czech",
-    "native": "čeština, český jazyk"
+    "native": "Čeština"
   },
   "ckb_Arab": {
     "iso3": "ckb",
-    "name": "",
-    "native": ""
+    "name": "Kurdish (Central)",
+    "native": "کوردی"
   },
   "cym_Latn": {
     "iso3": "cym",
@@ -232,7 +232,7 @@
     "google": "da",
     "azure": "da",
     "name": "Danish",
-    "native": "dansk"
+    "native": "Dansk"
   },
   "deu_Latn": {
     "iso3": "deu",
@@ -246,13 +246,13 @@
   },
   "dik_Latn": {
     "iso3": "dik",
-    "name": "",
-    "native": ""
+    "name": "Dinka",
+    "native": "Thuɔŋjäŋ"
   },
   "dyu_Latn": {
     "iso3": "dyu",
-    "name": "",
-    "native": ""
+    "name": "Dyula",
+    "native": "Julakan"
   },
   "dzo_Tibt": {
     "iso3": "dzo",
@@ -271,8 +271,8 @@
     "deepl": "EL",
     "google": "el",
     "azure": "el",
-    "name": "Greek (modern)",
-    "native": "ελληνικά"
+    "name": "Greek",
+    "native": "Ελληνικά"
   },
   "eng_Latn": {
     "iso3": "eng",
@@ -302,7 +302,7 @@
     "google": "et",
     "azure": "et",
     "name": "Estonian",
-    "native": "eesti, eesti keel"
+    "native": "Eesti"
   },
   "eus_Latn": {
     "iso3": "eus",
@@ -312,7 +312,7 @@
     "google": "eu",
     "azure": "eu",
     "name": "Basque",
-    "native": "euskara, euskera"
+    "native": "Euskara"
   },
   "ewe_Latn": {
     "iso3": "ewe",
@@ -332,7 +332,7 @@
     "google": "fo",
     "azure": "fo",
     "name": "Faroese",
-    "native": "føroyskt"
+    "native": "Føroyskt"
   },
   "fij_Latn": {
     "iso3": "fij",
@@ -342,7 +342,7 @@
     "google": "fj",
     "azure": "fj",
     "name": "Fijian",
-    "native": "vosa Vakaviti"
+    "native": "Vosa Vakaviti"
   },
   "fin_Latn": {
     "iso3": "fin",
@@ -352,12 +352,12 @@
     "google": "fi",
     "azure": "fi",
     "name": "Finnish",
-    "native": "suomi, suomen kieli"
+    "native": "Suomi"
   },
   "fon_Latn": {
     "iso3": "fon",
-    "name": "",
-    "native": ""
+    "name": "Fon",
+    "native": "Fɔ̀ngbè"
   },
   "fra_Latn": {
     "iso3": "fra",
@@ -367,17 +367,17 @@
     "google": "fr",
     "azure": "fr",
     "name": "French",
-    "native": "français, langue française"
+    "native": "Français"
   },
   "fur_Latn": {
     "iso3": "fur",
-    "name": "",
-    "native": ""
+    "name": "Friulian",
+    "native": "Furlan"
   },
   "fuv_Latn": {
     "iso3": "fuv",
-    "name": "",
-    "native": ""
+    "name": "Fulah",
+    "native": "Fulfulde"
   },
   "gaz_Latn": {
     "iso3": "gaz",
@@ -407,7 +407,7 @@
     "google": "gl",
     "azure": "gl",
     "name": "Galician",
-    "native": "galego"
+    "native": "Galego"
   },
   "grn_Latn": {
     "iso3": "grn",
@@ -437,7 +437,7 @@
     "google": "ha",
     "azure": "ha",
     "name": "Hausa",
-    "native": "(Hausa) هَوُسَ"
+    "native": "Hausa"
   },
   "heb_Hebr": {
     "iso3": "heb",
@@ -446,7 +446,7 @@
     "deepl": "HE",
     "google": "he",
     "azure": "he",
-    "name": "Hebrew (modern)",
+    "name": "Hebrew",
     "native": "עברית"
   },
   "hin_Deva": {
@@ -457,7 +457,7 @@
     "google": "hi",
     "azure": "hi",
     "name": "Hindi",
-    "native": "हिन्दी, हिंदी"
+    "native": "हिन्दी"
   },
   "hrv_Latn": {
     "iso3": "hrv",
@@ -467,7 +467,7 @@
     "google": "hr",
     "azure": "hr",
     "name": "Croatian",
-    "native": "hrvatski jezik"
+    "native": "Hrvatski"
   },
   "hun_Latn": {
     "iso3": "hun",
@@ -477,7 +477,7 @@
     "google": "hu",
     "azure": "hu",
     "name": "Hungarian",
-    "native": "magyar"
+    "native": "Magyar"
   },
   "hye_Armn": {
     "iso3": "hye",
@@ -497,7 +497,7 @@
     "google": "ig",
     "azure": "ig",
     "name": "Igbo",
-    "native": "Asụsụ Igbo"
+    "native": "Igbo"
   },
   "ind_Latn": {
     "iso3": "ind",
@@ -537,7 +537,7 @@
     "google": "jv",
     "azure": "jv",
     "name": "Javanese",
-    "native": "ꦧꦱꦗꦮ, Basa Jawa"
+    "native": "Basa Jawa"
   },
   "jpn_Jpan": {
     "iso3": "jpn",
@@ -547,17 +547,17 @@
     "google": "ja",
     "azure": "ja",
     "name": "Japanese",
-    "native": "日本語 (にほんご)"
+    "native": "日本語"
   },
   "kab_Latn": {
     "iso3": "kab",
-    "name": "",
-    "native": ""
+    "name": "Kabyle",
+    "native": "Taqbaylit"
   },
   "kam_Latn": {
     "iso3": "kam",
-    "name": "",
-    "native": ""
+    "name": "Kamba",
+    "native": "Kĩkamba"
   },
   "kan_Knda": {
     "iso3": "kan",
@@ -577,7 +577,7 @@
     "google": "ks",
     "azure": "ks",
     "name": "Kashmiri",
-    "native": "कश्मीरी, كشميري‎"
+    "native": "كشميري"
   },
   "kat_Geor": {
     "iso3": "kat",
@@ -597,7 +597,7 @@
     "google": "kk",
     "azure": "kk",
     "name": "Kazakh",
-    "native": "қазақ тілі"
+    "native": "Қазақша"
   },
   "khk_Cyrl": {
     "iso3": "khk",
@@ -607,7 +607,7 @@
     "google": "mn",
     "azure": "mn",
     "name": "Mongolian",
-    "native": "Монгол хэл"
+    "native": "Монгол"
   },
   "khm_Khmr": {
     "iso3": "khm",
@@ -617,7 +617,7 @@
     "google": "km",
     "azure": "km",
     "name": "Khmer",
-    "native": "ខ្មែរ, ខេមរភាសា, ភាសាខ្មែរ"
+    "native": "ខ្មែរ"
   },
   "kin_Latn": {
     "iso3": "kin",
@@ -637,12 +637,12 @@
     "google": "ky",
     "azure": "ky",
     "name": "Kyrgyz",
-    "native": "Кыргызча, Кыргыз тили"
+    "native": "Кыргызча"
   },
   "kmb_Latn": {
     "iso3": "kmb",
-    "name": "",
-    "native": ""
+    "name": "Kimbundu",
+    "native": "Kimbundu"
   },
   "kmr_Latn": {
     "iso3": "kmr",
@@ -652,7 +652,7 @@
     "google": "ku",
     "azure": "ku",
     "name": "Kurdish",
-    "native": "Kurdî, كوردی‎"
+    "native": "Kurdî"
   },
   "knc_Arab": {
     "iso3": "knc",
@@ -682,12 +682,12 @@
     "google": "lo",
     "azure": "lo",
     "name": "Lao",
-    "native": "ພາສາລາວ"
+    "native": "ລາວ"
   },
   "lij_Latn": {
     "iso3": "lij",
-    "name": "",
-    "native": ""
+    "name": "Ligurian",
+    "native": "Ligure"
   },
   "lim_Latn": {
     "iso3": "lim",
@@ -696,7 +696,7 @@
     "deepl": "LI",
     "google": "li",
     "azure": "li",
-    "name": "Limburgish, Limburgan, Limburger",
+    "name": "Limburgish",
     "native": "Limburgs"
   },
   "lin_Latn": {
@@ -717,7 +717,7 @@
     "google": "lt",
     "azure": "lt",
     "name": "Lithuanian",
-    "native": "lietuvių kalba"
+    "native": "Lietuvių"
   },
   "ltz_Latn": {
     "iso3": "ltz",
@@ -726,7 +726,7 @@
     "deepl": "LB",
     "google": "lb",
     "azure": "lb",
-    "name": "Luxembourgish, Letzeburgesch",
+    "name": "Luxembourgish",
     "native": "Lëtzebuergesch"
   },
   "lug_Latn": {
@@ -741,8 +741,8 @@
   },
   "luo_Latn": {
     "iso3": "luo",
-    "name": "",
-    "native": ""
+    "name": "Luo",
+    "native": "Dholuo"
   },
   "lvs_Latn": {
     "iso3": "lvs",
@@ -752,17 +752,17 @@
     "google": "lv",
     "azure": "lv",
     "name": "Latvian",
-    "native": "latviešu valoda"
+    "native": "Latviešu"
   },
   "mag_Deva": {
     "iso3": "mag",
-    "name": "",
-    "native": ""
+    "name": "Magahi",
+    "native": "मगही"
   },
   "mai_Deva": {
     "iso3": "mai",
-    "name": "",
-    "native": ""
+    "name": "Maithili",
+    "native": "मैथिली"
   },
   "mal_Mlym": {
     "iso3": "mal",
@@ -781,13 +781,13 @@
     "deepl": "MR",
     "google": "mr",
     "azure": "mr",
-    "name": "Marathi (Marāṭhī)",
+    "name": "Marathi",
     "native": "मराठी"
   },
   "min_Arab": {
     "iso3": "min",
-    "name": "",
-    "native": ""
+    "name": "Minangkabau",
+    "native": "Baso Minang"
   },
   "mkd_Cyrl": {
     "iso3": "mkd",
@@ -797,7 +797,7 @@
     "google": "mk",
     "azure": "mk",
     "name": "Macedonian",
-    "native": "македонски јазик"
+    "native": "Македонски"
   },
   "mlt_Latn": {
     "iso3": "mlt",
@@ -816,13 +816,13 @@
     "deepl": "BN",
     "google": "bn",
     "azure": "bn",
-    "name": "Bengali, Bangla",
-    "native": "বাংলা"
+    "name": "Manipuri",
+    "native": "মৈতৈলোন্"
   },
   "mos_Latn": {
     "iso3": "mos",
-    "name": "",
-    "native": ""
+    "name": "Mossi",
+    "native": "Mòoré"
   },
   "mri_Latn": {
     "iso3": "mri",
@@ -832,7 +832,7 @@
     "google": "mi",
     "azure": "mi",
     "name": "Māori",
-    "native": "te reo Māori"
+    "native": "Te Reo Māori"
   },
   "mya_Mymr": {
     "iso3": "mya",
@@ -842,7 +842,7 @@
     "google": "my",
     "azure": "my",
     "name": "Burmese",
-    "native": "ဗမာစာ"
+    "native": "ဗမာ"
   },
   "nld_Latn": {
     "iso3": "nld",
@@ -852,7 +852,7 @@
     "google": "nl",
     "azure": "nl",
     "name": "Dutch",
-    "native": "Nederlands, Vlaams"
+    "native": "Nederlands"
   },
   "nno_Latn": {
     "iso3": "nno",
@@ -862,7 +862,7 @@
     "google": "nn",
     "azure": "nn",
     "name": "Norwegian Nynorsk",
-    "native": "Norsk nynorsk"
+    "native": "Nynorsk"
   },
   "nob_Latn": {
     "iso3": "nob",
@@ -871,8 +871,8 @@
     "deepl": "NB",
     "google": "nb",
     "azure": "nb",
-    "name": "Norwegian Bokmål",
-    "native": "Norsk bokmål"
+    "name": "Norwegian",
+    "native": "Norsk"
   },
   "npi_Deva": {
     "iso3": "npi",
@@ -886,8 +886,8 @@
   },
   "nso_Latn": {
     "iso3": "nso",
-    "name": "",
-    "native": ""
+    "name": "Northern Sotho",
+    "native": "Sesotho sa Leboa"
   },
   "nya_Latn": {
     "iso3": "nya",
@@ -896,8 +896,8 @@
     "deepl": "NY",
     "google": "ny",
     "azure": "ny",
-    "name": "Chichewa, Chewa, Nyanja",
-    "native": "chiCheŵa, chinyanja"
+    "name": "Chichewa",
+    "native": "ChiCheŵa"
   },
   "oci_Latn": {
     "iso3": "oci",
@@ -907,17 +907,17 @@
     "google": "oc",
     "azure": "oc",
     "name": "Occitan",
-    "native": "occitan, lenga d'òc"
+    "native": "Occitan"
   },
   "ory_Orya": {
     "iso3": "ory",
-    "name": "",
-    "native": ""
+    "name": "Odia",
+    "native": "ଓଡ଼ିଆ"
   },
   "pag_Latn": {
     "iso3": "pag",
-    "name": "",
-    "native": ""
+    "name": "Pangasinan",
+    "native": "Pangasinan"
   },
   "pan_Guru": {
     "iso3": "pan",
@@ -926,18 +926,18 @@
     "deepl": "PA",
     "google": "pa",
     "azure": "pa",
-    "name": "(Eastern) Punjabi",
+    "name": "Punjabi",
     "native": "ਪੰਜਾਬੀ"
   },
   "pap_Latn": {
     "iso3": "pap",
-    "name": "",
-    "native": ""
+    "name": "Papiamento",
+    "native": "Papiamentu"
   },
   "pbt_Arab": {
     "iso3": "pbt",
-    "name": "",
-    "native": ""
+    "name": "Pashto",
+    "native": "پښتو"
   },
   "pes_Arab": {
     "iso3": "pes",
@@ -946,7 +946,7 @@
     "deepl": "FA",
     "google": "fa",
     "azure": "fa",
-    "name": "Persian (Farsi)",
+    "name": "Persian",
     "native": "فارسی"
   },
   "pol_Latn": {
@@ -957,7 +957,7 @@
     "google": "pl",
     "azure": "pl",
     "name": "Polish",
-    "native": "język polski, polszczyzna"
+    "native": "Polski"
   },
   "por_Latn": {
     "iso3": "por",
@@ -977,7 +977,7 @@
     "google": "qu",
     "azure": "qu",
     "name": "Quechua",
-    "native": "Runa Simi, Kichwa"
+    "native": "Runa Simi"
   },
   "ron_Latn": {
     "iso3": "ron",
@@ -1017,7 +1017,7 @@
     "google": "sg",
     "azure": "sg",
     "name": "Sango",
-    "native": "yângâ tî sängö"
+    "native": "Sängö"
   },
   "san_Deva": {
     "iso3": "san",
@@ -1026,23 +1026,23 @@
     "deepl": "SA",
     "google": "sa",
     "azure": "sa",
-    "name": "Sanskrit (Saṁskṛta)",
+    "name": "Sanskrit",
     "native": "संस्कृतम्"
   },
   "sat_Olck": {
     "iso3": "sat",
-    "name": "",
-    "native": ""
+    "name": "Santali",
+    "native": "ᱥᱟᱱᱛᱟᱲᱤ"
   },
   "scn_Latn": {
     "iso3": "scn",
-    "name": "",
-    "native": ""
+    "name": "Sicilian",
+    "native": "Sicilianu"
   },
   "shn_Mymr": {
     "iso3": "shn",
-    "name": "",
-    "native": ""
+    "name": "Shan",
+    "native": "လိၵ်ႈတႆး"
   },
   "slk_Latn": {
     "iso3": "slk",
@@ -1052,7 +1052,7 @@
     "google": "sk",
     "azure": "sk",
     "name": "Slovak",
-    "native": "slovenčina, slovenský jazyk"
+    "native": "Slovenčina"
   },
   "slv_Latn": {
     "iso3": "slv",
@@ -1062,7 +1062,7 @@
     "google": "sl",
     "azure": "sl",
     "name": "Slovene",
-    "native": "slovenski jezik, slovenščina"
+    "native": "Slovenščina"
   },
   "smo_Latn": {
     "iso3": "smo",
@@ -1072,7 +1072,7 @@
     "google": "sm",
     "azure": "sm",
     "name": "Samoan",
-    "native": "gagana fa'a Samoa"
+    "native": "Gagana Samoa"
   },
   "sna_Latn": {
     "iso3": "sna",
@@ -1082,7 +1082,7 @@
     "google": "sn",
     "azure": "sn",
     "name": "Shona",
-    "native": "chiShona"
+    "native": "ChiShona"
   },
   "snd_Arab": {
     "iso3": "snd",
@@ -1092,7 +1092,7 @@
     "google": "sd",
     "azure": "sd",
     "name": "Sindhi",
-    "native": "सिन्धी, سنڌي، سندھی‎"
+    "native": "سنڌي"
   },
   "som_Latn": {
     "iso3": "som",
@@ -1102,7 +1102,7 @@
     "google": "so",
     "azure": "so",
     "name": "Somali",
-    "native": "Soomaaliga, af Soomaali"
+    "native": "Soomaaliga"
   },
   "spa_Latn": {
     "iso3": "spa",
@@ -1122,7 +1122,7 @@
     "google": "sc",
     "azure": "sc",
     "name": "Sardinian",
-    "native": "sardu"
+    "native": "Sardu"
   },
   "srp_Cyrl": {
     "iso3": "srp",
@@ -1132,7 +1132,7 @@
     "google": "sr",
     "azure": "sr",
     "name": "Serbian",
-    "native": "српски језик"
+    "native": "Српски"
   },
   "ssw_Latn": {
     "iso3": "ssw",
@@ -1162,7 +1162,7 @@
     "google": "sv",
     "azure": "sv",
     "name": "Swedish",
-    "native": "svenska"
+    "native": "Svenska"
   },
   "swh_Latn": {
     "iso3": "swh",
@@ -1192,7 +1192,7 @@
     "google": "tt",
     "azure": "tt",
     "name": "Tatar",
-    "native": "татар теле, tatar tele"
+    "native": "Татарча"
   },
   "tel_Telu": {
     "iso3": "tel",
@@ -1212,7 +1212,7 @@
     "google": "tg",
     "azure": "tg",
     "name": "Tajik",
-    "native": "тоҷикӣ, toçikī, تاجیکی‎"
+    "native": "Тоҷикӣ"
   },
   "tgl_Latn": {
     "iso3": "tgl",
@@ -1222,7 +1222,7 @@
     "google": "tl",
     "azure": "tl",
     "name": "Tagalog",
-    "native": "Wikang Tagalog"
+    "native": "Tagalog"
   },
   "tha_Thai": {
     "iso3": "tha",
@@ -1246,8 +1246,8 @@
   },
   "tpi_Latn": {
     "iso3": "tpi",
-    "name": "",
-    "native": ""
+    "name": "Tok Pisin",
+    "native": "Tok Pisin"
   },
   "tsn_Latn": {
     "iso3": "tsn",
@@ -1277,12 +1277,12 @@
     "google": "tk",
     "azure": "tk",
     "name": "Turkmen",
-    "native": "Türkmen, Түркмен"
+    "native": "Türkmen"
   },
   "tum_Latn": {
     "iso3": "tum",
-    "name": "",
-    "native": ""
+    "name": "Tumbuka",
+    "native": "ChiTumbuka"
   },
   "tur_Latn": {
     "iso3": "tur",
@@ -1316,8 +1316,8 @@
   },
   "umb_Latn": {
     "iso3": "umb",
-    "name": "",
-    "native": ""
+    "name": "Umbundu",
+    "native": "Umbundu"
   },
   "urd_Arab": {
     "iso3": "urd",
@@ -1337,7 +1337,7 @@
     "google": "uz",
     "azure": "uz",
     "name": "Uzbek",
-    "native": "Oʻzbek, Ўзбек, أۇزبېك‎"
+    "native": "Oʻzbek"
   },
   "vie_Latn": {
     "iso3": "vie",
@@ -1351,8 +1351,8 @@
   },
   "war_Latn": {
     "iso3": "war",
-    "name": "",
-    "native": ""
+    "name": "Waray",
+    "native": "Winaray"
   },
   "wol_Latn": {
     "iso3": "wol",
@@ -1362,7 +1362,7 @@
     "google": "wo",
     "azure": "wo",
     "name": "Wolof",
-    "native": "Wollof"
+    "native": "Wolof"
   },
   "xho_Latn": {
     "iso3": "xho",
@@ -1372,7 +1372,7 @@
     "google": "xh",
     "azure": "xh",
     "name": "Xhosa",
-    "native": "isiXhosa"
+    "native": "IsiXhosa"
   },
   "ydd_Hebr": {
     "iso3": "ydd",
@@ -1401,8 +1401,8 @@
     "deepl": "ZH",
     "google": "zh",
     "azure": "zh",
-    "name": "Chinese",
-    "native": "中文 (Zhōngwén), 汉语, 漢語"
+    "name": "Chinese (Simplified)",
+    "native": "简体中文"
   },
   "zho_Hant": {
     "iso3": "zho",
@@ -1411,8 +1411,8 @@
     "deepl": "ZH",
     "google": "zh",
     "azure": "zh",
-    "name": "Chinese",
-    "native": "中文 (Zhōngwén), 汉语, 漢語"
+    "name": "Chinese (Traditional)",
+    "native": "繁體中文"
   },
   "zsm_Latn": {
     "iso3": "zsm",
@@ -1422,7 +1422,7 @@
     "google": "ms",
     "azure": "ms",
     "name": "Malay",
-    "native": "bahasa Melayu, بهاس ملايو‎"
+    "native": "Bahasa Melayu"
   },
   "zul_Latn": {
     "iso3": "zul",
@@ -1432,6 +1432,6 @@
     "google": "zu",
     "azure": "zu",
     "name": "Zulu",
-    "native": "isiZulu"
+    "native": "IsiZulu"
   }
 }

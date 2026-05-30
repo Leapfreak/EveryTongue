@@ -72,8 +72,8 @@ Public Class FormMain
         Return display
     End Function
 
-    ' Available UI locales with native names
-    Private ReadOnly _uiLocales As (Code As String, Name As String)() = DiscoverUiLocales()
+    ' Available UI locales with native names (refreshed after language pack downloads)
+    Private _uiLocales As (Code As String, Name As String)() = DiscoverUiLocales()
 
     Private Shared Function DiscoverUiLocales() As (Code As String, Name As String)()
         Dim result As New List(Of (Code As String, Name As String))()
@@ -134,6 +134,9 @@ Public Class FormMain
                             WriteDebugLog($"[FIRSTRUN] Language pack download failed: {ex.Message}")
                         End Try
                     End If
+
+                    ' Refresh available locales after download
+                    _uiLocales = DiscoverUiLocales()
                 End If
             End Using
         End If
@@ -529,12 +532,17 @@ del ""%~f0""
             End Try
             WriteDebugLog("[FIRSTRUN] Download Manager closed")
 
+            ' Refresh locales after user may have downloaded more packs
+            _uiLocales = DiscoverUiLocales()
+
             ' Show Options dialog opened to Hardware panel
             WriteDebugLog("[FIRSTRUN] Opening Options → Hardware")
             Using opts As New FormOptions(_config, _uiLocales)
                 opts.SelectCategory("hardware")
                 opts.ShowDialog(Me)
                 If opts.ConfigChanged Then
+                    _langPack.LoadLanguage(_config.UiLanguage)
+                    ApplyLocale()
                     ApplyTheme(_config.Theme)
                 End If
             End Using
@@ -730,6 +738,7 @@ del ""%~f0""
 
     Private Sub ApplyLocale()
         Try
+            WriteDebugLog($"[LOCALE] ApplyLocale starting, lang={_langPack.CurrentLanguage}")
             tabPageJob.Text = GetString("Tab_Main")
             tabPageLive.Text = GetString("Tab_Live")
             tabPageHelp.Text = GetString("Tab_Help")
@@ -811,9 +820,9 @@ del ""%~f0""
             btnNavTranscribe.Text = GetString("Nav_Transcribe")
             btnNavTranslate.Text = GetString("Nav_Translate")
             btnNavBible.Text = GetString("Nav_Bible")
+            WriteDebugLog($"[LOCALE] ApplyLocale complete: Nav_Live={btnNavLive.Text}, Menu_File={mnuFile.Text}")
         Catch ex As Exception
-            ' Fallback silently if resource not found
-            WriteDebugLog($"[ERROR] ApplyLocalization: {ex.Message}")
+            WriteDebugLog($"[ERROR] ApplyLocale: {ex.Message}")
         End Try
     End Sub
 

@@ -23,6 +23,42 @@ Namespace Forms
             Dim toolsDir = AppDomain.CurrentDomain.BaseDirectory
             _mgr = New DependencyManager(config, toolsDir)
             InitializeComponent()
+            ApplyLocale()
+        End Sub
+
+        Private Sub ApplyLocale()
+            Dim lp = Services.Infrastructure.LanguagePackService.Instance
+            Me.Text = lp.GetString("DM_Title")
+            tabComponents.Text = lp.GetString("DM_TabComponents")
+            colToolName.Text = lp.GetString("DM_ColComponent")
+            colToolCategory.Text = lp.GetString("DM_ColCategory")
+            colToolStatus.Text = lp.GetString("DM_ColStatus")
+            colToolVersion.Text = lp.GetString("DM_ColVersion")
+            btnDownloadAll.Text = lp.GetString("DM_DownloadSelected")
+            btnRefresh.Text = lp.GetString("DM_Refresh")
+            tabPiper.Text = lp.GetString("DM_TabPiperVoices")
+            colVoiceLang.Text = lp.GetString("DM_ColLanguage")
+            colVoiceModel.Text = lp.GetString("DM_ColVoiceModel")
+            colVoiceStatus.Text = lp.GetString("DM_ColStatus")
+            btnDownloadVoices.Text = lp.GetString("DM_DownloadSelected")
+            btnRemoveVoices.Text = lp.GetString("DM_RemoveSelected")
+            tabMmsTts.Text = lp.GetString("DM_TabMmsTts")
+            lblMmsTtsInfo.Text = lp.GetString("DM_MmsTtsInfo")
+            btnInstallMmsTts.Text = lp.GetString("DM_Install")
+            tabBibles.Text = lp.GetString("DM_TabBibles")
+            btnFetchCatalog.Text = lp.GetString("DM_FetchCatalog")
+            btnDownloadBibles.Text = lp.GetString("DM_DownloadSelected")
+            btnOpenBiblesFolder.Text = lp.GetString("DM_OpenFolder")
+            tabLangPacks.Text = lp.GetString("DM_TabLangPacks")
+            colLangName.Text = lp.GetString("DM_ColLanguage")
+            colLangNative.Text = lp.GetString("DM_ColNativeName")
+            colLangCode.Text = lp.GetString("DM_ColCode")
+            colLangStatus.Text = lp.GetString("DM_ColStatus")
+            btnDownloadLangPacks.Text = lp.GetString("DM_DownloadSelected")
+            btnDeleteLangPacks.Text = lp.GetString("DM_UninstallSelected")
+            lblProgress.Text = lp.GetString("DM_Ready")
+            btnOk.Text = lp.GetString("Opt_OK")
+            btnCancel.Text = lp.GetString("Opt_Cancel")
         End Sub
 
         Public Sub SelectTab(tabName As String)
@@ -855,8 +891,6 @@ Namespace Forms
             Dim toDelete As New List(Of String)()
             For Each item As ListViewItem In lvLangPacks.CheckedItems
                 Dim code = DirectCast(item.Tag, String)
-                ' Never delete English
-                If code.Equals("en", StringComparison.OrdinalIgnoreCase) Then Continue For
                 If item.SubItems(3).Text = "Installed" Then
                     toDelete.Add(code)
                 End If
@@ -866,11 +900,6 @@ Namespace Forms
                 lblProgress.Text = "No installed language packs selected for uninstall"
                 Return
             End If
-
-            Dim result = MessageBox.Show(
-                $"Uninstall {toDelete.Count} language pack(s)?" & vbCrLf & String.Join(", ", toDelete),
-                "Uninstall Language Packs", MessageBoxButtons.YesNo, MessageBoxIcon.Question)
-            If result <> DialogResult.Yes Then Return
 
             Dim langPack = Services.Infrastructure.LanguagePackService.Instance
             Dim deleted = 0
@@ -882,7 +911,7 @@ Namespace Forms
                         deleted += 1
                     End If
                 Catch ex As Exception
-                    FormMain.WriteDebugLog($"[LangPack] Failed to delete {code}: {ex.Message}")
+                    FormMain.WriteDebugLog($"[LangPack] Failed to uninstall {code}: {ex.Message}")
                 End Try
             Next
 

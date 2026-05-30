@@ -548,10 +548,13 @@ Partial Class FormMain
     End Sub
 
     Private Sub ShowOptionsDialog(Optional category As String = "general")
+        _uiLocales = DiscoverUiLocales()
         Using dlg As New FormOptions(_config, _uiLocales)
             dlg.SelectCategory(category)
             If dlg.ShowDialog(Me) = DialogResult.OK AndAlso dlg.ConfigChanged Then
                 LoadConfigToUi()
+                _langPack.LoadLanguage(_config.UiLanguage)
+                ApplyLocale()
                 ApplyTheme(_config.Theme)
                 If _config.StartWithWindows Then RegisterStartup() Else UnregisterStartup()
             End If
