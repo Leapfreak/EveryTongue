@@ -88,8 +88,15 @@ Namespace Services.Rooms
                 _logger.LogWarning("ProcessAudioAsync: room not found for id={Room}", client.RoomId)
                 Return
             End If
-            If room.Type <> RoomType.Conversation Then
-                _logger.LogWarning("ProcessAudioAsync: room type is {Type}, not Conversation", room.Type)
+
+            ' Conference rooms: only the host can send audio
+            If room.Type = RoomType.Conference Then
+                If client.Id <> room.HostClientId Then
+                    _logger.LogDebug("ProcessAudioAsync: non-host {Endpoint} tried to speak in Conference room, ignoring", client.RemoteEndpoint)
+                    Return
+                End If
+            ElseIf room.Type <> RoomType.Conversation Then
+                _logger.LogWarning("ProcessAudioAsync: room type {Type} does not support audio", room.Type)
                 Return
             End If
 
@@ -113,9 +120,27 @@ Namespace Services.Rooms
             ' Send WAV to live-server /transcribe endpoint
             Dim transcribeUrl = $"http://127.0.0.1:{LiveServerPort}/transcribe"
 
+            ' Determine speaker identity (self or virtual member)
+            Dim speakerName As String
+            Dim speakerLang As String
+            If Not String.IsNullOrEmpty(client.SpeakingAsVirtualMemberId) Then
+                Dim vm As VirtualMember = Nothing
+                room.VirtualMembers.TryGetValue(client.SpeakingAsVirtualMemberId, vm)
+                If vm IsNot Nothing Then
+                    speakerName = vm.Name
+                    speakerLang = If(vm.Language, client.Language)
+                Else
+                    speakerName = If(client.DisplayName, "Guest")
+                    speakerLang = If(client.Language, "")
+                End If
+            Else
+                speakerName = If(String.IsNullOrEmpty(client.DisplayName), "Guest", client.DisplayName)
+                speakerLang = If(client.Language, "")
+            End If
+
             ' Use the client's language setting so Whisper doesn't guess wrong
             ' Client language is NLLB code (e.g. "eng_Latn") — convert to Whisper code (e.g. "en")
-            Dim clientLangNllb = If(client.Language, "")
+            Dim clientLangNllb = If(speakerLang, "")
             Dim whisperLang = If(Not String.IsNullOrEmpty(clientLangNllb),
                 TranslationService.NllbToShortCode(clientLangNllb).ToLowerInvariant(), "")
             If Not String.IsNullOrEmpty(whisperLang) Then
@@ -148,11 +173,11 @@ Namespace Services.Rooms
                         detectedLang = If(langProp.GetString(), "")
                     End If
 
-                    _logger.LogInformation("Room {RoomId} [{Lang}]: {Text}",
-                        client.RoomId, detectedLang, text)
+                    _logger.LogInformation("Room {RoomId} [{Lang}] {Speaker}: {Text}",
+                        client.RoomId, detectedLang, speakerName, text)
 
                     ' Broadcast to room members
-                    Await BroadcastToRoomAsync(client, room, text, detectedLang, ct).ConfigureAwait(False)
+                    Await BroadcastToRoomAsync(client, room, text, detectedLang, speakerName, ct).ConfigureAwait(False)
                 End Using
 
             Catch ex As OperationCanceledException
@@ -298,6 +323,7 @@ Namespace Services.Rooms
                                                      room As Room,
                                                      text As String,
                                                      sourceLang As String,
+                                                     speakerName As String,
                                                      ct As CancellationToken) As Task
             ' Collect all room members (including speaker for self-echo)
             Dim targetLangs As New HashSet(Of String)()
@@ -310,6 +336,13 @@ Namespace Services.Rooms
                 ' Collect target languages from non-speaker clients for translation
                 If client.Id <> speaker.Id AndAlso Not String.IsNullOrEmpty(client.Language) Then
                     targetLangs.Add(client.Language)
+                End If
+            Next
+
+            ' Also collect languages from virtual members (for shared-device translation)
+            For Each vm In room.VirtualMembers.Values
+                If Not String.IsNullOrEmpty(vm.Language) Then
+                    targetLangs.Add(vm.Language)
                 End If
             Next
 
@@ -354,36 +387,64 @@ Namespace Services.Rooms
                 _logger.LogInformation("BroadcastToRoom: no translations (sending original text)")
             End If
 
+            ' Determine if the room has virtual members (shared-device scenario)
+            Dim hasVirtualMembers = room.VirtualMembers.Count > 0
+
             ' Broadcast to each room member (including speaker for self-echo)
             Dim ts = DateTime.Now.ToString("HH:mm:ss")
             For Each client In roomClients
-                Dim clientText As String
-                Dim clientLangNllb As String
+                ' Shared-device clients (host with virtual members) get ALL translations
+                Dim isSharedDevice = hasVirtualMembers AndAlso client.Id = room.HostClientId
 
-                If client.Id = speaker.Id Then
-                    ' Speaker sees their own original text
-                    clientText = text
-                    clientLangNllb = sourceNllb
-                ElseIf String.IsNullOrEmpty(client.Language) OrElse client.Language = sourceNllb Then
-                    clientText = text
-                    clientLangNllb = sourceNllb
-                ElseIf translations IsNot Nothing AndAlso translations.ContainsKey(client.Language) Then
-                    clientText = translations(client.Language)
-                    clientLangNllb = client.Language
+                If isSharedDevice Then
+                    ' Build translations dict including original text under source language
+                    Dim allTranslations As New Dictionary(Of String, String)()
+                    allTranslations(sourceNllb) = text
+                    If translations IsNot Nothing Then
+                        For Each kvp In translations
+                            allTranslations(kvp.Key) = kvp.Value
+                        Next
+                    End If
+                    ' Build JSON with translations dict
+                    Dim commitId = Interlocked.Increment(_nextCommitId)
+                    Dim transJson As New Text.StringBuilder()
+                    transJson.Append("{")
+                    Dim first = True
+                    For Each kvp In allTranslations
+                        If Not first Then transJson.Append(",")
+                        first = False
+                        transJson.Append(SubtitleService.EscapeJson(kvp.Key))
+                        transJson.Append(":")
+                        transJson.Append(SubtitleService.EscapeJson(kvp.Value))
+                    Next
+                    transJson.Append("}")
+                    Dim json = $"{{""type"":""commit"",""id"":{commitId},""speaker"":{SubtitleService.EscapeJson(speakerName)},""lang"":{SubtitleService.EscapeJson(sourceShort)},""time"":{SubtitleService.EscapeJson(ts)},""sourceLang"":{SubtitleService.EscapeJson(sourceNllb)},""translations"":{transJson.ToString()}}}"
+                    Dim buffer = Encoding.UTF8.GetBytes(json)
+                    _logger.LogInformation("BroadcastToRoom: sending id={Id} to shared-device {Endpoint} with {Count} translations",
+                        commitId, client.RemoteEndpoint, allTranslations.Count)
+                    TrySendToClient(client, buffer)
                 Else
-                    clientText = text
-                    clientLangNllb = sourceNllb
+                    ' Normal single-language client
+                    Dim clientText As String
+
+                    If client.Id = speaker.Id Then
+                        clientText = text
+                    ElseIf String.IsNullOrEmpty(client.Language) OrElse client.Language = sourceNllb Then
+                        clientText = text
+                    ElseIf translations IsNot Nothing AndAlso translations.ContainsKey(client.Language) Then
+                        clientText = translations(client.Language)
+                    Else
+                        clientText = text
+                    End If
+
+                    ' Lang tag shows the SOURCE language (what was spoken), not the translation target
+                    Dim commitId = Interlocked.Increment(_nextCommitId)
+                    Dim json = $"{{""type"":""commit"",""id"":{commitId},""text"":{SubtitleService.EscapeJson(clientText)},""lang"":{SubtitleService.EscapeJson(sourceShort)},""time"":{SubtitleService.EscapeJson(ts)},""speaker"":{SubtitleService.EscapeJson(speakerName)}}}"
+                    Dim buffer = Encoding.UTF8.GetBytes(json)
+                    _logger.LogInformation("BroadcastToRoom: sending id={Id} to {Endpoint} lang={Lang} text={Text}",
+                        commitId, client.RemoteEndpoint, sourceShort, If(clientText.Length > 80, clientText.Substring(0, 80) & "...", clientText))
+                    TrySendToClient(client, buffer)
                 End If
-
-                ' Convert NLLB code to short code for display (e.g. "spa_Latn" -> "es")
-                Dim langShort = TranslationService.NllbToShortCode(clientLangNllb)
-
-                Dim commitId = Interlocked.Increment(_nextCommitId)
-                Dim json = $"{{""type"":""commit"",""id"":{commitId},""text"":{SubtitleService.EscapeJson(clientText)},""lang"":{SubtitleService.EscapeJson(langShort)},""time"":{SubtitleService.EscapeJson(ts)},""speaker"":{SubtitleService.EscapeJson(speaker.RemoteEndpoint)}}}"
-                Dim buffer = Encoding.UTF8.GetBytes(json)
-                _logger.LogInformation("BroadcastToRoom: sending id={Id} to {Endpoint} lang={Lang} text={Text}",
-                    commitId, client.RemoteEndpoint, langShort, If(clientText.Length > 80, clientText.Substring(0, 80) & "...", clientText))
-                TrySendToClient(client, buffer)
             Next
         End Function
 
@@ -426,6 +487,48 @@ Namespace Services.Rooms
                          End Try
                      End Function)
         End Sub
+
+        ' ── Text chat ──
+
+        ''' <summary>
+        ''' Process a typed text message from a conversation room client.
+        ''' Same as audio flow but skips transcription — translates and broadcasts directly.
+        ''' </summary>
+        Public Async Function ProcessTextAsync(client As ClientConnection,
+                                                text As String,
+                                                ct As CancellationToken) As Task
+            If _subtitleService Is Nothing Then Return
+
+            Dim room = _roomManager.GetRoom(client.RoomId)
+            If room Is Nothing OrElse room.Type <> RoomType.Conversation Then Return
+
+            ' Determine speaker identity
+            Dim speakerName As String
+            Dim speakerLang As String
+            If Not String.IsNullOrEmpty(client.SpeakingAsVirtualMemberId) Then
+                Dim vm As VirtualMember = Nothing
+                room.VirtualMembers.TryGetValue(client.SpeakingAsVirtualMemberId, vm)
+                If vm IsNot Nothing Then
+                    speakerName = vm.Name
+                    speakerLang = If(vm.Language, client.Language)
+                Else
+                    speakerName = If(client.DisplayName, "Guest")
+                    speakerLang = If(client.Language, "")
+                End If
+            Else
+                speakerName = If(String.IsNullOrEmpty(client.DisplayName), "Guest", client.DisplayName)
+                speakerLang = If(client.Language, "")
+            End If
+
+            ' Convert NLLB code to Whisper short code for source lang resolution
+            Dim sourceNllb = If(speakerLang, "eng_Latn")
+            Dim sourceLang = TranslationService.NllbToShortCode(sourceNllb)
+
+            _logger.LogInformation("Room {RoomId} chat [{Lang}] {Speaker}: {Text}",
+                client.RoomId, sourceLang, speakerName, text)
+
+            Await BroadcastToRoomAsync(client, room, text, sourceLang, speakerName, ct).ConfigureAwait(False)
+        End Function
 
         ' ── FFmpeg conversion ──
 

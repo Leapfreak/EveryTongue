@@ -18,6 +18,12 @@ Namespace Services.Subtitle
         Public Property MessagesSent As Long = 0
         Public Property MessagesDropped As Long = 0
 
+        ''' <summary>Display name set by the user (empty = "Guest").</summary>
+        Public Property DisplayName As String = ""
+
+        ''' <summary>Virtual member ID this client is currently speaking as (empty = self).</summary>
+        Public Property SpeakingAsVirtualMemberId As String = ""
+
         ''' <summary>
         ''' Interlocked flag: 0 = ready to send, 1 = send in-flight.
         ''' Used for backpressure — busy clients skip non-critical updates.

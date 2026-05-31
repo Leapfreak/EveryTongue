@@ -10,8 +10,10 @@ All 10 phases done. Kestrel in-process with DI, WebSocket hub, static files, TTS
 ### Code Quality — COMPLETE
 All 11 items done plus additional cleanup. TTS and Translation backend registries added for pluggable engine discovery. FormOptions is now the single source of truth for all settings.
 
-### Rooms — IN PROGRESS (see [#19](#19-rooms--multi-room-translation))
-Room model, lobby API, room QR codes, WebSocket routing, conversation rooms with bidirectional PTT audio, NLLB translation, self-echo, language forcing, auto-start of Whisper and NLLB at app launch — all working. Remaining: host controls, display names, participant list, per-client TTS, UI polish.
+### Rooms — GOVERNANCE COMPLETE (see [#19](#19-rooms--multi-room-translation))
+Room model, lobby API, room QR codes, WebSocket routing, conversation rooms with bidirectional PTT audio, NLLB translation, self-echo, language forcing, auto-start of Whisper and NLLB at app launch, host controls (end/lock/kick/PTT mode), host reconnection via token, display names, participant bar with kick UI, virtual members (shared device support with identity switching and multi-language transcript), text chat with translation, speaker colours, conference room targeting from desktop — all working. Remaining: per-client TTS, UI polish.
+
+> **INVESTIGATE:** TTS for multi-person conversations — how should read-aloud work when multiple speakers are present? Options include: read all incoming messages in the listener's language, only read messages from specific speakers, tap-to-read individual messages, or auto-read only when a specific identity is active (shared device). Need to decide the UX before implementing.
 
 ## User-Reported Issues & Tasks
 - [x] Implement stubs — most done (QR Code, Hardware Score, Diagnostics Export, File Integrity, Translate workspace). Remaining stubs: Session Wizard, Audio Level Monitor, Glossary Simple Mode, Event Profiles, Spec Sheet Generator, Portable Mode, Feedback prompt
@@ -19,8 +21,8 @@ Room model, lobby API, room QR codes, WebSocket routing, conversation rooms with
 - [ ] Audio routing: NDI or Direct Audio output
 
 ## Suggested Next Priorities
-1. **Rooms Phase 1 & 2 completion (#19)** — host controls, display names, speaker identity, participant list
-2. **Text Chat in Rooms (#17)** — type-to-translate for conversation rooms
+1. **TTS for multi-person conversations (#19e)** — investigate and implement read-aloud for room conversations
+2. **Rooms UI polish (#19f)** — active speaker indicator, smooth animations
 3. Audio Level Monitor (#3) — operator feedback, prevents bad audio
 4. Setup Wizard expansion (#2) — integrates QR, audio monitor, hardware score
 5. Priority Queue Pipeline — STT/Translation/TTS queues with dynamic priority scoring for multi-room load
@@ -65,9 +67,9 @@ Implementation plan for making Every Tongue field-deployable by a non-technical 
 | [14](#14-pluggable-translation-backends) | Pluggable Translation Backends (Cloud APIs) | Partial (a-e done) | 4 |
 | [15](#15-server-infrastructure-upgrade--kestrel) | Server Infrastructure Upgrade (Kestrel) | **Done** | 3 |
 | [16](#16-bible-integration) | Bible Integration | **Done** (a-g), partial (h) | 4 |
-| [17](#17-text-chat-in-rooms) | Text Chat in Rooms | New | 2 |
+| [17](#17-text-chat-in-rooms) | Text Chat in Rooms | **Done** (in conversation rooms) | 2 |
 | [18](#18-dictation-in-translate-workspace) | Dictation in Translate Workspace | New | 2 |
-| [19](#19-rooms--multi-room-translation) | Rooms — Multi-Room Translation | **In Progress** (Phase 1-2) | 1 |
+| [19](#19-rooms--multi-room-translation) | Rooms — Multi-Room Translation | **Governance Complete** (TTS remaining) | 1 |
 
 **[Implementation Order](#implementation-order)** | **[Development Notes](#development-notes)** | **[Notes](#notes)**
 
@@ -2158,15 +2160,15 @@ This gives baseline coverage for the majority of Agape's European footprint usin
 
 ## 19. Rooms — Multi-Room Translation
 
-**Status:** In Progress. Core infrastructure complete (Phase 1a-f, Phase 2a-c).
+**Status:** Room Governance complete. All core infrastructure + governance working.
 
 **Vision:** Transform EveryTongue from a single-session transcription tool into a building-wide, multi-room translation platform. One server, many rooms, every language, no internet required. The desktop app becomes a headless translation server — the phone web client is the primary UI.
 
 **What's done:**
-- Room data model (`Room`, `RoomManager`, `RoomConfig`, `RoomType`, `RoomVisibility`)
-- REST API: create/list/join/close rooms, per-room QR codes
+- Room data model (`Room`, `RoomManager`, `RoomConfig`, `RoomType`, `RoomVisibility`, `VirtualMember`)
+- REST API: create/list/join/close rooms, per-room QR codes, host claim, kick, lock, PTT mode, virtual members
 - WebSocket routing: clients subscribe to rooms, messages route per-room
-- Web client lobby API (endpoints ready, phone UI pending)
+- Web client lobby with "Your Rooms" section (localStorage host token persistence)
 - Conversation rooms: bidirectional PTT audio via MediaRecorder + FFmpeg + Whisper
 - Translation pipeline: PTT -> FFmpeg -> Whisper -> NLLB -> broadcast to room members
 - Self-echo: speakers see their own text in the conversation
@@ -2174,66 +2176,51 @@ This gives baseline coverage for the majority of Agape's European footprint usin
 - Auto-start: Whisper and NLLB engines start at app launch, ready for first message
 - Room lifecycle: idle expiry, host-only close, private rooms hidden from lobby
 - Room isolation: room messages don't leak to desktop Live workspace or other rooms
+- Host controls: end room, lock room, kick participant, PTT mode toggle (hold/tap)
+- Host reconnection: auto-reclaim host via stored token when rejoining from "Your Rooms"
+- Display names: auto-assigned "GuestNNNN", broadcast via memberUpdated to all room members
+- Participant bar: static HTML element, room name + count, expandable with name chips, kick buttons via event delegation
+- Virtual members (shared device): host adds guests without phones, identity selector chips in PTT dock
+- Shared-device language switching: server sends all translations dict, client caches transcript and re-renders on identity switch
+- Text chat: type-to-translate in conversation rooms, same pipeline as PTT audio
+- Speaker colours: each speaker gets a consistent colour from a 12-colour palette
+- Language tags show source language (what was spoken), not translation target
+- Conference room targeting: desktop `TargetRoomId` property routes Live STT to a specific room
+- Toolbar embedded in status bar (no longer overlays participant bar)
 
-### Phase 1 — Remaining
+### Remaining
 
-#### g) Host controls (phone UI)
-- Room host (creator) sees additional controls on their phone
-- **End room** — closes the room for all participants
-- **Mute participant** — prevents a participant from using PTT (they can still receive translations)
-- **Remove participant** — kicks them from the room
-- **Transfer host** — pass host role to another participant
-- Host disconnect: room stays alive, any participant can claim host
-- UI: gear/settings icon in the room view opens a host panel with participant list and actions
-
-#### h) Display names
-- When joining a conversation room, phone prompts for a display name
-- Display name stored on the `RoomClient` and sent with broadcasts
-- Speaker identity in room messages shows display name instead of IP address
-- Default name: "Phone 1", "Phone 2" etc. if user skips the prompt
-
-#### i) Web client lobby UI
-- Landing page when phone connects without a `?room=` param
-- Shows list of public rooms with names, types, participant counts
-- "Create Room" button: pick type (Conference/Conversation), name, public/private toggle
-- "Join Room" via list (public) or QR scan (any room)
-- Private rooms never appear in the lobby list
-
-#### j) Desktop server dashboard
-- Simple overview on the desktop app: active rooms, total clients, resource usage
-- No room creation/management from desktop — that's the phone's job
-
-### Phase 2 — Remaining
-
-#### d) Speaker identity labels
-- Broadcasts include speaker's display name (not IP endpoint)
-- Phone UI shows "Doctor:" / "Maria:" etc. before each translated line
-- Visual distinction between speakers (alternating colours or name tags)
-
-#### e) Per-client TTS streams
-- After translating for a room member, optionally generate TTS audio in their language
-- Uses existing Piper/MMS-TTS/EdgeTTS backends
+#### e) Per-client TTS streams — NEEDS INVESTIGATION
+- **How should TTS work in multi-person conversations?**
+  - Option A: Auto-read all incoming messages in the listener's language
+  - Option B: Only read messages from specific speakers (configurable per speaker)
+  - Option C: Tap-to-read individual messages (manual)
+  - Option D: Auto-read only when a specific identity is active (shared device — for illiterate users)
+  - Option E: Combination — default off, tap speaker colour to enable auto-read for that speaker
+- After deciding UX: generate TTS audio in each client's language using Piper/MMS-TTS/EdgeTTS
 - Each client gets a personalised TTS stream
 - Opt-in per room (may be noisy in consultation settings — subtitles-only is the default)
 
 #### f) Conversation room UI polish
 - Active speaker indicator (pulsing dot or name highlight)
-- Participant list: who's in the room, their language, speaking status
-- Smooth scrolling transcript with speaker labels and language tags
+- Smooth scrolling transcript with animations
 
-**Files already implemented:**
-- `Services/Rooms/RoomModels.vb` — Room, RoomConfig, RoomType, RoomVisibility
-- `Services/Rooms/RoomManager.vb` — create, list, join, leave, close, idle cleanup
-- `Services/Rooms/ConversationAudioHandler.vb` — PTT audio processing, FFmpeg, Whisper, translation, broadcast
-- `Server/EndpointRegistration.vb` — room REST API endpoints
-- `wwwroot/js/app.js` — PTT button, audio capture, room-aware WebSocket
+#### g) Desktop server dashboard
+- Simple overview on the desktop app: active rooms, total clients, resource usage
+- Conference room dropdown on Live workspace (server-side `TargetRoomId` ready, ComboBox UI not yet added)
+- No room creation/management from desktop — that's the phone's job
 
-**Files to modify for remaining work:**
-- `wwwroot/js/app.js` — lobby UI, host controls, display name prompt, participant list, speaker labels
-- `Services/Rooms/RoomModels.vb` — add DisplayName to client model
-- `Services/Rooms/ConversationAudioHandler.vb` — include display name in broadcasts, TTS generation
-- `Server/EndpointRegistration.vb` — host control endpoints (mute, remove, transfer host)
-- `Forms/FormMain.Designer.vb` — room dashboard panel (if adding to desktop UI)
+**Files implemented:**
+- `Services/Rooms/RoomModels.vb` — Room, RoomConfig, RoomType, RoomVisibility, VirtualMember
+- `Services/Rooms/RoomManager.vb` — create, list, join, leave, close, idle cleanup, host claim, kick, lock, virtual members
+- `Services/Rooms/ConversationAudioHandler.vb` — PTT audio processing, text chat, FFmpeg, Whisper, translation, shared-device multi-translation broadcast
+- `Services/Subtitle/ClientConnection.vb` — DisplayName, SpeakingAsVirtualMemberId
+- `Server/EndpointRegistration.vb` — room REST API + governance endpoints
+- `Server/Hubs/SubtitleHub.vb` — room message handling (setDisplayName, speakAs, chatMessage), member broadcasts
+- `wwwroot/js/app.js` — PTT, text chat, host controls, participant bar, virtual members, identity switching, speaker colours, transcript cache
+- `wwwroot/js/lobby.js` — "Your Rooms" with localStorage, host token storage
+- `wwwroot/lobby.html` — "Your Rooms" section markup
+- `wwwroot/index.html` — participant bar, toolbar in status bar
 
 ### Architecture
 

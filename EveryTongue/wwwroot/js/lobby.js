@@ -12,6 +12,8 @@
         create: document.getElementById("panel-create")
     };
     const roomList = document.getElementById("room-list");
+    const myRoomsSection = document.getElementById("my-rooms");
+    const myRoomList = document.getElementById("my-room-list");
     const emptyState = document.getElementById("empty-state");
     const roomNameInput = document.getElementById("room-name");
     const btnCreate = document.getElementById("btn-create");
@@ -29,8 +31,58 @@
     // ── State ──
     let selectedType = "conference";
     let isPrivate = false;
-    let createdRoom = null;   // { id, name, type, visibility }
+    let createdRoom = null;   // { id, name, type, visibility, hostToken }
     let refreshTimer = null;
+
+    // ── "Your Rooms" localStorage helpers ──
+    function getMyRooms() {
+        try {
+            return JSON.parse(localStorage.getItem("myRooms") || "[]");
+        } catch (e) { return []; }
+    }
+    function saveMyRooms(rooms) {
+        localStorage.setItem("myRooms", JSON.stringify(rooms));
+    }
+    function addMyRoom(room) {
+        const rooms = getMyRooms().filter(function (r) { return r.id !== room.id; });
+        rooms.unshift({ id: room.id, name: room.name, type: room.type, hostToken: room.hostToken });
+        saveMyRooms(rooms);
+    }
+    async function renderMyRooms() {
+        const rooms = getMyRooms();
+        if (rooms.length === 0) {
+            myRoomsSection.style.display = "none";
+            return;
+        }
+        // Verify which rooms are still active
+        const active = [];
+        for (const r of rooms) {
+            try {
+                const res = await fetch("/api/rooms/" + encodeURIComponent(r.id));
+                if (res.ok) active.push(r);
+            } catch (e) { /* remove dead rooms */ }
+        }
+        saveMyRooms(active);
+        if (active.length === 0) {
+            myRoomsSection.style.display = "none";
+            return;
+        }
+        myRoomsSection.style.display = "block";
+        myRoomList.innerHTML = "";
+        active.forEach(function (room) {
+            const li = document.createElement("li");
+            li.className = "room-item";
+            li.style.borderLeft = "3px solid #7c9cf7";
+            li.innerHTML =
+                '<div class="room-name">' + escapeHtml(room.name) +
+                '<span class="room-type">' + escapeHtml(room.type) + '</span></div>' +
+                '<div class="room-meta"><span style="color:#7c9cf7">Created by you</span></div>';
+            li.addEventListener("click", function () {
+                location.href = "/index.html?room=" + encodeURIComponent(room.id);
+            });
+            myRoomList.appendChild(li);
+        });
+    }
 
     // ── Tabs ──
     tabs.forEach(function (tab) {
@@ -83,9 +135,11 @@
             });
             if (!res.ok) throw new Error("Server returned " + res.status);
             createdRoom = await res.json();
+            addMyRoom(createdRoom);
             showQrOverlay(createdRoom);
             roomNameInput.value = "";
             loadRooms();
+            renderMyRooms();
         } catch (err) {
             alert("Failed to create room: " + err.message);
         } finally {
@@ -162,5 +216,6 @@
     }
 
     // ── Init ──
+    renderMyRooms();
     startAutoRefresh();
 })();

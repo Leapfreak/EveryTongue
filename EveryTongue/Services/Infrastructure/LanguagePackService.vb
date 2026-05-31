@@ -111,6 +111,38 @@ Namespace Services.Infrastructure
         End Function
 
         ''' <summary>
+        ''' Gets web.* strings for a specific language (for per-client locale serving).
+        ''' Loads the requested locale file on the fly without changing the server's current language.
+        ''' Falls back to the server's current language if the requested locale is unavailable.
+        ''' </summary>
+        Public Function GetWebStringsForLanguage(langCode As String) As Dictionary(Of String, String)
+            If String.IsNullOrEmpty(langCode) Then Return GetWebStrings()
+            Dim normalized = NormalizeLangCode(langCode)
+
+            ' If it's the same as the current server language, just return current strings
+            If normalized.Equals(_currentLang, StringComparison.OrdinalIgnoreCase) Then
+                Return GetWebStrings()
+            End If
+
+            ' Try to load the requested locale file
+            Dim langPath = Path.Combine(_localesDir, $"{normalized}.json")
+            If Not File.Exists(langPath) Then
+                Return GetWebStrings() ' Fall back to server language
+            End If
+
+            Dim tempStrings As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
+            LoadJsonInto(langPath, tempStrings)
+
+            Dim result As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
+            For Each kvp In tempStrings
+                If kvp.Key.StartsWith("web.", StringComparison.OrdinalIgnoreCase) Then
+                    result(kvp.Key.Substring(4)) = kvp.Value
+                End If
+            Next
+            Return result
+        End Function
+
+        ''' <summary>
         ''' Gets all raw strings for the current language (for serving full locale JSON).
         ''' </summary>
         Public Function GetAllStrings() As Dictionary(Of String, String)

@@ -319,9 +319,20 @@ Namespace Server
                 .KeepAliveInterval = TimeSpan.FromSeconds(30)
             })
 
-            ' 5. Static files (wwwroot/) — serves index.html, CSS, JS
-            '    Cache headers: immutable assets (js/css) cached 7 days,
-            '    index.html cached 5 minutes (so updates propagate quickly).
+            ' 5. Lobby redirect — phones hitting / without ?room= or ?preview go to lobby
+            app.Use(Function(ctx, [next])
+                        Dim path = ctx.Request.Path.Value
+                        If (path = "/" OrElse String.Equals(path, "/index.html", StringComparison.OrdinalIgnoreCase)) AndAlso
+                           Not ctx.Request.Query.ContainsKey("room") AndAlso
+                           Not ctx.Request.Query.ContainsKey("preview") AndAlso
+                           Not ctx.Request.Query.ContainsKey("bibleLang") Then
+                            ctx.Response.Redirect("/lobby.html", False)
+                            Return Task.CompletedTask
+                        End If
+                        Return [next](ctx)
+                    End Function)
+
+            ' 6. Static files (wwwroot/) — serves index.html, CSS, JS, lobby.html
             Dim wwwrootPath = IO.Path.Combine(AppContext.BaseDirectory, "wwwroot")
             If IO.Directory.Exists(wwwrootPath) Then
                 Dim fileProvider = New PhysicalFileProvider(wwwrootPath)

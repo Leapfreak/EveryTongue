@@ -1,6 +1,7 @@
 Imports System.IO
 Imports System.Net.WebSockets
 Imports System.Text
+Imports System.Text.Json
 Imports System.Threading
 Imports Microsoft.AspNetCore.Http
 Imports Microsoft.Extensions.Logging
@@ -67,17 +68,49 @@ Namespace Server.Hubs
 
             ' Join the room if specified
             If Not String.IsNullOrEmpty(roomId) Then
-                If Not _roomManager.JoinRoom(roomId, clientId) Then
+                Dim room = _roomManager.GetRoom(roomId)
+                If room Is Nothing Then
                     ' Room not found — still connect but with no room
                     client.RoomId = ""
+                ElseIf room.IsLocked Then
+                    ' Room is locked — send error and close
+                    Try
+                        Dim errJson = Encoding.UTF8.GetBytes("{""type"":""error"",""message"":""Room is locked""}")
+                        Await ws.SendAsync(New ArraySegment(Of Byte)(errJson),
+                            WebSocketMessageType.Text, True, context.RequestAborted).ConfigureAwait(False)
+                        Await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Room is locked", context.RequestAborted).ConfigureAwait(False)
+                    Catch
+                    End Try
+                    Return
+                Else
+                    If Not _roomManager.JoinRoom(roomId, clientId) Then
+                        client.RoomId = ""
+                    End If
                 End If
             End If
 
             _subtitleService.AddClient(client)
 
+            ' Send the client its assigned ID so it can query host status
+            Try
+                Dim welcomeJson = Encoding.UTF8.GetBytes("{""type"":""welcome"",""clientId"":""" & clientId & """}")
+                Await ws.SendAsync(New ArraySegment(Of Byte)(welcomeJson),
+                    WebSocketMessageType.Text, True, context.RequestAborted).ConfigureAwait(False)
+            Catch
+            End Try
+
+            ' Broadcast memberJoined to room
+            If Not String.IsNullOrEmpty(client.RoomId) Then
+                BroadcastToRoom(client.RoomId, "{""type"":""memberJoined"",""clientId"":""" & clientId & """,""displayName"":""Guest"",""language"":""""}", clientId)
+            End If
+
             Try
                 Await ReadLoopAsync(client, context.RequestAborted)
             Finally
+                ' Broadcast memberLeft before removing
+                If Not String.IsNullOrEmpty(client.RoomId) Then
+                    BroadcastToRoom(client.RoomId, "{""type"":""memberLeft"",""clientId"":""" & clientId & """}", clientId)
+                End If
                 _subtitleService.RemoveClient(clientId)
                 If Not String.IsNullOrEmpty(client.RoomId) Then
                     _roomManager.LeaveRoom(client.RoomId, clientId)
@@ -115,6 +148,11 @@ Namespace Server.Hubs
 
                     If result.MessageType = WebSocketMessageType.Text AndAlso result.Count > 0 Then
                         Dim msg = Encoding.UTF8.GetString(recvBuf, 0, result.Count)
+
+                        ' Handle room-specific messages
+                        If HandleRoomMessage(client, msg, ct) Then
+                            Continue While
+                        End If
 
                         If Not historyReplayed Then
                             historyReplayed = True
@@ -167,6 +205,108 @@ Namespace Server.Hubs
                 _logger.LogWarning(ex, "WebSocket error: {Endpoint}", client.RemoteEndpoint)
             End Try
         End Function
+
+        ''' <summary>
+        ''' Handle room-specific JSON messages (setDisplayName, speakAs, chatMessage).
+        ''' Returns True if the message was handled (caller should skip normal processing).
+        ''' </summary>
+        Private Function HandleRoomMessage(client As ClientConnection, msg As String, ct As CancellationToken) As Boolean
+            Try
+                Using doc = JsonDocument.Parse(msg)
+                    Dim root = doc.RootElement
+                    Dim typeProp As JsonElement = Nothing
+                    If Not root.TryGetProperty("type", typeProp) Then Return False
+                    Dim msgType = If(typeProp.GetString(), "")
+
+                    Select Case msgType
+                        Case "setDisplayName"
+                            Dim nameProp As JsonElement = Nothing
+                            If root.TryGetProperty("name", nameProp) Then
+                                client.DisplayName = If(nameProp.GetString(), "")
+                            End If
+                            ' Broadcast memberUpdated to room
+                            If Not String.IsNullOrEmpty(client.RoomId) Then
+                                Dim json = "{""type"":""memberUpdated"",""clientId"":""" & client.Id & """,""displayName"":" & SubtitleService.EscapeJson(If(client.DisplayName, "Guest")) & "}"
+                                BroadcastToRoom(client.RoomId, json, "")
+                            End If
+                            Return True
+
+                        Case "speakAs"
+                            Dim vmProp As JsonElement = Nothing
+                            If root.TryGetProperty("virtualMemberId", vmProp) Then
+                                client.SpeakingAsVirtualMemberId = If(vmProp.GetString(), "")
+                            Else
+                                client.SpeakingAsVirtualMemberId = ""
+                            End If
+                            Return True
+
+                        Case "chatMessage"
+                            If Not String.IsNullOrEmpty(client.RoomId) AndAlso _audioHandler IsNot Nothing Then
+                                Dim textProp As JsonElement = Nothing
+                                If root.TryGetProperty("text", textProp) Then
+                                    Dim text = If(textProp.GetString(), "")
+                                    If Not String.IsNullOrEmpty(text) Then
+                                        Task.Run(Async Function()
+                                                     Await _audioHandler.ProcessTextAsync(client, text, ct)
+                                                 End Function)
+                                    End If
+                                End If
+                            End If
+                            Return True
+
+                        Case Else
+                            Return False
+                    End Select
+                End Using
+            Catch
+                Return False
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Send a JSON message to all clients in a room.
+        ''' Optionally exclude a client by ID.
+        ''' </summary>
+        Public Sub BroadcastToRoom(roomId As String, json As String, excludeClientId As String)
+            Dim room = _roomManager.GetRoom(roomId)
+            If room Is Nothing Then Return
+            Dim data = Encoding.UTF8.GetBytes(json)
+            Dim svc = TryCast(_subtitleService, SubtitleService)
+            If svc Is Nothing Then Return
+
+            For Each clientId In room.ClientIds.Keys
+                If clientId = excludeClientId Then Continue For
+                Dim client = svc.GetClient(clientId)
+                If client Is Nothing OrElse client.WebSocket Is Nothing Then Continue For
+                If client.WebSocket.State <> WebSocketState.Open Then Continue For
+                Try
+                    client.WebSocket.SendAsync(
+                        New ArraySegment(Of Byte)(data),
+                        WebSocketMessageType.Text, True, CancellationToken.None).
+                        ConfigureAwait(False)
+                Catch
+                End Try
+            Next
+        End Sub
+
+        ''' <summary>
+        ''' Send a message to a specific client by ID.
+        ''' </summary>
+        Public Sub SendToClient(clientId As String, json As String)
+            Dim svc = TryCast(_subtitleService, SubtitleService)
+            If svc Is Nothing Then Return
+            Dim client = svc.GetClient(clientId)
+            If client Is Nothing OrElse client.WebSocket Is Nothing Then Return
+            If client.WebSocket.State <> WebSocketState.Open Then Return
+            Dim data = Encoding.UTF8.GetBytes(json)
+            Try
+                client.WebSocket.SendAsync(
+                    New ArraySegment(Of Byte)(data),
+                    WebSocketMessageType.Text, True, CancellationToken.None).
+                    ConfigureAwait(False)
+            Catch
+            End Try
+        End Sub
 
     End Class
 End Namespace

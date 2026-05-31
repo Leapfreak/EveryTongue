@@ -24,6 +24,7 @@ Namespace Services.Interfaces
         Property TuneCallback As Func(Of String)
         Property BgColor As String
         Property FgColor As String
+        Property TargetRoomId As String
 
         ' ── Client management ──
 

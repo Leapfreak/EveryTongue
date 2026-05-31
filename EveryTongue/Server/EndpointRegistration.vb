@@ -10,6 +10,7 @@ Imports EveryTongue.Services.Infrastructure
 Imports EveryTongue.Services.Interfaces
 Imports EveryTongue.Services.Audio
 Imports EveryTongue.Services.Rooms
+Imports EveryTongue.Services.Subtitle
 Imports EveryTongue.Services.Tts
 Imports QRCoder
 
@@ -157,11 +158,16 @@ Namespace Server
         Private Sub MapLocaleEndpoints(app As IEndpointRouteBuilder)
 
             ' Serve web client translations as JSON — /api/locale
-            ' Returns only web.* keys (with prefix stripped) for the current UI language.
+            ' Returns only web.* keys (with prefix stripped).
+            ' Accepts optional ?lang= param for per-client locale (detected from browser).
+            ' Falls back to server's UI language if the requested locale is unavailable.
             app.MapGet("/api/locale", Function(context As HttpContext) As Task
                                           context.Response.Headers.CacheControl = "no-cache"
                                           Dim langPack = LanguagePackService.Instance
-                                          Dim strings = langPack.GetWebStrings()
+                                          Dim clientLang = context.Request.Query("lang").FirstOrDefault()
+                                          Dim strings = If(Not String.IsNullOrEmpty(clientLang),
+                                              langPack.GetWebStringsForLanguage(clientLang),
+                                              langPack.GetWebStrings())
                                           Return context.Response.WriteAsJsonAsync(strings)
                                       End Function)
 
@@ -484,6 +490,7 @@ Namespace Server
                                      End Function)
 
             ' Get a specific room (works for both public and private — you need the ID)
+            ' Optional ?clientId= param tells the client if they are the host.
             app.MapGet("/api/rooms/{id}", Function(id As String, context As HttpContext) As Task
                                                Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
                                                Dim room = mgr.GetRoom(id)
@@ -491,17 +498,22 @@ Namespace Server
                                                    context.Response.StatusCode = 404
                                                    Return context.Response.WriteAsJsonAsync(New With {.error = "Room not found"})
                                                End If
+                                               Dim clientId = If(context.Request.Query("clientId").FirstOrDefault(), "")
+                                               Dim isHost = Not String.IsNullOrEmpty(clientId) AndAlso room.HostClientId = clientId
                                                Return context.Response.WriteAsJsonAsync(New With {
                                                    .id = room.Id,
                                                    .name = room.Name,
                                                    .type = room.Type.ToString().ToLower(),
                                                    .visibility = room.Visibility.ToString().ToLower(),
                                                    .clients = room.ClientCount,
-                                                   .createdAt = room.CreatedAt
+                                                   .createdAt = room.CreatedAt,
+                                                   .isHost = isHost,
+                                                   .isLocked = room.IsLocked,
+                                                   .pttMode = room.Config.PttMode
                                                })
                                            End Function)
 
-            ' Create a room
+            ' Create a room — returns hostToken for reconnection
             app.MapPost("/api/rooms", Async Function(context As HttpContext) As Task
                                            Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
                                            Dim doc As JsonDocument = Nothing
@@ -540,7 +552,8 @@ Namespace Server
                                                    .id = room.Id,
                                                    .name = room.Name,
                                                    .type = room.Type.ToString().ToLower(),
-                                                   .visibility = room.Visibility.ToString().ToLower()
+                                                   .visibility = room.Visibility.ToString().ToLower(),
+                                                   .hostToken = room.HostToken
                                                })
                                            Catch ex As Exception
                                                context.Response.StatusCode = 400
@@ -550,15 +563,18 @@ Namespace Server
                                            End Try
                                        End Function)
 
-            ' Close a room
+            ' Close a room — broadcasts roomClosed to all clients
             app.MapDelete("/api/rooms/{id}", Function(id As String, context As HttpContext) As Task
                                                   Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                                  Dim hub = context.RequestServices.GetRequiredService(Of SubtitleHub)()
                                                   Dim clientId = context.Request.Query("clientId").FirstOrDefault()
                                                   Dim ok = mgr.CloseRoom(id, If(clientId, ""))
                                                   If Not ok Then
                                                       context.Response.StatusCode = 403
                                                       Return context.Response.WriteAsJsonAsync(New With {.error = "Not authorized or room not found"})
                                                   End If
+                                                  ' Broadcast roomClosed to all room members
+                                                  hub.BroadcastToRoom(id, "{""type"":""roomClosed""}", "")
                                                   Return context.Response.WriteAsJsonAsync(New With {.ok = True})
                                               End Function)
 
@@ -575,6 +591,214 @@ Namespace Server
                                                   Dim pngBytes = GenerateQrPng(joinUrl)
                                                   Return Results.File(pngBytes, "image/png", $"room-{id}.png")
                                               End Function)
+
+            ' Claim host via stored token
+            app.MapPost("/api/rooms/{id}/claim-host", Async Function(id As String, context As HttpContext) As Task
+                                                            Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                                            Dim doc As JsonDocument = Nothing
+                                                            Dim ok = False
+                                                            Dim failed = False
+                                                            Try
+                                                                doc = Await JsonDocument.ParseAsync(context.Request.Body)
+                                                                Dim root = doc.RootElement
+                                                                Dim tokenProp As JsonElement = Nothing
+                                                                Dim cidProp As JsonElement = Nothing
+                                                                Dim hostToken = ""
+                                                                Dim clientId = ""
+                                                                If root.TryGetProperty("hostToken", tokenProp) Then hostToken = If(tokenProp.GetString(), "")
+                                                                If root.TryGetProperty("clientId", cidProp) Then clientId = If(cidProp.GetString(), "")
+                                                                ok = mgr.ClaimHost(id, hostToken, clientId)
+                                                            Catch
+                                                                failed = True
+                                                            Finally
+                                                                doc?.Dispose()
+                                                            End Try
+                                                            If failed Then context.Response.StatusCode = 400
+                                                            Await context.Response.WriteAsJsonAsync(New With {.ok = ok})
+                                                        End Function)
+
+            ' Kick a client from a room (host only)
+            app.MapPost("/api/rooms/{id}/kick", Async Function(id As String, context As HttpContext) As Task
+                                                      Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                                      Dim hub = context.RequestServices.GetRequiredService(Of SubtitleHub)()
+                                                      Dim doc As JsonDocument = Nothing
+                                                      Dim ok = False
+                                                      Dim failed = False
+                                                      Try
+                                                          doc = Await JsonDocument.ParseAsync(context.Request.Body)
+                                                          Dim root = doc.RootElement
+                                                          Dim targetProp As JsonElement = Nothing
+                                                          Dim reqProp As JsonElement = Nothing
+                                                          Dim targetClientId = ""
+                                                          Dim requestingClientId = ""
+                                                          If root.TryGetProperty("clientId", targetProp) Then targetClientId = If(targetProp.GetString(), "")
+                                                          If root.TryGetProperty("requestingClientId", reqProp) Then requestingClientId = If(reqProp.GetString(), "")
+                                                          ok = mgr.KickClient(id, targetClientId, requestingClientId)
+                                                          If ok Then
+                                                              hub.SendToClient(targetClientId, "{""type"":""kicked""}")
+                                                              hub.BroadcastToRoom(id, "{""type"":""memberLeft"",""clientId"":""" & targetClientId & """}", "")
+                                                          End If
+                                                      Catch
+                                                          failed = True
+                                                      Finally
+                                                          doc?.Dispose()
+                                                      End Try
+                                                      If failed Then context.Response.StatusCode = 400
+                                                      Await context.Response.WriteAsJsonAsync(New With {.ok = ok})
+                                                  End Function)
+
+            ' Lock/unlock a room (host only)
+            app.MapPost("/api/rooms/{id}/lock", Async Function(id As String, context As HttpContext) As Task
+                                                      Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                                      Dim hub = context.RequestServices.GetRequiredService(Of SubtitleHub)()
+                                                      Dim doc As JsonDocument = Nothing
+                                                      Dim ok = False
+                                                      Dim failed = False
+                                                      Try
+                                                          doc = Await JsonDocument.ParseAsync(context.Request.Body)
+                                                          Dim root = doc.RootElement
+                                                          Dim lockedProp As JsonElement = Nothing
+                                                          Dim reqProp As JsonElement = Nothing
+                                                          Dim locked = False
+                                                          Dim requestingClientId = ""
+                                                          If root.TryGetProperty("locked", lockedProp) Then locked = lockedProp.GetBoolean()
+                                                          If root.TryGetProperty("requestingClientId", reqProp) Then requestingClientId = If(reqProp.GetString(), "")
+                                                          ok = mgr.SetLocked(id, locked, requestingClientId)
+                                                          If ok Then
+                                                              hub.BroadcastToRoom(id, "{""type"":""roomLocked"",""locked"":" & If(locked, "true", "false") & "}", "")
+                                                          End If
+                                                      Catch
+                                                          failed = True
+                                                      Finally
+                                                          doc?.Dispose()
+                                                      End Try
+                                                      If failed Then context.Response.StatusCode = 400
+                                                      Await context.Response.WriteAsJsonAsync(New With {.ok = ok})
+                                                  End Function)
+
+            ' Set PTT mode for a room (host only)
+            app.MapPost("/api/rooms/{id}/ptt-mode", Async Function(id As String, context As HttpContext) As Task
+                                                          Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                                          Dim hub = context.RequestServices.GetRequiredService(Of SubtitleHub)()
+                                                          Dim doc As JsonDocument = Nothing
+                                                          Dim ok = False
+                                                          Dim failed = False
+                                                          Try
+                                                              doc = Await JsonDocument.ParseAsync(context.Request.Body)
+                                                              Dim root = doc.RootElement
+                                                              Dim modeProp As JsonElement = Nothing
+                                                              Dim reqProp As JsonElement = Nothing
+                                                              Dim mode = "hold"
+                                                              Dim requestingClientId = ""
+                                                              If root.TryGetProperty("mode", modeProp) Then mode = If(modeProp.GetString(), "hold")
+                                                              If root.TryGetProperty("requestingClientId", reqProp) Then requestingClientId = If(reqProp.GetString(), "")
+                                                              ok = mgr.SetPttMode(id, mode, requestingClientId)
+                                                              If ok Then
+                                                                  hub.BroadcastToRoom(id, "{""type"":""pttModeChanged"",""mode"":""" & mode & """}", "")
+                                                              End If
+                                                          Catch
+                                                              failed = True
+                                                          Finally
+                                                              doc?.Dispose()
+                                                          End Try
+                                                          If failed Then context.Response.StatusCode = 400
+                                                          Await context.Response.WriteAsJsonAsync(New With {.ok = ok})
+                                                      End Function)
+
+            ' Get room members (clients + virtual members)
+            app.MapGet("/api/rooms/{id}/members", Function(id As String, context As HttpContext) As Task
+                                                        Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                                        Dim subtitleSvc = TryCast(context.RequestServices.GetRequiredService(Of ISubtitleService)(), SubtitleService)
+                                                        Dim room = mgr.GetRoom(id)
+                                                        If room Is Nothing Then
+                                                            context.Response.StatusCode = 404
+                                                            Return context.Response.WriteAsJsonAsync(New With {.error = "Room not found"})
+                                                        End If
+                                                        Dim members As New List(Of Object)()
+                                                        ' Real clients
+                                                        For Each cid In room.ClientIds.Keys
+                                                            Dim client = subtitleSvc?.GetClient(cid)
+                                                            If client IsNot Nothing Then
+                                                                members.Add(New With {
+                                                                    .clientId = cid,
+                                                                    .displayName = If(String.IsNullOrEmpty(client.DisplayName), "Guest", client.DisplayName),
+                                                                    .language = If(client.Language, ""),
+                                                                    .virtual = False
+                                                                })
+                                                            End If
+                                                        Next
+                                                        ' Virtual members
+                                                        For Each vm In room.VirtualMembers.Values
+                                                            members.Add(New With {
+                                                                .clientId = vm.Id,
+                                                                .displayName = vm.Name,
+                                                                .language = If(vm.Language, ""),
+                                                                .virtual = True
+                                                            })
+                                                        Next
+                                                        Return context.Response.WriteAsJsonAsync(members)
+                                                    End Function)
+
+            ' Add a virtual member (host only)
+            app.MapPost("/api/rooms/{id}/virtual-members", Async Function(id As String, context As HttpContext) As Task
+                                                                 Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                                                 Dim hub = context.RequestServices.GetRequiredService(Of SubtitleHub)()
+                                                                 Dim doc As JsonDocument = Nothing
+                                                                 Dim vm As VirtualMember = Nothing
+                                                                 Dim failed = False
+                                                                 Dim notAuth = False
+                                                                 Try
+                                                                     doc = Await JsonDocument.ParseAsync(context.Request.Body)
+                                                                     Dim root = doc.RootElement
+                                                                     Dim nameProp As JsonElement = Nothing
+                                                                     Dim langProp As JsonElement = Nothing
+                                                                     Dim reqProp As JsonElement = Nothing
+                                                                     Dim vmName = ""
+                                                                     Dim vmLang = ""
+                                                                     Dim requestingClientId = ""
+                                                                     If root.TryGetProperty("name", nameProp) Then vmName = If(nameProp.GetString(), "")
+                                                                     If root.TryGetProperty("language", langProp) Then vmLang = If(langProp.GetString(), "")
+                                                                     If root.TryGetProperty("requestingClientId", reqProp) Then requestingClientId = If(reqProp.GetString(), "")
+                                                                     vm = mgr.AddVirtualMember(id, vmName, vmLang, requestingClientId)
+                                                                     If vm Is Nothing Then notAuth = True
+                                                                     If vm IsNot Nothing Then
+                                                                         hub.BroadcastToRoom(id, "{""type"":""virtualMemberAdded"",""id"":""" & vm.Id & """,""name"":" & SubtitleService.EscapeJson(vm.Name) & ",""language"":""" & If(vm.Language, "") & """}", "")
+                                                                     End If
+                                                                 Catch
+                                                                     failed = True
+                                                                 Finally
+                                                                     doc?.Dispose()
+                                                                 End Try
+                                                                 If failed Then
+                                                                     context.Response.StatusCode = 400
+                                                                     Await context.Response.WriteAsJsonAsync(New With {.error = "Invalid request"})
+                                                                 ElseIf notAuth Then
+                                                                     context.Response.StatusCode = 403
+                                                                     Await context.Response.WriteAsJsonAsync(New With {.error = "Not authorized"})
+                                                                 Else
+                                                                     context.Response.StatusCode = 201
+                                                                     Await context.Response.WriteAsJsonAsync(New With {
+                                                                         .id = vm.Id,
+                                                                         .name = vm.Name,
+                                                                         .language = vm.Language
+                                                                     })
+                                                                 End If
+                                                             End Function)
+
+            ' Remove a virtual member (host only)
+            app.MapDelete("/api/rooms/{id}/virtual-members/{vmId}", Function(id As String, vmId As String, context As HttpContext) As Task
+                                                                          Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                                                          Dim hub = context.RequestServices.GetRequiredService(Of SubtitleHub)()
+                                                                          Dim requestingClientId = If(context.Request.Query("requestingClientId").FirstOrDefault(), "")
+                                                                          Dim ok = mgr.RemoveVirtualMember(id, vmId, requestingClientId)
+                                                                          If ok Then
+                                                                              hub.BroadcastToRoom(id, "{""type"":""virtualMemberRemoved"",""id"":""" & vmId & """}", "")
+                                                                          End If
+                                                                          If Not ok Then
+                                                                              context.Response.StatusCode = 403
+                                                                          End If
+                                                                          Return context.Response.WriteAsJsonAsync(New With {.ok = ok})
+                                                                      End Function)
 
             ' List all rooms (server dashboard — includes private rooms)
             app.MapGet("/api/rooms/all", Function(context As HttpContext) As Task

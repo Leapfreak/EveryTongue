@@ -7,13 +7,22 @@
 <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-<div id="status" class="disconnected">Connecting...</div>
-<div id="toolbar">
-  <button id="btnAdmin" onclick="toggleAdmin()" title="Remote Control" style="display:none">&#128737;</button>
-  <button id="btnHome" onclick="goHome()" title="Home">&#127968;</button>
-  <button id="btnSettings" onclick="togglePanel()" title="Settings">&#9881;</button>
-  <button id="btnWake" onclick="toggleWakeLock()" title="Keep screen on">&#9728;</button>
-  <button id="btnBible" onclick="toggleBible()" title="Bible">&#128214;</button>
+<div id="status" class="disconnected">
+  <span id="statusText">Connecting...</span>
+  <div id="toolbar">
+    <button id="btnAdmin" onclick="toggleAdmin()" title="Remote Control" style="display:none">&#128737;</button>
+    <button id="btnHome" onclick="goHome()" title="Home">&#127968;</button>
+    <button id="btnSettings" onclick="togglePanel()" title="Settings">&#9881;</button>
+    <button id="btnWake" onclick="toggleWakeLock()" title="Keep screen on">&#9728;</button>
+    <button id="btnBible" onclick="toggleBible()" title="Bible">&#128214;</button>
+    <button id="btnShareRoom" onclick="toggleRoomQr()" title="Share Room" style="display:none">&#128279;</button>
+  </div>
+</div>
+<div id="roomQrOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:200;flex-direction:column;align-items:center;justify-content:center;padding:24px">
+  <div style="color:#fff;font-size:18px;font-weight:600;margin-bottom:16px" id="roomQrTitle"></div>
+  <img id="roomQrImg" alt="Room QR" style="border-radius:12px;background:#fff;padding:16px;max-width:280px;width:100%;height:auto">
+  <div id="roomQrUrl" style="margin-top:16px;font-size:13px;color:#aaa;word-break:break-all;text-align:center"></div>
+  <button onclick="toggleRoomQr()" style="margin-top:20px;padding:10px 32px;border:none;border-radius:10px;background:#333;color:#ccc;font-size:15px;cursor:pointer">Close</button>
 </div>
 <div id="adminPanel">
   <div id="adminStatus">Checking...</div>
@@ -122,6 +131,8 @@
   </div>
   <div id="bibleContent"></div>
 </div>
+<div id="participantBar" style="display:none;background:#1e1e3a;border-bottom:1px solid #333;padding:10px 16px;cursor:pointer;align-items:center;justify-content:space-between;font-size:14px;color:#ccc;flex-shrink:0"><span id="participantBarTitle"></span><span id="participantBarArrow" style="font-size:10px">&#9660;</span></div>
+<div id="participantDetails" style="display:none;background:#252540;border-bottom:1px solid #333;padding:10px 16px;max-height:200px;overflow-y:auto;flex-shrink:0"></div>
 <div id="container"><div id="lines"><div id="spacer"></div></div></div>
 <script src="/js/app.js"></script>
 </body>

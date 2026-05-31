@@ -42,6 +42,12 @@ Namespace Services.Subtitle
         Public Property BgColor As String = "#000000" Implements ISubtitleService.BgColor
         Public Property FgColor As String = "#FFFFFF" Implements ISubtitleService.FgColor
 
+        ''' <summary>
+        ''' When set, desktop STT broadcasts go only to clients in this room instead of non-room clients.
+        ''' Empty = broadcast to non-room clients (default behaviour).
+        ''' </summary>
+        Public Property TargetRoomId As String = "" Implements ISubtitleService.TargetRoomId
+
         Public ReadOnly Property ConnectedClients As Integer Implements ISubtitleService.ConnectedClients
             Get
                 Return _clients.Values.Where(Function(c) Not c.IsPreview).Count()
@@ -257,10 +263,16 @@ Namespace Services.Subtitle
             Dim buffer = Encoding.UTF8.GetBytes(json)
             Dim deadKeys As New List(Of String)
 
+            Dim targetRoom = TargetRoomId
             For Each kvp In _clients
                 Try
-                    ' Room scoping: desktop STT broadcasts to clients with no room
-                    If Not String.IsNullOrEmpty(kvp.Value.RoomId) Then Continue For
+                    ' Room scoping: if TargetRoomId is set, only send to that room's clients
+                    If Not String.IsNullOrEmpty(targetRoom) Then
+                        If kvp.Value.RoomId <> targetRoom Then Continue For
+                    Else
+                        ' Default: desktop STT broadcasts to clients with no room
+                        If Not String.IsNullOrEmpty(kvp.Value.RoomId) Then Continue For
+                    End If
                     If skipTranslationClients AndAlso Not String.IsNullOrEmpty(kvp.Value.Language) AndAlso kvp.Value.Language <> sourceLang Then
                         Continue For
                     End If
@@ -300,10 +312,16 @@ Namespace Services.Subtitle
             Dim ts = entry.Timestamp.ToString("HH:mm:ss")
             Dim deadKeys As New List(Of String)
 
+            Dim targetRoom = TargetRoomId
             For Each kvp In _clients
                 Try
-                    ' Room scoping: desktop STT broadcasts to clients with no room
-                    If Not String.IsNullOrEmpty(kvp.Value.RoomId) Then Continue For
+                    ' Room scoping: if TargetRoomId is set, only send to that room's clients
+                    If Not String.IsNullOrEmpty(targetRoom) Then
+                        If kvp.Value.RoomId <> targetRoom Then Continue For
+                    Else
+                        ' Default: desktop STT broadcasts to clients with no room
+                        If Not String.IsNullOrEmpty(kvp.Value.RoomId) Then Continue For
+                    End If
 
                     Dim clientLang = kvp.Value.Language
                     Dim text As String

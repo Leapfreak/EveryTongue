@@ -20,11 +20,18 @@ var T={connecting:'Connecting...',connected:'Connected',disconnected:'Disconnect
     slow:'Slow',normal:'Normal',fast:'Fast',vfast:'Very Fast',
     start:'Start',stop:'Stop',restart:'Restart',clear:'Clear',
     saveTranscript:'Save Transcript',transLang:'Translation',remote:'Remote Control',settings:'Settings',readAloud:'Read aloud',keepScreen:'Keep screen on',scrollDir:'Scroll Direction',scrollUp:'Bottom-up (newest at bottom)',scrollDown:'Top-down (newest at top)',tags:'Tags',tagOff:'Off',tagLang:'Language',tagTime:'Time',tagBoth:'Language + Time',bible:'Bible',bibleOT:'Old Testament',bibleNT:'New Testament',bibleSearch:'Search',bibleNoResults:'No results found',bibleSelectTrans:'Select a translation',cloudVoice:'Every Tongue Voices',ttsBehind:'{0} behind \u2014 tap to skip',readAll:'Read All',readVerse:'Read',chooseLang:'Choose your language',lpPopular:'Popular',lpAll:'All Languages',searchLangs:'Search languages...',noTranslation:'No translation',browseAll:'Browse All',adminLabel:'Administrator',adminPin:'PIN',adminBad:'Invalid PIN',adminOk:'Admin access granted'};
-/* Fetch server-side locale (overlays English defaults) */
+/* Detect browser language and fetch matching server-side locale */
+var detectedBrowserLang='';
 (function(){
   try{
+    var nav=navigator.language||navigator.userLanguage||'';
+    /* "es-MX" -> "es", "zh-Hans" -> "zh", "pt-BR" -> "pt" */
+    detectedBrowserLang=nav.split('-')[0].toLowerCase();
+    LOG('Browser language detected: '+nav+' -> '+detectedBrowserLang);
+    var url='/api/locale';
+    if(detectedBrowserLang)url+='?lang='+encodeURIComponent(detectedBrowserLang);
     var xhr=new XMLHttpRequest();
-    xhr.open('GET','/api/locale',true);
+    xhr.open('GET',url,true);
     xhr.onload=function(){
       if(xhr.status===200){
         try{
@@ -170,9 +177,40 @@ document.getElementById('lpSearch').oninput=function(){renderLangList(this.value
 function goHome(){
   LOG('goHome');
   localStorage.removeItem('langChosen');
-  /* Navigate to clean URL without query params (e.g. ?bibleLang=) so we reach the landing page */
-  window.location.href=window.location.origin+window.location.pathname;
+  /* Navigate to lobby */
+  window.location.href=window.location.origin+'/lobby.html';
 }
+
+/* ── Room QR sharing ── */
+var _roomQrVisible=false;
+function initRoomShareButton(){
+  var roomMatch=location.search.match(/[?&]room=([^&]+)/);
+  if(!roomMatch)return;
+  var roomId=roomMatch[1];
+  var btn=document.getElementById('btnShareRoom');
+  if(btn)btn.style.display='inline-block';
+  /* Pre-load room info and QR */
+  var xhr=new XMLHttpRequest();
+  xhr.open('GET','/api/rooms/'+encodeURIComponent(roomId),true);
+  xhr.onload=function(){
+    if(xhr.status===200){
+      try{
+        var room=JSON.parse(xhr.responseText);
+        document.getElementById('roomQrTitle').textContent=room.name||'Room';
+      }catch(e){}
+    }
+  };
+  xhr.send();
+  var joinUrl=location.origin+'/index.html?room='+encodeURIComponent(roomId);
+  document.getElementById('roomQrImg').src='/api/rooms/'+encodeURIComponent(roomId)+'/qr';
+  document.getElementById('roomQrUrl').textContent=joinUrl;
+}
+function toggleRoomQr(){
+  var overlay=document.getElementById('roomQrOverlay');
+  _roomQrVisible=!_roomQrVisible;
+  overlay.style.display=_roomQrVisible?'flex':'none';
+}
+initRoomShareButton();
 
 /* Populate transLangSelect dropdown dynamically from LANGS */
 function populateTransLangSelect(){
@@ -197,7 +235,8 @@ var speechRate=1;
 var synth=window.speechSynthesis;
 var lines=document.getElementById('lines');
 var container=document.getElementById('container');
-var statusEl=document.getElementById('status');
+var statusBar=document.getElementById('status');
+var statusEl=document.getElementById('statusText')||statusBar;
 var panel=document.getElementById('panel');
 var btnSpeak=document.getElementById('btnSpeak');
 var voiceSelect=document.getElementById('voiceSelect');
@@ -418,18 +457,23 @@ function insertLine(el){
     if(first){lines.insertBefore(el,first)}else{lines.appendChild(el)}
   }else{lines.appendChild(el)}
 }
-function addCommitted(text,lang,time,refs){
+function addCommitted(text,lang,time,refs,speaker){
   var el;
   if(currentEl){el=currentEl;currentEl=null;
     if(scrollMode==='down'&&el.parentNode){el.parentNode.removeChild(el);insertLine(el)}
   }else{el=document.createElement('div');insertLine(el)}
   var tag=buildTag(lang,time);
+  var speakerCol=speaker?getSpeakerColor(speaker):'';
   if(refs&&refs.length>0){
     el.innerHTML='';
     if(tag){var tagSpan=document.createElement('span');tagSpan.textContent=tag;el.appendChild(tagSpan)}
+    if(speaker){var spk=document.createElement('span');spk.style.fontWeight='600';if(speakerCol)spk.style.color=speakerCol;spk.textContent=speaker+': ';el.appendChild(spk)}
     renderTextWithRefs(el,text,refs);
   }else{
-    el.textContent=tag+text;
+    el.innerHTML='';
+    if(tag){el.appendChild(document.createTextNode(tag))}
+    if(speaker){var spk2=document.createElement('span');spk2.style.fontWeight='600';if(speakerCol)spk2.style.color=speakerCol;spk2.textContent=speaker+': ';el.appendChild(spk2)}
+    el.appendChild(document.createTextNode(text));
   }
   el.className='line';
   el.style.fontSize=fontSize+'px';el.style.fontFamily=fontFamily;el.style.fontWeight=isBold?'bold':'normal';
@@ -471,6 +515,7 @@ applyScrollMode();
 /* ── WebSocket connection ── */
 var wsRef=null;
 var lastCommitId=0;
+var myClientId='';
 function setTransLang(lang){
   LOG('setTransLang: '+lang);
   localStorage.setItem('transLang',lang);
@@ -494,23 +539,47 @@ function connect(){
   if(wsParams.length>0){wsUrl+='?'+wsParams.join('&')}
   var ws=new WebSocket(wsUrl);
   wsRef=ws;
-  ws.onopen=function(){LOG('WS connected');statusEl.textContent=t('connected');statusEl.className='connected';
+  ws.onopen=function(){LOG('WS connected');statusEl.textContent=t('connected');statusBar.className='connected';
     if(currentEl){currentEl.remove();currentEl=null}
     var lang=localStorage.getItem('transLang')||'';
     ws.send(JSON.stringify({type:'setLanguage',language:lang,lastId:lastCommitId}));
   };
-  ws.onclose=function(){LOG('WS closed');statusEl.textContent=t('disconnected');statusEl.className='disconnected';wsRef=null;setTimeout(connect,2000)};
+  ws.onclose=function(){LOG('WS closed');statusEl.textContent=t('disconnected');statusBar.className='disconnected';wsRef=null;setTimeout(connect,2000)};
   ws.onerror=function(){LOG('WS error');ws.close()};
   ws.onmessage=function(e){
     try{var msg=JSON.parse(e.data);
       if(msg.type==='commit'){
         var id=msg.id||0;
-        if(id>lastCommitId){lastCommitId=id;addCommitted(msg.text,msg.lang||'',msg.time||'',msg.refs||null)}
+        if(id>lastCommitId){
+          lastCommitId=id;
+          if(msg.translations){
+            /* Shared-device message with all translations */
+            transcriptCache.push({id:id,speaker:msg.speaker||'',time:msg.time||'',lang:msg.lang||'',sourceLang:msg.sourceLang||'',translations:msg.translations});
+            var activeLang=getActiveIdentityLang();
+            var displayText=msg.translations[activeLang]||msg.translations[msg.sourceLang]||msg.translations[Object.keys(msg.translations)[0]]||'';
+            addCommitted(displayText,msg.lang||'',msg.time||'',null,msg.speaker||'');
+          } else {
+            /* Normal single-language message — also cache for non-shared clients */
+            transcriptCache.push({id:id,speaker:msg.speaker||'',time:msg.time||'',text:msg.text||'',lang:msg.lang||''});
+            addCommitted(msg.text,msg.lang||'',msg.time||'',msg.refs||null,msg.speaker||'');
+          }
+        }
       }
       else if(msg.type==='update')updateCurrent(msg.text);
-      else if(msg.type==='clear'){LOG('WS clear');if(currentEl){currentEl.remove();currentEl=null}while(lines.children.length>1)lines.removeChild(lines.children[1]);lastCommitId=0;clearTtsQueue();autoScroll()}
+      else if(msg.type==='clear'){LOG('WS clear');if(currentEl){currentEl.remove();currentEl=null}while(lines.children.length>1)lines.removeChild(lines.children[1]);lastCommitId=0;transcriptCache=[];clearTtsQueue();autoScroll()}
       else if(msg.type==='tts'){handleTtsMessage(msg)}
+      else if(msg.type==='welcome'){myClientId=msg.clientId||'';LOG('My client ID: '+myClientId);initPushToTalk();tryClaimHost()}
       else if(msg.type==='pong'){}
+      else if(msg.type==='error'){showRoomError(msg.message||'Error')}
+      else if(msg.type==='roomClosed'){showRoomError('Room has ended');setTimeout(function(){location.href='/lobby.html'},3000)}
+      else if(msg.type==='kicked'){showRoomError('You have been removed');setTimeout(function(){location.href='/lobby.html'},3000)}
+      else if(msg.type==='roomLocked'){LOG('Room locked: '+msg.locked)}
+      else if(msg.type==='pttModeChanged'){pttMode=msg.mode||'hold';updatePttLabel()}
+      else if(msg.type==='memberJoined'){addRoomMember(msg)}
+      else if(msg.type==='memberLeft'){removeRoomMember(msg.clientId)}
+      else if(msg.type==='memberUpdated'){updateRoomMember(msg)}
+      else if(msg.type==='virtualMemberAdded'){addVirtualMemberToRoom(msg)}
+      else if(msg.type==='virtualMemberRemoved'){removeVirtualMemberFromRoom(msg.id)}
       else{LOG('WS unknown msg type: '+msg.type)}
     }catch(ex){LOG('WS parse error: '+ex)}
   }
@@ -1315,18 +1384,30 @@ var pttRoomType='';
 function initPushToTalk(){
   var roomMatch=location.search.match(/[?&]room=([^&]+)/);
   if(!roomMatch)return;
+  if(document.getElementById('ptt-btn'))return; /* Already initialized */
   var roomId=roomMatch[1];
-  /* Fetch room info to check type */
+  /* Fetch room info — include clientId so server tells us if we're the host */
+  var url='/api/rooms/'+encodeURIComponent(roomId);
+  if(myClientId)url+='?clientId='+encodeURIComponent(myClientId);
   var xhr=new XMLHttpRequest();
-  xhr.open('GET','/api/rooms/'+encodeURIComponent(roomId),true);
+  xhr.open('GET',url,true);
   xhr.onload=function(){
     if(xhr.status===200){
       try{
         var room=JSON.parse(xhr.responseText);
         pttRoomType=room.type||'';
+        pttMode=room.pttMode||'hold';
+        if(room.isHost){isHost=true;showHostControls()}
+        /* Conversation: everyone gets PTT. Conference: only the host. */
         if(pttRoomType==='conversation'){
           createPttButton();
+          autoAssignDisplayName();
+        }else if(pttRoomType==='conference'&&room.isHost){
+          createPttButton();
         }
+        /* Initialize participant bar and load members */
+        initParticipantBar();
+        loadRoomMembers();
       }catch(e){LOG('Room info parse error: '+e)}
     }
   };
@@ -1334,26 +1415,61 @@ function initPushToTalk(){
 }
 
 function createPttButton(){
-  var btn=document.createElement('div');
-  btn.id='ptt-btn';
-  btn.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);width:72px;height:72px;border-radius:50%;background:#7c9cf7;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:90;box-shadow:0 4px 16px rgba(0,0,0,0.4);user-select:none;-webkit-user-select:none;touch-action:none;transition:background 0.15s,transform 0.15s';
-  btn.innerHTML='<svg width="32" height="32" viewBox="0 0 24 24" fill="white"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>';
-  document.body.appendChild(btn);
+  /* Create a fixed bottom dock: text input at bottom, mic overlays right side */
+  var dock=document.getElementById('roomControlsDock');
+  if(!dock){
+    dock=document.createElement('div');
+    dock.id='roomControlsDock';
+    dock.style.cssText='position:fixed;bottom:0;left:0;right:0;padding:6px 12px;background:#1a1a2e;border-top:1px solid #333;z-index:90;display:flex;flex-direction:column;align-items:center';
+    document.body.appendChild(dock);
+  }
 
   var label=document.createElement('div');
   label.id='ptt-label';
-  label.style.cssText='position:fixed;bottom:104px;left:50%;transform:translateX(-50%);color:#aaa;font-size:12px;z-index:90;text-align:center;pointer-events:none;opacity:0.8';
-  label.textContent='Hold to speak';
-  document.body.appendChild(label);
+  label.style.cssText='display:none';
+  label.textContent=pttMode==='toggle'?'Tap to speak':'Hold to speak';
+  dock.appendChild(label);
+
+  /* Row with text input and mic button overlapping on the right */
+  var row=document.createElement('div');
+  row.id='pttChatRow';
+  row.style.cssText='display:flex;align-items:center;gap:8px;width:100%;max-width:400px';
+  dock.appendChild(row);
+
+  var btn=document.createElement('div');
+  btn.id='ptt-btn';
+  btn.style.cssText='width:48px;height:48px;min-width:48px;border-radius:50%;background:#7c9cf7;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.4);user-select:none;-webkit-user-select:none;touch-action:none;transition:background 0.15s,transform 0.15s';
+  btn.innerHTML='<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>';
+  row.appendChild(btn);
+
+  /* Padding so scrolled content clears the fixed dock — recalculated dynamically */
+  setTimeout(adjustDockPadding,50);
 
   /* Touch events for mobile */
-  btn.addEventListener('touchstart',function(e){e.preventDefault();startRecording(btn,label)},false);
-  btn.addEventListener('touchend',function(e){e.preventDefault();stopRecording(btn,label)},false);
+  btn.addEventListener('touchstart',function(e){
+    e.preventDefault();
+    if(pttMode==='toggle'){if(!pttActive)startRecording(btn,label);else stopRecording(btn,label)}
+    else{startRecording(btn,label)}
+  },false);
+  btn.addEventListener('touchend',function(e){
+    e.preventDefault();
+    if(pttMode!=='toggle')stopRecording(btn,label);
+  },false);
   btn.addEventListener('touchcancel',function(e){e.preventDefault();cancelRecording(btn,label)},false);
   /* Mouse events for desktop testing */
-  btn.addEventListener('mousedown',function(e){e.preventDefault();startRecording(btn,label)},false);
-  btn.addEventListener('mouseup',function(e){e.preventDefault();stopRecording(btn,label)},false);
-  btn.addEventListener('mouseleave',function(e){if(pttActive)cancelRecording(btn,label)},false);
+  btn.addEventListener('mousedown',function(e){
+    e.preventDefault();
+    if(pttMode==='toggle'){if(!pttActive)startRecording(btn,label);else stopRecording(btn,label)}
+    else{startRecording(btn,label)}
+  },false);
+  btn.addEventListener('mouseup',function(e){
+    e.preventDefault();
+    if(pttMode!=='toggle')stopRecording(btn,label);
+  },false);
+  btn.addEventListener('mouseleave',function(e){if(pttActive&&pttMode!=='toggle')cancelRecording(btn,label)},false);
+
+  /* Insert text chat area at the bottom of the dock (below PTT) */
+  initTextChat();
 }
 
 function startRecording(btn,label){
@@ -1365,7 +1481,7 @@ function startRecording(btn,label){
   pttActive=true;
   pttChunks=[];
   btn.style.background='#e74c3c';
-  btn.style.transform='translateX(-50%) scale(1.15)';
+  btn.style.transform='scale(1.15)';
   label.textContent='Recording...';
 
   navigator.mediaDevices.getUserMedia({audio:{sampleRate:16000,channelCount:1,echoCancellation:true,noiseSuppression:true}})
@@ -1397,9 +1513,10 @@ function startRecording(btn,label){
       LOG('Mic access denied: '+err);
       pttActive=false;
       btn.style.background='#7c9cf7';
-      btn.style.transform='translateX(-50%)';
+      btn.style.transform='';
       label.textContent='Mic access denied';
-      setTimeout(function(){label.textContent='Hold to speak'},2000);
+      var dl=pttMode==='toggle'?'Tap to speak':'Hold to speak';
+      setTimeout(function(){label.textContent=dl},2000);
     });
 }
 
@@ -1407,20 +1524,21 @@ function stopRecording(btn,label){
   if(!pttActive)return;
   pttActive=false;
   btn.style.background='#7c9cf7';
-  btn.style.transform='translateX(-50%)';
+  btn.style.transform='';
   label.textContent='Sending...';
   if(pttRecorder&&pttRecorder.state==='recording'){
     pttRecorder.stop();
   }
-  setTimeout(function(){label.textContent='Hold to speak'},2000);
+  var defaultLabel=pttMode==='toggle'?'Tap to speak':'Hold to speak';
+  setTimeout(function(){label.textContent=defaultLabel},2000);
 }
 
 function cancelRecording(btn,label){
   pttActive=false;
   pttChunks=[];
   btn.style.background='#7c9cf7';
-  btn.style.transform='translateX(-50%)';
-  label.textContent='Hold to speak';
+  btn.style.transform='';
+  label.textContent=pttMode==='toggle'?'Tap to speak':'Hold to speak';
   if(pttRecorder&&pttRecorder.state==='recording'){
     pttRecorder.ondataavailable=null;
     pttRecorder.onstop=function(){
@@ -1441,8 +1559,457 @@ function sendAudioToServer(){
   });
 }
 
-/* Init PTT after page load */
-initPushToTalk();
+/* PTT init is now triggered by the 'welcome' WebSocket message (needs client ID for host check) */
+
+/* ── Room Governance ── */
+var isHost=false;
+var pttMode='hold';
+var roomMembers=[];
+var virtualMembers=[];
+var participantBarExpanded=false;
+var activeVirtualMemberId='';
+var transcriptCache=[];
+
+/* Speaker colour palette — distinct, readable on dark backgrounds */
+var speakerColors=['#5bc0eb','#fde74c','#9bc53d','#e55934','#c77dff','#fa7921','#2ec4b6','#ff6b6b','#48bfe3','#f4a261','#80ed99','#e0aaff'];
+var speakerColorMap={};
+var nextColorIndex=0;
+function getSpeakerColor(name){
+  if(!name)return '';
+  if(speakerColorMap[name])return speakerColorMap[name];
+  speakerColorMap[name]=speakerColors[nextColorIndex%speakerColors.length];
+  nextColorIndex++;
+  return speakerColorMap[name];
+}
+
+/* Error/notification display for room events */
+function showRoomError(msg){
+  var el=document.getElementById('roomNotification');
+  if(!el){
+    el=document.createElement('div');
+    el.id='roomNotification';
+    el.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.9);color:#fff;padding:24px 32px;border-radius:12px;font-size:16px;z-index:999;text-align:center';
+    document.body.appendChild(el);
+  }
+  el.textContent=msg;
+  el.style.display='block';
+}
+
+/* Auto-reclaim host via stored token */
+function tryClaimHost(){
+  var roomMatch=location.search.match(/[?&]room=([^&]+)/);
+  if(!roomMatch||!myClientId)return;
+  var roomId=roomMatch[1];
+  try{
+    var myRooms=JSON.parse(localStorage.getItem('myRooms')||'[]');
+    var mine=null;
+    for(var i=0;i<myRooms.length;i++){if(myRooms[i].id===roomId){mine=myRooms[i];break}}
+    if(!mine||!mine.hostToken)return;
+    var xhr=new XMLHttpRequest();
+    xhr.open('POST','/api/rooms/'+encodeURIComponent(roomId)+'/claim-host',true);
+    xhr.setRequestHeader('Content-Type','application/json');
+    xhr.onload=function(){
+      if(xhr.status===200){
+        try{
+          var res=JSON.parse(xhr.responseText);
+          if(res.ok){isHost=true;LOG('Host reclaimed');showHostControls()}
+        }catch(e){}
+      }
+    };
+    xhr.send(JSON.stringify({hostToken:mine.hostToken,clientId:myClientId}));
+  }catch(e){LOG('tryClaimHost error: '+e)}
+}
+
+/* Auto-assign display name: "Guest" + 4-digit random number */
+function autoAssignDisplayName(){
+  var num=Math.floor(1000+Math.random()*9000);
+  var name='Guest'+num;
+  if(wsRef&&wsRef.readyState===1){
+    wsRef.send(JSON.stringify({type:'setDisplayName',name:name}));
+  }
+  /* Delay member load to give server time to process the name */
+  setTimeout(loadRoomMembers,500);
+}
+
+/* Participant bar — uses the static HTML element, just show/hide */
+function initParticipantBar(){
+  var roomMatch=location.search.match(/[?&]room=([^&]+)/);
+  if(!roomMatch)return;
+  var bar=document.getElementById('participantBar');
+  var details=document.getElementById('participantDetails');
+  if(!bar)return;
+  bar.style.display='flex';
+
+  bar.addEventListener('click',function(e){
+    e.stopPropagation();
+    participantBarExpanded=!participantBarExpanded;
+    details.style.display=participantBarExpanded?'block':'none';
+    document.getElementById('participantBarArrow').innerHTML=participantBarExpanded?'&#9650;':'&#9660;';
+  });
+  /* Event delegation for kick/remove buttons inside details */
+  details.addEventListener('click',function(e){
+    e.stopPropagation();
+    var target=e.target;
+    if(target.classList.contains('kick-btn')){
+      e.preventDefault();
+      kickMember(target.dataset.id);
+    }else if(target.classList.contains('vm-kick-btn')){
+      e.preventDefault();
+      removeVirtualMember(target.dataset.id);
+    }
+  });
+  updateParticipantBar();
+}
+
+function updateParticipantBar(){
+  var title=document.getElementById('participantBarTitle');
+  if(!title)return;
+  var roomMatch=location.search.match(/[?&]room=([^&]+)/);
+  var roomName='Room';
+  var total=roomMembers.length+virtualMembers.length;
+  title.textContent=roomName+' ('+total+')';
+  renderParticipantDetails();
+}
+
+function renderParticipantDetails(){
+  var details=document.getElementById('participantDetails');
+  if(!details)return;
+  details.innerHTML='';
+  /* Real members */
+  for(var i=0;i<roomMembers.length;i++){
+    var m=roomMembers[i];
+    var chip=document.createElement('div');
+    chip.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #333';
+    var nameSpan='<span style="color:#fff">'+escHtml(m.displayName||'Guest')+'</span>';
+    var kick='';
+    if(isHost&&m.clientId!==myClientId){
+      kick='<span class="kick-btn" data-id="'+m.clientId+'" style="color:#e74c3c;cursor:pointer;font-size:14px;padding:6px 12px;border:1px solid #e74c3c;border-radius:6px;min-width:32px;text-align:center">x</span>';
+    }
+    chip.innerHTML=nameSpan+kick;
+    details.appendChild(chip);
+  }
+  /* Virtual members */
+  for(var j=0;j<virtualMembers.length;j++){
+    var vm=virtualMembers[j];
+    var vChip=document.createElement('div');
+    vChip.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #333';
+    var vName='<span style="color:#aaa;font-style:italic">'+escHtml(vm.name||'Guest')+' (shared)</span>';
+    var vKick='';
+    if(isHost){
+      vKick='<span class="vm-kick-btn" data-id="'+vm.id+'" style="color:#e74c3c;cursor:pointer;font-size:14px;padding:6px 12px;border:1px solid #e74c3c;border-radius:6px;min-width:32px;text-align:center">x</span>';
+    }
+    vChip.innerHTML=vName+vKick;
+    details.appendChild(vChip);
+  }
+}
+
+function escHtml(s){return s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):''}
+
+function loadRoomMembers(){
+  var roomMatch=location.search.match(/[?&]room=([^&]+)/);
+  if(!roomMatch)return;
+  var xhr=new XMLHttpRequest();
+  xhr.open('GET','/api/rooms/'+encodeURIComponent(roomMatch[1])+'/members',true);
+  xhr.onload=function(){
+    if(xhr.status===200){
+      try{
+        var data=JSON.parse(xhr.responseText);
+        roomMembers=[];virtualMembers=[];
+        for(var i=0;i<data.length;i++){
+          if(data[i]['virtual']){
+            /* Normalize to {id, name, language} format expected by rendering code */
+            virtualMembers.push({id:data[i].clientId,name:data[i].displayName||'Guest',language:data[i].language||''});
+          } else {
+            roomMembers.push(data[i]);
+          }
+        }
+        updateParticipantBar();
+        updateVirtualMemberPtt();
+      }catch(e){}
+    }
+  };
+  xhr.send();
+}
+
+function addRoomMember(msg){
+  roomMembers.push({clientId:msg.clientId,displayName:msg.displayName||'Guest',language:msg.language||''});
+  updateParticipantBar();
+}
+function removeRoomMember(clientId){
+  roomMembers=roomMembers.filter(function(m){return m.clientId!==clientId});
+  updateParticipantBar();
+}
+function updateRoomMember(msg){
+  for(var i=0;i<roomMembers.length;i++){
+    if(roomMembers[i].clientId===msg.clientId){
+      roomMembers[i].displayName=msg.displayName||'Guest';
+      break;
+    }
+  }
+  updateParticipantBar();
+}
+function addVirtualMemberToRoom(msg){
+  virtualMembers.push({id:msg.id,name:msg.name,language:msg.language||''});
+  updateParticipantBar();
+  updateVirtualMemberPtt();
+}
+function removeVirtualMemberFromRoom(vmId){
+  virtualMembers=virtualMembers.filter(function(vm){return vm.id!==vmId});
+  if(activeVirtualMemberId===vmId)activeVirtualMemberId='';
+  updateParticipantBar();
+  updateVirtualMemberPtt();
+}
+
+/* Host controls */
+function showHostControls(){
+  if(document.getElementById('hostGearBtn'))return;
+  var btn=document.createElement('button');
+  btn.id='hostGearBtn';
+  btn.title='Host Controls';
+  btn.textContent='\u2699';
+  btn.style.cssText='font-size:18px;background:none;border:none;color:#7c9cf7;cursor:pointer;padding:4px 8px';
+  btn.addEventListener('click',toggleHostPanel);
+  var toolbar=document.getElementById('toolbar');
+  if(toolbar)toolbar.appendChild(btn);
+}
+
+function toggleHostPanel(){
+  var panel=document.getElementById('hostPanel');
+  if(panel){panel.remove();return}
+  panel=document.createElement('div');
+  panel.id='hostPanel';
+  panel.style.cssText='position:fixed;top:50px;right:8px;background:#1e1e3a;border:1px solid #444;border-radius:10px;padding:16px;z-index:200;min-width:200px;box-shadow:0 4px 20px rgba(0,0,0,0.6)';
+  var roomMatch=location.search.match(/[?&]room=([^&]+)/);
+  var roomId=roomMatch?roomMatch[1]:'';
+  panel.innerHTML=
+    '<div style="color:#fff;font-weight:600;margin-bottom:12px">Host Controls</div>'+
+    '<button id="hcEndRoom" style="width:100%;padding:10px;border:none;border-radius:8px;background:#e74c3c;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">End Room</button>'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="color:#ccc;font-size:13px">Lock Room</span><div id="hcLockToggle" class="hc-toggle" style="width:40px;height:22px;background:#444;border-radius:11px;position:relative;cursor:pointer;transition:background 0.2s"><div style="width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s"></div></div></div>'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><span style="color:#ccc;font-size:13px">PTT: Tap to toggle</span><div id="hcPttToggle" class="hc-toggle" style="width:40px;height:22px;background:#444;border-radius:11px;position:relative;cursor:pointer;transition:background 0.2s"><div style="width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s"></div></div></div>'+
+    '<button id="hcAddGuest" style="width:100%;padding:10px;border:1px solid #7c9cf7;border-radius:8px;background:transparent;color:#7c9cf7;font-size:14px;cursor:pointer">+ Add Guest</button>';
+  document.body.appendChild(panel);
+
+  document.getElementById('hcEndRoom').addEventListener('click',function(){
+    if(!confirm('End this room for everyone?'))return;
+    var xhr=new XMLHttpRequest();
+    xhr.open('DELETE','/api/rooms/'+encodeURIComponent(roomId)+'?clientId='+encodeURIComponent(myClientId),true);
+    xhr.onload=function(){location.href='/lobby.html'};
+    xhr.send();
+  });
+
+  var lockToggle=document.getElementById('hcLockToggle');
+  lockToggle.addEventListener('click',function(){
+    var isOn=this.style.background==='rgb(124, 156, 247)';
+    var newVal=!isOn;
+    this.style.background=newVal?'#7c9cf7':'#444';
+    this.children[0].style.transform=newVal?'translateX(18px)':'translateX(0)';
+    var xhr=new XMLHttpRequest();
+    xhr.open('POST','/api/rooms/'+encodeURIComponent(roomId)+'/lock',true);
+    xhr.setRequestHeader('Content-Type','application/json');
+    xhr.send(JSON.stringify({locked:newVal,requestingClientId:myClientId}));
+  });
+
+  var pttToggle=document.getElementById('hcPttToggle');
+  if(pttMode==='toggle'){pttToggle.style.background='#7c9cf7';pttToggle.children[0].style.transform='translateX(18px)'}
+  pttToggle.addEventListener('click',function(){
+    var isOn=this.style.background==='rgb(124, 156, 247)';
+    var newMode=isOn?'hold':'toggle';
+    this.style.background=isOn?'#444':'#7c9cf7';
+    this.children[0].style.transform=isOn?'translateX(0)':'translateX(18px)';
+    var xhr=new XMLHttpRequest();
+    xhr.open('POST','/api/rooms/'+encodeURIComponent(roomId)+'/ptt-mode',true);
+    xhr.setRequestHeader('Content-Type','application/json');
+    xhr.send(JSON.stringify({mode:newMode,requestingClientId:myClientId}));
+  });
+
+  document.getElementById('hcAddGuest').addEventListener('click',function(){
+    panel.remove();
+    showAddGuestPrompt(roomId);
+  });
+}
+
+function showAddGuestPrompt(roomId){
+  var overlay=document.createElement('div');
+  overlay.id='addGuestOverlay';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:300;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:24px';
+  overlay.innerHTML='<div style="color:#fff;font-size:18px;margin-bottom:16px">Add Guest</div>'+
+    '<input id="guestNameInput" type="text" placeholder="Name" style="padding:10px 14px;border-radius:8px;border:1px solid #555;background:#252540;color:#fff;font-size:16px;width:200px;outline:none;margin-bottom:12px">'+
+    '<select id="guestLangSelect" style="padding:10px 14px;border-radius:8px;border:1px solid #555;background:#252540;color:#fff;font-size:14px;width:224px;outline:none;margin-bottom:16px"></select>'+
+    '<button id="guestAddBtn" style="padding:10px 32px;border:none;border-radius:10px;background:#7c9cf7;color:#1a1a2e;font-size:16px;font-weight:600;cursor:pointer">Add</button>'+
+    '<button id="guestCancelBtn" style="margin-top:10px;padding:8px 24px;border:none;border-radius:8px;background:#333;color:#ccc;font-size:14px;cursor:pointer">Cancel</button>';
+  document.body.appendChild(overlay);
+  /* Populate language select */
+  var sel=document.getElementById('guestLangSelect');
+  for(var i=0;i<LANGS.length;i++){
+    var opt=document.createElement('option');opt.value=LANGS[i][0];
+    opt.textContent=LANGS[i][1]+' ('+LANGS[i][2]+')';
+    sel.appendChild(opt);
+  }
+  document.getElementById('guestCancelBtn').addEventListener('click',function(){overlay.remove()});
+  document.getElementById('guestAddBtn').addEventListener('click',function(){
+    var name=document.getElementById('guestNameInput').value.trim();
+    var lang=sel.value;
+    if(!name){document.getElementById('guestNameInput').focus();return}
+    var xhr=new XMLHttpRequest();
+    xhr.open('POST','/api/rooms/'+encodeURIComponent(roomId)+'/virtual-members',true);
+    xhr.setRequestHeader('Content-Type','application/json');
+    xhr.onload=function(){overlay.remove();loadRoomMembers()};
+    xhr.send(JSON.stringify({name:name,language:lang,requestingClientId:myClientId}));
+  });
+  document.getElementById('guestNameInput').focus();
+}
+
+function kickMember(clientId){
+  var roomMatch=location.search.match(/[?&]room=([^&]+)/);
+  if(!roomMatch)return;
+  var xhr=new XMLHttpRequest();
+  xhr.open('POST','/api/rooms/'+encodeURIComponent(roomMatch[1])+'/kick',true);
+  xhr.setRequestHeader('Content-Type','application/json');
+  xhr.send(JSON.stringify({clientId:clientId,requestingClientId:myClientId}));
+}
+
+function removeVirtualMember(vmId){
+  var roomMatch=location.search.match(/[?&]room=([^&]+)/);
+  if(!roomMatch)return;
+  var xhr=new XMLHttpRequest();
+  xhr.open('DELETE','/api/rooms/'+encodeURIComponent(roomMatch[1])+'/virtual-members/'+encodeURIComponent(vmId)+'?requestingClientId='+encodeURIComponent(myClientId),true);
+  xhr.send();
+}
+
+/* Virtual member PTT identity selector — inserted into the dock above the PTT label */
+function updateVirtualMemberPtt(){
+  var existing=document.getElementById('vm-ptt-area');
+  if(existing)existing.remove();
+  if(virtualMembers.length===0)return;
+  /* Only show on shared devices (host with virtual members) */
+  if(!isHost)return;
+  var dock=document.getElementById('roomControlsDock');
+  if(!dock)return;
+  var area=document.createElement('div');
+  area.id='vm-ptt-area';
+  area.style.cssText='display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center;margin-bottom:8px;pointer-events:auto';
+  /* Self identity */
+  var selfBtn=document.createElement('div');
+  selfBtn.className='vm-identity-btn';
+  selfBtn.dataset.vmid='';
+  selfBtn.style.cssText='padding:6px 14px;border-radius:20px;font-size:13px;cursor:pointer;border:2px solid '+(activeVirtualMemberId===''?'#7c9cf7':'#444')+';color:#fff;background:#252540';
+  selfBtn.textContent='You';
+  area.appendChild(selfBtn);
+  /* Virtual member identities */
+  for(var i=0;i<virtualMembers.length;i++){
+    var vm=virtualMembers[i];
+    var vmBtn=document.createElement('div');
+    vmBtn.className='vm-identity-btn';
+    vmBtn.dataset.vmid=vm.id;
+    vmBtn.style.cssText='padding:6px 14px;border-radius:20px;font-size:13px;cursor:pointer;border:2px solid '+(activeVirtualMemberId===vm.id?'#7c9cf7':'#444')+';color:#fff;background:#252540';
+    vmBtn.textContent=escHtml(vm.name);
+    area.appendChild(vmBtn);
+  }
+  /* Insert at the top of the dock (before the label) */
+  var pttLabel=document.getElementById('ptt-label');
+  if(pttLabel)dock.insertBefore(area,pttLabel);
+  else dock.insertBefore(area,dock.firstChild);
+  /* Click handlers */
+  var btns=area.querySelectorAll('.vm-identity-btn');
+  for(var j=0;j<btns.length;j++){
+    btns[j].addEventListener('click',function(){
+      activeVirtualMemberId=this.dataset.vmid;
+      if(wsRef&&wsRef.readyState===1){
+        wsRef.send(JSON.stringify({type:'speakAs',virtualMemberId:activeVirtualMemberId}));
+      }
+      updateVirtualMemberPtt();
+      rerenderTranscript();
+    });
+  }
+  /* Recalculate container padding to account for taller dock */
+  adjustDockPadding();
+}
+
+/* Get the NLLB language code for the currently active identity */
+function getActiveIdentityLang(){
+  if(activeVirtualMemberId===''){
+    /* Self — use the client's chosen translation language */
+    return localStorage.getItem('transLang')||'eng_Latn';
+  }
+  for(var i=0;i<virtualMembers.length;i++){
+    if(virtualMembers[i].id===activeVirtualMemberId)return virtualMembers[i].language||'eng_Latn';
+  }
+  return 'eng_Latn';
+}
+
+/* Re-render the entire transcript in the active identity's language (shared-device only) */
+function rerenderTranscript(){
+  if(transcriptCache.length===0)return;
+  var activeLang=getActiveIdentityLang();
+  /* Clear all lines except spacer */
+  while(lines.children.length>1)lines.removeChild(lines.children[1]);
+  /* Re-add each cached commit */
+  for(var i=0;i<transcriptCache.length;i++){
+    var c=transcriptCache[i];
+    var displayText='';
+    if(c.translations){
+      displayText=c.translations[activeLang]||c.translations[c.sourceLang]||c.translations[Object.keys(c.translations)[0]]||'';
+    } else {
+      displayText=c.text||'';
+    }
+    var tag=buildTag(c.lang||'',c.time||'');
+    var el=document.createElement('div');
+    el.className='line';
+    el.style.fontSize=fontSize+'px';el.style.fontFamily=fontFamily;el.style.fontWeight=isBold?'bold':'normal';
+    el.style.color=textColor;
+    el.innerHTML='';
+    if(tag){el.appendChild(document.createTextNode(tag))}
+    if(c.speaker){
+      var spk=document.createElement('span');
+      spk.style.fontWeight='600';
+      spk.style.color=getSpeakerColor(c.speaker);
+      spk.textContent=c.speaker+': ';
+      el.appendChild(spk);
+    }
+    el.appendChild(document.createTextNode(displayText));
+    insertLine(el);
+  }
+  autoScroll();
+}
+
+function adjustDockPadding(){
+  var dock=document.getElementById('roomControlsDock');
+  var cont=document.getElementById('container');
+  if(dock&&cont){
+    cont.style.paddingBottom=(dock.offsetHeight+8)+'px';
+  }
+}
+
+function updatePttLabel(){
+  var label=document.getElementById('ptt-label');
+  if(label)label.textContent=pttMode==='toggle'?'Tap to speak':'Hold to speak';
+}
+
+/* Text chat (Conversation rooms) — inserted into the pttChatRow before the mic button */
+function initTextChat(){
+  if(pttRoomType!=='conversation')return;
+  if(document.getElementById('chatInput'))return;
+  var row=document.getElementById('pttChatRow');
+  if(!row)return;
+  var input=document.createElement('input');
+  input.id='chatInput';
+  input.type='text';
+  input.placeholder='Type a message...';
+  input.style.cssText='flex:1;padding:10px 14px;border-radius:24px;border:1px solid #444;background:#252540;color:#fff;font-size:14px;outline:none;min-width:0';
+  /* Insert before the mic button */
+  var pttBtn=document.getElementById('ptt-btn');
+  row.insertBefore(input,pttBtn);
+  function sendChat(){
+    var text=input.value.trim();
+    if(!text)return;
+    if(wsRef&&wsRef.readyState===1){
+      wsRef.send(JSON.stringify({type:'chatMessage',text:text}));
+    }
+    input.value='';
+  }
+  input.addEventListener('keydown',function(e){if(e.key==='Enter')sendChat()});
+  setTimeout(adjustDockPadding,50);
+}
 
 /* Chapter counts by book (standard Protestant canon) */
 function getBookChapterCount(book){

@@ -33,7 +33,8 @@ Namespace Services.Rooms
                 .Name = If(name, ""),
                 .Type = type,
                 .Visibility = visibility,
-                .HostClientId = hostClientId
+                .HostClientId = hostClientId,
+                .HostToken = Guid.NewGuid().ToString("N")
             }
 
             ' Conversation rooms default to private
@@ -84,15 +85,116 @@ Namespace Services.Rooms
         End Function
 
         ''' <summary>
-        ''' Add a client to a room.
+        ''' Add a client to a room. Returns False if room not found or is locked.
         ''' </summary>
         Public Function JoinRoom(roomId As String, clientId As String) As Boolean
             Dim room = GetRoom(roomId)
             If room Is Nothing Then Return False
+            If room.IsLocked Then
+                AppLogger.Log($"[RoomManager] Client {clientId} rejected from locked room '{room.Name}'")
+                Return False
+            End If
             room.ClientIds.TryAdd(clientId, 0)
             room.TouchActivity()
+
+            ' If the room has no host yet, the first joiner becomes host
+            If String.IsNullOrEmpty(room.HostClientId) Then
+                room.HostClientId = clientId
+                AppLogger.Log($"[RoomManager] Client {clientId} claimed host of room '{room.Name}'")
+            End If
+
             AppLogger.Log($"[RoomManager] Client {clientId} joined room '{room.Name}' ({room.ClientCount} clients)")
             Return True
+        End Function
+
+        ''' <summary>
+        ''' Reclaim host via stored host token. Returns True on success.
+        ''' </summary>
+        Public Function ClaimHost(roomId As String, hostToken As String, newClientId As String) As Boolean
+            Dim room = GetRoom(roomId)
+            If room Is Nothing Then Return False
+            If String.IsNullOrEmpty(hostToken) OrElse room.HostToken <> hostToken Then Return False
+            room.HostClientId = newClientId
+            room.TouchActivity()
+            AppLogger.Log($"[RoomManager] Host reclaimed for room '{room.Name}' by {newClientId}")
+            Return True
+        End Function
+
+        ''' <summary>
+        ''' Kick a client from a room. Only the host can kick.
+        ''' </summary>
+        Public Function KickClient(roomId As String, clientId As String, requestingClientId As String) As Boolean
+            Dim room = GetRoom(roomId)
+            If room Is Nothing Then Return False
+            If room.HostClientId <> requestingClientId Then Return False
+            Dim dummy As Byte
+            Dim removed = room.ClientIds.TryRemove(clientId, dummy)
+            If removed Then
+                room.TouchActivity()
+                AppLogger.Log($"[RoomManager] Client {clientId} kicked from room '{room.Name}' by host {requestingClientId}")
+            End If
+            Return removed
+        End Function
+
+        ''' <summary>
+        ''' Lock or unlock a room. Only the host can change lock state.
+        ''' </summary>
+        Public Function SetLocked(roomId As String, locked As Boolean, requestingClientId As String) As Boolean
+            Dim room = GetRoom(roomId)
+            If room Is Nothing Then Return False
+            If room.HostClientId <> requestingClientId Then Return False
+            room.IsLocked = locked
+            room.TouchActivity()
+            AppLogger.Log($"[RoomManager] Room '{room.Name}' locked={locked} by host {requestingClientId}")
+            Return True
+        End Function
+
+        ''' <summary>
+        ''' Set PTT mode for a room. Only the host can change.
+        ''' </summary>
+        Public Function SetPttMode(roomId As String, mode As String, requestingClientId As String) As Boolean
+            Dim room = GetRoom(roomId)
+            If room Is Nothing Then Return False
+            If room.HostClientId <> requestingClientId Then Return False
+            If mode <> "hold" AndAlso mode <> "toggle" Then Return False
+            room.Config.PttMode = mode
+            room.TouchActivity()
+            AppLogger.Log($"[RoomManager] Room '{room.Name}' PTT mode={mode} by host {requestingClientId}")
+            Return True
+        End Function
+
+        ''' <summary>
+        ''' Add a virtual member to a room. Host only.
+        ''' </summary>
+        Public Function AddVirtualMember(roomId As String, name As String, language As String, requestingClientId As String) As VirtualMember
+            Dim room = GetRoom(roomId)
+            If room Is Nothing Then Return Nothing
+            If room.HostClientId <> requestingClientId Then Return Nothing
+            Dim vm As New VirtualMember() With {
+                .Id = "vm" & Guid.NewGuid().ToString("N").Substring(0, 8),
+                .Name = If(name, "Guest"),
+                .Language = If(language, "")
+            }
+            room.VirtualMembers.TryAdd(vm.Id, vm)
+            room.TouchActivity()
+            AppLogger.Log($"[RoomManager] Virtual member '{vm.Name}' ({vm.Language}) added to room '{room.Name}'")
+            Return vm
+        End Function
+
+        ''' <summary>
+        ''' Remove a virtual member from a room. Host only.
+        ''' </summary>
+        Public Function RemoveVirtualMember(roomId As String, vmId As String, requestingClientId As String) As Boolean
+            Dim room = GetRoom(roomId)
+            If room Is Nothing Then Return False
+            If room.HostClientId <> requestingClientId Then Return False
+            Dim removed As VirtualMember = Nothing
+            Dim ok = room.VirtualMembers.TryRemove(vmId, removed)
+            If ok Then
+                room.TouchActivity()
+                AppLogger.Log($"[RoomManager] Virtual member '{removed.Name}' removed from room '{room.Name}'")
+            End If
+            Return ok
         End Function
 
         ''' <summary>

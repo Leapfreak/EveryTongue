@@ -57,6 +57,20 @@ Namespace Controllers
             End Get
         End Property
 
+        ''' <summary>
+        ''' When set, desktop Live STT broadcasts go to this Conference room instead of non-room clients.
+        ''' Empty = broadcast to all non-room clients (default).
+        ''' </summary>
+        Public Property TargetRoomId As String
+            Get
+                Return If(_getSubtitleSvc()?.TargetRoomId, "")
+            End Get
+            Set(value As String)
+                Dim svc = _getSubtitleSvc()
+                If svc IsNot Nothing Then svc.TargetRoomId = If(value, "")
+            End Set
+        End Property
+
         Public ReadOnly Property Runner As LiveStreamRunner
             Get
                 Return _liveRunner
