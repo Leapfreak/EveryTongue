@@ -487,7 +487,11 @@ function connect(){
   if(wsRef&&wsRef.readyState<2){return}
   var proto=location.protocol==='https:'?'wss:':'ws:';
   var wsUrl=proto+'//'+location.host+'/ws';
-  if(location.search.indexOf('preview')!==-1){wsUrl+='?preview=1'}
+  var wsParams=[];
+  if(location.search.indexOf('preview')!==-1){wsParams.push('preview=1')}
+  var roomMatch=location.search.match(/[?&]room=([^&]+)/);
+  if(roomMatch){wsParams.push('room='+roomMatch[1])}
+  if(wsParams.length>0){wsUrl+='?'+wsParams.join('&')}
   var ws=new WebSocket(wsUrl);
   wsRef=ws;
   ws.onopen=function(){LOG('WS connected');statusEl.textContent=t('connected');statusEl.className='connected';
@@ -1301,6 +1305,144 @@ function stopBibleTts(){
   if(ttsAudio){ttsAudio.pause();ttsAudio.src=''}
   ;
 }
+
+/* ── Push-to-Talk for Conversation Rooms ── */
+var pttActive=false;
+var pttRecorder=null;
+var pttChunks=[];
+var pttRoomType='';
+
+function initPushToTalk(){
+  var roomMatch=location.search.match(/[?&]room=([^&]+)/);
+  if(!roomMatch)return;
+  var roomId=roomMatch[1];
+  /* Fetch room info to check type */
+  var xhr=new XMLHttpRequest();
+  xhr.open('GET','/api/rooms/'+encodeURIComponent(roomId),true);
+  xhr.onload=function(){
+    if(xhr.status===200){
+      try{
+        var room=JSON.parse(xhr.responseText);
+        pttRoomType=room.type||'';
+        if(pttRoomType==='conversation'){
+          createPttButton();
+        }
+      }catch(e){LOG('Room info parse error: '+e)}
+    }
+  };
+  xhr.send();
+}
+
+function createPttButton(){
+  var btn=document.createElement('div');
+  btn.id='ptt-btn';
+  btn.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);width:72px;height:72px;border-radius:50%;background:#7c9cf7;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:90;box-shadow:0 4px 16px rgba(0,0,0,0.4);user-select:none;-webkit-user-select:none;touch-action:none;transition:background 0.15s,transform 0.15s';
+  btn.innerHTML='<svg width="32" height="32" viewBox="0 0 24 24" fill="white"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>';
+  document.body.appendChild(btn);
+
+  var label=document.createElement('div');
+  label.id='ptt-label';
+  label.style.cssText='position:fixed;bottom:104px;left:50%;transform:translateX(-50%);color:#aaa;font-size:12px;z-index:90;text-align:center;pointer-events:none;opacity:0.8';
+  label.textContent='Hold to speak';
+  document.body.appendChild(label);
+
+  /* Touch events for mobile */
+  btn.addEventListener('touchstart',function(e){e.preventDefault();startRecording(btn,label)},false);
+  btn.addEventListener('touchend',function(e){e.preventDefault();stopRecording(btn,label)},false);
+  btn.addEventListener('touchcancel',function(e){e.preventDefault();cancelRecording(btn,label)},false);
+  /* Mouse events for desktop testing */
+  btn.addEventListener('mousedown',function(e){e.preventDefault();startRecording(btn,label)},false);
+  btn.addEventListener('mouseup',function(e){e.preventDefault();stopRecording(btn,label)},false);
+  btn.addEventListener('mouseleave',function(e){if(pttActive)cancelRecording(btn,label)},false);
+}
+
+function startRecording(btn,label){
+  if(pttActive)return;
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    label.textContent='Microphone not available';
+    return;
+  }
+  pttActive=true;
+  pttChunks=[];
+  btn.style.background='#e74c3c';
+  btn.style.transform='translateX(-50%) scale(1.15)';
+  label.textContent='Recording...';
+
+  navigator.mediaDevices.getUserMedia({audio:{sampleRate:16000,channelCount:1,echoCancellation:true,noiseSuppression:true}})
+    .then(function(stream){
+      /* Use audio/webm if available, else audio/ogg, else browser default */
+      var mimeType='';
+      if(typeof MediaRecorder.isTypeSupported==='function'){
+        if(MediaRecorder.isTypeSupported('audio/webm;codecs=opus'))mimeType='audio/webm;codecs=opus';
+        else if(MediaRecorder.isTypeSupported('audio/webm'))mimeType='audio/webm';
+        else if(MediaRecorder.isTypeSupported('audio/ogg;codecs=opus'))mimeType='audio/ogg;codecs=opus';
+        else if(MediaRecorder.isTypeSupported('audio/ogg'))mimeType='audio/ogg';
+      }
+      LOG('PTT: using mimeType='+(mimeType||'(default)'));
+      var opts=mimeType?{mimeType:mimeType}:{};
+      pttRecorder=new MediaRecorder(stream,opts);
+      pttRecorder.ondataavailable=function(e){
+        if(e.data&&e.data.size>0)pttChunks.push(e.data);
+      };
+      pttRecorder.onstop=function(){
+        /* Stop all tracks to release mic */
+        stream.getTracks().forEach(function(t){t.stop()});
+        if(pttChunks.length>0){
+          sendAudioToServer();
+        }
+      };
+      pttRecorder.start(100); /* collect in 100ms chunks */
+    })
+    .catch(function(err){
+      LOG('Mic access denied: '+err);
+      pttActive=false;
+      btn.style.background='#7c9cf7';
+      btn.style.transform='translateX(-50%)';
+      label.textContent='Mic access denied';
+      setTimeout(function(){label.textContent='Hold to speak'},2000);
+    });
+}
+
+function stopRecording(btn,label){
+  if(!pttActive)return;
+  pttActive=false;
+  btn.style.background='#7c9cf7';
+  btn.style.transform='translateX(-50%)';
+  label.textContent='Sending...';
+  if(pttRecorder&&pttRecorder.state==='recording'){
+    pttRecorder.stop();
+  }
+  setTimeout(function(){label.textContent='Hold to speak'},2000);
+}
+
+function cancelRecording(btn,label){
+  pttActive=false;
+  pttChunks=[];
+  btn.style.background='#7c9cf7';
+  btn.style.transform='translateX(-50%)';
+  label.textContent='Hold to speak';
+  if(pttRecorder&&pttRecorder.state==='recording'){
+    pttRecorder.ondataavailable=null;
+    pttRecorder.onstop=function(){
+      try{pttRecorder.stream.getTracks().forEach(function(t){t.stop()})}catch(e){}
+    };
+    pttRecorder.stop();
+  }
+}
+
+function sendAudioToServer(){
+  if(!wsRef||wsRef.readyState!==1){LOG('WS not connected for PTT');return}
+  /* Send WebM/Opus directly — server converts with FFmpeg (smaller, saves phone CPU) */
+  var blob=new Blob(pttChunks,{type:pttChunks[0].type||'audio/webm'});
+  pttChunks=[];
+  blob.arrayBuffer().then(function(buf){
+    wsRef.send(buf);
+    LOG('PTT: sent '+buf.byteLength+' bytes ('+blob.type+')');
+  });
+}
+
+/* Init PTT after page load */
+initPushToTalk();
 
 /* Chapter counts by book (standard Protestant canon) */
 function getBookChapterCount(book){

@@ -308,6 +308,31 @@ Public Class FormMain
         ' Auto-start subtitle server after form is fully shown
         AddHandler Me.Shown, Sub(s, ev)
                                   _serverController.StartServer(Sub(svc) _liveController.ConfigureSubtitleService(svc))
+
+                                  ' Wire conversation room translation callback
+                                  Dim convAudioHandler = TryCast(_serverController.KestrelHost?.Services?.GetService(
+                                      GetType(Services.Rooms.ConversationAudioHandler)), Services.Rooms.ConversationAudioHandler)
+                                  If convAudioHandler IsNot Nothing Then
+                                      convAudioHandler.EnsureTranslationAvailable = Sub() Me.BeginInvoke(Sub() EnsureNllbForRooms())
+                                  End If
+
+                                  ' Auto-start NLLB translation engine and Whisper live-server
+                                  ' so conversation rooms are ready immediately
+                                  EnsureNllbForRooms()
+                                  If convAudioHandler IsNot Nothing Then
+                                      WriteDebugLog("[STARTUP] Auto-starting Whisper live-server for conversation rooms...")
+                                      Task.Run(Async Function()
+                                                   Try
+                                                       Dim ready = Await convAudioHandler.EnsureLiveServerAsync(CancellationToken.None)
+                                                       WriteDebugLog($"[STARTUP] Whisper live-server auto-start: ready={ready}")
+                                                   Catch ex As Exception
+                                                       WriteDebugLog($"[STARTUP] Whisper live-server auto-start failed: {ex.Message}")
+                                                   End Try
+                                               End Function)
+                                  Else
+                                      WriteDebugLog("[STARTUP] ConversationAudioHandler not available — skipping Whisper auto-start")
+                                  End If
+
                                   InitBibleTab()
                               End Sub
     End Sub
@@ -977,8 +1002,26 @@ del ""%~f0""
         _translationService = New TranslationService()
         AddHandler _translationService.StatusChanged, Sub(s, msg)
                                                           WriteDebugLog(msg)
-                                                          If msg.Contains("model loaded") Then _liveController?.FlushPendingCommits()
+                                                          If msg.Contains("model loaded") Then
+                                                              _liveController?.FlushPendingCommits()
+                                                          End If
                                                       End Sub
+
+        ' Register NllbBackend with the TranslationOrchestrator so conversation rooms
+        ' (and any other ITranslationService consumer) can use NLLB for translation
+        Try
+            Dim orchestrator = TryCast(_serverController?.KestrelHost?.Services?.GetService(
+                GetType(Services.Interfaces.ITranslationService)), Services.Translation.TranslationOrchestrator)
+            If orchestrator IsNot Nothing Then
+                Dim nllbBackend As New Services.Translation.NllbBackend(_translationService)
+                orchestrator.RegisterBackend(nllbBackend)
+                WriteDebugLog("[TRANSLATE] NllbBackend registered with TranslationOrchestrator")
+            Else
+                WriteDebugLog("[TRANSLATE] Warning: TranslationOrchestrator not available to register NllbBackend")
+            End If
+        Catch ex As Exception
+            WriteDebugLog($"[ERROR] Failed to register NllbBackend: {ex.Message}")
+        End Try
 
         Dim modelPath = _config.TranslationModelPath
         Dim port = _config.TranslationPort
@@ -989,6 +1032,46 @@ del ""%~f0""
         _translationService.Start(port, modelPath, device, glossaryPath)
         _translationStarting = False
         WriteDebugLog("Translation service starting...")
+    End Sub
+
+    ''' <summary>
+    ''' Called by ConversationAudioHandler when a conversation room needs translation
+    ''' but no backend is available. Checks NLLB deps and starts the service.
+    ''' </summary>
+    Private Sub EnsureNllbForRooms()
+        If _translationService IsNot Nothing AndAlso _translationService.IsRunning Then
+            ' Already running — just make sure NllbBackend is registered
+            Try
+                Dim orchestrator = TryCast(_serverController?.KestrelHost?.Services?.GetService(
+                    GetType(Services.Interfaces.ITranslationService)), Services.Translation.TranslationOrchestrator)
+                If orchestrator IsNot Nothing Then
+                    Dim backends = orchestrator.GetAllBackends()
+                    Dim nllbRegistered = backends.Any(Function(b) b.Name.Equals("NLLB", StringComparison.OrdinalIgnoreCase))
+                    If Not nllbRegistered Then
+                        Dim nllbBackend As New Services.Translation.NllbBackend(_translationService)
+                        orchestrator.RegisterBackend(nllbBackend)
+                        WriteDebugLog("[ROOMS] Re-registered NllbBackend with orchestrator")
+                    End If
+                End If
+            Catch ex As Exception
+                WriteDebugLog($"[ERROR] EnsureNllbForRooms re-register: {ex.Message}")
+            End Try
+            Return
+        End If
+
+        WriteDebugLog("[ROOMS] Conversation room needs translation — starting NLLB service")
+
+        Dim deps = Pipeline.TranslationService.CheckDependenciesInstalled()
+        If Not deps.pythonOk OrElse Not deps.depsOk OrElse Not deps.modelOk Then
+            WriteDebugLog("[ROOMS] NLLB dependencies not installed — translation unavailable for rooms")
+            Return
+        End If
+
+        ' Force TranslationEnabled so StartTranslationService proceeds
+        Dim wasEnabled = _config.TranslationEnabled
+        _config.TranslationEnabled = True
+        StartTranslationService()
+        If Not wasEnabled Then _config.TranslationEnabled = wasEnabled
     End Sub
 
     Friend Shared Function GetPipelineLogPath() As String

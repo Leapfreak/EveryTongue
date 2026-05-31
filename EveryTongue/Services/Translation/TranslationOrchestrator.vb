@@ -43,6 +43,15 @@ Namespace Services.Translation
             End Get
         End Property
 
+        ''' <summary>
+        ''' Register a backend dynamically (e.g. NllbBackend after the NLLB sidecar starts).
+        ''' Overwrites any existing backend with the same name.
+        ''' </summary>
+        Public Sub RegisterBackend(backend As ITranslationBackend)
+            _backends(backend.Name) = backend
+            _logger.LogInformation("Registered translation backend: {Backend}", backend.Name)
+        End Sub
+
         Public Sub SetActiveBackend(name As String) Implements ITranslationService.SetActiveBackend
             If _backends.ContainsKey(name) Then
                 _activeBackendName = name

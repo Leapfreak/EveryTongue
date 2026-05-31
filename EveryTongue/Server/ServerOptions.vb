@@ -47,6 +47,21 @@ Namespace Server
         ''' <summary>Whether to display Bible copyright notices on the phone client.</summary>
         Public Property ShowBibleCopyright As Boolean = True
 
+        ''' <summary>Port the live-server (Whisper STT sidecar) listens on. Used by ConversationAudioHandler.</summary>
+        Public Property LiveServerPort As Integer = 5091
+
+        ''' <summary>Path to FFmpeg executable. Used by ConversationAudioHandler for audio conversion.</summary>
+        Public Property FfmpegPath As String = ""
+
+        ''' <summary>Path to faster-whisper model directory. Used to auto-load model for conversation rooms.</summary>
+        Public Property WhisperModelPath As String = ""
+
+        ''' <summary>Compute type for Whisper model (e.g. "int8_float16"). Used for auto-load.</summary>
+        Public Property WhisperComputeType As String = "int8_float16"
+
+        ''' <summary>Whether to use CPU instead of CUDA for Whisper.</summary>
+        Public Property WhisperUseCpu As Boolean = False
+
         ''' <summary>Computed HTTPS port.</summary>
         Public ReadOnly Property HttpsPort As Integer
             Get

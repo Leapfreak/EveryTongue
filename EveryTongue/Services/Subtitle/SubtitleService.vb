@@ -114,6 +114,15 @@ Namespace Services.Subtitle
             Return result
         End Function
 
+        ''' <summary>
+        ''' Get a client connection by ID. Used by ConversationAudioHandler.
+        ''' </summary>
+        Public Function GetClient(clientId As String) As ClientConnection
+            Dim client As ClientConnection = Nothing
+            _clients.TryGetValue(clientId, client)
+            Return client
+        End Function
+
         Public Function GetActiveTranslationLanguages() As List(Of String) Implements ISubtitleService.GetActiveTranslationLanguages
             Dim langs As New HashSet(Of String)()
             For Each kvp In _clients
@@ -206,13 +215,15 @@ Namespace Services.Subtitle
             If Not IsRunning Then Return
             _currentLine = text
 
-            ' Pre-encode once, send to all non-translation clients
+            ' Pre-encode once, send to all non-translation clients in the default (no-room) scope
             Dim json = $"{{""type"":""update"",""text"":{EscapeJson(text)}}}"
             Dim buffer = Encoding.UTF8.GetBytes(json)
             Dim deadKeys As New List(Of String)
 
             For Each kvp In _clients
                 Try
+                    ' Room scoping: desktop STT broadcasts to clients with no room assigned
+                    If Not String.IsNullOrEmpty(kvp.Value.RoomId) Then Continue For
                     If Not String.IsNullOrEmpty(kvp.Value.Language) Then Continue For
                     If Not TrySendToClient(kvp.Value, buffer) Then
                         RaiseEvent LogMessage(Me, $"[WS] BroadcastUpdate send failed: {kvp.Value.RemoteEndpoint}")
@@ -248,6 +259,8 @@ Namespace Services.Subtitle
 
             For Each kvp In _clients
                 Try
+                    ' Room scoping: desktop STT broadcasts to clients with no room
+                    If Not String.IsNullOrEmpty(kvp.Value.RoomId) Then Continue For
                     If skipTranslationClients AndAlso Not String.IsNullOrEmpty(kvp.Value.Language) AndAlso kvp.Value.Language <> sourceLang Then
                         Continue For
                     End If
@@ -289,6 +302,9 @@ Namespace Services.Subtitle
 
             For Each kvp In _clients
                 Try
+                    ' Room scoping: desktop STT broadcasts to clients with no room
+                    If Not String.IsNullOrEmpty(kvp.Value.RoomId) Then Continue For
+
                     Dim clientLang = kvp.Value.Language
                     Dim text As String
                     Dim tag As String
@@ -343,6 +359,9 @@ Namespace Services.Subtitle
 
             For Each kvp In _clients
                 Try
+                    ' Room scoping: desktop STT broadcasts to clients with no room
+                    If Not String.IsNullOrEmpty(kvp.Value.RoomId) Then Continue For
+
                     Dim lang = kvp.Value.Language
                     If String.IsNullOrEmpty(lang) Then Continue For
                     Dim translated As String = Nothing

@@ -864,6 +864,109 @@ async def reload_hallucinations():
     return {"status": "ok", "count": len(_hallucination_phrases)}
 
 
+@app.post("/load-model")
+async def load_model_endpoint(request: Request):
+    """Load the Whisper model without starting audio capture.
+    Used by conversation rooms that need /transcribe but not live capture."""
+    global model, model_path_global, compute_type_global, device_global
+
+    body = await request.json()
+    requested_model_path = body.get("model_path", model_path_global)
+    requested_compute_type = body.get("compute_type", compute_type_global)
+    requested_device = body.get("device", device_global)
+
+    if model is not None and requested_model_path == model_path_global:
+        return {"status": "already_loaded"}
+
+    logger.debug(f"MODEL LOAD path={requested_model_path} device={requested_device} compute={requested_compute_type}")
+    try:
+        model = WhisperModel(
+            requested_model_path,
+            device=requested_device,
+            compute_type=requested_compute_type,
+        )
+        model_path_global = requested_model_path
+        compute_type_global = requested_compute_type
+        device_global = requested_device
+        logger.debug("MODEL LOAD OK")
+        return {"status": "loaded"}
+    except Exception as e:
+        logger.error(f"Failed to load model: {e}")
+        return JSONResponse({"status": "error", "detail": str(e)}, status_code=500)
+
+
+@app.post("/transcribe")
+async def transcribe_audio(request: Request):
+    """One-shot transcription of uploaded audio data.
+    Accepts raw audio bytes (WAV 16kHz mono PCM expected).
+    Used by conversation rooms for push-to-talk."""
+    import io
+    import wave
+
+    if model is None:
+        return JSONResponse({"status": "error", "detail": "Model not loaded"}, status_code=503)
+
+    body = await request.body()
+    if not body:
+        return JSONResponse({"status": "error", "detail": "No audio data"}, status_code=400)
+
+    lang = request.query_params.get("lang", None)
+    if lang == "auto":
+        lang = None
+
+    try:
+        # Try to read as WAV
+        wav_io = io.BytesIO(body)
+        with wave.open(wav_io, "rb") as wf:
+            frames = wf.readframes(wf.getnframes())
+            sample_rate = wf.getframerate()
+            audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+            # Resample to 16kHz if needed
+            if sample_rate != SAMPLE_RATE:
+                ratio = SAMPLE_RATE / sample_rate
+                new_len = int(len(audio) * ratio)
+                indices = np.linspace(0, len(audio) - 1, new_len)
+                audio = np.interp(indices, np.arange(len(audio)), audio)
+    except Exception:
+        # Not a WAV — treat as raw 16kHz float32 PCM
+        audio = np.frombuffer(body, dtype=np.float32)
+
+    if len(audio) < SAMPLE_RATE * 0.3:
+        return JSONResponse({"status": "error", "detail": "Audio too short"}, status_code=400)
+
+    try:
+        segments_iter, info = model.transcribe(
+            audio,
+            language=lang,
+            task="transcribe",
+            beam_size=5,
+            vad_filter=True,
+            vad_parameters={
+                "threshold": 0.3,
+                "min_silence_duration_ms": 300,
+            },
+            word_timestamps=False,
+        )
+        segments = list(segments_iter)
+        text = " ".join(seg.text.strip() for seg in segments if seg.text.strip())
+        detected = info.language if info else ""
+
+        if not text:
+            return {"status": "ok", "text": "", "lang": detected}
+
+        # Basic hallucination check
+        if _is_hallucination(segments):
+            logger.debug(f"TRANSCRIBE-API: hallucination skipped: {text}")
+            return {"status": "ok", "text": "", "lang": detected}
+
+        logger.debug(f"TRANSCRIBE-API [{detected}]: {text}")
+        return {"status": "ok", "text": text, "lang": detected}
+
+    except Exception as e:
+        logger.error(f"Transcribe API error: {e}")
+        return JSONResponse({"status": "error", "detail": str(e)}, status_code=500)
+
+
 @app.post("/shutdown")
 async def shutdown():
     """Gracefully shut down the server."""

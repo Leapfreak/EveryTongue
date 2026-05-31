@@ -73,7 +73,12 @@ Namespace Controllers
                     .AdminPin = If(_config.AdminPin, ""),
                     .BiblesDirectory = resolvedBiblesDir,
                     .TtsBackends = If(_config.TtsBackends, ""),
-                    .ShowBibleCopyright = _config.ShowBibleCopyright
+                    .ShowBibleCopyright = _config.ShowBibleCopyright,
+                    .LiveServerPort = _config.LiveServerPort,
+                    .FfmpegPath = Models.AppConfig.ResolvePath(_config.PathFfmpeg),
+                    .WhisperModelPath = Models.AppConfig.ResolvePath(_config.PathFasterWhisperModel),
+                    .WhisperComputeType = If(_config.LiveComputeType, "int8_float16"),
+                    .WhisperUseCpu = _config.NoGpu
                 }
 
                 _kestrelHost.Start(kestrelOptions, Sub(msg) _log($"[Server] {msg}"))

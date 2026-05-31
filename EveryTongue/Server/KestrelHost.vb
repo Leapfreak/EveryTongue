@@ -19,6 +19,7 @@ Imports EveryTongue.Services.Audio
 Imports EveryTongue.Services.Bible
 Imports EveryTongue.Services.Subtitle
 Imports EveryTongue.Services.Translation
+Imports EveryTongue.Services.Rooms
 Imports EveryTongue.Services.Tts
 
 Namespace Server
@@ -165,6 +166,16 @@ Namespace Server
                 subtitleSvc.TtsAudioOutput = ttsOutput
             End If
 
+            ' Wire conversation audio handler with live-server port, FFmpeg, and model config
+            Dim convAudioHandler = app.Services.GetService(Of ConversationAudioHandler)()
+            If convAudioHandler IsNot Nothing Then
+                convAudioHandler.LiveServerPort = options.LiveServerPort
+                convAudioHandler.FfmpegPath = options.FfmpegPath
+                convAudioHandler.WhisperModelPath = options.WhisperModelPath
+                convAudioHandler.WhisperComputeType = options.WhisperComputeType
+                convAudioHandler.WhisperUseCpu = options.WhisperUseCpu
+            End If
+
             ' Start MMS-TTS sidecar if deps are installed (optional tier-2 offline TTS)
             Dim backends = app.Services.GetServices(Of ITtsBackend)()
             For Each backend In backends
@@ -269,13 +280,15 @@ Namespace Server
                 Sub(opts) opts.Level = IO.Compression.CompressionLevel.Fastest)
 
             ' Core services
+            services.AddSingleton(Of RoomManager)()
             services.AddSingleton(Of ISubtitleService, SubtitleService)()
+            services.AddSingleton(Of ConversationAudioHandler)()
             services.AddTransient(Of SubtitleHub)()
             services.AddSingleton(Of IBibleService, BibleService)()
             services.AddSingleton(Of IMetricsService, MetricsService)()
             services.AddSingleton(Of IAudioStreamService, AudioStreamService)()
 
-            ' Translation backends (NLLB registered later by FormMain when pipeline starts)
+            ' Translation backends (NllbBackend registered dynamically by FormMain when NLLB sidecar starts)
             services.AddSingleton(Of ITranslationBackend, DeepLBackend)()
             services.AddSingleton(Of ITranslationBackend, GoogleBackend)()
             services.AddSingleton(Of ITranslationBackend, AzureBackend)()

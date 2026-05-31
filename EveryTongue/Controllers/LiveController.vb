@@ -287,6 +287,13 @@ Namespace Controllers
                 _grpInput.Enabled = False
                 UpdateLiveRunningStatus()
                 _showLogPanel()
+
+                ' Check if clients are already requesting translation (e.g. WebView2 preview)
+                ' and auto-start NLLB if needed
+                Dim targets = _getSubtitleSvc()?.GetActiveTranslationLanguages()
+                If targets IsNot Nothing AndAlso targets.Count > 0 Then
+                    HandleActiveLanguagesChanged(Nothing, EventArgs.Empty)
+                End If
             End If
         End Sub
 

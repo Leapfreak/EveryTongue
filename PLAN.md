@@ -1,24 +1,39 @@
 # EveryTongue — TODO (updated 2026-05-31)
 
+> **Architecture shift:** EveryTongue is evolving from a single-session desktop transcription tool into a **headless multi-room translation server**. The desktop app still has operator workspaces (Live, Transcribe, Translate, Bible), but the primary user interface is now the **phone web client**. Anyone with a phone can create rooms, manage conversations, and receive translations — no operator required. The desktop just runs the server and auto-starts engines at launch.
+
 ## Plan Status Summary
 
-### Kestrel Migration — COMPLETE (plan deleted)
-All 10 phases done. Legacy HttpListener/SslStream server removed. Kestrel in-process with DI, WebSocket hub, static files, TTS, Bible, audio streaming.
+### Kestrel Migration — COMPLETE
+All 10 phases done. Kestrel in-process with DI, WebSocket hub, static files, TTS, Bible, audio streaming.
 
-### Code Quality (all done)
-All 11 items complete: controller extraction, tune stats dedup, language code consolidation, ThemeMode enum, silent error fix, BibleRefs typing, PythonSidecarHost, LiveStreamRunner stop dedup, thread-safe RemoteCommandHandler, AppLogger decoupling, KestrelHost.Dispose, SubtitleService constructor injection. Config architecture (item B) merged into UI Redesign Plan.
+### Code Quality — COMPLETE
+All 11 items done plus additional cleanup. TTS and Translation backend registries added for pluggable engine discovery. FormOptions is now the single source of truth for all settings.
 
-Additional cleanup (2026-05-31): Removed all dead hidden tab controls (tabPageServer, tabPagePaths, tabPageSettings and ~35+ child controls from FormMain.Designer.vb). Eliminated AppendServerLog indirection — all logging now routes directly through WriteDebugLog/AppLogger. ServerController constructor simplified from 18 params to 4 (config, webview, statusCallback, logCallback). LiveController cleaned of dead dependencies (btnSetupTranslation, checkDeps, appendServerLog). FormOptions is now the single source of truth for paths/settings/server config. Dead menu items cleaned up. Dark mode visual hierarchy improved. Options dialog expanded to 7 panels (General, Paths, Translation, Server, Hardware, Advanced, About). TTS and Translation backend registries added for pluggable engine discovery.
+### Rooms — IN PROGRESS (see [#19](#19-rooms--multi-room-translation))
+Room model, lobby API, room QR codes, WebSocket routing, conversation rooms with bidirectional PTT audio, NLLB translation, self-echo, language forcing, auto-start of Whisper and NLLB at app launch — all working. Remaining: host controls, display names, participant list, per-client TTS, UI polish.
 
 ## User-Reported Issues & Tasks
-- [x] Implement stubs — most former stubs now implemented (QR Code, Hardware Score, Diagnostics Export, File Integrity, Translate workspace). Remaining stubs: Session Wizard, Audio Level Monitor, Glossary Simple Mode, Event Profiles, Spec Sheet Generator, Portable Mode, Feedback prompt
-- [x] Connected Clients dialog — popup form showing all currently connected phones with model, OS, browser, language, TTS capability, connection time. Precursor to full Device Compatibility (#11C).
+- [x] Implement stubs — most done (QR Code, Hardware Score, Diagnostics Export, File Integrity, Translate workspace). Remaining stubs: Session Wizard, Audio Level Monitor, Glossary Simple Mode, Event Profiles, Spec Sheet Generator, Portable Mode, Feedback prompt
+- [x] Connected Clients dialog — popup form showing all connected phones with model, OS, browser, language, TTS, connection time
 - [ ] Audio routing: NDI or Direct Audio output
 
 ## Suggested Next Priorities
-1. Audio Level Monitor (#3) — critical for operator feedback, prevents #1 failure mode (bad audio)
-2. Setup Wizard expansion (#2) — integrates QR, audio monitor, hardware score into pre-event checklist
-3. Glossary Management simplified (#5) — easier for non-technical users
+1. **Rooms Phase 1 & 2 completion (#19)** — host controls, display names, speaker identity, participant list
+2. **Text Chat in Rooms (#17)** — type-to-translate for conversation rooms
+3. Audio Level Monitor (#3) — operator feedback, prevents bad audio
+4. Setup Wizard expansion (#2) — integrates QR, audio monitor, hardware score
+5. Priority Queue Pipeline — STT/Translation/TTS queues with dynamic priority scoring for multi-room load
+
+## Future Work (not scheduled)
+- Priority queue pipeline with dynamic priority scoring and backpressure/degradation
+- Mesh WiFi / mDNS service discovery for automatic server finding
+- Room templates & presets (medical consultation, Sunday service, staff meeting)
+- Session recording & per-room transcript export
+- ISttBackend interface — pluggable STT engines (Vosk, Azure, etc.)
+- Plugin auto-discovery from `plugins/` folder
+- Plugin Manager UI with model management
+- Engine benchmark suite (STT/Translation/TTS speed, quality, latency, resource usage)
 
 ---
 
@@ -40,7 +55,7 @@ Implementation plan for making Every Tongue field-deployable by a non-technical 
 | [6](#6-text-to-speech--server-side-engine) | Text-to-Speech — Server-Side Engine | Done | 4 |
 | [7](#7-portable-usb-deployment) | Portable USB Deployment | New | 5 |
 | [8](#8-crash-recovery--system-wide-resilience) | Crash Recovery — System-Wide | Improve | 2 |
-| [9](#9-multi-language-operator-ui--expand-coverage) | Multi-Language Operator UI | Improve | 2 |
+| [9](#9-multi-language-operator-ui--expand-coverage) | Multi-Language Operator UI | **Done** (core), Improve (add languages) | 2 |
 | [10](#10-session-recording--multi-format-export) | Session Recording & Export | Improve | 2 |
 | [11A](#11a-field-feedback-system) | Field Feedback System | New | 4 |
 | [11B](#11b-glossary-enrichment-pipeline) | Glossary Enrichment Pipeline | New | 4 |
@@ -50,6 +65,9 @@ Implementation plan for making Every Tongue field-deployable by a non-technical 
 | [14](#14-pluggable-translation-backends) | Pluggable Translation Backends (Cloud APIs) | Partial (a-e done) | 4 |
 | [15](#15-server-infrastructure-upgrade--kestrel) | Server Infrastructure Upgrade (Kestrel) | **Done** | 3 |
 | [16](#16-bible-integration) | Bible Integration | **Done** (a-g), partial (h) | 4 |
+| [17](#17-text-chat-in-rooms) | Text Chat in Rooms | New | 2 |
+| [18](#18-dictation-in-translate-workspace) | Dictation in Translate Workspace | New | 2 |
+| [19](#19-rooms--multi-room-translation) | Rooms — Multi-Room Translation | **In Progress** (Phase 1-2) | 1 |
 
 **[Implementation Order](#implementation-order)** | **[Development Notes](#development-notes)** | **[Notes](#notes)**
 
@@ -489,14 +507,18 @@ The browser Speech API is device-dependent — many Android phones have poor or 
 
 ## 9. Multi-Language Operator UI — Expand Coverage
 
-**Status:** Fully implemented with ResourceManager and 8 locales: English, Spanish, French, German, Catalan, Portuguese, Japanese, Chinese Simplified. Dynamic switching via CultureInfo.
+**Status:** Core localization complete (v1.6.0). Switched from `.resx`/ResourceManager to JSON-based `LanguagePackService` with 566 locale keys across 8 languages. Every user-facing string in the entire application now uses locale lookups. Testing of the full localization pass is incomplete — resume there next session.
 
 **What exists:**
-- `Strings.resx` (English base) with ~80 string keys
-- 7 satellite `.resx` files with translations
-- `_uiLocales` array in FormMain.vb with language codes and native names
-- ComboBox for language selection on Settings tab
-- `Thread.CurrentThread.CurrentUICulture` set on startup
+- `locales/*.json` — 8 locale files (en, es, fr, de, ca, pt, zh, ja), 566 keys each
+- `LanguagePackService` singleton loads JSON at startup, with embedded en.json fallback
+- All forms localized: Options, Download Manager, Connected Clients, Session Wizard, QR Code
+- All controllers localized: Live, Translate, Transcribe, Bible, Server
+- Shell (status bar, menus, integrity check, export) and Program localized
+- Hardware scan ratings/recommendations accept LanguagePackService for localized output
+- Download Manager status logic refactored from text-based to state-based checks
+- Language packs downloadable from GitHub CDN via Download Manager
+- Debug/log output intentionally remains in English
 
 **What to improve:**
 
@@ -2067,6 +2089,252 @@ This gives baseline coverage for the majority of Agape's European footprint usin
 
 ---
 
+## 17. Text Chat in Rooms
+
+**Status:** New
+
+**Problem:** Not everyone can or wants to speak aloud — noisy environments, speech impairments, privacy needs, or simply wanting to type quickly. Currently conversation rooms are audio-only (push-to-talk). Users should also be able to type a message that gets translated and delivered to room members, just like a spoken PTT message.
+
+**Implementation:**
+
+#### a) Chat input on phone client
+- Text input field in the room UI (below the PTT button)
+- User types a message, hits Send
+- Message sent to server via WebSocket as a text message (not audio)
+- Server translates the text to each room member's language using the same NLLB pipeline
+- Broadcast to room members as a commit, same as PTT results
+
+#### b) Server-side handling
+- New WebSocket message type: `{type: "chatMessage", text: "...", room: "..."}`
+- `ConversationAudioHandler` or a new handler receives the text
+- Skips STT (text is already text) — goes straight to translation
+- Broadcasts translated text to room members with speaker identity
+- Self-echo: sender sees their own message in the chat
+
+#### c) Mixed-mode conversation
+- PTT audio messages and typed messages interleave naturally in the same transcript view
+- Both show with speaker identity and language tag
+- Typed messages could have a subtle visual indicator (e.g. no audio icon) to distinguish from spoken ones
+
+**Files to modify:**
+- `wwwroot/js/app.js` — add text input UI in room mode, send chatMessage via WebSocket
+- `Server/Hubs/SubtitleHub.vb` — handle new chatMessage type
+- `Services/Rooms/ConversationAudioHandler.vb` — add text-only translate+broadcast path (skip STT/FFmpeg)
+
+---
+
+## 18. Dictation in Translate Workspace
+
+**Status:** New
+
+**Problem:** The desktop Translate workspace currently only accepts typed text input. Users who want to speak instead of type — whether for speed, accessibility, or because they're translating spoken content — have no option. Adding a dictation (speech-to-text) button would let users speak into their microphone and have the text automatically transcribed and placed into the source text box, ready for translation.
+
+**Implementation:**
+
+#### a) Microphone capture and STT
+- Add a microphone/dictation toggle button next to the source text input in the Translate workspace
+- Use NAudio to capture audio from the default input device
+- Send audio to the local Whisper live-server `/transcribe` endpoint (same sidecar used by Live and Rooms)
+- Auto-detect or use the selected source language for Whisper's `lang` parameter
+- Append transcribed text to the source text box
+
+#### b) UI flow
+- Button toggles between recording and idle states (mic icon with visual indicator)
+- While recording, show a pulsing indicator so the user knows dictation is active
+- On stop, the transcribed text appears in the source field
+- User can edit the transcribed text before clicking Translate
+- Support both push-to-talk (hold button) and toggle (click to start/stop) modes
+
+#### c) Engine readiness
+- If Whisper live-server is not running, auto-start it (same as conversation rooms do)
+- If Whisper dependencies are missing, prompt via `AppLogger.PromptDownloadManager`
+
+**Files to modify:**
+- `Controllers/TranslateController.vb` — add dictation logic, mic capture, STT calls
+- `Forms/FormMain.Designer.vb` — add dictation button to Translate workspace UI
+- `Resources/Strings.resx` (+ all locales) — add dictation button label/tooltip strings
+
+---
+
+## 19. Rooms — Multi-Room Translation
+
+**Status:** In Progress. Core infrastructure complete (Phase 1a-f, Phase 2a-c).
+
+**Vision:** Transform EveryTongue from a single-session transcription tool into a building-wide, multi-room translation platform. One server, many rooms, every language, no internet required. The desktop app becomes a headless translation server — the phone web client is the primary UI.
+
+**What's done:**
+- Room data model (`Room`, `RoomManager`, `RoomConfig`, `RoomType`, `RoomVisibility`)
+- REST API: create/list/join/close rooms, per-room QR codes
+- WebSocket routing: clients subscribe to rooms, messages route per-room
+- Web client lobby API (endpoints ready, phone UI pending)
+- Conversation rooms: bidirectional PTT audio via MediaRecorder + FFmpeg + Whisper
+- Translation pipeline: PTT -> FFmpeg -> Whisper -> NLLB -> broadcast to room members
+- Self-echo: speakers see their own text in the conversation
+- Language forcing: client's language setting passed to Whisper (no more wrong language detection)
+- Auto-start: Whisper and NLLB engines start at app launch, ready for first message
+- Room lifecycle: idle expiry, host-only close, private rooms hidden from lobby
+- Room isolation: room messages don't leak to desktop Live workspace or other rooms
+
+### Phase 1 — Remaining
+
+#### g) Host controls (phone UI)
+- Room host (creator) sees additional controls on their phone
+- **End room** — closes the room for all participants
+- **Mute participant** — prevents a participant from using PTT (they can still receive translations)
+- **Remove participant** — kicks them from the room
+- **Transfer host** — pass host role to another participant
+- Host disconnect: room stays alive, any participant can claim host
+- UI: gear/settings icon in the room view opens a host panel with participant list and actions
+
+#### h) Display names
+- When joining a conversation room, phone prompts for a display name
+- Display name stored on the `RoomClient` and sent with broadcasts
+- Speaker identity in room messages shows display name instead of IP address
+- Default name: "Phone 1", "Phone 2" etc. if user skips the prompt
+
+#### i) Web client lobby UI
+- Landing page when phone connects without a `?room=` param
+- Shows list of public rooms with names, types, participant counts
+- "Create Room" button: pick type (Conference/Conversation), name, public/private toggle
+- "Join Room" via list (public) or QR scan (any room)
+- Private rooms never appear in the lobby list
+
+#### j) Desktop server dashboard
+- Simple overview on the desktop app: active rooms, total clients, resource usage
+- No room creation/management from desktop — that's the phone's job
+
+### Phase 2 — Remaining
+
+#### d) Speaker identity labels
+- Broadcasts include speaker's display name (not IP endpoint)
+- Phone UI shows "Doctor:" / "Maria:" etc. before each translated line
+- Visual distinction between speakers (alternating colours or name tags)
+
+#### e) Per-client TTS streams
+- After translating for a room member, optionally generate TTS audio in their language
+- Uses existing Piper/MMS-TTS/EdgeTTS backends
+- Each client gets a personalised TTS stream
+- Opt-in per room (may be noisy in consultation settings — subtitles-only is the default)
+
+#### f) Conversation room UI polish
+- Active speaker indicator (pulsing dot or name highlight)
+- Participant list: who's in the room, their language, speaking status
+- Smooth scrolling transcript with speaker labels and language tags
+
+**Files already implemented:**
+- `Services/Rooms/RoomModels.vb` — Room, RoomConfig, RoomType, RoomVisibility
+- `Services/Rooms/RoomManager.vb` — create, list, join, leave, close, idle cleanup
+- `Services/Rooms/ConversationAudioHandler.vb` — PTT audio processing, FFmpeg, Whisper, translation, broadcast
+- `Server/EndpointRegistration.vb` — room REST API endpoints
+- `wwwroot/js/app.js` — PTT button, audio capture, room-aware WebSocket
+
+**Files to modify for remaining work:**
+- `wwwroot/js/app.js` — lobby UI, host controls, display name prompt, participant list, speaker labels
+- `Services/Rooms/RoomModels.vb` — add DisplayName to client model
+- `Services/Rooms/ConversationAudioHandler.vb` — include display name in broadcasts, TTS generation
+- `Server/EndpointRegistration.vb` — host control endpoints (mute, remove, transfer host)
+- `Forms/FormMain.Designer.vb` — room dashboard panel (if adding to desktop UI)
+
+### Architecture
+
+```
+                    +---------------------------+
+                    |    Translation Server      |
+                    |    (headless PC / laptop)   |
+                    |                             |
+                    |  +--------+  +-----------+  |
+                    |  | Whisper |  |   NLLB    |  |
+                    |  |  (STT)  |  | (Translate)|  |
+                    |  +--------+  +-----------+  |
+                    |  +---------+  +----------+  |
+                    |  | Piper / |  |   Room    |  |
+                    |  | MMS-TTS |  |  Manager  |  |
+                    |  +---------+  +----------+  |
+                    |        |           |         |
+                    |     Kestrel WebSocket Hub    |
+                    +-------------|---------------+
+                                  |
+                          Local WiFi / Mesh
+                        /    |     |      \
+                    Phone  Phone  Phone  Phone
+                    (ar)   (sq)   (en)   (fr)
+                      |
+                  creates room,
+                  shows QR to others
+```
+
+### Room Types
+
+| Type | Description | Audio Flow | Example |
+|------|-------------|------------|---------|
+| **Conference** | One speaker, many listeners | Unidirectional: speaker mic -> server -> TTS/subtitles to all clients | Sunday service, group briefing, training session |
+| **Conversation** | Small group, everyone speaks | Bidirectional: each client captures + receives audio | Doctor-patient consultation, intake interview, small meeting |
+
+### Technical Decisions (resolved)
+
+- **Audio format:** WebM/Opus via MediaRecorder (smaller than PCM, server converts with FFmpeg)
+- **Whisper concurrency:** One shared instance with room-tagged queuing (GPU memory constraint)
+- **Interaction mode:** Push-to-talk (simpler, avoids cross-talk and echo cancellation)
+- **Room persistence:** Memory-only (lost on restart) — sufficient for v1
+- **Language forcing:** Client's NLLB language converted to Whisper code, passed via `?lang=` param
+
+### Hardware Implications
+
+| Scenario | Rooms | Estimated GPU Load | Recommended |
+|----------|-------|--------------------|-------------|
+| Small church | 1 Conference | Low | Any NVIDIA GPU |
+| Aid centre, basic | 3-5 Conference | Medium | RTX 3060+ (8GB VRAM) |
+| Aid centre, full | 2 Conference + 5 Conversation | High | RTX 4070+ (12GB VRAM) |
+| Large campus | 10+ mixed rooms | Very high | Dedicated server with RTX 4090 or A4000 |
+
+Conversation rooms are the most expensive: a 5-person conversation = 5x Whisper load vs a 50-person conference = 1x Whisper load.
+
+### Future: Priority Queue Pipeline
+
+When multiple rooms run concurrently, the server has three bottlenecks: Whisper (STT), NLLB (translation), and TTS. Each gets a priority queue so the system degrades gracefully under load.
+
+```
+Audio in -> [STT Queue] -> Whisper -> [Translation Queue] -> NLLB -> [TTS Queue] -> Piper/MMS -> Client
+```
+
+**Dynamic priority scoring** — the system observes interaction patterns and adapts:
+
+| Room type | Base priority | Reasoning |
+|---|---|---|
+| Conversation | High | Interactive — people waiting on each other |
+| Conference | Medium | One-way — listeners tolerate slight delay |
+
+| Signal | Effect |
+|---|---|
+| Fast turn-taking | Boost priority |
+| Just spoke (waiting for translation) | Spike priority temporarily |
+| Idle 30+ seconds | Drop to base |
+| Queue age too high | Promote to prevent starvation |
+
+**Backpressure/degradation** (applied automatically, lowest priority first):
+- Switch to smaller Whisper model (medium -> small -> base)
+- Increase segment batching (higher latency, fewer Whisper calls)
+- Skip TTS, fall back to subtitles only
+- Clients in degraded rooms see "high demand — reduced quality" indicator
+
+### Future: Plugin Architecture
+
+**Goal:** Drop a DLL into `plugins/`, EveryTongue discovers it at startup, registers it alongside built-in engines. No source changes needed.
+
+**What exists today:**
+- `ITtsBackend` + `TtsBackendRegistry` — pluggable TTS (Piper, MMS-TTS, EdgeTTS)
+- `ITranslationBackend` + `TranslationBackendRegistry` — pluggable translation (NLLB, Cloud APIs)
+- STT is not pluggable — Whisper is hardwired into `LiveStreamRunner`
+
+**What's needed:**
+- `ISttBackend` interface + `SttBackendRegistry` — wrap Whisper as `WhisperBackend`
+- Standardise all three interfaces: `Name`, `IsAvailable`, `RequiresInternet`, `RequiresGpu`, async work methods
+- Plugin auto-discovery: scan `plugins/` for DLLs implementing engine interfaces, register in DI
+- Plugin Manager UI: list/enable/disable plugins, model management (download/delete/activate), benchmark results
+- Benchmark suite: standardised speed/quality/latency/resource tests for STT, Translation, and TTS engines
+
+---
+
 ## Implementation Order
 
 Recommended sequence based on impact, dependencies, and complexity. Designed for a solo developer with a 300-person church congregation as a live testing environment.
@@ -2349,17 +2617,11 @@ Key advice for operators:
 
 **Solo developer context:** This plan is maintained by one person (Jeremy) and developed incrementally alongside a live deployment serving a 300-person church congregation. Every Sunday is a live test with real users who don't speak the same language as the speaker.
 
-**Testing strategy:** The congregation is the test bed. Features ship when they work locally, then get real-world validation every week. This means:
-- Ship small, ship often — each feature is independently deployable
-- Visible features first — the congregation provides feedback on things they can see and use
-- Infrastructure later — Kestrel, backend abstractions, etc. deliver developer quality-of-life but zero user-visible improvement
+**Architecture direction (2026-05-31):** The desktop app is becoming a headless translation server. The phone web client is the primary user interface — anyone with a phone can create rooms, manage conversations, and receive translations without an operator. Desktop workspaces (Live, Transcribe, Translate, Bible) remain for direct operator use, but the growth direction is server-side: multiple concurrent rooms, auto-starting engines, phone-first room management. The Rooms architecture (Feature #19) is now the highest-priority work.
 
-**Why Kestrel is Phase 3, not Phase 1:** Analysis of all 16 features against the current HttpListener/TcpListener architecture shows that 13 of 15 non-Kestrel features need zero new SubtitleServer endpoints. Only Bible Integration (#16) truly requires Kestrel's routing. Field Feedback (#11A) would benefit but is buildable without it. The duplicated HTTP/HTTPS routing is a maintenance burden, not a user-facing problem — and it's been working reliably for the existing feature set.
+**Testing strategy:** The congregation is the test bed. Features ship when they work locally, then get real-world validation every week. Ship small, ship often. Visible features first.
 
-**Feature #11 split rationale:** The original Feature #11 contained 7 subsections spanning feedback collection, glossary review, distributed workflows, device fingerprinting, compatibility databases, TTS auditing, and device scoring. These are 3+ distinct systems with different dependencies, complexities, and deployment timelines. Split into:
-- **#11A (Field Feedback)** — collects data (phone UI + file I/O)
-- **#11B (Glossary Enrichment)** — processes data (desktop review UI, depends on #11A)
-- **#11C (Device Compatibility)** — independent system (client-side detection + server logging, can ship without #11A/#11B)
+**Feature #11 split rationale:** The original Feature #11 was split into #11A (Field Feedback), #11B (Glossary Enrichment), and #11C (Device Compatibility) — three distinct systems with different dependencies and timelines.
 
 ---
 
@@ -2385,7 +2647,9 @@ The following developer/user documentation needs to be written. These may live i
 - `specs.json` must be reviewed and updated each release if resource requirements change
 - Cloud translation backends (Feature #14) should gracefully degrade to NLLB when offline — the offline-first principle remains core to the product
 - Bible text must always show copyright/attribution per the translation's license terms
-- The Kestrel migration (Feature #15) is Phase 3 — build the first 10 features on the existing architecture, then migrate. After Kestrel, build all new endpoints on the new architecture
+- Kestrel migration is complete — all new endpoints built on Kestrel
+- Rooms (#19) is the highest-priority active work — engines auto-start at launch, phone clients manage rooms independently
+- Full Rooms architecture (data model, priority queue, plugin architecture) consolidated into Feature #19
 # Every Tongue — UI Redesign Plan
 
 ## Design Principles

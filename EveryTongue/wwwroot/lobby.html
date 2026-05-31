@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Every Tongue</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            text-align: center;
+            padding: 24px 16px 16px;
+        }
+        .header h1 {
+            font-size: 22px;
+            font-weight: 600;
+            color: #fff;
+        }
+        .header p {
+            font-size: 13px;
+            color: #888;
+            margin-top: 4px;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #333;
+            margin: 0 16px;
+        }
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 10px;
+            font-size: 14px;
+            color: #888;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: color 0.2s, border-color 0.2s;
+        }
+        .tab.active {
+            color: #7c9cf7;
+            border-bottom-color: #7c9cf7;
+        }
+
+        .content {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+        }
+
+        .panel { display: none; }
+        .panel.active { display: block; }
+
+        /* Room list */
+        .room-list { list-style: none; }
+        .room-item {
+            background: #252540;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .room-item:hover { background: #2e2e50; }
+        .room-name {
+            font-size: 16px;
+            font-weight: 500;
+            color: #fff;
+        }
+        .room-meta {
+            font-size: 12px;
+            color: #888;
+            margin-top: 4px;
+        }
+        .room-meta span { margin-right: 12px; }
+        .room-type {
+            display: inline-block;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: #3a3a5c;
+            color: #aaa;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+        .empty-state {
+            text-align: center;
+            color: #666;
+            padding: 40px 16px;
+            font-size: 14px;
+        }
+
+        /* Create room form */
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            color: #aaa;
+            margin-bottom: 6px;
+        }
+        .form-group input[type="text"] {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            background: #252540;
+            color: #fff;
+            font-size: 15px;
+            outline: none;
+        }
+        .form-group input[type="text"]:focus {
+            border-color: #7c9cf7;
+        }
+
+        .type-picker {
+            display: flex;
+            gap: 8px;
+        }
+        .type-option {
+            flex: 1;
+            padding: 12px 8px;
+            text-align: center;
+            border-radius: 10px;
+            border: 2px solid #444;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .type-option.selected {
+            border-color: #7c9cf7;
+            background: #252550;
+        }
+        .type-option .icon { font-size: 24px; margin-bottom: 4px; }
+        .type-option .label { font-size: 13px; color: #ccc; }
+
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+        }
+        .toggle-row .label { font-size: 14px; color: #ccc; }
+
+        /* Toggle switch */
+        .toggle {
+            width: 44px; height: 24px;
+            background: #444;
+            border-radius: 12px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .toggle.on { background: #7c9cf7; }
+        .toggle::after {
+            content: "";
+            width: 20px; height: 20px;
+            background: #fff;
+            border-radius: 50%;
+            position: absolute;
+            top: 2px; left: 2px;
+            transition: transform 0.2s;
+        }
+        .toggle.on::after { transform: translateX(20px); }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-primary {
+            background: #7c9cf7;
+            color: #1a1a2e;
+        }
+        .btn-primary:hover { background: #6b8de6; }
+        .btn-primary:disabled {
+            background: #444;
+            color: #888;
+            cursor: not-allowed;
+        }
+
+        /* QR overlay */
+        .qr-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 100;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .qr-overlay.visible { display: flex; }
+        .qr-overlay h2 {
+            color: #fff;
+            font-size: 18px;
+            margin-bottom: 16px;
+        }
+        .qr-overlay img {
+            border-radius: 12px;
+            background: #fff;
+            padding: 16px;
+            max-width: 280px;
+            width: 100%;
+            height: auto;
+        }
+        .qr-overlay .room-url {
+            margin-top: 16px;
+            font-size: 13px;
+            color: #aaa;
+            word-break: break-all;
+            text-align: center;
+        }
+        .qr-overlay .btn {
+            margin-top: 20px;
+            width: auto;
+            padding: 10px 32px;
+        }
+        .btn-secondary {
+            background: #333;
+            color: #ccc;
+        }
+        .btn-close-qr {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Every Tongue</h1>
+        <p>Join or create a room</p>
+    </div>
+
+    <div class="tabs">
+        <div class="tab active" data-tab="join">Join Room</div>
+        <div class="tab" data-tab="create">Create Room</div>
+    </div>
+
+    <div class="content">
+        <!-- Join Room panel -->
+        <div class="panel active" id="panel-join">
+            <ul class="room-list" id="room-list"></ul>
+            <div class="empty-state" id="empty-state">No rooms available. Create one to get started.</div>
+        </div>
+
+        <!-- Create Room panel -->
+        <div class="panel" id="panel-create">
+            <div class="form-group">
+                <label>Room Name</label>
+                <input type="text" id="room-name" placeholder="e.g. Main Hall, Consultation 3">
+            </div>
+
+            <div class="form-group">
+                <label>Room Type</label>
+                <div class="type-picker">
+                    <div class="type-option selected" data-type="conference">
+                        <div class="icon">&#x1F3A4;</div>
+                        <div class="label">Conference</div>
+                    </div>
+                    <div class="type-option" data-type="conversation">
+                        <div class="icon">&#x1F4AC;</div>
+                        <div class="label">Conversation</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="toggle-row">
+                <span class="label">Private Room</span>
+                <div class="toggle" id="toggle-private"></div>
+            </div>
+
+            <button class="btn btn-primary" id="btn-create">Create Room</button>
+        </div>
+    </div>
+
+    <!-- QR Code overlay -->
+    <div class="qr-overlay" id="qr-overlay">
+        <h2 id="qr-room-name"></h2>
+        <img id="qr-image" alt="Room QR Code">
+        <div class="room-url" id="qr-url"></div>
+        <button class="btn btn-primary" id="btn-join-own">Join Room</button>
+        <button class="btn btn-secondary btn-close-qr" id="btn-close-qr">Close</button>
+    </div>
+
+    <script src="/js/lobby.js"></script>
+</body>
+</html>

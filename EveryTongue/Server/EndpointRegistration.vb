@@ -9,7 +9,9 @@ Imports EveryTongue.Server.Hubs
 Imports EveryTongue.Services.Infrastructure
 Imports EveryTongue.Services.Interfaces
 Imports EveryTongue.Services.Audio
+Imports EveryTongue.Services.Rooms
 Imports EveryTongue.Services.Tts
+Imports QRCoder
 
 Namespace Server
     ''' <summary>
@@ -26,6 +28,7 @@ Namespace Server
             MapBibleEndpoints(app)
             MapAudioEndpoints(app)
             MapTtsEndpoints(app)
+            MapRoomEndpoints(app)
         End Sub
 
         Private Sub MapWebSocketEndpoint(app As IEndpointRouteBuilder)
@@ -463,6 +466,144 @@ Namespace Server
                         filename)
                 End Function)
         End Sub
+
+        Private Sub MapRoomEndpoints(app As IEndpointRouteBuilder)
+
+            ' List public rooms (for lobby)
+            app.MapGet("/api/rooms", Function(context As HttpContext) As Task
+                                         Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                         Dim rooms = mgr.GetPublicRooms()
+                                         Dim result = rooms.Select(Function(r) New With {
+                                             .id = r.Id,
+                                             .name = r.Name,
+                                             .type = r.Type.ToString().ToLower(),
+                                             .clients = r.ClientCount,
+                                             .createdAt = r.CreatedAt
+                                         }).ToArray()
+                                         Return context.Response.WriteAsJsonAsync(result)
+                                     End Function)
+
+            ' Get a specific room (works for both public and private — you need the ID)
+            app.MapGet("/api/rooms/{id}", Function(id As String, context As HttpContext) As Task
+                                               Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                               Dim room = mgr.GetRoom(id)
+                                               If room Is Nothing Then
+                                                   context.Response.StatusCode = 404
+                                                   Return context.Response.WriteAsJsonAsync(New With {.error = "Room not found"})
+                                               End If
+                                               Return context.Response.WriteAsJsonAsync(New With {
+                                                   .id = room.Id,
+                                                   .name = room.Name,
+                                                   .type = room.Type.ToString().ToLower(),
+                                                   .visibility = room.Visibility.ToString().ToLower(),
+                                                   .clients = room.ClientCount,
+                                                   .createdAt = room.CreatedAt
+                                               })
+                                           End Function)
+
+            ' Create a room
+            app.MapPost("/api/rooms", Async Function(context As HttpContext) As Task
+                                           Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                           Dim doc As JsonDocument = Nothing
+                                           Try
+                                               doc = Await JsonDocument.ParseAsync(context.Request.Body)
+                                               Dim root = doc.RootElement
+                                               Dim name = ""
+                                               Dim nameProp As JsonElement = Nothing
+                                               Dim typeProp As JsonElement = Nothing
+                                               Dim visProp As JsonElement = Nothing
+                                               Dim hostId = ""
+
+                                               If root.TryGetProperty("name", nameProp) Then name = If(nameProp.GetString(), "")
+                                               Dim roomType As RoomType = RoomType.Conference
+                                               If root.TryGetProperty("type", typeProp) Then
+                                                   Dim typeStr = If(typeProp.GetString(), "")
+                                                   Select Case typeStr.ToLower()
+                                                       Case "conversation" : roomType = RoomType.Conversation
+                                                       Case "workroom" : roomType = RoomType.Workroom
+                                                       Case Else : roomType = RoomType.Conference
+                                                   End Select
+                                               End If
+                                               Dim visibility As RoomVisibility = If(roomType = RoomType.Conversation,
+                                                   RoomVisibility.Private, RoomVisibility.Public)
+                                               If root.TryGetProperty("visibility", visProp) Then
+                                                   Dim visStr = If(visProp.GetString(), "")
+                                                   If visStr.ToLower() = "private" Then visibility = RoomVisibility.Private
+                                                   If visStr.ToLower() = "public" Then visibility = RoomVisibility.Public
+                                               End If
+                                               Dim hostProp As JsonElement = Nothing
+                                               If root.TryGetProperty("hostClientId", hostProp) Then hostId = If(hostProp.GetString(), "")
+
+                                               Dim room = mgr.CreateRoom(name, roomType, visibility, hostId)
+                                               context.Response.StatusCode = 201
+                                               Await context.Response.WriteAsJsonAsync(New With {
+                                                   .id = room.Id,
+                                                   .name = room.Name,
+                                                   .type = room.Type.ToString().ToLower(),
+                                                   .visibility = room.Visibility.ToString().ToLower()
+                                               })
+                                           Catch ex As Exception
+                                               context.Response.StatusCode = 400
+                                               context.Response.WriteAsync("{""error"":""Invalid request""}").Wait()
+                                           Finally
+                                               doc?.Dispose()
+                                           End Try
+                                       End Function)
+
+            ' Close a room
+            app.MapDelete("/api/rooms/{id}", Function(id As String, context As HttpContext) As Task
+                                                  Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                                  Dim clientId = context.Request.Query("clientId").FirstOrDefault()
+                                                  Dim ok = mgr.CloseRoom(id, If(clientId, ""))
+                                                  If Not ok Then
+                                                      context.Response.StatusCode = 403
+                                                      Return context.Response.WriteAsJsonAsync(New With {.error = "Not authorized or room not found"})
+                                                  End If
+                                                  Return context.Response.WriteAsJsonAsync(New With {.ok = True})
+                                              End Function)
+
+            ' QR code PNG for a room join URL
+            app.MapGet("/api/rooms/{id}/qr", Function(id As String, context As HttpContext) As IResult
+                                                  Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                                  Dim room = mgr.GetRoom(id)
+                                                  If room Is Nothing Then
+                                                      Return Results.NotFound(New With {.error = "Room not found"})
+                                                  End If
+                                                  Dim scheme = If(context.Request.IsHttps, "https", "http")
+                                                  Dim host = context.Request.Host.ToString()
+                                                  Dim joinUrl = $"{scheme}://{host}/index.html?room={id}"
+                                                  Dim pngBytes = GenerateQrPng(joinUrl)
+                                                  Return Results.File(pngBytes, "image/png", $"room-{id}.png")
+                                              End Function)
+
+            ' List all rooms (server dashboard — includes private rooms)
+            app.MapGet("/api/rooms/all", Function(context As HttpContext) As Task
+                                              Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                              Dim rooms = mgr.GetAllRooms()
+                                              Dim result = rooms.Select(Function(r) New With {
+                                                  .id = r.Id,
+                                                  .name = r.Name,
+                                                  .type = r.Type.ToString().ToLower(),
+                                                  .visibility = r.Visibility.ToString().ToLower(),
+                                                  .clients = r.ClientCount,
+                                                  .createdAt = r.CreatedAt
+                                              }).ToArray()
+                                              Return context.Response.WriteAsJsonAsync(result)
+                                          End Function)
+
+        End Sub
+
+        ''' <summary>
+        ''' Generates a QR code PNG for the given text.
+        ''' </summary>
+        Private Function GenerateQrPng(text As String) As Byte()
+            Using qrGen As New QRCodeGenerator()
+                Dim qrData = qrGen.CreateQrCode(text, QRCodeGenerator.ECCLevel.M)
+                Using qrCode As New PngByteQRCode(qrData)
+                    Return qrCode.GetGraphic(10)
+                End Using
+            End Using
+        End Function
 
         ''' <summary>
         ''' Generates a minimal silent WAV file (2 seconds, 8kHz, 8-bit mono).
