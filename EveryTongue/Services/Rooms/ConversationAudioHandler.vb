@@ -7,6 +7,7 @@ Imports Microsoft.Extensions.Logging
 Imports EveryTongue.Services.Interfaces
 Imports EveryTongue.Services.Subtitle
 Imports EveryTongue.Pipeline
+Imports EveryTongue.Controllers
 
 Namespace Services.Rooms
     ''' <summary>
@@ -379,8 +380,51 @@ Namespace Services.Rooms
                 End If
 
                 Try
-                    translations = Await _translationService.TranslateAsync(
-                        text, sourceNllb, targetLangs.ToList(), ct).ConfigureAwait(False)
+                    ' Split into lines/sentences for NLLB (same as Translate workspace)
+                    Dim textLines = TranslateController.SplitIntoLines(text)
+                    Dim totalSentences = textLines.Sum(Function(tl) tl.Sentences.Count)
+
+                    If totalSentences <= 1 Then
+                        ' Single sentence — translate directly
+                        translations = Await _translationService.TranslateAsync(
+                            text, sourceNllb, targetLangs.ToList(), ct).ConfigureAwait(False)
+                    Else
+                        ' Multi-sentence — translate per sentence, reassemble with line breaks
+                        Dim perLang As New Dictionary(Of String, Text.StringBuilder)()
+                        For Each tl In targetLangs
+                            perLang(tl) = New Text.StringBuilder()
+                        Next
+
+                        For lineIdx = 0 To textLines.Count - 1
+                            Dim tl = textLines(lineIdx)
+                            If lineIdx > 0 Then
+                                For Each lang In targetLangs
+                                    perLang(lang).Append(vbLf)
+                                Next
+                            End If
+                            If tl.IsBlank Then Continue For
+
+                            For Each sentence In tl.Sentences
+                                Dim sentResult = Await _translationService.TranslateAsync(
+                                    sentence, sourceNllb, targetLangs.ToList(), ct).ConfigureAwait(False)
+                                For Each lang In targetLangs
+                                    If perLang(lang).Length > 0 AndAlso Not perLang(lang).ToString().EndsWith(vbLf) Then
+                                        perLang(lang).Append(" ")
+                                    End If
+                                    If sentResult IsNot Nothing AndAlso sentResult.ContainsKey(lang) Then
+                                        perLang(lang).Append(sentResult(lang))
+                                    Else
+                                        perLang(lang).Append(sentence)
+                                    End If
+                                Next
+                            Next
+                        Next
+
+                        translations = New Dictionary(Of String, String)()
+                        For Each lang In targetLangs
+                            translations(lang) = perLang(lang).ToString()
+                        Next
+                    End If
                 Catch ex As Exception
                     _logger.LogWarning(ex, "Translation failed for conversation room")
                 End Try
@@ -443,12 +487,18 @@ Namespace Services.Rooms
                         clientText = text
                     End If
 
-                    ' Lang tag shows the SOURCE language (what was spoken), not the translation target
+                    ' Lang tag = language of the TEXT being sent (target lang for translated, source for original)
+                    Dim textLang As String
+                    If client.Id = speaker.Id OrElse String.IsNullOrEmpty(client.Language) OrElse client.Language = sourceNllb Then
+                        textLang = sourceShort
+                    Else
+                        textLang = TranslationService.NllbToShortCode(client.Language)
+                    End If
                     Dim commitId = Interlocked.Increment(_nextCommitId)
-                    Dim json = $"{{""type"":""commit"",""id"":{commitId},""text"":{SubtitleService.EscapeJson(clientText)},""lang"":{SubtitleService.EscapeJson(sourceShort)},""time"":{SubtitleService.EscapeJson(ts)},""speaker"":{SubtitleService.EscapeJson(speakerName)},""sourceLang"":{SubtitleService.EscapeJson(sourceNllb)}}}"
+                    Dim json = $"{{""type"":""commit"",""id"":{commitId},""text"":{SubtitleService.EscapeJson(clientText)},""lang"":{SubtitleService.EscapeJson(textLang)},""time"":{SubtitleService.EscapeJson(ts)},""speaker"":{SubtitleService.EscapeJson(speakerName)},""sourceLang"":{SubtitleService.EscapeJson(sourceNllb)}}}"
                     Dim buffer = Encoding.UTF8.GetBytes(json)
                     _logger.LogInformation("BroadcastToRoom: sending id={Id} to {Endpoint} lang={Lang} text={Text}",
-                        commitId, client.RemoteEndpoint, sourceShort, If(clientText.Length > 80, clientText.Substring(0, 80) & "...", clientText))
+                        commitId, client.RemoteEndpoint, textLang, If(clientText.Length > 80, clientText.Substring(0, 80) & "...", clientText))
                     TrySendToClient(client, buffer)
                 End If
             Next

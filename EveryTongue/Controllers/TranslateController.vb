@@ -305,7 +305,7 @@ Namespace Controllers
             Return True
         End Function
 
-        Private Class TextLine
+        Friend Class TextLine
             Public IsBlank As Boolean
             Public Sentences As New List(Of String)()
         End Class
@@ -314,7 +314,7 @@ Namespace Controllers
         ''' Splits input preserving every line break. Each line is further split
         ''' into sentences for NLLB. Blank lines are kept as-is.
         ''' </summary>
-        Private Shared Function SplitIntoLines(text As String) As List(Of TextLine)
+        Friend Shared Function SplitIntoLines(text As String) As List(Of TextLine)
             Dim result As New List(Of TextLine)()
             Dim lines = text.Split({vbCrLf, vbLf, vbCr}, StringSplitOptions.None)
 

@@ -240,6 +240,21 @@ Namespace Server.Hubs
                             End If
                             Return True
 
+                        Case "startSpeaking"
+                            If Not String.IsNullOrEmpty(client.RoomId) Then
+                                Dim spkName = If(String.IsNullOrEmpty(client.DisplayName), "Guest", client.DisplayName)
+                                BroadcastToRoom(client.RoomId,
+                                    "{""type"":""speaking"",""clientId"":""" & client.Id & """,""displayName"":" & SubtitleService.EscapeJson(spkName) & ",""active"":true}", "")
+                            End If
+                            Return True
+
+                        Case "stopSpeaking"
+                            If Not String.IsNullOrEmpty(client.RoomId) Then
+                                BroadcastToRoom(client.RoomId,
+                                    "{""type"":""speaking"",""clientId"":""" & client.Id & """,""active"":false}", "")
+                            End If
+                            Return True
+
                         Case "chatMessage"
                             If Not String.IsNullOrEmpty(client.RoomId) AndAlso _audioHandler IsNot Nothing Then
                                 Dim textProp As JsonElement = Nothing
@@ -251,6 +266,13 @@ Namespace Server.Hubs
                                                  End Function)
                                     End If
                                 End If
+                            End If
+                            Return True
+
+                        Case "clientLog"
+                            Dim msgProp As JsonElement = Nothing
+                            If root.TryGetProperty("msg", msgProp) Then
+                                _logger.LogInformation("[ClientLog] {Endpoint}: {Msg}", client.RemoteEndpoint, If(msgProp.GetString(), ""))
                             End If
                             Return True
 

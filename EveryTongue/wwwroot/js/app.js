@@ -3,6 +3,25 @@
 
 function LOG(msg){try{console.log('[TT] '+msg)}catch(e){}}
 
+/* ── Per-window session storage ──
+   Session-specific settings use sessionStorage (per-tab) so two browser
+   windows don't interfere.  On first load, seed from localStorage defaults.
+   Writing also updates localStorage so new tabs get the latest defaults. */
+var _sessionKeys=['voice','transLang','langChosen','speak','rate','serverTts','displayName'];
+(function(){
+  if(!sessionStorage.getItem('_sessionSeeded')){
+    for(var i=0;i<_sessionKeys.length;i++){
+      var k=_sessionKeys[i];
+      var v=localStorage.getItem(k);
+      if(v!==null)sessionStorage.setItem(k,v);
+    }
+    sessionStorage.setItem('_sessionSeeded','1');
+  }
+})();
+function ss(key){return sessionStorage.getItem(key)}
+function ssSet(key,val){sessionStorage.setItem(key,val);localStorage.setItem(key,val)}
+function ssRemove(key){sessionStorage.removeItem(key);localStorage.removeItem(key)}
+
 /* ── i18n ── */
 var T={connecting:'Connecting...',connected:'Connected',disconnected:'Disconnected - reconnecting...',
     wakeTitle:'Keep Screen On',wakeDesc:'A secure connection is needed (one-time setup):',
@@ -90,12 +109,12 @@ function hideLangPicker(){
   var dock=document.getElementById('roomControlsDock');
   if(dock){dock.style.display='flex';setTimeout(adjustDockPadding,50)}
 }
-var voiceManuallySet=!!localStorage.getItem('voice');
+var voiceManuallySet=!!ss('voice');
 function pickLang(code){
   LOG('pickLang: '+code);
   myTransLang=code;
-  localStorage.setItem('transLang',code);
-  localStorage.setItem('langChosen','true');
+  ssSet('transLang',code);
+  ssSet('langChosen','true');
   hideLangPicker();
   setTransLang(code);
   /* sync dropdown */
@@ -112,7 +131,7 @@ function autoSelectVoiceForLang(nllbCode){
     if(voices[i].lang&&voices[i].lang.toLowerCase().indexOf(bcp)===0){
       LOG('autoSelectVoice: picked '+voices[i].name+' for '+bcp);
       selectedVoice=voices[i].name;
-      localStorage.setItem('voice',voices[i].name);
+      ssSet('voice',voices[i].name);
       voiceSelect.value=voices[i].name;
       voiceManuallySet=false; /* auto-set, not manual */
       return;
@@ -120,7 +139,7 @@ function autoSelectVoiceForLang(nllbCode){
   }
   LOG('autoSelectVoice: no voice found for '+bcp+', keeping default');
   selectedVoice='';
-  localStorage.setItem('voice','');
+  ssSet('voice','');
   voiceSelect.value='';
 }
 function detectAndSuggest(){
@@ -179,7 +198,7 @@ document.getElementById('lpSearch').oninput=function(){renderLangList(this.value
 
 function goHome(){
   LOG('goHome');
-  localStorage.removeItem('langChosen');
+  ssRemove('langChosen');
   /* Navigate to lobby */
   window.location.href=window.location.origin+'/lobby.html';
 }
@@ -224,7 +243,7 @@ function populateTransLangSelect(){
     opt.textContent=LANGS[i][1]+' ('+LANGS[i][2]+')';
     sel.appendChild(opt);
   }
-  var saved=localStorage.getItem('transLang')||'';
+  var saved=ss('transLang')||'';
   for(var j=0;j<sel.options.length;j++){if(sel.options[j].value===saved){sel.selectedIndex=j;break}}
 }
 populateTransLangSelect();
@@ -235,7 +254,7 @@ var currentEl=null;
 var speakEnabled=false;
 var selectedVoice='';
 var speechRate=1;
-var myTransLang=localStorage.getItem('transLang')||'';
+var myTransLang=ss('transLang')||'';
 var synth=window.speechSynthesis;
 var lines=document.getElementById('lines');
 var container=document.getElementById('container');
@@ -247,10 +266,10 @@ var voiceSelect=document.getElementById('voiceSelect');
 var rateSelect=document.getElementById('rateSelect');
 
 /* ── Restore saved preferences ── */
-if(localStorage.getItem('voice'))selectedVoice=localStorage.getItem('voice');
-if(localStorage.getItem('rate')){speechRate=parseFloat(localStorage.getItem('rate'));rateSelect.value=localStorage.getItem('rate')}
-if(localStorage.getItem('speak')==='true'){speakEnabled=true;btnSpeak.classList.add('active');btnSpeak.innerHTML='&#128266; '+t('readAloud')}
-(function(){var dn=localStorage.getItem('displayName');if(dn){var inp=document.getElementById('displayNameInput');if(inp)inp.value=dn}})()
+if(ss('voice'))selectedVoice=ss('voice');
+if(ss('rate')){speechRate=parseFloat(ss('rate'));rateSelect.value=ss('rate')}
+if(ss('speak')==='true'){speakEnabled=true;btnSpeak.classList.add('active');btnSpeak.innerHTML='&#128266; '+t('readAloud')}
+(function(){var dn=ss('displayName');if(dn){var inp=document.getElementById('displayNameInput');if(inp)inp.value=dn}})()
 
 /* ── Voice synthesis ── */
 function populateVoices(){
@@ -271,15 +290,15 @@ function onVoiceChange(val){
   LOG('onVoiceChange: '+val);
   if(val==='__cloud__'){
     serverTtsActive=true;
-    localStorage.setItem('serverTts','true');
+    ssSet('serverTts','true');
     selectedVoice='';
-    localStorage.setItem('voice','');
+    ssSet('voice','');
     voiceManuallySet=true; /* user explicitly chose cloud */
   }else{
     serverTtsActive=false;
-    localStorage.setItem('serverTts','false');
+    ssSet('serverTts','false');
     selectedVoice=val;
-    localStorage.setItem('voice',val);
+    ssSet('voice',val);
     voiceManuallySet=!!val; /* manual if they picked a specific voice, not 'Default' */
     clearTtsQueue();
   }
@@ -294,15 +313,20 @@ document.addEventListener('click',function(e){if(!panel.contains(e.target)&&!adm
 
 function toggleSpeak(){
   speakEnabled=!speakEnabled;
-  localStorage.setItem('speak',speakEnabled);
+  ssSet('speak',speakEnabled);
   LOG('toggleSpeak → '+speakEnabled);
   if(speakEnabled){btnSpeak.classList.add('active');btnSpeak.innerHTML='&#128266; '+t('readAloud')}
   else{btnSpeak.classList.remove('active');btnSpeak.innerHTML='&#128264; '+t('readAloud');synth.cancel();clearTtsQueue()}
 }
 
-function speak(text){
+function speak(text,langHint){
   if(!speakEnabled||!synth||!text){LOG('speak SKIP: enabled='+speakEnabled+' synth='+!!synth+' text='+(text?text.substring(0,30):'(empty)'));return}
-  if(serverTtsActive){LOG('speak SKIP: serverTts active');return}
+  var inRoom=location.search.indexOf('room=')!==-1;
+  /* Server TTS (Every Tongue Voices): send requestTts to server */
+  if(serverTtsActive){
+    if(wsRef&&wsRef.readyState===1){wsRef.send(JSON.stringify({type:'requestTts',text:text,language:langHint||''}))}
+    return;
+  }
   LOG('speak: "'+text.substring(0,50)+'"');
   var utter=new SpeechSynthesisUtterance(text);
   utter.rate=speechRate;
@@ -311,7 +335,7 @@ function speak(text){
 }
 
 /* ── Server TTS (hybrid playback) ── */
-var serverTtsActive=localStorage.getItem('serverTts')==='true';
+var serverTtsActive=ss('serverTts')==='true';
 var ttsAudio=null;
 var ttsQueue=[];
 var ttsPlaying=false;
@@ -492,7 +516,7 @@ function addCommitted(text,lang,time,refs,speaker,ttsLang){
   el.dataset.highlighted='1';
   setTimeout(function(){el.style.color=textColor;delete el.dataset.highlighted},5000);
   autoScroll();
-  speak(text);
+  speak(text,ttsLang);
 }
 
 /* Tap-to-read button on room message lines */
@@ -504,8 +528,18 @@ function addLineSpeakBtn(lineEl,text,ttsLang){
   btn.addEventListener('click',function(e){
     e.stopPropagation();
     var lang=ttsLang||getActiveIdentityLang();
-    if(wsRef&&wsRef.readyState===1){
-      wsRef.send(JSON.stringify({type:'requestTts',text:text,language:lang}));
+    if(serverTtsActive){
+      /* Use server TTS */
+      if(wsRef&&wsRef.readyState===1){
+        wsRef.send(JSON.stringify({type:'requestTts',text:text,language:lang}));
+      }
+    }else{
+      /* Use browser voice */
+      synth.cancel();
+      var utter=new SpeechSynthesisUtterance(text);
+      utter.rate=speechRate;
+      if(selectedVoice){var voices=synth.getVoices();for(var i=0;i<voices.length;i++){if(voices[i].name===selectedVoice){utter.voice=voices[i];break}}}
+      synth.speak(utter);
     }
     btn.style.color='#4f4';
     setTimeout(function(){btn.style.color=''},1000);
@@ -550,7 +584,7 @@ var myClientId='';
 function setTransLang(lang){
   LOG('setTransLang: '+lang);
   myTransLang=lang;
-  localStorage.setItem('transLang',lang);
+  ssSet('transLang',lang);
   closeAllPanels();
   if(wsRef&&wsRef.readyState===1){wsRef.send(JSON.stringify({type:'setLanguage',language:lang}))}
   /* Reload Bible translations for the new language */
@@ -580,6 +614,8 @@ function connect(){
   ws.onmessage=function(e){
     try{var msg=JSON.parse(e.data);
       if(msg.type==='commit'){
+        /* Commit arrival clears speaking indicator for that speaker */
+        if(msg.speaker){clearSpeakerByName(msg.speaker);updateSpeakingUI()}
         var id=msg.id||0;
         if(id>lastCommitId){
           lastCommitId=id;
@@ -612,6 +648,7 @@ function connect(){
       else if(msg.type==='memberUpdated'){updateRoomMember(msg)}
       else if(msg.type==='virtualMemberAdded'){addVirtualMemberToRoom(msg)}
       else if(msg.type==='virtualMemberRemoved'){removeVirtualMemberFromRoom(msg.id)}
+      else if(msg.type==='speaking'){handleSpeakingIndicator(msg)}
       else{LOG('WS unknown msg type: '+msg.type)}
     }catch(ex){LOG('WS msg error: '+ex+' data='+String(e.data).substring(0,100))}
   }
@@ -1517,7 +1554,10 @@ function startRecording(btn,label){
   pttChunks=[];
   btn.style.background='#e74c3c';
   btn.style.transform='scale(1.15)';
+  btn.classList.add('ptt-recording');
   label.textContent='Recording...';
+  localRecording=true;updateSpeakingUI();
+  if(wsRef&&wsRef.readyState===1){wsRef.send(JSON.stringify({type:'startSpeaking'}))}
 
   navigator.mediaDevices.getUserMedia({audio:{sampleRate:16000,channelCount:1,echoCancellation:true,noiseSuppression:true}})
     .then(function(stream){
@@ -1560,7 +1600,9 @@ function stopRecording(btn,label){
   pttActive=false;
   btn.style.background='#7c9cf7';
   btn.style.transform='';
+  btn.classList.remove('ptt-recording');
   label.textContent='Sending...';
+  localRecording=false;updateSpeakingUI();
   if(pttRecorder&&pttRecorder.state==='recording'){
     pttRecorder.stop();
   }
@@ -1573,7 +1615,10 @@ function cancelRecording(btn,label){
   pttChunks=[];
   btn.style.background='#7c9cf7';
   btn.style.transform='';
+  btn.classList.remove('ptt-recording');
   label.textContent=pttMode==='toggle'?'Tap to speak':'Hold to speak';
+  localRecording=false;updateSpeakingUI();
+  if(wsRef&&wsRef.readyState===1){wsRef.send(JSON.stringify({type:'stopSpeaking'}))}
   if(pttRecorder&&pttRecorder.state==='recording'){
     pttRecorder.ondataavailable=null;
     pttRecorder.onstop=function(){
@@ -1657,9 +1702,9 @@ function tryClaimHost(){
 
 /* Display name: reuse stored name, or generate "GuestNNNN" on first join */
 function autoAssignDisplayName(){
-  var stored=localStorage.getItem('displayName')||'';
+  var stored=ss('displayName')||'';
   var name=stored||('Guest'+Math.floor(1000+Math.random()*9000));
-  if(!stored)localStorage.setItem('displayName',name);
+  if(!stored)ssSet('displayName',name);
   if(wsRef&&wsRef.readyState===1){
     wsRef.send(JSON.stringify({type:'setDisplayName',name:name}));
   }
@@ -1673,7 +1718,7 @@ function autoAssignDisplayName(){
 function saveDisplayName(val){
   var name=val.trim();
   if(!name)return;
-  localStorage.setItem('displayName',name);
+  ssSet('displayName',name);
   if(wsRef&&wsRef.readyState===1){
     wsRef.send(JSON.stringify({type:'setDisplayName',name:name}));
   }
@@ -1808,6 +1853,58 @@ function removeVirtualMemberFromRoom(vmId){
   updateVirtualMemberPtt();
 }
 
+/* ── Speaking indicator ── */
+var activeSpeakers={};
+var speakingTimers={};
+var localRecording=false;
+
+function handleSpeakingIndicator(msg){
+  var cid=msg.clientId||'';
+  LOG('speaking indicator: cid='+cid+' active='+msg.active+' name='+(msg.displayName||'?')+' myId='+myClientId);
+  if(!cid)return;
+  if(msg.active){
+    activeSpeakers[cid]=msg.displayName||'Guest';
+    if(speakingTimers[cid])clearTimeout(speakingTimers[cid]);
+    speakingTimers[cid]=setTimeout(function(){clearSpeaker(cid);updateSpeakingUI()},30000);
+  }else{
+    clearSpeaker(cid);
+  }
+  updateSpeakingUI();
+}
+
+function clearSpeaker(cid){
+  delete activeSpeakers[cid];
+  if(speakingTimers[cid]){clearTimeout(speakingTimers[cid]);delete speakingTimers[cid]}
+}
+function clearSpeakerByName(name){
+  for(var cid in activeSpeakers){
+    if(activeSpeakers.hasOwnProperty(cid)&&activeSpeakers[cid]===name){clearSpeaker(cid)}
+  }
+}
+
+function updateSpeakingUI(){
+  var banner=document.getElementById('speakingBanner');
+  var nameEl=document.getElementById('speakingName');
+  if(!banner||!nameEl)return;
+  var otherNames=[];
+  for(var cid in activeSpeakers){
+    if(activeSpeakers.hasOwnProperty(cid)&&cid!==myClientId){
+      otherNames.push(activeSpeakers[cid]);
+    }
+  }
+  if(localRecording){
+    nameEl.textContent='Recording...';
+    banner.style.display='flex';
+    banner.style.borderBottomColor='#e74c3c';
+  }else if(otherNames.length>0){
+    nameEl.textContent=otherNames.join(', ')+' speaking...';
+    banner.style.display='flex';
+    banner.style.borderBottomColor='#e74c3c';
+  }else{
+    banner.style.display='none';
+  }
+}
+
 /* Host controls */
 function showHostControls(){
   if(document.getElementById('hostGearBtn'))return;
@@ -1837,7 +1934,6 @@ function toggleHostPanel(){
   document.body.appendChild(panel);
 
   document.getElementById('hcEndRoom').addEventListener('click',function(){
-    if(!confirm('End this room for everyone?'))return;
     var xhr=new XMLHttpRequest();
     xhr.open('DELETE','/api/rooms/'+encodeURIComponent(roomId)+'?clientId='+encodeURIComponent(myClientId),true);
     xhr.onload=function(){location.href='/lobby.html'};

@@ -72,7 +72,7 @@
   <label id="lblVoice">Voice</label>
   <select id="voiceSelect" onchange="onVoiceChange(this.value)"></select>
   <label id="lblSpeed">Speed</label>
-  <select id="rateSelect" onchange="speechRate=parseFloat(this.value);localStorage.setItem('rate',this.value)">
+  <select id="rateSelect" onchange="speechRate=parseFloat(this.value);ssSet('rate',this.value)">
     <option value="0.7">Slow</option>
     <option value="1" selected>Normal</option>
     <option value="1.3">Fast</option>
@@ -135,6 +135,7 @@
 </div>
 <div id="participantBar" style="display:none;background:#1e1e3a;border-bottom:1px solid #333;padding:10px 16px;cursor:pointer;align-items:center;justify-content:space-between;font-size:14px;color:#ccc;flex-shrink:0"><span id="participantBarTitle"></span><span id="participantBarArrow" style="font-size:10px">&#9660;</span></div>
 <div id="participantDetails" style="display:none;background:#252540;border-bottom:1px solid #333;padding:10px 16px;max-height:200px;overflow-y:auto;flex-shrink:0"></div>
+<div id="speakingBanner"><span class="speaking-dots"><span></span><span></span><span></span></span><span id="speakingName"></span></div>
 <div id="container"><div id="lines"><div id="spacer"></div></div></div>
 <script src="/js/app.js"></script>
 </body>

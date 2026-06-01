@@ -1,4 +1,4 @@
-# EveryTongue — TODO (updated 2026-05-31)
+# EveryTongue — TODO (updated 2026-06-02)
 
 > **Architecture shift:** EveryTongue is evolving from a single-session desktop transcription tool into a **headless multi-room translation server**. The desktop app still has operator workspaces (Live, Transcribe, Translate, Bible), but the primary user interface is now the **phone web client**. Anyone with a phone can create rooms, manage conversations, and receive translations — no operator required. The desktop just runs the server and auto-starts engines at launch.
 
@@ -10,10 +10,8 @@ All 10 phases done. Kestrel in-process with DI, WebSocket hub, static files, TTS
 ### Code Quality — COMPLETE
 All 11 items done plus additional cleanup. TTS and Translation backend registries added for pluggable engine discovery. FormOptions is now the single source of truth for all settings.
 
-### Rooms — GOVERNANCE COMPLETE (see [#19](#19-rooms--multi-room-translation))
-Room model, lobby API, room QR codes, WebSocket routing, conversation rooms with bidirectional PTT audio, NLLB translation, self-echo, language forcing, auto-start of Whisper and NLLB at app launch, host controls (end/lock/kick/PTT mode), host reconnection via token, display names, participant bar with kick UI, virtual members (shared device support with identity switching and multi-language transcript), text chat with translation, speaker colours, conference room targeting from desktop — all working. Remaining: per-client TTS, UI polish.
-
-> **INVESTIGATE:** TTS for multi-person conversations — how should read-aloud work when multiple speakers are present? Options include: read all incoming messages in the listener's language, only read messages from specific speakers, tap-to-read individual messages, or auto-read only when a specific identity is active (shared device). Need to decide the UX before implementing.
+### Rooms — GOVERNANCE COMPLETE + POLISHED (see [#19](#19-rooms--multi-room-translation))
+Room model, lobby API, room QR codes, WebSocket routing, conversation rooms with bidirectional PTT audio, NLLB translation, self-echo, language forcing, auto-start of Whisper and NLLB at app launch, host controls (end/lock/kick/PTT mode), host reconnection via token, display names, participant bar with kick UI, virtual members (shared device support with identity switching and multi-language transcript), text chat with translation, speaker colours, conference room targeting from desktop — all working. v1.7.2: WebSocket send serialization, dock padding fix, multi-line chat, on-demand translation, host claim protection, conference default public. v1.7.3: TTS works in rooms (server TTS via requestTts + browser voice with language matching), speaking/recording indicator (banner + pulsing PTT button), per-window sessionStorage isolation, room commit lang field matches text language (not source), sentence splitting for multi-line room translations, client-to-server debug logging (SLOG), End Room no longer double-confirms. All governance + polish items complete.
 
 ## User-Reported Issues & Tasks
 - [x] Implement stubs — most done (QR Code, Hardware Score, Diagnostics Export, File Integrity, Translate workspace). Remaining stubs: Session Wizard, Audio Level Monitor, Glossary Simple Mode, Event Profiles, Spec Sheet Generator, Portable Mode, Feedback prompt
@@ -21,13 +19,12 @@ Room model, lobby API, room QR codes, WebSocket routing, conversation rooms with
 - [ ] Audio routing: NDI or Direct Audio output
 
 ## Suggested Next Priorities
-1. **TTS for multi-person conversations (#19e)** — investigate and implement read-aloud for room conversations
-2. **Rooms UI polish (#19f)** — active speaker indicator, smooth animations
 3. Audio Level Monitor (#3) — operator feedback, prevents bad audio
 4. Setup Wizard expansion (#2) — integrates QR, audio monitor, hardware score
 5. Priority Queue Pipeline — STT/Translation/TTS queues with dynamic priority scoring for multi-room load
 
 ## Future Work (not scheduled)
+- **Headless server / Windows Service mode** — run EveryTongue as a Windows service (no GUI, auto-start with OS). The desktop app becomes optional — the server hosts rooms, engines, and the web client independently. Remove/deprecate the WebView2 viewer panel (redundant now that rooms + phone web client handle everything). Operator controls (start/stop engines, view logs) move to a web-based admin dashboard served by Kestrel. Install/uninstall service via CLI or installer option.
 - Priority queue pipeline with dynamic priority scoring and backpressure/degradation
 - Mesh WiFi / mDNS service discovery for automatic server finding
 - Room templates & presets (medical consultation, Sunday service, staff meeting)
@@ -298,6 +295,8 @@ Critical files can get corrupted during USB transfers, incomplete downloads, or 
 - Per-target-language wrong→right word replacements
 - Desktop editing UI with grids
 - `/glossary/reload` endpoint for hot-reload
+
+**Pending: Catalan glossary expansion** — a previous Claude session performed a translation quality assessment and identified a batch of Catalan theological/church terms that NLLB mistranslates. These need to be added to `glossary.json`. Run the assessment again or check conversation history to retrieve the specific terms.
 
 **What to improve:**
 
@@ -2190,20 +2189,18 @@ This gives baseline coverage for the majority of Agape's European footprint usin
 
 ### Remaining
 
-#### e) Per-client TTS streams — NEEDS INVESTIGATION
-- **How should TTS work in multi-person conversations?**
-  - Option A: Auto-read all incoming messages in the listener's language
-  - Option B: Only read messages from specific speakers (configurable per speaker)
-  - Option C: Tap-to-read individual messages (manual)
-  - Option D: Auto-read only when a specific identity is active (shared device — for illiterate users)
-  - Option E: Combination — default off, tap speaker colour to enable auto-read for that speaker
-- After deciding UX: generate TTS audio in each client's language using Piper/MMS-TTS/EdgeTTS
-- Each client gets a personalised TTS stream
-- Opt-in per room (may be noisy in consultation settings — subtitles-only is the default)
+#### e) Per-client TTS streams — DONE
+- Read Aloud works in rooms: `speak()` sends `requestTts` to server when Every Tongue Voices selected, uses browser voice otherwise
+- Server TTS (Piper/MMS-TTS) generates audio in the text's language via existing `requestTts` handler
+- Per-line speak button works with both server and browser TTS
+- Room commit `lang` field now reflects the actual text language (target lang for translated text, source for original) so TTS picks the correct voice
+- Per-window sessionStorage prevents two browser tabs from sharing voice/language settings
 
-#### f) Conversation room UI polish
-- Active speaker indicator (pulsing dot or name highlight)
-- Smooth scrolling transcript with animations
+#### f) Conversation room UI polish — DONE
+- [x] Active speaker indicator — recording banner ("Recording...") for self, "[Name] speaking..." banner for others, pulsing red PTT button animation
+- [x] Speaker names with colours in transcript
+- [x] End Room no longer double-confirms
+
 
 #### g) Desktop server dashboard
 - Simple overview on the desktop app: active rooms, total clients, resource usage
@@ -2213,7 +2210,7 @@ This gives baseline coverage for the majority of Agape's European footprint usin
 **Files implemented:**
 - `Services/Rooms/RoomModels.vb` — Room, RoomConfig, RoomType, RoomVisibility, VirtualMember
 - `Services/Rooms/RoomManager.vb` — create, list, join, leave, close, idle cleanup, host claim, kick, lock, virtual members
-- `Services/Rooms/ConversationAudioHandler.vb` — PTT audio processing, text chat, FFmpeg, Whisper, translation, shared-device multi-translation broadcast
+- `Services/Rooms/ConversationAudioHandler.vb` — PTT audio processing, text chat, FFmpeg, Whisper, translation with sentence splitting (reuses TranslateController.SplitIntoLines), shared-device multi-translation broadcast, per-client lang tag
 - `Services/Subtitle/ClientConnection.vb` — DisplayName, SpeakingAsVirtualMemberId
 - `Server/EndpointRegistration.vb` — room REST API + governance endpoints
 - `Server/Hubs/SubtitleHub.vb` — room message handling (setDisplayName, speakAs, chatMessage), member broadcasts
