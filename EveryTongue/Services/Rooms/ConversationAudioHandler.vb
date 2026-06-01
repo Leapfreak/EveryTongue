@@ -25,7 +25,7 @@ Namespace Services.Rooms
         Private ReadOnly _subtitleService As SubtitleService
         Private ReadOnly _translationService As ITranslationService
         Private ReadOnly _logger As ILogger(Of ConversationAudioHandler)
-        Private _nextCommitId As Integer = 1
+        Private _nextCommitId As Integer = 0
 
         ' Live-server auto-start
         Private ReadOnly _sidecar As New PythonSidecarHost() With {
@@ -346,6 +346,12 @@ Namespace Services.Rooms
                 End If
             Next
 
+            ' Shared-device: host's own language must be a target too (they get excluded
+            ' above as the speaker, but need translations when switching identity back to self)
+            If room.VirtualMembers.Count > 0 AndAlso Not String.IsNullOrEmpty(speaker.Language) Then
+                targetLangs.Add(speaker.Language)
+            End If
+
             _logger.LogInformation("BroadcastToRoom: {Count} recipients (incl. speaker), speaker={Speaker}, targetLangs=[{Langs}]",
                 roomClients.Count, speaker.RemoteEndpoint, String.Join(",", targetLangs))
 
@@ -439,7 +445,7 @@ Namespace Services.Rooms
 
                     ' Lang tag shows the SOURCE language (what was spoken), not the translation target
                     Dim commitId = Interlocked.Increment(_nextCommitId)
-                    Dim json = $"{{""type"":""commit"",""id"":{commitId},""text"":{SubtitleService.EscapeJson(clientText)},""lang"":{SubtitleService.EscapeJson(sourceShort)},""time"":{SubtitleService.EscapeJson(ts)},""speaker"":{SubtitleService.EscapeJson(speakerName)}}}"
+                    Dim json = $"{{""type"":""commit"",""id"":{commitId},""text"":{SubtitleService.EscapeJson(clientText)},""lang"":{SubtitleService.EscapeJson(sourceShort)},""time"":{SubtitleService.EscapeJson(ts)},""speaker"":{SubtitleService.EscapeJson(speakerName)},""sourceLang"":{SubtitleService.EscapeJson(sourceNllb)}}}"
                     Dim buffer = Encoding.UTF8.GetBytes(json)
                     _logger.LogInformation("BroadcastToRoom: sending id={Id} to {Endpoint} lang={Lang} text={Text}",
                         commitId, client.RemoteEndpoint, sourceShort, If(clientText.Length > 80, clientText.Substring(0, 80) & "...", clientText))
@@ -542,8 +548,14 @@ Namespace Services.Rooms
                 Return Nothing
             End If
 
-            ' Use generic extension — Android Firefox may produce ogg/opus instead of webm
-            Dim tempIn = Path.Combine(Path.GetTempPath(), $"et_ptt_{Guid.NewGuid():N}.bin")
+            ' Detect format from magic bytes and use correct extension (helps FFmpeg + avoids antivirus on .bin)
+            Dim ext = ".webm"
+            If audioData.Length >= 4 Then
+                If audioData(0) = &H4F AndAlso audioData(1) = &H67 AndAlso audioData(2) = &H67 AndAlso audioData(3) = &H53 Then
+                    ext = ".ogg"  ' OggS magic
+                End If
+            End If
+            Dim tempIn = Path.Combine(Path.GetTempPath(), $"et_ptt_{Guid.NewGuid():N}{ext}")
             Dim tempOut = Path.Combine(Path.GetTempPath(), $"et_ptt_{Guid.NewGuid():N}.wav")
 
             Try

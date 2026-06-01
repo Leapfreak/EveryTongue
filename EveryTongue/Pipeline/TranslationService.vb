@@ -62,6 +62,10 @@ Namespace Pipeline
             Return _langService.NllbToShortCode(nllbCode)
         End Function
 
+        Public Shared Function NllbToIso3(nllbCode As String) As String
+            Return _langService.NllbToIso3(nllbCode)
+        End Function
+
         Public Shared Function CheckDependenciesInstalled() As (pythonOk As Boolean, depsOk As Boolean, modelOk As Boolean)
             Dim baseDir = AppDomain.CurrentDomain.BaseDirectory
             Dim pythonPath = Path.Combine(baseDir, "python-embed", "python.exe")

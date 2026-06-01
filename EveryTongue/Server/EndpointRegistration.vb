@@ -815,6 +815,73 @@ Namespace Server
                                               Return context.Response.WriteAsJsonAsync(result)
                                           End Function)
 
+            ' Translate text on demand (shared-device clients translate cached messages on identity switch)
+            app.MapPost("/api/translate", Async Function(context As HttpContext) As Task
+                                              Dim translationSvc = context.RequestServices.GetService(Of ITranslationService)()
+                                              If translationSvc Is Nothing Then
+                                                  context.Response.StatusCode = 503
+                                                  Await context.Response.WriteAsJsonAsync(New With {.error = "Translation not available"})
+                                                  Return
+                                              End If
+
+                                              Dim body As JsonElement = Nothing
+                                              Dim parseOk = True
+                                              Try
+                                                  body = Await JsonSerializer.DeserializeAsync(Of JsonElement)(context.Request.Body)
+                                              Catch
+                                                  parseOk = False
+                                              End Try
+                                              If Not parseOk Then
+                                                  context.Response.StatusCode = 400
+                                                  Await context.Response.WriteAsJsonAsync(New With {.error = "Invalid JSON"})
+                                                  Return
+                                              End If
+
+                                              Dim textProp As JsonElement = Nothing
+                                              Dim srcProp As JsonElement = Nothing
+                                              Dim tgtProp As JsonElement = Nothing
+                                              If Not body.TryGetProperty("text", textProp) OrElse
+                                                 Not body.TryGetProperty("sourceLang", srcProp) OrElse
+                                                 Not body.TryGetProperty("targetLang", tgtProp) Then
+                                                  context.Response.StatusCode = 400
+                                                  Await context.Response.WriteAsJsonAsync(New With {.error = "Missing text, sourceLang, or targetLang"})
+                                                  Return
+                                              End If
+
+                                              Dim text = If(textProp.GetString(), "")
+                                              Dim sourceLang = If(srcProp.GetString(), "")
+                                              Dim targetLang = If(tgtProp.GetString(), "")
+
+                                              If String.IsNullOrEmpty(text) OrElse String.IsNullOrEmpty(sourceLang) OrElse String.IsNullOrEmpty(targetLang) Then
+                                                  context.Response.StatusCode = 400
+                                                  Await context.Response.WriteAsJsonAsync(New With {.error = "Empty text, sourceLang, or targetLang"})
+                                                  Return
+                                              End If
+
+                                              If sourceLang = targetLang Then
+                                                  Await context.Response.WriteAsJsonAsync(New With {.text = text})
+                                                  Return
+                                              End If
+
+                                              Dim translated = text
+                                              Dim translateOk = True
+                                              Try
+                                                  Dim results = Await translationSvc.TranslateAsync(
+                                                      text, sourceLang, New List(Of String) From {targetLang}, context.RequestAborted)
+                                                  If results IsNot Nothing AndAlso results.ContainsKey(targetLang) Then
+                                                      translated = results(targetLang)
+                                                  End If
+                                              Catch ex As Exception
+                                                  translateOk = False
+                                              End Try
+                                              If Not translateOk Then
+                                                  context.Response.StatusCode = 500
+                                                  Await context.Response.WriteAsJsonAsync(New With {.error = "Translation failed"})
+                                                  Return
+                                              End If
+                                              Await context.Response.WriteAsJsonAsync(New With {.text = translated})
+                                          End Function)
+
         End Sub
 
         ''' <summary>

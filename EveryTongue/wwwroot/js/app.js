@@ -87,10 +87,13 @@ function showLangPicker(){
 }
 function hideLangPicker(){
   document.getElementById('langPicker').classList.remove('open');
+  var dock=document.getElementById('roomControlsDock');
+  if(dock){dock.style.display='flex';setTimeout(adjustDockPadding,50)}
 }
 var voiceManuallySet=!!localStorage.getItem('voice');
 function pickLang(code){
   LOG('pickLang: '+code);
+  myTransLang=code;
   localStorage.setItem('transLang',code);
   localStorage.setItem('langChosen','true');
   hideLangPicker();
@@ -203,7 +206,7 @@ function initRoomShareButton(){
   xhr.send();
   var joinUrl=location.origin+'/index.html?room='+encodeURIComponent(roomId);
   document.getElementById('roomQrImg').src='/api/rooms/'+encodeURIComponent(roomId)+'/qr';
-  document.getElementById('roomQrUrl').textContent=joinUrl;
+  var qrUrlEl=document.getElementById('roomQrUrl');qrUrlEl.innerHTML='<a href="'+joinUrl+'" style="color:#7c9cf7;text-decoration:underline">'+joinUrl+'</a>';
 }
 function toggleRoomQr(){
   var overlay=document.getElementById('roomQrOverlay');
@@ -232,6 +235,7 @@ var currentEl=null;
 var speakEnabled=false;
 var selectedVoice='';
 var speechRate=1;
+var myTransLang=localStorage.getItem('transLang')||'';
 var synth=window.speechSynthesis;
 var lines=document.getElementById('lines');
 var container=document.getElementById('container');
@@ -246,6 +250,7 @@ var rateSelect=document.getElementById('rateSelect');
 if(localStorage.getItem('voice'))selectedVoice=localStorage.getItem('voice');
 if(localStorage.getItem('rate')){speechRate=parseFloat(localStorage.getItem('rate'));rateSelect.value=localStorage.getItem('rate')}
 if(localStorage.getItem('speak')==='true'){speakEnabled=true;btnSpeak.classList.add('active');btnSpeak.innerHTML='&#128266; '+t('readAloud')}
+(function(){var dn=localStorage.getItem('displayName');if(dn){var inp=document.getElementById('displayNameInput');if(inp)inp.value=dn}})()
 
 /* ── Voice synthesis ── */
 function populateVoices(){
@@ -319,7 +324,7 @@ function nllbToBcp47Lookup(nllb){
 }
 
 function hasBrowserVoiceForLang(){
-  var transLang=localStorage.getItem('transLang')||'';
+  var transLang=myTransLang||'';
   if(!transLang)return true; /* original language — browser usually has it */
   var bcp=nllbToBcp47Lookup(transLang);
   if(!bcp)return false;
@@ -337,9 +342,13 @@ function useServerTts(){
 
 
 function handleTtsMessage(msg){
-  LOG('handleTtsMessage: url='+msg.url+' speakEnabled='+speakEnabled+' useServer='+useServerTts());
-  if(!speakEnabled)return;
-  if(!useServerTts())return;
+  LOG('handleTtsMessage: url='+msg.url+' id='+msg.id+' speakEnabled='+speakEnabled+' useServer='+useServerTts());
+  /* id === -1 means this is a requestTts response (e.g. tap-to-read) — always play */
+  var isOnDemand=(msg.id===-1);
+  if(!isOnDemand){
+    if(!speakEnabled)return;
+    if(!useServerTts())return;
+  }
   synth.cancel(); /* stop any browser TTS */
   enqueueTts(msg.url);
 }
@@ -457,13 +466,14 @@ function insertLine(el){
     if(first){lines.insertBefore(el,first)}else{lines.appendChild(el)}
   }else{lines.appendChild(el)}
 }
-function addCommitted(text,lang,time,refs,speaker){
+function addCommitted(text,lang,time,refs,speaker,ttsLang){
   var el;
   if(currentEl){el=currentEl;currentEl=null;
     if(scrollMode==='down'&&el.parentNode){el.parentNode.removeChild(el);insertLine(el)}
   }else{el=document.createElement('div');insertLine(el)}
   var tag=buildTag(lang,time);
   var speakerCol=speaker?getSpeakerColor(speaker):'';
+  var inRoom=location.search.indexOf('room=')!==-1;
   if(refs&&refs.length>0){
     el.innerHTML='';
     if(tag){var tagSpan=document.createElement('span');tagSpan.textContent=tag;el.appendChild(tagSpan)}
@@ -475,6 +485,7 @@ function addCommitted(text,lang,time,refs,speaker){
     if(speaker){var spk2=document.createElement('span');spk2.style.fontWeight='600';if(speakerCol)spk2.style.color=speakerCol;spk2.textContent=speaker+': ';el.appendChild(spk2)}
     el.appendChild(document.createTextNode(text));
   }
+  if(inRoom&&speaker){addLineSpeakBtn(el,text,ttsLang)}
   el.className='line';
   el.style.fontSize=fontSize+'px';el.style.fontFamily=fontFamily;el.style.fontWeight=isBold?'bold':'normal';
   el.style.color='#ffdd57';
@@ -482,6 +493,26 @@ function addCommitted(text,lang,time,refs,speaker){
   setTimeout(function(){el.style.color=textColor;delete el.dataset.highlighted},5000);
   autoScroll();
   speak(text);
+}
+
+/* Tap-to-read button on room message lines */
+function addLineSpeakBtn(lineEl,text,ttsLang){
+  var btn=document.createElement('span');
+  btn.className='line-speak-btn';
+  btn.textContent='\u25B6';
+  btn.title='Read aloud';
+  btn.addEventListener('click',function(e){
+    e.stopPropagation();
+    var lang=ttsLang||getActiveIdentityLang();
+    if(wsRef&&wsRef.readyState===1){
+      wsRef.send(JSON.stringify({type:'requestTts',text:text,language:lang}));
+    }
+    btn.style.color='#4f4';
+    setTimeout(function(){btn.style.color=''},1000);
+  });
+  lineEl.style.position='relative';
+  lineEl.classList.add('has-speak');
+  lineEl.appendChild(btn);
 }
 
 function renderTextWithRefs(el,text,refs){
@@ -518,6 +549,7 @@ var lastCommitId=0;
 var myClientId='';
 function setTransLang(lang){
   LOG('setTransLang: '+lang);
+  myTransLang=lang;
   localStorage.setItem('transLang',lang);
   closeAllPanels();
   if(wsRef&&wsRef.readyState===1){wsRef.send(JSON.stringify({type:'setLanguage',language:lang}))}
@@ -541,8 +573,7 @@ function connect(){
   wsRef=ws;
   ws.onopen=function(){LOG('WS connected');statusEl.textContent=t('connected');statusBar.className='connected';
     if(currentEl){currentEl.remove();currentEl=null}
-    var lang=localStorage.getItem('transLang')||'';
-    ws.send(JSON.stringify({type:'setLanguage',language:lang,lastId:lastCommitId}));
+    ws.send(JSON.stringify({type:'setLanguage',language:myTransLang||'',lastId:lastCommitId}));
   };
   ws.onclose=function(){LOG('WS closed');statusEl.textContent=t('disconnected');statusBar.className='disconnected';wsRef=null;setTimeout(connect,2000)};
   ws.onerror=function(){LOG('WS error');ws.close()};
@@ -557,11 +588,12 @@ function connect(){
             transcriptCache.push({id:id,speaker:msg.speaker||'',time:msg.time||'',lang:msg.lang||'',sourceLang:msg.sourceLang||'',translations:msg.translations});
             var activeLang=getActiveIdentityLang();
             var displayText=msg.translations[activeLang]||msg.translations[msg.sourceLang]||msg.translations[Object.keys(msg.translations)[0]]||'';
-            addCommitted(displayText,msg.lang||'',msg.time||'',null,msg.speaker||'');
+            addCommitted(displayText,msg.lang||'',msg.time||'',null,msg.speaker||'',activeLang);
           } else {
-            /* Normal single-language message — also cache for non-shared clients */
-            transcriptCache.push({id:id,speaker:msg.speaker||'',time:msg.time||'',text:msg.text||'',lang:msg.lang||''});
-            addCommitted(msg.text,msg.lang||'',msg.time||'',msg.refs||null,msg.speaker||'');
+            /* Normal single-language message — text is in my language (server translated for me) */
+            var textLang=myTransLang||msg.sourceLang||'';
+            transcriptCache.push({id:id,speaker:msg.speaker||'',time:msg.time||'',text:msg.text||'',lang:msg.lang||'',sourceLang:msg.sourceLang||'',ttsLang:textLang});
+            addCommitted(msg.text,msg.lang||'',msg.time||'',msg.refs||null,msg.speaker||'',textLang);
           }
         }
       }
@@ -581,7 +613,7 @@ function connect(){
       else if(msg.type==='virtualMemberAdded'){addVirtualMemberToRoom(msg)}
       else if(msg.type==='virtualMemberRemoved'){removeVirtualMemberFromRoom(msg.id)}
       else{LOG('WS unknown msg type: '+msg.type)}
-    }catch(ex){LOG('WS parse error: '+ex)}
+    }catch(ex){LOG('WS msg error: '+ex+' data='+String(e.data).substring(0,100))}
   }
 }
 
@@ -829,7 +861,7 @@ function getBibleLang(){
   var bl=params.get('bibleLang');
   if(bl)return bl;
   /* 2. Use app translation language — extract 3-letter code from NLLB code */
-  var tl=localStorage.getItem('transLang')||'';
+  var tl=myTransLang||'';
   if(tl){
     for(var i=0;i<LANGS.length;i++){if(LANGS[i][0]===tl)return LANGS[i][0].substring(0,3)}
   }
@@ -1423,6 +1455,9 @@ function createPttButton(){
     dock.style.cssText='position:fixed;bottom:0;left:0;right:0;padding:6px 12px;background:#1a1a2e;border-top:1px solid #333;z-index:90;display:flex;flex-direction:column;align-items:center';
     document.body.appendChild(dock);
   }
+  /* Hide dock while language picker is open */
+  var lp=document.getElementById('langPicker');
+  if(lp&&lp.classList.contains('open')){dock.style.display='none'}
 
   var label=document.createElement('div');
   label.id='ptt-label';
@@ -1507,7 +1542,7 @@ function startRecording(btn,label){
           sendAudioToServer();
         }
       };
-      pttRecorder.start(100); /* collect in 100ms chunks */
+      pttRecorder.start(); /* no timeslice — produces one complete WebM file on stop */
     })
     .catch(function(err){
       LOG('Mic access denied: '+err);
@@ -1620,15 +1655,28 @@ function tryClaimHost(){
   }catch(e){LOG('tryClaimHost error: '+e)}
 }
 
-/* Auto-assign display name: "Guest" + 4-digit random number */
+/* Display name: reuse stored name, or generate "GuestNNNN" on first join */
 function autoAssignDisplayName(){
-  var num=Math.floor(1000+Math.random()*9000);
-  var name='Guest'+num;
+  var stored=localStorage.getItem('displayName')||'';
+  var name=stored||('Guest'+Math.floor(1000+Math.random()*9000));
+  if(!stored)localStorage.setItem('displayName',name);
   if(wsRef&&wsRef.readyState===1){
     wsRef.send(JSON.stringify({type:'setDisplayName',name:name}));
   }
+  /* Populate the settings field */
+  var inp=document.getElementById('displayNameInput');
+  if(inp)inp.value=name;
   /* Delay member load to give server time to process the name */
   setTimeout(loadRoomMembers,500);
+}
+
+function saveDisplayName(val){
+  var name=val.trim();
+  if(!name)return;
+  localStorage.setItem('displayName',name);
+  if(wsRef&&wsRef.readyState===1){
+    wsRef.send(JSON.stringify({type:'setDisplayName',name:name}));
+  }
 }
 
 /* Participant bar — uses the static HTML element, just show/hide */
@@ -1766,8 +1814,7 @@ function showHostControls(){
   var btn=document.createElement('button');
   btn.id='hostGearBtn';
   btn.title='Host Controls';
-  btn.textContent='\u2699';
-  btn.style.cssText='font-size:18px;background:none;border:none;color:#7c9cf7;cursor:pointer;padding:4px 8px';
+  btn.innerHTML='<img src="/img/icon.png" style="height:20px;width:20px;border-radius:50%;vertical-align:middle">';
   btn.addEventListener('click',toggleHostPanel);
   var toolbar=document.getElementById('toolbar');
   if(toolbar)toolbar.appendChild(btn);
@@ -1833,10 +1880,10 @@ function showAddGuestPrompt(roomId){
   overlay.id='addGuestOverlay';
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:300;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:24px';
   overlay.innerHTML='<div style="color:#fff;font-size:18px;margin-bottom:16px">Add Guest</div>'+
-    '<input id="guestNameInput" type="text" placeholder="Name" style="padding:10px 14px;border-radius:8px;border:1px solid #555;background:#252540;color:#fff;font-size:16px;width:200px;outline:none;margin-bottom:12px">'+
-    '<select id="guestLangSelect" style="padding:10px 14px;border-radius:8px;border:1px solid #555;background:#252540;color:#fff;font-size:14px;width:224px;outline:none;margin-bottom:16px"></select>'+
-    '<button id="guestAddBtn" style="padding:10px 32px;border:none;border-radius:10px;background:#7c9cf7;color:#1a1a2e;font-size:16px;font-weight:600;cursor:pointer">Add</button>'+
-    '<button id="guestCancelBtn" style="margin-top:10px;padding:8px 24px;border:none;border-radius:8px;background:#333;color:#ccc;font-size:14px;cursor:pointer">Cancel</button>';
+    '<input id="guestNameInput" type="text" placeholder="Name" tabindex="1" style="padding:10px 14px;border-radius:8px;border:1px solid #555;background:#252540;color:#fff;font-size:16px;width:200px;outline:none;margin-bottom:12px">'+
+    '<select id="guestLangSelect" tabindex="2" style="padding:10px 14px;border-radius:8px;border:1px solid #555;background:#252540;color:#fff;font-size:14px;width:224px;outline:none;margin-bottom:16px"></select>'+
+    '<button id="guestAddBtn" tabindex="3" style="padding:10px 32px;border:none;border-radius:10px;background:#7c9cf7;color:#1a1a2e;font-size:16px;font-weight:600;cursor:pointer">Add</button>'+
+    '<button id="guestCancelBtn" tabindex="4" style="margin-top:10px;padding:8px 24px;border:none;border-radius:8px;background:#333;color:#ccc;font-size:14px;cursor:pointer">Cancel</button>';
   document.body.appendChild(overlay);
   /* Populate language select */
   var sel=document.getElementById('guestLangSelect');
@@ -1845,18 +1892,24 @@ function showAddGuestPrompt(roomId){
     opt.textContent=LANGS[i][1]+' ('+LANGS[i][2]+')';
     sel.appendChild(opt);
   }
+  var nameInput=document.getElementById('guestNameInput');
+  var addBtn=document.getElementById('guestAddBtn');
   document.getElementById('guestCancelBtn').addEventListener('click',function(){overlay.remove()});
-  document.getElementById('guestAddBtn').addEventListener('click',function(){
-    var name=document.getElementById('guestNameInput').value.trim();
+  function doAddGuest(){
+    var name=nameInput.value.trim();
     var lang=sel.value;
-    if(!name){document.getElementById('guestNameInput').focus();return}
+    if(!name){nameInput.focus();return}
     var xhr=new XMLHttpRequest();
     xhr.open('POST','/api/rooms/'+encodeURIComponent(roomId)+'/virtual-members',true);
     xhr.setRequestHeader('Content-Type','application/json');
     xhr.onload=function(){overlay.remove();loadRoomMembers()};
     xhr.send(JSON.stringify({name:name,language:lang,requestingClientId:myClientId}));
-  });
-  document.getElementById('guestNameInput').focus();
+  }
+  addBtn.addEventListener('click',doAddGuest);
+  nameInput.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();sel.focus()}});
+  sel.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();addBtn.focus()}});
+  addBtn.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();doAddGuest()}});
+  nameInput.focus();
 }
 
 function kickMember(clientId){
@@ -1928,8 +1981,8 @@ function updateVirtualMemberPtt(){
 /* Get the NLLB language code for the currently active identity */
 function getActiveIdentityLang(){
   if(activeVirtualMemberId===''){
-    /* Self — use the client's chosen translation language */
-    return localStorage.getItem('transLang')||'eng_Latn';
+    /* Self — use the client's chosen translation language (JS var, not localStorage — avoids cross-tab issues) */
+    return myTransLang||'eng_Latn';
   }
   for(var i=0;i<virtualMembers.length;i++){
     if(virtualMembers[i].id===activeVirtualMemberId)return virtualMembers[i].language||'eng_Latn';
@@ -1941,16 +1994,59 @@ function getActiveIdentityLang(){
 function rerenderTranscript(){
   if(transcriptCache.length===0)return;
   var activeLang=getActiveIdentityLang();
-  /* Clear all lines except spacer */
+
+  /* Check if any cached messages need translation for the active language */
+  var needTranslation=[];
+  for(var i=0;i<transcriptCache.length;i++){
+    var c=transcriptCache[i];
+    if(c.translations){
+      if(!c.translations[activeLang]&&c.sourceLang&&c.sourceLang!==activeLang){needTranslation.push(i)}
+    } else if(c.text&&c.sourceLang&&c.sourceLang!==activeLang){
+      needTranslation.push(i);
+    }
+  }
+
+  /* Render immediately with what we have */
+  doRender(activeLang);
+
+  /* Fetch missing translations in background, then re-render */
+  if(needTranslation.length>0){
+    var pending=needTranslation.length;
+    for(var j=0;j<needTranslation.length;j++){
+      (function(idx){
+        var c=transcriptCache[idx];
+        var originalText=c.text||(c.translations?c.translations[c.sourceLang]||c.translations[Object.keys(c.translations)[0]]||'':'');
+        if(!originalText){pending--;if(pending===0)doRender(activeLang);return}
+        fetch('/api/translate',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({text:originalText,sourceLang:c.sourceLang,targetLang:activeLang})
+        }).then(function(res){return res.json()}).then(function(data){
+          if(data.text){
+            if(!c.translations){c.translations={};c.translations[c.sourceLang]=c.text}
+            c.translations[activeLang]=data.text;
+          }
+        }).catch(function(){}).finally(function(){
+          pending--;
+          if(pending===0)doRender(activeLang);
+        });
+      })(needTranslation[j]);
+    }
+  }
+}
+
+function doRender(activeLang){
   while(lines.children.length>1)lines.removeChild(lines.children[1]);
-  /* Re-add each cached commit */
   for(var i=0;i<transcriptCache.length;i++){
     var c=transcriptCache[i];
     var displayText='';
+    var ttsLang=activeLang;
     if(c.translations){
       displayText=c.translations[activeLang]||c.translations[c.sourceLang]||c.translations[Object.keys(c.translations)[0]]||'';
+      if(!c.translations[activeLang])ttsLang=c.sourceLang||activeLang;
     } else {
       displayText=c.text||'';
+      ttsLang=c.ttsLang||c.sourceLang||activeLang;
     }
     var tag=buildTag(c.lang||'',c.time||'');
     var el=document.createElement('div');
@@ -1967,6 +2063,7 @@ function rerenderTranscript(){
       el.appendChild(spk);
     }
     el.appendChild(document.createTextNode(displayText));
+    if(c.speaker){addLineSpeakBtn(el,displayText,ttsLang)}
     insertLine(el);
   }
   autoScroll();
@@ -1991,11 +2088,13 @@ function initTextChat(){
   if(document.getElementById('chatInput'))return;
   var row=document.getElementById('pttChatRow');
   if(!row)return;
-  var input=document.createElement('input');
+  var input=document.createElement('textarea');
   input.id='chatInput';
-  input.type='text';
+  input.rows=1;
   input.placeholder='Type a message...';
-  input.style.cssText='flex:1;padding:10px 14px;border-radius:24px;border:1px solid #444;background:#252540;color:#fff;font-size:14px;outline:none;min-width:0';
+  input.style.cssText='flex:1;padding:10px 14px;border-radius:18px;border:1px solid #444;background:#252540;color:#fff;font-size:14px;outline:none;min-width:0;resize:none;overflow:hidden;max-height:120px;line-height:1.4;font-family:inherit';
+  function autoResize(){input.style.height='auto';input.style.height=Math.min(input.scrollHeight,120)+'px'}
+  input.addEventListener('input',autoResize);
   /* Insert before the mic button */
   var pttBtn=document.getElementById('ptt-btn');
   row.insertBefore(input,pttBtn);
@@ -2006,8 +2105,9 @@ function initTextChat(){
       wsRef.send(JSON.stringify({type:'chatMessage',text:text}));
     }
     input.value='';
+    autoResize();
   }
-  input.addEventListener('keydown',function(e){if(e.key==='Enter')sendChat()});
+  input.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat()}});
   setTimeout(adjustDockPadding,50);
 }
 

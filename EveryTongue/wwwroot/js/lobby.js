@@ -1,21 +1,16 @@
 /* Every Tongue — Lobby
-   Room listing, creation, and QR code sharing.
+   Single-page room listing + creation.
    ES6 is fine for new files. */
 
 (function () {
     "use strict";
 
     // ── DOM refs ──
-    const tabs = document.querySelectorAll(".tab");
-    const panels = {
-        join: document.getElementById("panel-join"),
-        create: document.getElementById("panel-create")
-    };
-    const roomList = document.getElementById("room-list");
+    const roomsSection = document.getElementById("rooms-section");
     const myRoomsSection = document.getElementById("my-rooms");
     const myRoomList = document.getElementById("my-room-list");
-    const emptyState = document.getElementById("empty-state");
-    const roomNameInput = document.getElementById("room-name");
+    const publicRoomsSection = document.getElementById("public-rooms");
+    const roomList = document.getElementById("room-list");
     const btnCreate = document.getElementById("btn-create");
     const typeOptions = document.querySelectorAll(".type-option");
     const togglePrivate = document.getElementById("toggle-private");
@@ -29,10 +24,12 @@
     const btnCloseQr = document.getElementById("btn-close-qr");
 
     // ── State ──
-    let selectedType = "conference";
-    let isPrivate = false;
-    let createdRoom = null;   // { id, name, type, visibility, hostToken }
+    let selectedType = "conversation";
+    let isPrivate = true;
+    let createdRoom = null;
     let refreshTimer = null;
+    let hasMyRooms = false;
+    let hasPublicRooms = false;
 
     // ── "Your Rooms" localStorage helpers ──
     function getMyRooms() {
@@ -48,10 +45,17 @@
         rooms.unshift({ id: room.id, name: room.name, type: room.type, hostToken: room.hostToken });
         saveMyRooms(rooms);
     }
+
+    function updateRoomsVisibility() {
+        roomsSection.style.display = (hasMyRooms || hasPublicRooms) ? "block" : "none";
+    }
+
     async function renderMyRooms() {
         const rooms = getMyRooms();
         if (rooms.length === 0) {
+            hasMyRooms = false;
             myRoomsSection.style.display = "none";
+            updateRoomsVisibility();
             return;
         }
         // Verify which rooms are still active
@@ -64,9 +68,12 @@
         }
         saveMyRooms(active);
         if (active.length === 0) {
+            hasMyRooms = false;
             myRoomsSection.style.display = "none";
+            updateRoomsVisibility();
             return;
         }
+        hasMyRooms = true;
         myRoomsSection.style.display = "block";
         myRoomList.innerHTML = "";
         active.forEach(function (room) {
@@ -82,18 +89,8 @@
             });
             myRoomList.appendChild(li);
         });
+        updateRoomsVisibility();
     }
-
-    // ── Tabs ──
-    tabs.forEach(function (tab) {
-        tab.addEventListener("click", function () {
-            const target = tab.dataset.tab;
-            tabs.forEach(function (t) { t.classList.remove("active"); });
-            tab.classList.add("active");
-            Object.values(panels).forEach(function (p) { p.classList.remove("active"); });
-            if (panels[target]) panels[target].classList.add("active");
-        });
-    });
 
     // ── Type picker ──
     typeOptions.forEach(function (opt) {
@@ -101,10 +98,13 @@
             typeOptions.forEach(function (o) { o.classList.remove("selected"); });
             opt.classList.add("selected");
             selectedType = opt.dataset.type;
-            // Conversation defaults to private
+            // Conversation defaults to private, Conference defaults to public
             if (selectedType === "conversation" && !isPrivate) {
                 isPrivate = true;
                 togglePrivate.classList.add("on");
+            } else if (selectedType === "conference" && isPrivate) {
+                isPrivate = false;
+                togglePrivate.classList.remove("on");
             }
         });
     });
@@ -117,11 +117,10 @@
 
     // ── Create room ──
     btnCreate.addEventListener("click", async function () {
-        const name = roomNameInput.value.trim();
-        if (!name) {
-            roomNameInput.focus();
-            return;
-        }
+        const suffix = Math.random().toString(36).substring(2, 6);
+        const name = selectedType === "conversation"
+            ? "Conversation " + suffix
+            : "Conference " + suffix;
         btnCreate.disabled = true;
         try {
             const res = await fetch("/api/rooms", {
@@ -136,8 +135,12 @@
             if (!res.ok) throw new Error("Server returned " + res.status);
             createdRoom = await res.json();
             addMyRoom(createdRoom);
+            // Conversation rooms: go straight in
+            if (selectedType === "conversation") {
+                location.href = "/index.html?room=" + encodeURIComponent(createdRoom.id);
+                return;
+            }
             showQrOverlay(createdRoom);
-            roomNameInput.value = "";
             loadRooms();
             renderMyRooms();
         } catch (err) {
@@ -150,10 +153,9 @@
     // ── QR overlay ──
     function showQrOverlay(room) {
         qrRoomName.textContent = room.name;
-        // Build the join URL from current page origin
         const joinUrl = location.origin + "/index.html?room=" + encodeURIComponent(room.id);
         qrImage.src = "/api/rooms/" + encodeURIComponent(room.id) + "/qr";
-        qrUrl.textContent = joinUrl;
+        qrUrl.innerHTML = '<a href="' + joinUrl + '" style="color:#7c9cf7;text-decoration:underline">' + joinUrl + '</a>';
         createdRoom = room;
         qrOverlay.classList.add("visible");
     }
@@ -183,10 +185,13 @@
     function renderRooms(rooms) {
         roomList.innerHTML = "";
         if (!rooms || rooms.length === 0) {
-            emptyState.style.display = "block";
+            hasPublicRooms = false;
+            publicRoomsSection.style.display = "none";
+            updateRoomsVisibility();
             return;
         }
-        emptyState.style.display = "none";
+        hasPublicRooms = true;
+        publicRoomsSection.style.display = "block";
         rooms.forEach(function (room) {
             const li = document.createElement("li");
             li.className = "room-item";
@@ -201,6 +206,7 @@
             });
             roomList.appendChild(li);
         });
+        updateRoomsVisibility();
     }
 
     function escapeHtml(str) {

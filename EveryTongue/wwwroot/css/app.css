@@ -57,10 +57,26 @@ body {
     padding: 4px 0;
     color: var(--fg-color);
     word-wrap: break-word;
+    white-space: pre-wrap;
     border-bottom: 1px solid #333;
     margin-bottom: 4px;
 }
 .line.in-progress { color: #ff6b6b; opacity: 0.85 }
+.line.has-speak { padding-right: 36px }
+.line-speak-btn {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #666;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    user-select: none;
+    -webkit-user-select: none;
+}
+.line-speak-btn:active { color: #4f4 }
 
 #toolbar {
     display: flex;

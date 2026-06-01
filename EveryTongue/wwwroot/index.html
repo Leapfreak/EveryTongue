@@ -50,6 +50,8 @@
   </select>
 </div>
 <div id="panel">
+  <label id="lblDisplayName">Your Name</label>
+  <input type="text" id="displayNameInput" placeholder="Enter your name" onchange="saveDisplayName(this.value)" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid #555;background:#333;color:#fff;font-size:14px;outline:none;margin-bottom:8px">
   <button onclick="changeFontSize(4)">A+</button>
   <button onclick="changeFontSize(-4)">A-</button>
   <label id="lblFont">Font</label>

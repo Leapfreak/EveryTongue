@@ -170,13 +170,17 @@ Namespace Services.Subtitle
                         RaiseEvent InputLanguageChanged(Me, lang)
 
                     ElseIf typeStr = "requestTts" Then
-                        ' Client requests TTS for arbitrary text (e.g. Bible verse)
+                        ' Client requests TTS for arbitrary text (e.g. Bible verse, room message)
                         Dim textProp As JsonElement = Nothing
                         Dim langProp2 As JsonElement = Nothing
                         If Not root.TryGetProperty("text", textProp) Then Return
                         If Not root.TryGetProperty("language", langProp2) Then Return
                         Dim ttsText = textProp.GetString()
                         Dim ttsLang = langProp2.GetString()
+                        ' Convert NLLB codes (e.g. "spa_Latn") to ISO 639-3 (e.g. "spa") for TTS backends
+                        If Not String.IsNullOrEmpty(ttsLang) AndAlso ttsLang.Contains("_") Then
+                            ttsLang = Pipeline.TranslationService.NllbToIso3(ttsLang)
+                        End If
                         If TtsService IsNot Nothing AndAlso
                            Not String.IsNullOrEmpty(ttsText) AndAlso
                            Not String.IsNullOrEmpty(ttsLang) Then
@@ -410,13 +414,36 @@ Namespace Services.Subtitle
                 Dim discard As CommittedEntry = Nothing
                 _committedLines.TryDequeue(discard)
             End While
-            BroadcastMessage("{""type"":""clear""}")
+            ' Only send clear to non-room clients (room clients have their own transcript)
+            Dim json = "{""type"":""clear""}"
+            Dim buffer = Encoding.UTF8.GetBytes(json)
+            Dim deadKeys As New List(Of String)
+            For Each kvp In _clients
+                Try
+                    If Not String.IsNullOrEmpty(kvp.Value.RoomId) Then Continue For
+                    If Not TrySendToClient(kvp.Value, buffer) Then deadKeys.Add(kvp.Key)
+                Catch ex As Exception
+                    deadKeys.Add(kvp.Key)
+                End Try
+            Next
+            CleanupDeadClients(deadKeys)
         End Sub
 
         Public Sub BroadcastSystemMessage(text As String) Implements ISubtitleService.BroadcastSystemMessage
             If Not IsRunning Then Return
             Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)}}}"
-            BroadcastMessage(json)
+            ' Only send system messages to non-room clients
+            Dim buffer = Encoding.UTF8.GetBytes(json)
+            Dim deadKeys As New List(Of String)
+            For Each kvp In _clients
+                Try
+                    If Not String.IsNullOrEmpty(kvp.Value.RoomId) Then Continue For
+                    If Not TrySendToClient(kvp.Value, buffer) Then deadKeys.Add(kvp.Key)
+                Catch ex As Exception
+                    deadKeys.Add(kvp.Key)
+                End Try
+            Next
+            CleanupDeadClients(deadKeys)
         End Sub
 
         ' ── History replay ──

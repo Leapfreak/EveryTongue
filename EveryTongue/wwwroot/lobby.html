@@ -9,7 +9,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #1a1a2e;
+            background: #000;
             color: #e0e0e0;
             min-height: 100vh;
             display: flex;
@@ -20,45 +20,19 @@
             text-align: center;
             padding: 24px 16px 16px;
         }
-        .header h1 {
-            font-size: 22px;
-            font-weight: 600;
-            color: #fff;
-        }
-        .header p {
-            font-size: 13px;
-            color: #888;
-            margin-top: 4px;
-        }
-
-        .tabs {
-            display: flex;
-            border-bottom: 1px solid #333;
-            margin: 0 16px;
-        }
-        .tab {
-            flex: 1;
-            text-align: center;
-            padding: 10px;
-            font-size: 14px;
-            color: #888;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            transition: color 0.2s, border-color 0.2s;
-        }
-        .tab.active {
-            color: #7c9cf7;
-            border-bottom-color: #7c9cf7;
-        }
 
         .content {
             flex: 1;
-            padding: 16px;
+            padding: 0 16px 16px;
             overflow-y: auto;
         }
 
-        .panel { display: none; }
-        .panel.active { display: block; }
+        .section-label {
+            font-size: 13px;
+            color: #7c9cf7;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
 
         /* Room list */
         .room-list { list-style: none; }
@@ -92,11 +66,12 @@
             margin-left: 8px;
             vertical-align: middle;
         }
-        .empty-state {
-            text-align: center;
-            color: #666;
-            padding: 40px 16px;
-            font-size: 14px;
+
+        /* Divider between rooms and create */
+        .divider {
+            border: none;
+            border-top: 1px solid #333;
+            margin: 16px 0;
         }
 
         /* Create room form */
@@ -108,19 +83,6 @@
             font-size: 13px;
             color: #aaa;
             margin-bottom: 6px;
-        }
-        .form-group input[type="text"] {
-            width: 100%;
-            padding: 10px 12px;
-            border-radius: 8px;
-            border: 1px solid #444;
-            background: #252540;
-            color: #fff;
-            font-size: 15px;
-            outline: none;
-        }
-        .form-group input[type="text"]:focus {
-            border-color: #7c9cf7;
         }
 
         .type-picker {
@@ -141,7 +103,7 @@
             background: #252550;
         }
         .type-option .icon { font-size: 24px; margin-bottom: 4px; }
-        .type-option .label { font-size: 13px; color: #ccc; }
+        .type-option .label { font-size: 13px; color: #fff; }
 
         .toggle-row {
             display: flex;
@@ -149,7 +111,7 @@
             justify-content: space-between;
             padding: 10px 0;
         }
-        .toggle-row .label { font-size: 14px; color: #ccc; }
+        .toggle-row .label { font-size: 14px; color: #fff; }
 
         /* Toggle switch */
         .toggle {
@@ -242,54 +204,44 @@
 </head>
 <body>
     <div class="header">
-        <h1>Every Tongue</h1>
-        <p>Join or create a room</p>
-    </div>
-
-    <div class="tabs">
-        <div class="tab active" data-tab="join">Join Room</div>
-        <div class="tab" data-tab="create">Create Room</div>
+        <img src="/img/logo.png" alt="Every Tongue" style="max-width:320px;width:100%;height:auto;margin-bottom:8px">
     </div>
 
     <div class="content">
-        <!-- Join Room panel -->
-        <div class="panel active" id="panel-join">
+        <!-- Rooms section (Your Rooms + Public Rooms) — hidden when empty -->
+        <div id="rooms-section" style="display:none">
             <div id="my-rooms" style="display:none">
-                <div style="font-size:13px;color:#7c9cf7;margin-bottom:8px;font-weight:600">Your Rooms</div>
+                <div class="section-label">Your Rooms</div>
                 <ul class="room-list" id="my-room-list"></ul>
             </div>
-            <ul class="room-list" id="room-list"></ul>
-            <div class="empty-state" id="empty-state">No rooms available. Create one to get started.</div>
+            <div id="public-rooms" style="display:none">
+                <div class="section-label">Open Rooms</div>
+                <ul class="room-list" id="room-list"></ul>
+            </div>
+            <hr class="divider">
         </div>
 
-        <!-- Create Room panel -->
-        <div class="panel" id="panel-create">
-            <div class="form-group">
-                <label>Room Name</label>
-                <input type="text" id="room-name" placeholder="e.g. Main Hall, Consultation 3">
-            </div>
-
-            <div class="form-group">
-                <label>Room Type</label>
-                <div class="type-picker">
-                    <div class="type-option selected" data-type="conference">
-                        <div class="icon">&#x1F3A4;</div>
-                        <div class="label">Conference</div>
-                    </div>
-                    <div class="type-option" data-type="conversation">
-                        <div class="icon">&#x1F4AC;</div>
-                        <div class="label">Conversation</div>
-                    </div>
+        <!-- Create Room -->
+        <div class="section-label">Create Room</div>
+        <div class="form-group">
+            <div class="type-picker">
+                <div class="type-option selected" data-type="conversation">
+                    <div class="icon">&#x1F4AC;</div>
+                    <div class="label">Conversation</div>
+                </div>
+                <div class="type-option" data-type="conference">
+                    <div class="icon">&#x1F3A4;</div>
+                    <div class="label">Conference</div>
                 </div>
             </div>
-
-            <div class="toggle-row">
-                <span class="label">Private Room</span>
-                <div class="toggle" id="toggle-private"></div>
-            </div>
-
-            <button class="btn btn-primary" id="btn-create">Create Room</button>
         </div>
+
+        <div class="toggle-row">
+            <span class="label">Private Room</span>
+            <div class="toggle on" id="toggle-private"></div>
+        </div>
+
+        <button class="btn btn-primary" id="btn-create">Create Room</button>
     </div>
 
     <!-- QR Code overlay -->

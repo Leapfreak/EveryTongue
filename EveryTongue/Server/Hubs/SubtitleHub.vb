@@ -274,18 +274,26 @@ Namespace Server.Hubs
             Dim svc = TryCast(_subtitleService, SubtitleService)
             If svc Is Nothing Then Return
 
-            For Each clientId In room.ClientIds.Keys
-                If clientId = excludeClientId Then Continue For
-                Dim client = svc.GetClient(clientId)
+            For Each cId In room.ClientIds.Keys
+                If cId = excludeClientId Then Continue For
+                Dim client = svc.GetClient(cId)
                 If client Is Nothing OrElse client.WebSocket Is Nothing Then Continue For
                 If client.WebSocket.State <> WebSocketState.Open Then Continue For
-                Try
-                    client.WebSocket.SendAsync(
-                        New ArraySegment(Of Byte)(data),
-                        WebSocketMessageType.Text, True, CancellationToken.None).
-                        ConfigureAwait(False)
-                Catch
-                End Try
+                ' Use SendBusy to avoid concurrent WebSocket sends (SendAsync is not thread-safe)
+                If Interlocked.CompareExchange(client.SendBusy, 1, 0) <> 0 Then Continue For
+                Dim capturedClient = client
+                Task.Run(Async Function()
+                             Try
+                                 If capturedClient.WebSocket.State = WebSocketState.Open Then
+                                     Await capturedClient.WebSocket.SendAsync(
+                                         New ArraySegment(Of Byte)(data),
+                                         WebSocketMessageType.Text, True, CancellationToken.None).ConfigureAwait(False)
+                                 End If
+                             Catch
+                             Finally
+                                 Interlocked.Exchange(capturedClient.SendBusy, 0)
+                             End Try
+                         End Function)
             Next
         End Sub
 
@@ -298,14 +306,20 @@ Namespace Server.Hubs
             Dim client = svc.GetClient(clientId)
             If client Is Nothing OrElse client.WebSocket Is Nothing Then Return
             If client.WebSocket.State <> WebSocketState.Open Then Return
+            If Interlocked.CompareExchange(client.SendBusy, 1, 0) <> 0 Then Return
             Dim data = Encoding.UTF8.GetBytes(json)
-            Try
-                client.WebSocket.SendAsync(
-                    New ArraySegment(Of Byte)(data),
-                    WebSocketMessageType.Text, True, CancellationToken.None).
-                    ConfigureAwait(False)
-            Catch
-            End Try
+            Task.Run(Async Function()
+                         Try
+                             If client.WebSocket.State = WebSocketState.Open Then
+                                 Await client.WebSocket.SendAsync(
+                                     New ArraySegment(Of Byte)(data),
+                                     WebSocketMessageType.Text, True, CancellationToken.None).ConfigureAwait(False)
+                             End If
+                         Catch
+                         Finally
+                             Interlocked.Exchange(client.SendBusy, 0)
+                         End Try
+                     End Function)
         End Sub
 
     End Class

@@ -109,11 +109,19 @@ Namespace Services.Rooms
 
         ''' <summary>
         ''' Reclaim host via stored host token. Returns True on success.
+        ''' Rejects if the current host is still connected (prevents second tab stealing host).
         ''' </summary>
         Public Function ClaimHost(roomId As String, hostToken As String, newClientId As String) As Boolean
             Dim room = GetRoom(roomId)
             If room Is Nothing Then Return False
             If String.IsNullOrEmpty(hostToken) OrElse room.HostToken <> hostToken Then Return False
+            ' Reject if current host is still connected (different client)
+            If Not String.IsNullOrEmpty(room.HostClientId) AndAlso
+               room.HostClientId <> newClientId AndAlso
+               room.ClientIds.ContainsKey(room.HostClientId) Then
+                AppLogger.Log($"[RoomManager] Host claim rejected for room '{room.Name}' — current host {room.HostClientId} still connected")
+                Return False
+            End If
             room.HostClientId = newClientId
             room.TouchActivity()
             AppLogger.Log($"[RoomManager] Host reclaimed for room '{room.Name}' by {newClientId}")
