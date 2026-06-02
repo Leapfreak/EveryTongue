@@ -608,15 +608,45 @@ Namespace Controllers
                                                         End Sub
 
             EndpointRegistration.ConferenceRoomCreatedHandler = Sub(roomId, templateId)
-                                                                     _ownerForm.BeginInvoke(Sub() HandleConferenceRoomCreated(roomId, templateId))
+                                                                     Try
+                                                                         _ownerForm.BeginInvoke(Sub()
+                                                                                                    Try
+                                                                                                        HandleConferenceRoomCreated(roomId, templateId)
+                                                                                                    Catch ex As Exception
+                                                                                                        _debugLog($"[Conference] ERROR in HandleConferenceRoomCreated: {ex}")
+                                                                                                    End Try
+                                                                                                End Sub)
+                                                                     Catch ex As Exception
+                                                                         _debugLog($"[Conference] ERROR invoking room created handler: {ex.Message}")
+                                                                     End Try
                                                                  End Sub
 
             EndpointRegistration.PipelineConfigHandler = Sub(roomId, params)
-                                                              _ownerForm.BeginInvoke(Sub() HandlePipelineConfigCommand(roomId, params))
+                                                              Try
+                                                                  _ownerForm.BeginInvoke(Sub()
+                                                                                             Try
+                                                                                                 HandlePipelineConfigCommand(roomId, params)
+                                                                                             Catch ex As Exception
+                                                                                                 _debugLog($"[Pipeline] ERROR in HandlePipelineConfigCommand: {ex}")
+                                                                                             End Try
+                                                                                         End Sub)
+                                                              Catch ex As Exception
+                                                                  _debugLog($"[Pipeline] ERROR invoking pipeline handler: {ex.Message}")
+                                                              End Try
                                                           End Sub
 
             EndpointRegistration.RoomClosedHandler = Sub(roomId)
-                                                          _ownerForm.BeginInvoke(Sub() StopConferenceBackend(roomId))
+                                                          Try
+                                                              _ownerForm.BeginInvoke(Sub()
+                                                                                         Try
+                                                                                             StopConferenceBackend(roomId)
+                                                                                         Catch ex As Exception
+                                                                                             _debugLog($"[Conference] ERROR in StopConferenceBackend: {ex}")
+                                                                                         End Try
+                                                                                     End Sub)
+                                                          Catch ex As Exception
+                                                              _debugLog($"[Conference] ERROR invoking room closed handler: {ex.Message}")
+                                                          End Try
                                                       End Sub
 
             AddHandler svc.RemoteCommand, Sub(s, cmd)

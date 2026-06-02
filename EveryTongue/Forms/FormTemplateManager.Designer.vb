@@ -47,9 +47,11 @@ Partial Class FormTemplateManager
         Me.lblVisibility = New System.Windows.Forms.Label()
         Me.cboVisibility = New System.Windows.Forms.ComboBox()
         Me.lblAudioDevice = New System.Windows.Forms.Label()
-        Me.txtAudioDevice = New System.Windows.Forms.TextBox()
+        Me.cboAudioDevice = New System.Windows.Forms.ComboBox()
+        Me.btnRefreshDevices = New System.Windows.Forms.Button()
         Me.lblModelPath = New System.Windows.Forms.Label()
         Me.txtModelPath = New System.Windows.Forms.TextBox()
+        Me.btnBrowseModel = New System.Windows.Forms.Button()
         Me.btnSave = New System.Windows.Forms.Button()
         Me.btnCancelEdit = New System.Windows.Forms.Button()
         Me.grpDetail.SuspendLayout()
@@ -134,9 +136,11 @@ Partial Class FormTemplateManager
         '
         Me.grpDetail.Controls.Add(Me.btnCancelEdit)
         Me.grpDetail.Controls.Add(Me.btnSave)
+        Me.grpDetail.Controls.Add(Me.btnBrowseModel)
         Me.grpDetail.Controls.Add(Me.txtModelPath)
         Me.grpDetail.Controls.Add(Me.lblModelPath)
-        Me.grpDetail.Controls.Add(Me.txtAudioDevice)
+        Me.grpDetail.Controls.Add(Me.btnRefreshDevices)
+        Me.grpDetail.Controls.Add(Me.cboAudioDevice)
         Me.grpDetail.Controls.Add(Me.lblAudioDevice)
         Me.grpDetail.Controls.Add(Me.cboVisibility)
         Me.grpDetail.Controls.Add(Me.lblVisibility)
@@ -350,12 +354,22 @@ Partial Class FormTemplateManager
         Me.lblAudioDevice.TabIndex = 20
         Me.lblAudioDevice.Text = "Audio Device"
         '
-        ' txtAudioDevice
+        ' cboAudioDevice
         '
-        Me.txtAudioDevice.Location = New System.Drawing.Point(130, 189)
-        Me.txtAudioDevice.Name = "txtAudioDevice"
-        Me.txtAudioDevice.Size = New System.Drawing.Size(400, 23)
-        Me.txtAudioDevice.TabIndex = 21
+        Me.cboAudioDevice.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboAudioDevice.Location = New System.Drawing.Point(130, 189)
+        Me.cboAudioDevice.Name = "cboAudioDevice"
+        Me.cboAudioDevice.Size = New System.Drawing.Size(330, 23)
+        Me.cboAudioDevice.TabIndex = 21
+        '
+        ' btnRefreshDevices
+        '
+        Me.btnRefreshDevices.Location = New System.Drawing.Point(466, 188)
+        Me.btnRefreshDevices.Name = "btnRefreshDevices"
+        Me.btnRefreshDevices.Size = New System.Drawing.Size(64, 25)
+        Me.btnRefreshDevices.TabIndex = 26
+        Me.btnRefreshDevices.Text = "Refresh"
+        Me.btnRefreshDevices.UseVisualStyleBackColor = True
         '
         ' lblModelPath
         '
@@ -370,8 +384,17 @@ Partial Class FormTemplateManager
         '
         Me.txtModelPath.Location = New System.Drawing.Point(130, 217)
         Me.txtModelPath.Name = "txtModelPath"
-        Me.txtModelPath.Size = New System.Drawing.Size(400, 23)
+        Me.txtModelPath.Size = New System.Drawing.Size(330, 23)
         Me.txtModelPath.TabIndex = 23
+        '
+        ' btnBrowseModel
+        '
+        Me.btnBrowseModel.Location = New System.Drawing.Point(466, 216)
+        Me.btnBrowseModel.Name = "btnBrowseModel"
+        Me.btnBrowseModel.Size = New System.Drawing.Size(64, 25)
+        Me.btnBrowseModel.TabIndex = 27
+        Me.btnBrowseModel.Text = "Browse..."
+        Me.btnBrowseModel.UseVisualStyleBackColor = True
         '
         ' btnSave
         '
@@ -449,9 +472,11 @@ Partial Class FormTemplateManager
     Friend WithEvents lblVisibility As System.Windows.Forms.Label
     Friend WithEvents cboVisibility As System.Windows.Forms.ComboBox
     Friend WithEvents lblAudioDevice As System.Windows.Forms.Label
-    Friend WithEvents txtAudioDevice As System.Windows.Forms.TextBox
+    Friend WithEvents cboAudioDevice As System.Windows.Forms.ComboBox
+    Friend WithEvents btnRefreshDevices As System.Windows.Forms.Button
     Friend WithEvents lblModelPath As System.Windows.Forms.Label
     Friend WithEvents txtModelPath As System.Windows.Forms.TextBox
+    Friend WithEvents btnBrowseModel As System.Windows.Forms.Button
     Friend WithEvents btnSave As System.Windows.Forms.Button
     Friend WithEvents btnCancelEdit As System.Windows.Forms.Button
 

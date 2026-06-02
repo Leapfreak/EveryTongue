@@ -516,7 +516,9 @@ function addCommitted(text,lang,time,refs,speaker,ttsLang){
   el.dataset.highlighted='1';
   setTimeout(function(){el.style.color=textColor;delete el.dataset.highlighted},5000);
   autoScroll();
-  speak(text,ttsLang);
+  /* Server TTS already pushes audio for auto-commits via FireTtsForCommit.
+     Only call speak() for browser voices — requestTts is for on-demand only. */
+  if(!useServerTts()){speak(text,ttsLang)}
 }
 
 /* Tap-to-read button on room message lines */
@@ -1449,6 +1451,7 @@ var pttActive=false;
 var pttRecorder=null;
 var pttChunks=[];
 var pttRoomType='';
+var roomSourceLang='auto';
 
 function initPushToTalk(){
   var roomMatch=location.search.match(/[?&]room=([^&]+)/);
@@ -1461,22 +1464,36 @@ function initPushToTalk(){
   var xhr=new XMLHttpRequest();
   xhr.open('GET',url,true);
   xhr.onload=function(){
+    if(xhr.status===404){
+      /* Room no longer exists — clean up localStorage and redirect to lobby */
+      try{
+        var myRooms=JSON.parse(localStorage.getItem('myRooms')||'[]');
+        myRooms=myRooms.filter(function(r){return r.id!==roomId});
+        localStorage.setItem('myRooms',JSON.stringify(myRooms));
+      }catch(e){}
+      location.href='/lobby.html';
+      return;
+    }
     if(xhr.status===200){
       try{
         var room=JSON.parse(xhr.responseText);
         pttRoomType=room.type||'';
         pttMode=room.pttMode||'hold';
+        roomSourceLang=room.sourceLang||'auto';
         if(room.isHost){isHost=true;showHostControls()}
-        /* Conversation: everyone gets PTT. Conference: only the host. */
+        /* Conversation: everyone gets PTT. Conference: no mic (audio from desktop). */
         if(pttRoomType==='conversation'){
           createPttButton();
           autoAssignDisplayName();
-        }else if(pttRoomType==='conference'&&room.isHost){
-          createPttButton();
+          initParticipantBar();
+          loadRoomMembers();
+        }else{
+          /* Conference: no dock bar, reduce bottom padding */
+          var cont=document.getElementById('container');
+          if(cont)cont.style.paddingBottom='8px';
+          var lines=document.getElementById('lines');
+          if(lines)lines.style.paddingBottom='8px';
         }
-        /* Initialize participant bar and load members */
-        initParticipantBar();
-        loadRoomMembers();
       }catch(e){LOG('Room info parse error: '+e)}
     }
   };
@@ -1925,12 +1942,16 @@ function toggleHostPanel(){
   panel.style.cssText='position:fixed;top:50px;right:8px;background:#1e1e3a;border:1px solid #444;border-radius:10px;padding:16px;z-index:200;min-width:200px;box-shadow:0 4px 20px rgba(0,0,0,0.6)';
   var roomMatch=location.search.match(/[?&]room=([^&]+)/);
   var roomId=roomMatch?roomMatch[1]:'';
-  panel.innerHTML=
+  var hostHtml=
     '<div style="color:#fff;font-weight:600;margin-bottom:12px">Host Controls</div>'+
-    '<button id="hcEndRoom" style="width:100%;padding:10px;border:none;border-radius:8px;background:#e74c3c;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">End Room</button>'+
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="color:#ccc;font-size:13px">Lock Room</span><div id="hcLockToggle" class="hc-toggle" style="width:40px;height:22px;background:#444;border-radius:11px;position:relative;cursor:pointer;transition:background 0.2s"><div style="width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s"></div></div></div>'+
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><span style="color:#ccc;font-size:13px">PTT: Tap to toggle</span><div id="hcPttToggle" class="hc-toggle" style="width:40px;height:22px;background:#444;border-radius:11px;position:relative;cursor:pointer;transition:background 0.2s"><div style="width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s"></div></div></div>'+
-    '<button id="hcAddGuest" style="width:100%;padding:10px;border:1px solid #7c9cf7;border-radius:8px;background:transparent;color:#7c9cf7;font-size:14px;cursor:pointer">+ Add Guest</button>';
+    '<button id="hcEndRoom" style="width:100%;padding:10px;border:none;border-radius:8px;background:#e74c3c;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">End Room</button>';
+  if(pttRoomType!=='conference'){
+    hostHtml+=
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="color:#ccc;font-size:13px">Lock Room</span><div id="hcLockToggle" class="hc-toggle" style="width:40px;height:22px;background:#444;border-radius:11px;position:relative;cursor:pointer;transition:background 0.2s"><div style="width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s"></div></div></div>'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><span style="color:#ccc;font-size:13px">PTT: Tap to toggle</span><div id="hcPttToggle" class="hc-toggle" style="width:40px;height:22px;background:#444;border-radius:11px;position:relative;cursor:pointer;transition:background 0.2s"><div style="width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s"></div></div></div>'+
+      '<button id="hcAddGuest" style="width:100%;padding:10px;border:1px solid #7c9cf7;border-radius:8px;background:transparent;color:#7c9cf7;font-size:14px;cursor:pointer">+ Add Guest</button>';
+  }
+  panel.innerHTML=hostHtml;
 
   /* Pipeline controls for conference rooms */
   if(pttRoomType==='conference'){
@@ -1961,6 +1982,10 @@ function toggleHostPanel(){
 
   document.body.appendChild(panel);
 
+  /* Pre-select pipeline language from template */
+  var pipeLang=document.getElementById('hcPipeLang');
+  if(pipeLang&&roomSourceLang){pipeLang.value=roomSourceLang}
+
   document.getElementById('hcEndRoom').addEventListener('click',function(){
     var xhr=new XMLHttpRequest();
     xhr.open('DELETE','/api/rooms/'+encodeURIComponent(roomId)+'?clientId='+encodeURIComponent(myClientId),true);
@@ -1969,34 +1994,41 @@ function toggleHostPanel(){
   });
 
   var lockToggle=document.getElementById('hcLockToggle');
-  lockToggle.addEventListener('click',function(){
-    var isOn=this.style.background==='rgb(124, 156, 247)';
-    var newVal=!isOn;
-    this.style.background=newVal?'#7c9cf7':'#444';
-    this.children[0].style.transform=newVal?'translateX(18px)':'translateX(0)';
-    var xhr=new XMLHttpRequest();
-    xhr.open('POST','/api/rooms/'+encodeURIComponent(roomId)+'/lock',true);
-    xhr.setRequestHeader('Content-Type','application/json');
-    xhr.send(JSON.stringify({locked:newVal,requestingClientId:myClientId}));
-  });
+  if(lockToggle){
+    lockToggle.addEventListener('click',function(){
+      var isOn=this.style.background==='rgb(124, 156, 247)';
+      var newVal=!isOn;
+      this.style.background=newVal?'#7c9cf7':'#444';
+      this.children[0].style.transform=newVal?'translateX(18px)':'translateX(0)';
+      var xhr=new XMLHttpRequest();
+      xhr.open('POST','/api/rooms/'+encodeURIComponent(roomId)+'/lock',true);
+      xhr.setRequestHeader('Content-Type','application/json');
+      xhr.send(JSON.stringify({locked:newVal,requestingClientId:myClientId}));
+    });
+  }
 
   var pttToggle=document.getElementById('hcPttToggle');
-  if(pttMode==='toggle'){pttToggle.style.background='#7c9cf7';pttToggle.children[0].style.transform='translateX(18px)'}
-  pttToggle.addEventListener('click',function(){
-    var isOn=this.style.background==='rgb(124, 156, 247)';
-    var newMode=isOn?'hold':'toggle';
-    this.style.background=isOn?'#444':'#7c9cf7';
-    this.children[0].style.transform=isOn?'translateX(0)':'translateX(18px)';
-    var xhr=new XMLHttpRequest();
-    xhr.open('POST','/api/rooms/'+encodeURIComponent(roomId)+'/ptt-mode',true);
-    xhr.setRequestHeader('Content-Type','application/json');
-    xhr.send(JSON.stringify({mode:newMode,requestingClientId:myClientId}));
-  });
+  if(pttToggle){
+    if(pttMode==='toggle'){pttToggle.style.background='#7c9cf7';pttToggle.children[0].style.transform='translateX(18px)'}
+    pttToggle.addEventListener('click',function(){
+      var isOn=this.style.background==='rgb(124, 156, 247)';
+      var newMode=isOn?'hold':'toggle';
+      this.style.background=isOn?'#444':'#7c9cf7';
+      this.children[0].style.transform=isOn?'translateX(0)':'translateX(18px)';
+      var xhr=new XMLHttpRequest();
+      xhr.open('POST','/api/rooms/'+encodeURIComponent(roomId)+'/ptt-mode',true);
+      xhr.setRequestHeader('Content-Type','application/json');
+      xhr.send(JSON.stringify({mode:newMode,requestingClientId:myClientId}));
+    });
+  }
 
-  document.getElementById('hcAddGuest').addEventListener('click',function(){
-    panel.remove();
-    showAddGuestPrompt(roomId);
-  });
+  var hcAddGuest=document.getElementById('hcAddGuest');
+  if(hcAddGuest){
+    hcAddGuest.addEventListener('click',function(){
+      panel.remove();
+      showAddGuestPrompt(roomId);
+    });
+  }
 
   /* Pipeline control events (conference only) */
   if(pttRoomType==='conference'){

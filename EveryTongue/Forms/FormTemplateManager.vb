@@ -1,6 +1,7 @@
 Imports EveryTongue.Models
 Imports EveryTongue.Services.Infrastructure
 Imports EveryTongue.Services.Stt
+Imports EveryTongue.Services.Models
 Imports EveryTongue.Services.Translation
 
 Public Class FormTemplateManager
@@ -8,6 +9,7 @@ Public Class FormTemplateManager
     Private ReadOnly _config As AppConfig
     Private _editingTemplate As ConferenceTemplate
     Private _isNewTemplate As Boolean
+    Private _deviceList As New List(Of AudioDeviceInfo)
 
     Public Sub New(config As AppConfig)
         _config = config
@@ -15,6 +17,7 @@ Public Class FormTemplateManager
         ApplyLocale()
         PopulateEngineDropdowns()
         PopulateLanguageDropdown()
+        PopulateAudioDevices()
         RefreshList()
     End Sub
 
@@ -68,6 +71,59 @@ Public Class FormTemplateManager
         cboSourceLang.SelectedIndex = 0
 
         cboVisibility.SelectedIndex = 0
+    End Sub
+
+    Private Sub PopulateAudioDevices()
+        Dim previousId As Integer = -1
+        If cboAudioDevice.SelectedItem IsNot Nothing Then
+            Dim sel = TryCast(cboAudioDevice.SelectedItem, AudioDeviceInfo)
+            If sel IsNot Nothing Then previousId = sel.Id
+        End If
+
+        cboAudioDevice.Items.Clear()
+        _deviceList.Clear()
+
+        ' Add "Default" entry
+        Dim defaultDev As New AudioDeviceInfo(-1, LanguagePackService.Instance.GetString("Live_DefaultDevice"))
+        _deviceList.Add(defaultDev)
+        cboAudioDevice.Items.Add(defaultDev)
+
+        cboAudioDevice.Enabled = False
+        btnRefreshDevices.Enabled = False
+
+        Dim pythonPath = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "python-embed", "python.exe")
+
+        Threading.Tasks.Task.Run(Sub()
+                                     Try
+                                         Dim backend As New FasterWhisperBackend()
+                                         Dim devices = backend.EnumerateDevicesAsync(pythonPath)
+                                         Me.BeginInvoke(Sub()
+                                                            For Each d In devices
+                                                                _deviceList.Add(d)
+                                                                cboAudioDevice.Items.Add(d)
+                                                            Next
+                                                            ' Restore previous selection
+                                                            Dim found = False
+                                                            For i = 0 To cboAudioDevice.Items.Count - 1
+                                                                Dim dev = TryCast(cboAudioDevice.Items(i), AudioDeviceInfo)
+                                                                If dev IsNot Nothing AndAlso dev.Id = previousId Then
+                                                                    cboAudioDevice.SelectedIndex = i
+                                                                    found = True
+                                                                    Exit For
+                                                                End If
+                                                            Next
+                                                            If Not found Then cboAudioDevice.SelectedIndex = 0
+                                                            cboAudioDevice.Enabled = True
+                                                            btnRefreshDevices.Enabled = True
+                                                        End Sub)
+                                     Catch ex As Exception
+                                         Me.BeginInvoke(Sub()
+                                                            cboAudioDevice.SelectedIndex = 0
+                                                            cboAudioDevice.Enabled = True
+                                                            btnRefreshDevices.Enabled = True
+                                                        End Sub)
+                                     End Try
+                                 End Sub)
     End Sub
 
     Private Sub RefreshList()
@@ -151,6 +207,37 @@ Public Class FormTemplateManager
         ShowDetail(False)
     End Sub
 
+    Private Sub btnRefreshDevices_Click(sender As Object, e As EventArgs) Handles btnRefreshDevices.Click
+        PopulateAudioDevices()
+    End Sub
+
+    Private Sub btnBrowseModel_Click(sender As Object, e As EventArgs) Handles btnBrowseModel.Click
+        Using fbd As New FolderBrowserDialog()
+            fbd.Description = "Select Whisper model directory"
+            ' Default to current value, fall back to global model path from settings
+            Dim startPath = txtModelPath.Text
+            If String.IsNullOrWhiteSpace(startPath) Then
+                startPath = AppConfig.ResolvePath(_config.PathFasterWhisperModel)
+            End If
+            If Not String.IsNullOrWhiteSpace(startPath) Then
+                ' Navigate to parent if path points to a file or doesn't exist as directory
+                If IO.Directory.Exists(startPath) Then
+                    fbd.InitialDirectory = startPath
+                ElseIf IO.File.Exists(startPath) Then
+                    fbd.InitialDirectory = IO.Path.GetDirectoryName(startPath)
+                Else
+                    Dim parent = IO.Path.GetDirectoryName(startPath)
+                    If parent IsNot Nothing AndAlso IO.Directory.Exists(parent) Then
+                        fbd.InitialDirectory = parent
+                    End If
+                End If
+            End If
+            If fbd.ShowDialog(Me) = DialogResult.OK Then
+                txtModelPath.Text = fbd.SelectedPath
+            End If
+        End Using
+    End Sub
+
     Private Sub ShowDetail(visible As Boolean)
         grpDetail.Visible = visible
         lvTemplates.Enabled = Not visible
@@ -179,7 +266,18 @@ Public Class FormTemplateManager
         nudMaxSegment.Value = Math.Max(nudMaxSegment.Minimum, Math.Min(nudMaxSegment.Maximum, t.MaxSegmentSec))
         nudVadSilence.Value = Math.Max(nudVadSilence.Minimum, Math.Min(nudVadSilence.Maximum, t.VadSilenceMs))
         txtInitialPrompt.Text = t.InitialPrompt
-        txtAudioDevice.Text = t.AudioSourceLabel
+        ' Audio device — select by ID
+        Dim deviceFound = False
+        For i = 0 To cboAudioDevice.Items.Count - 1
+            Dim dev = TryCast(cboAudioDevice.Items(i), AudioDeviceInfo)
+            If dev IsNot Nothing AndAlso dev.Id = t.AudioDeviceId Then
+                cboAudioDevice.SelectedIndex = i
+                deviceFound = True
+                Exit For
+            End If
+        Next
+        If Not deviceFound AndAlso cboAudioDevice.Items.Count > 0 Then cboAudioDevice.SelectedIndex = 0
+
         txtModelPath.Text = t.ModelPath
 
         Dim visIdx = cboVisibility.Items.IndexOf(t.DefaultVisibility)
@@ -196,7 +294,15 @@ Public Class FormTemplateManager
         t.MaxSegmentSec = CInt(nudMaxSegment.Value)
         t.VadSilenceMs = CInt(nudVadSilence.Value)
         t.InitialPrompt = txtInitialPrompt.Text.Trim()
-        t.AudioSourceLabel = txtAudioDevice.Text.Trim()
+        ' Audio device from combo
+        Dim selDev = TryCast(cboAudioDevice.SelectedItem, AudioDeviceInfo)
+        If selDev IsNot Nothing Then
+            t.AudioDeviceId = selDev.Id
+            t.AudioSourceLabel = selDev.Name
+        Else
+            t.AudioDeviceId = -1
+            t.AudioSourceLabel = ""
+        End If
         t.ModelPath = txtModelPath.Text.Trim()
         t.DefaultVisibility = If(cboVisibility.SelectedItem IsNot Nothing, cboVisibility.SelectedItem.ToString(), "public")
     End Sub

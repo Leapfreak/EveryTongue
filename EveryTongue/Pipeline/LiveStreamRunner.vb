@@ -158,11 +158,17 @@ Namespace Pipeline
             ' Wait for server ready, then start capture
             Dim ct = _cts.Token
             Task.Run(Sub()
-                         Dim ready = If(serverAlive, True, WaitForReady(ct))
-                         If ready Then
-                             StartCapture(config, deviceIndex, inputLanguage, translateToEnglish)
-                             ReadSseLoop(ct)
-                         End If
+                         Try
+                             Dim ready = If(serverAlive, True, WaitForReady(ct))
+                             If ready Then
+                                 StartCapture(config, deviceIndex, inputLanguage, translateToEnglish)
+                                 ReadSseLoop(ct)
+                             End If
+                         Catch ex As Exception When ct.IsCancellationRequested
+                             ' Expected during shutdown — ignore
+                         Catch ex As Exception
+                             FormMain.WriteDebugLog($"[Live] Pipeline task error: {ex.Message}")
+                         End Try
                      End Sub)
         End Sub
 

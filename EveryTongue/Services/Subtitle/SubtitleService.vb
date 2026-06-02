@@ -294,7 +294,7 @@ Namespace Services.Subtitle
 
             ' Fire-and-forget TTS for non-translation commits
             If Not skipTranslationClients Then
-                FireTtsForCommit(commitId, text, lang, Nothing)
+                FireTtsForCommit(commitId, text, lang, Nothing, If(targetRoomId, TargetRoomId))
             End If
 
             Return commitId
@@ -363,7 +363,7 @@ Namespace Services.Subtitle
             CleanupDeadClients(deadKeys)
 
             ' Fire-and-forget TTS generation for each translated language
-            FireTtsForCommit(entry.Id, originalText, sourceLang, translations)
+            FireTtsForCommit(entry.Id, originalText, sourceLang, translations, If(targetRoomId, TargetRoomId))
 
             Return entry.Id
         End Function
@@ -603,14 +603,26 @@ Namespace Services.Subtitle
         ''' </summary>
         Private Sub FireTtsForCommit(commitId As Integer, originalText As String,
                                      sourceLang As String,
-                                     translations As Dictionary(Of String, String))
+                                     translations As Dictionary(Of String, String),
+                                     Optional targetRoomId As String = Nothing)
             If TtsService Is Nothing Then Return
 
-            ' Collect languages that have connected clients
+            ' Collect languages from clients scoped to the target room
             Dim clientLangs As New HashSet(Of String)()
+            Dim hasSourceLangClients As Boolean = False
             For Each kvp In _clients
+                ' Room scoping: only consider clients in the target room
+                If Not String.IsNullOrEmpty(targetRoomId) Then
+                    If kvp.Value.RoomId <> targetRoomId Then Continue For
+                Else
+                    If Not String.IsNullOrEmpty(kvp.Value.RoomId) Then Continue For
+                End If
                 Dim lang = kvp.Value.Language
-                If Not String.IsNullOrEmpty(lang) Then clientLangs.Add(lang)
+                If Not String.IsNullOrEmpty(lang) Then
+                    clientLangs.Add(lang)
+                Else
+                    hasSourceLangClients = True
+                End If
             Next
 
             ' Generate TTS for each active translation language
@@ -620,12 +632,13 @@ Namespace Services.Subtitle
                         Dim ttsLang = kvp.Key
                         Dim ttsText = kvp.Value
                         Dim ttsCommitId = commitId
+                        Dim roomId = targetRoomId
                         Task.Run(Async Function()
                                      Try
                                          Dim url = Await TtsService.SynthesiseAsync(
                                              ttsText, ttsLang, ttsCommitId, CancellationToken.None)
                                          If url IsNot Nothing Then
-                                             NotifyTtsReady(ttsCommitId, ttsLang, url)
+                                             NotifyTtsReady(ttsCommitId, ttsLang, url, roomId)
                                          End If
                                      Catch ex As Exception
                                          _logger.LogDebug(ex, "TTS generation failed for {Lang} commit {Id}",
@@ -638,16 +651,17 @@ Namespace Services.Subtitle
 
             ' Also generate for source-language clients (no translation needed)
             If Not String.IsNullOrEmpty(sourceLang) AndAlso
-               (clientLangs.Count = 0 OrElse _clients.Values.Any(Function(c) String.IsNullOrEmpty(c.Language))) Then
+               (clientLangs.Count = 0 OrElse hasSourceLangClients) Then
                 Dim srcText = originalText
                 Dim srcLang = sourceLang
                 Dim srcCommitId = commitId
+                Dim roomId = targetRoomId
                 Task.Run(Async Function()
                              Try
                                  Dim url = Await TtsService.SynthesiseAsync(
                                      srcText, srcLang, srcCommitId, CancellationToken.None)
                                  If url IsNot Nothing Then
-                                     NotifyTtsReady(srcCommitId, srcLang, url)
+                                     NotifyTtsReady(srcCommitId, srcLang, url, roomId)
                                  End If
                              Catch ex As Exception
                                  _logger.LogDebug(ex, "TTS generation failed for source {Lang} commit {Id}",
@@ -660,13 +674,21 @@ Namespace Services.Subtitle
         ''' <summary>
         ''' Send a tts WebSocket message to clients whose language matches.
         ''' </summary>
-        Private Sub NotifyTtsReady(commitId As Integer, language As String, url As String)
+        Private Sub NotifyTtsReady(commitId As Integer, language As String, url As String,
+                                   Optional targetRoomId As String = Nothing)
             Dim json = $"{{""type"":""tts"",""id"":{commitId},""url"":{EscapeJson(url)},""lang"":{EscapeJson(language)}}}"
             Dim buffer = Encoding.UTF8.GetBytes(json)
             Dim deadKeys As New List(Of String)
 
             For Each kvp In _clients
                 Try
+                    ' Room scoping: only send to clients in the target room
+                    If Not String.IsNullOrEmpty(targetRoomId) Then
+                        If kvp.Value.RoomId <> targetRoomId Then Continue For
+                    Else
+                        If Not String.IsNullOrEmpty(kvp.Value.RoomId) Then Continue For
+                    End If
+
                     ' Send to clients watching this language, or source-language clients
                     Dim clientLang = kvp.Value.Language
                     If clientLang = language OrElse
@@ -683,8 +705,9 @@ Namespace Services.Subtitle
 
             CleanupDeadClients(deadKeys)
 
-            ' Also play to local audio output if configured
-            If TtsAudioOutput IsNot Nothing AndAlso TtsAudioOutput.IsRunning Then
+            ' Also play to local audio output if configured (only for non-room / desktop stream)
+            If String.IsNullOrEmpty(targetRoomId) AndAlso
+               TtsAudioOutput IsNot Nothing AndAlso TtsAudioOutput.IsRunning Then
                 TtsAudioOutput.EnqueueFromUrl(url, TtsCacheDirectory)
             End If
         End Sub

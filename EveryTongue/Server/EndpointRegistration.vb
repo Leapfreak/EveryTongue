@@ -552,7 +552,8 @@ Namespace Server
                                                    .createdAt = room.CreatedAt,
                                                    .isHost = isHost,
                                                    .isLocked = room.IsLocked,
-                                                   .pttMode = room.Config.PttMode
+                                                   .pttMode = room.Config.PttMode,
+                                                   .sourceLang = room.SourceLang
                                                })
                                            End Function)
 

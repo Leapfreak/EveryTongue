@@ -129,7 +129,10 @@
         }
     });
 
-    // ── Conference hosting ──
+    // ── Conference hosting (two-step: select template → enter code) ──
+
+    const hostingCodeGroup = document.getElementById("hosting-code-group");
+    let conferenceStep = 0; // 0 = pick template, 1 = enter code & submit
 
     async function loadTemplates() {
         try {
@@ -137,7 +140,6 @@
             if (!res.ok) return;
             var templates = await res.json();
             if (!templates || templates.length === 0) {
-                // No templates configured — hide conference section
                 conferenceSection.style.display = "none";
                 return;
             }
@@ -149,19 +151,33 @@
                 opt.textContent = t.name;
                 templateSelect.appendChild(opt);
             });
-            updateConferenceButton();
+            resetConferenceStep();
         } catch (e) {
             conferenceSection.style.display = "none";
         }
     }
 
-    function updateConferenceButton() {
-        var hasTemplate = templateSelect.value && templateSelect.value !== "";
-        var hasCode = hostingCodeInput.value.trim().length > 0;
-        btnCreateConference.disabled = !(hasTemplate && hasCode);
+    function resetConferenceStep() {
+        conferenceStep = 0;
+        hostingCodeGroup.style.display = "none";
+        hostingCodeInput.value = "";
+        conferenceError.style.display = "none";
+        btnCreateConference.disabled = !(templateSelect.value && templateSelect.value !== "");
     }
 
-    templateSelect.addEventListener("change", updateConferenceButton);
+    function updateConferenceButton() {
+        var hasTemplate = templateSelect.value && templateSelect.value !== "";
+        if (conferenceStep === 0) {
+            btnCreateConference.disabled = !hasTemplate;
+        } else {
+            var hasCode = hostingCodeInput.value.trim().length > 0;
+            btnCreateConference.disabled = !(hasTemplate && hasCode);
+        }
+    }
+
+    templateSelect.addEventListener("change", function () {
+        resetConferenceStep();
+    });
     hostingCodeInput.addEventListener("input", function () {
         conferenceError.style.display = "none";
         updateConferenceButton();
@@ -169,8 +185,20 @@
 
     btnCreateConference.addEventListener("click", async function () {
         var templateId = templateSelect.value;
+        if (!templateId) return;
+
+        // Step 0: reveal hosting code field
+        if (conferenceStep === 0) {
+            conferenceStep = 1;
+            hostingCodeGroup.style.display = "block";
+            hostingCodeInput.focus();
+            updateConferenceButton();
+            return;
+        }
+
+        // Step 1: submit with hosting code
         var code = hostingCodeInput.value.trim();
-        if (!templateId || !code) return;
+        if (!code) return;
 
         btnCreateConference.disabled = true;
         conferenceError.style.display = "none";
@@ -198,7 +226,7 @@
             showQrOverlay(createdRoom);
             loadRooms();
             renderMyRooms();
-            hostingCodeInput.value = "";
+            resetConferenceStep();
         } catch (err) {
             conferenceError.textContent = "Failed: " + err.message;
             conferenceError.style.display = "block";
@@ -242,7 +270,11 @@
 
     function renderRooms(rooms) {
         roomList.innerHTML = "";
-        if (!rooms || rooms.length === 0) {
+        // Filter out rooms already shown in "Your Rooms"
+        var myIds = {};
+        getMyRooms().forEach(function (r) { myIds[r.id] = true; });
+        rooms = (rooms || []).filter(function (r) { return !myIds[r.id]; });
+        if (rooms.length === 0) {
             hasPublicRooms = false;
             publicRoomsSection.style.display = "none";
             updateRoomsVisibility();

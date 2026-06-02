@@ -28,10 +28,11 @@ Friend Module Program
         ' Write crash sentinel — deleted on clean exit
         WriteCrashSentinel()
 
-        ' Catch unobserved Task exceptions so fire-and-forget failures get logged
+        ' Catch unobserved Task exceptions — suppress harmless connection-pool noise
         AddHandler TaskScheduler.UnobservedTaskException, Sub(s, e)
-            FormMain.WriteDebugLog($"[UNOBSERVED TASK] {e.Exception}")
             e.SetObserved()
+            If IsHarmlessNetworkException(e.Exception) Then Return
+            FormMain.WriteDebugLog($"[UNOBSERVED TASK] {e.Exception}")
         End Sub
 
         ' Catch unhandled UI-thread exceptions
@@ -102,6 +103,71 @@ Friend Module Program
     ''' Writes crash details to the daily log file. Uses direct file I/O as a
     ''' fallback in case AppLogger or FormMain are not yet initialized.
     ''' </summary>
+    ''' <summary>
+    ''' Returns True if the AggregateException contains only harmless network/cancellation
+    ''' errors from HttpClient connection pool cleanup. Filtered by SocketError code and
+    ''' exception type rather than message strings (locale-safe).
+    ''' </summary>
+    Private Function IsHarmlessNetworkException(agg As AggregateException) As Boolean
+        If agg Is Nothing Then Return False
+        For Each inner In agg.Flatten().InnerExceptions
+            ' Cancellation during shutdown
+            If TypeOf inner Is OperationCanceledException Then Continue For
+            If TypeOf inner Is TaskCanceledException Then Continue For
+
+            ' IOException wrapping a SocketException — check error code
+            Dim ioEx = TryCast(inner, IO.IOException)
+            If ioEx IsNot Nothing Then
+                Dim sockEx = TryCast(ioEx.InnerException, Net.Sockets.SocketException)
+                If sockEx IsNot Nothing Then
+                    Select Case sockEx.SocketErrorCode
+                        Case Net.Sockets.SocketError.ConnectionReset,       ' 10054
+                             Net.Sockets.SocketError.ConnectionAborted,     ' 10053
+                             Net.Sockets.SocketError.ConnectionRefused,     ' 10061
+                             Net.Sockets.SocketError.Shutdown,              ' 10058
+                             Net.Sockets.SocketError.NotConnected           ' 10057
+                            Continue For
+                    End Select
+                End If
+            End If
+
+            ' Direct SocketException
+            Dim directSock = TryCast(inner, Net.Sockets.SocketException)
+            If directSock IsNot Nothing Then
+                Select Case directSock.SocketErrorCode
+                    Case Net.Sockets.SocketError.ConnectionReset,
+                         Net.Sockets.SocketError.ConnectionAborted,
+                         Net.Sockets.SocketError.ConnectionRefused,
+                         Net.Sockets.SocketError.Shutdown,
+                         Net.Sockets.SocketError.NotConnected
+                        Continue For
+                End Select
+            End If
+
+            ' HttpRequestException wrapping a socket error
+            Dim httpEx = TryCast(inner, Net.Http.HttpRequestException)
+            If httpEx IsNot Nothing Then
+                Dim httpSock = TryCast(httpEx.InnerException, Net.Sockets.SocketException)
+                If httpSock Is Nothing Then httpSock = TryCast(httpEx.InnerException?.InnerException, Net.Sockets.SocketException)
+                If httpSock IsNot Nothing Then
+                    Select Case httpSock.SocketErrorCode
+                        Case Net.Sockets.SocketError.ConnectionReset,
+                             Net.Sockets.SocketError.ConnectionAborted,
+                             Net.Sockets.SocketError.ConnectionRefused,
+                             Net.Sockets.SocketError.Shutdown,
+                             Net.Sockets.SocketError.NotConnected
+                            Continue For
+                    End Select
+                End If
+            End If
+
+            ' If we get here, this inner exception is NOT harmless
+            Return False
+        Next
+        ' All inner exceptions were harmless
+        Return True
+    End Function
+
     Private Sub LogCrash(tag As String, ex As Exception)
         Dim detail = If(ex?.ToString(), "(no exception details)")
         ' Try AppLogger first
