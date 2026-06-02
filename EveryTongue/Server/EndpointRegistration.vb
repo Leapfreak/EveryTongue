@@ -30,6 +30,7 @@ Namespace Server
             MapAudioEndpoints(app)
             MapTtsEndpoints(app)
             MapRoomEndpoints(app)
+            MapTemplateEndpoints(app)
         End Sub
 
         Private Sub MapWebSocketEndpoint(app As IEndpointRouteBuilder)
@@ -195,6 +196,48 @@ Namespace Server
             End Get
             Set(value As Action(Of String))
                 Threading.Volatile.Write(_remoteCommandHandler, value)
+            End Set
+        End Property
+
+        ''' <summary>
+        ''' Callback fired when a conference room is created from a template.
+        ''' Args: (roomId, templateId). Set by FormMain/LiveController to spin up the pipeline.
+        ''' </summary>
+        Private _conferenceRoomCreatedHandler As Action(Of String, String)
+        Public Property ConferenceRoomCreatedHandler As Action(Of String, String)
+            Get
+                Return Threading.Volatile.Read(_conferenceRoomCreatedHandler)
+            End Get
+            Set(value As Action(Of String, String))
+                Threading.Volatile.Write(_conferenceRoomCreatedHandler, value)
+            End Set
+        End Property
+
+        ''' <summary>
+        ''' Callback for pipeline config changes from web host controls.
+        ''' Args: (roomId, Dictionary of param name → value). Set by LiveController.
+        ''' </summary>
+        Private _pipelineConfigHandler As Action(Of String, Dictionary(Of String, Object))
+        Public Property PipelineConfigHandler As Action(Of String, Dictionary(Of String, Object))
+            Get
+                Return Threading.Volatile.Read(_pipelineConfigHandler)
+            End Get
+            Set(value As Action(Of String, Dictionary(Of String, Object)))
+                Threading.Volatile.Write(_pipelineConfigHandler, value)
+            End Set
+        End Property
+
+        ''' <summary>
+        ''' Callback fired when a conference room is closed. Arg: roomId.
+        ''' Used by LiveController to stop the conference backend.
+        ''' </summary>
+        Private _roomClosedHandler As Action(Of String)
+        Public Property RoomClosedHandler As Action(Of String)
+            Get
+                Return Threading.Volatile.Read(_roomClosedHandler)
+            End Get
+            Set(value As Action(Of String))
+                Threading.Volatile.Write(_roomClosedHandler, value)
             End Set
         End Property
 
@@ -575,6 +618,8 @@ Namespace Server
                                                   End If
                                                   ' Broadcast roomClosed to all room members
                                                   hub.BroadcastToRoom(id, "{""type"":""roomClosed""}", "")
+                                                  ' Stop conference backend if any
+                                                  RoomClosedHandler?.Invoke(id)
                                                   Return context.Response.WriteAsJsonAsync(New With {.ok = True})
                                               End Function)
 
@@ -881,6 +926,163 @@ Namespace Server
                                               End If
                                               Await context.Response.WriteAsJsonAsync(New With {.text = translated})
                                           End Function)
+
+        End Sub
+
+        Private Sub MapTemplateEndpoints(app As IEndpointRouteBuilder)
+
+            ' List templates (id + name only, no hosting codes)
+            app.MapGet("/api/templates", Function(context As HttpContext) As Task
+                                              Dim store = context.RequestServices.GetRequiredService(Of TemplateStore)()
+                                              Dim result = store.GetAll().Select(Function(t) New With {
+                                                  .id = t.Id,
+                                                  .name = t.Name
+                                              }).ToArray()
+                                              Return context.Response.WriteAsJsonAsync(result)
+                                          End Function)
+
+            ' Create a conference room from a template (validates hosting code)
+            app.MapPost("/api/rooms/from-template", Async Function(context As HttpContext) As Task
+                                                         Dim store = context.RequestServices.GetRequiredService(Of TemplateStore)()
+                                                         Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                                         Dim doc As JsonDocument = Nothing
+                                                         Try
+                                                             doc = Await JsonDocument.ParseAsync(context.Request.Body)
+                                                             Dim root = doc.RootElement
+
+                                                             Dim templateIdProp As JsonElement = Nothing
+                                                             Dim codeProp As JsonElement = Nothing
+                                                             Dim hostProp As JsonElement = Nothing
+                                                             Dim templateId = ""
+                                                             Dim hostingCode = ""
+                                                             Dim hostClientId = ""
+
+                                                             If root.TryGetProperty("templateId", templateIdProp) Then templateId = If(templateIdProp.GetString(), "")
+                                                             If root.TryGetProperty("hostingCode", codeProp) Then hostingCode = If(codeProp.GetString(), "")
+                                                             If root.TryGetProperty("hostClientId", hostProp) Then hostClientId = If(hostProp.GetString(), "")
+
+                                                             ' Validate hosting code
+                                                             If Not store.ValidateHostingCode(templateId, hostingCode) Then
+                                                                 context.Response.StatusCode = 403
+                                                                 Await context.Response.WriteAsJsonAsync(New With {.error = "Invalid hosting code"})
+                                                                 Return
+                                                             End If
+
+                                                             Dim template = store.GetById(templateId)
+
+                                                             ' Determine visibility from template
+                                                             Dim visibility = If(template.DefaultVisibility?.ToLower() = "private",
+                                                                 RoomVisibility.Private, RoomVisibility.Public)
+
+                                                             ' Create conference room linked to template
+                                                             Dim room = mgr.CreateRoom(
+                                                                 If(template.Name, "Conference"),
+                                                                 RoomType.Conference,
+                                                                 visibility,
+                                                                 hostClientId,
+                                                                 templateId)
+
+                                                             ' Set source language from template
+                                                             room.SourceLang = If(template.SourceLanguage, "auto")
+
+                                                             context.Response.StatusCode = 201
+                                                             Await context.Response.WriteAsJsonAsync(New With {
+                                                                 .id = room.Id,
+                                                                 .name = room.Name,
+                                                                 .type = room.Type.ToString().ToLower(),
+                                                                 .visibility = room.Visibility.ToString().ToLower(),
+                                                                 .hostToken = room.HostToken
+                                                             })
+
+                                                             ' Notify desktop to spin up the pipeline
+                                                             ConferenceRoomCreatedHandler?.Invoke(room.Id, templateId)
+
+                                                         Catch ex As Exception
+                                                             context.Response.StatusCode = 400
+                                                             context.Response.WriteAsync("{""error"":""Invalid request""}").Wait()
+                                                         Finally
+                                                             doc?.Dispose()
+                                                         End Try
+                                                     End Function)
+
+            ' Pipeline config — web host adjusts live pipeline settings
+            app.MapPost("/api/control/pipeline", Async Function(context As HttpContext) As Task
+                                                      Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                                      Dim doc As JsonDocument = Nothing
+                                                      Try
+                                                          doc = Await JsonDocument.ParseAsync(context.Request.Body)
+                                                          Dim root = doc.RootElement
+
+                                                          ' Require roomId and host authentication
+                                                          Dim roomIdProp As JsonElement = Nothing
+                                                          Dim hostTokenProp As JsonElement = Nothing
+                                                          Dim clientIdProp As JsonElement = Nothing
+                                                          Dim roomId = ""
+                                                          Dim hostToken = ""
+                                                          Dim clientId = ""
+
+                                                          If root.TryGetProperty("roomId", roomIdProp) Then roomId = If(roomIdProp.GetString(), "")
+                                                          If root.TryGetProperty("hostToken", hostTokenProp) Then hostToken = If(hostTokenProp.GetString(), "")
+                                                          If root.TryGetProperty("clientId", clientIdProp) Then clientId = If(clientIdProp.GetString(), "")
+
+                                                          ' Validate room exists and caller is host
+                                                          Dim room = mgr.GetRoom(roomId)
+                                                          If room Is Nothing Then
+                                                              context.Response.StatusCode = 404
+                                                              Await context.Response.WriteAsJsonAsync(New With {.error = "Room not found"})
+                                                              Return
+                                                          End If
+
+                                                          Dim isHost = (Not String.IsNullOrEmpty(hostToken) AndAlso room.HostToken = hostToken) OrElse
+                                                                       (Not String.IsNullOrEmpty(clientId) AndAlso room.HostClientId = clientId)
+                                                          If Not isHost Then
+                                                              context.Response.StatusCode = 403
+                                                              Await context.Response.WriteAsJsonAsync(New With {.error = "Not authorized"})
+                                                              Return
+                                                          End If
+
+                                                          ' Build params dictionary from optional fields
+                                                          Dim params As New Dictionary(Of String, Object)
+                                                          Dim langProp As JsonElement = Nothing
+                                                          Dim maxSegProp As JsonElement = Nothing
+                                                          Dim vadProp As JsonElement = Nothing
+                                                          Dim beamProp As JsonElement = Nothing
+                                                          Dim promptProp As JsonElement = Nothing
+
+                                                          If root.TryGetProperty("language", langProp) Then params("language") = langProp.GetString()
+                                                          If root.TryGetProperty("maxSegmentSec", maxSegProp) Then params("maxSegmentSec") = maxSegProp.GetInt32()
+                                                          If root.TryGetProperty("vadSilenceMs", vadProp) Then params("vadSilenceMs") = vadProp.GetInt32()
+                                                          If root.TryGetProperty("beamSize", beamProp) Then params("beamSize") = beamProp.GetInt32()
+                                                          If root.TryGetProperty("initialPrompt", promptProp) Then params("initialPrompt") = promptProp.GetString()
+
+                                                          If params.Count = 0 Then
+                                                              Await context.Response.WriteAsJsonAsync(New With {.ok = True, .changed = 0})
+                                                              Return
+                                                          End If
+
+                                                          ' Invoke handler on UI thread
+                                                          Dim handler = PipelineConfigHandler
+                                                          If handler Is Nothing Then
+                                                              context.Response.StatusCode = 503
+                                                              Await context.Response.WriteAsJsonAsync(New With {.error = "Pipeline not available"})
+                                                              Return
+                                                          End If
+
+                                                          handler.Invoke(roomId, params)
+                                                          room.TouchActivity()
+
+                                                          Await context.Response.WriteAsJsonAsync(New With {
+                                                              .ok = True,
+                                                              .changed = params.Count
+                                                          })
+
+                                                      Catch ex As Exception
+                                                          context.Response.StatusCode = 400
+                                                          context.Response.WriteAsync("{""error"":""Invalid request""}").Wait()
+                                                      Finally
+                                                          doc?.Dispose()
+                                                      End Try
+                                                  End Function)
 
         End Sub
 

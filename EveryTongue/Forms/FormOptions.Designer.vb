@@ -970,6 +970,9 @@ Partial Class FormOptions
         ' pnlServer
         '
         Me.pnlServer.AutoScroll = True
+        Me.pnlServer.Controls.Add(Me.btnManageTemplates)
+        Me.pnlServer.Controls.Add(Me.lblTemplatesSep)
+        Me.pnlServer.Controls.Add(Me.lblTemplatesHeader)
         Me.pnlServer.Controls.Add(Me.chkBold)
         Me.pnlServer.Controls.Add(Me.nudFontSize)
         Me.pnlServer.Controls.Add(Me.lblFontSize)
@@ -1207,6 +1210,33 @@ Partial Class FormOptions
         Me.chkBold.TabIndex = 21
         Me.chkBold.Text = "Bold"
         Me.chkBold.UseVisualStyleBackColor = True
+        '
+        ' lblTemplatesHeader
+        '
+        Me.lblTemplatesHeader.AutoSize = True
+        Me.lblTemplatesHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
+        Me.lblTemplatesHeader.Location = New System.Drawing.Point(8, 300)
+        Me.lblTemplatesHeader.Name = "lblTemplatesHeader"
+        Me.lblTemplatesHeader.Size = New System.Drawing.Size(170, 20)
+        Me.lblTemplatesHeader.TabIndex = 22
+        Me.lblTemplatesHeader.Text = "Conference Templates"
+        '
+        ' lblTemplatesSep
+        '
+        Me.lblTemplatesSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
+        Me.lblTemplatesSep.Location = New System.Drawing.Point(8, 324)
+        Me.lblTemplatesSep.Name = "lblTemplatesSep"
+        Me.lblTemplatesSep.Size = New System.Drawing.Size(540, 2)
+        Me.lblTemplatesSep.TabIndex = 23
+        '
+        ' btnManageTemplates
+        '
+        Me.btnManageTemplates.Location = New System.Drawing.Point(12, 334)
+        Me.btnManageTemplates.Name = "btnManageTemplates"
+        Me.btnManageTemplates.Size = New System.Drawing.Size(180, 30)
+        Me.btnManageTemplates.TabIndex = 24
+        Me.btnManageTemplates.Text = "Manage Templates..."
+        Me.btnManageTemplates.UseVisualStyleBackColor = True
         '
         ' lblTranslationHeader
         '
@@ -2734,6 +2764,9 @@ Partial Class FormOptions
     Friend WithEvents lblFontSize As System.Windows.Forms.Label
     Friend WithEvents nudFontSize As System.Windows.Forms.NumericUpDown
     Friend WithEvents chkBold As System.Windows.Forms.CheckBox
+    Friend WithEvents lblTemplatesHeader As System.Windows.Forms.Label
+    Friend WithEvents lblTemplatesSep As System.Windows.Forms.Label
+    Friend WithEvents btnManageTemplates As System.Windows.Forms.Button
 
     ' Translation panel
     Friend WithEvents lblTranslationHeader As System.Windows.Forms.Label

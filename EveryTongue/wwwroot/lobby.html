@@ -221,27 +221,39 @@
             <hr class="divider">
         </div>
 
-        <!-- Create Room -->
-        <div class="section-label">Create Room</div>
-        <div class="form-group">
-            <div class="type-picker">
-                <div class="type-option selected" data-type="conversation">
-                    <div class="icon">&#x1F4AC;</div>
-                    <div class="label">Conversation</div>
-                </div>
-                <div class="type-option" data-type="conference">
-                    <div class="icon">&#x1F3A4;</div>
-                    <div class="label">Conference</div>
-                </div>
-            </div>
-        </div>
+        <!-- Create Conversation Room -->
+        <div class="section-label">Create Conversation</div>
 
         <div class="toggle-row">
             <span class="label">Private Room</span>
             <div class="toggle on" id="toggle-private"></div>
         </div>
 
-        <button class="btn btn-primary" id="btn-create">Create Room</button>
+        <button class="btn btn-primary" id="btn-create">Create Conversation</button>
+
+        <!-- Host Conference (template-based) -->
+        <div id="conference-section" style="display:none">
+            <hr class="divider">
+            <div class="section-label">Host Conference</div>
+
+            <div class="form-group">
+                <label for="template-select">Template</label>
+                <select id="template-select" style="width:100%;padding:10px;border-radius:8px;border:1px solid #444;background:#1a1a2e;color:#e0e0e0;font-size:14px">
+                    <option value="">Loading...</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="hosting-code">Hosting Code</label>
+                <input type="text" id="hosting-code" placeholder="Enter hosting code"
+                       style="width:100%;padding:10px;border-radius:8px;border:1px solid #444;background:#1a1a2e;color:#e0e0e0;font-size:14px"
+                       autocomplete="off" autocapitalize="off" spellcheck="false">
+            </div>
+
+            <div id="conference-error" style="display:none;color:#ff6b6b;font-size:13px;margin-bottom:12px"></div>
+
+            <button class="btn btn-primary" id="btn-create-conference" disabled>Create Conference</button>
+        </div>
     </div>
 
     <!-- QR Code overlay -->

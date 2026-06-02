@@ -43,11 +43,13 @@ Namespace Services.Interfaces
         Function BroadcastCommit(text As String,
                                   Optional skipTranslationClients As Boolean = False,
                                   Optional lang As String = "",
-                                  Optional sourceLang As String = "") As Integer
+                                  Optional sourceLang As String = "",
+                                  Optional targetRoomId As String = Nothing) As Integer
         Function BroadcastCommitTranslated(originalText As String,
                                        sourceLang As String,
                                        translations As Dictionary(Of String, String),
-                                       langTags As Dictionary(Of String, String)) As Integer
+                                       langTags As Dictionary(Of String, String),
+                                       Optional targetRoomId As String = Nothing) As Integer
         Sub BroadcastTranslationsOnly(translations As Dictionary(Of String, String),
                                        langTags As Dictionary(Of String, String))
         Sub BroadcastClear()

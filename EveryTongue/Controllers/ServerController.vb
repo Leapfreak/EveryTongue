@@ -78,7 +78,8 @@ Namespace Controllers
                     .FfmpegPath = Models.AppConfig.ResolvePath(_config.PathFfmpeg),
                     .WhisperModelPath = Models.AppConfig.ResolvePath(_config.PathFasterWhisperModel),
                     .WhisperComputeType = If(_config.LiveComputeType, "int8_float16"),
-                    .WhisperUseCpu = _config.NoGpu
+                    .WhisperUseCpu = _config.NoGpu,
+                    .ConferenceTemplates = _config.ConferenceTemplates
                 }
 
                 _kestrelHost.Start(kestrelOptions, Sub(msg) _log($"[Server] {msg}"))

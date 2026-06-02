@@ -585,5 +585,34 @@
   "QR_Copied": "Copied!",
   "QR_CopyUrl": "Copy URL",
 
-  "App_AlreadyRunning": "Every Tongue is already running."
+  "App_AlreadyRunning": "Every Tongue is already running.",
+
+  "Tmpl_Title": "Conference Templates",
+  "Tmpl_Add": "Add",
+  "Tmpl_Edit": "Edit",
+  "Tmpl_Delete": "Delete",
+  "Tmpl_Name": "Name",
+  "Tmpl_HostingCode": "Hosting Code",
+  "Tmpl_SourceLang": "Source Language",
+  "Tmpl_SttEngine": "STT Engine",
+  "Tmpl_TransEngine": "Translation Engine",
+  "Tmpl_BeamSize": "Beam Size",
+  "Tmpl_MaxSegment": "Max Segment (sec)",
+  "Tmpl_VadSilence": "VAD Silence (ms)",
+  "Tmpl_InitialPrompt": "Initial Prompt",
+  "Tmpl_Visibility": "Default Visibility",
+  "Tmpl_DeleteConfirm": "Delete template '{0}'?",
+  "Tmpl_AudioDevice": "Audio Device",
+  "Tmpl_ModelPath": "Model Path",
+
+  "Web_HostConference": "Host Conference",
+  "Web_SelectTemplate": "Select Template",
+  "Web_EnterHostingCode": "Enter Hosting Code",
+  "Web_CreateConference": "Create Conference",
+  "Web_InvalidHostingCode": "Invalid hosting code",
+  "Web_PipelineLang": "Speaker Language",
+  "Web_PipelineMaxSeg": "Max Segment",
+  "Web_PipelineVadSilence": "VAD Silence",
+  "Web_PipelineBeamSize": "Beam Size",
+  "Web_PipelinePrompt": "Initial Prompt"
 }

@@ -1931,6 +1931,34 @@ function toggleHostPanel(){
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="color:#ccc;font-size:13px">Lock Room</span><div id="hcLockToggle" class="hc-toggle" style="width:40px;height:22px;background:#444;border-radius:11px;position:relative;cursor:pointer;transition:background 0.2s"><div style="width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s"></div></div></div>'+
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><span style="color:#ccc;font-size:13px">PTT: Tap to toggle</span><div id="hcPttToggle" class="hc-toggle" style="width:40px;height:22px;background:#444;border-radius:11px;position:relative;cursor:pointer;transition:background 0.2s"><div style="width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s"></div></div></div>'+
     '<button id="hcAddGuest" style="width:100%;padding:10px;border:1px solid #7c9cf7;border-radius:8px;background:transparent;color:#7c9cf7;font-size:14px;cursor:pointer">+ Add Guest</button>';
+
+  /* Pipeline controls for conference rooms */
+  if(pttRoomType==='conference'){
+    var pipeHtml='<div style="border-top:1px solid #444;margin-top:12px;padding-top:12px">'+
+      '<div style="color:#aaa;font-size:12px;font-weight:600;margin-bottom:8px">Pipeline</div>'+
+      '<label style="color:#888;font-size:11px">Speaker Language</label>'+
+      '<select id="hcPipeLang" style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:13px;margin-bottom:8px">'+
+      '<option value="auto">Auto Detect</option>'+
+      '<option value="ca">Catalan</option><option value="es">Spanish</option><option value="en">English</option>'+
+      '<option value="fr">French</option><option value="de">German</option><option value="it">Italian</option>'+
+      '<option value="pt">Portuguese</option><option value="nl">Dutch</option><option value="ru">Russian</option>'+
+      '<option value="zh">Chinese</option><option value="ja">Japanese</option><option value="ko">Korean</option>'+
+      '<option value="ar">Arabic</option></select>'+
+      '<label style="color:#888;font-size:11px">Max Segment: <span id="hcMaxSegVal">15</span>s</label>'+
+      '<input type="range" id="hcMaxSeg" min="5" max="60" value="15" style="width:100%;margin-bottom:8px">'+
+      '<label style="color:#888;font-size:11px">VAD Silence: <span id="hcVadVal">800</span>ms</label>'+
+      '<input type="range" id="hcVad" min="200" max="2000" step="100" value="800" style="width:100%;margin-bottom:8px">'+
+      '<label style="color:#888;font-size:11px">Beam Size</label>'+
+      '<select id="hcBeam" style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:13px;margin-bottom:8px">'+
+      '<option value="1">1</option><option value="3">3</option><option value="5">5</option><option value="7" selected>7</option></select>'+
+      '<label style="color:#888;font-size:11px">Initial Prompt</label>'+
+      '<input type="text" id="hcPrompt" placeholder="Vocabulary hints" style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:13px;margin-bottom:8px">'+
+      '<button id="hcPipeApply" style="width:100%;padding:8px;border:none;border-radius:8px;background:#7c9cf7;color:#1a1a2e;font-size:13px;font-weight:600;cursor:pointer">Apply</button>'+
+      '<div id="hcPipeStatus" style="color:#888;font-size:11px;margin-top:4px;text-align:center"></div>'+
+      '</div>';
+    panel.innerHTML+=pipeHtml;
+  }
+
   document.body.appendChild(panel);
 
   document.getElementById('hcEndRoom').addEventListener('click',function(){
@@ -1969,6 +1997,43 @@ function toggleHostPanel(){
     panel.remove();
     showAddGuestPrompt(roomId);
   });
+
+  /* Pipeline control events (conference only) */
+  if(pttRoomType==='conference'){
+    var hcMaxSeg=document.getElementById('hcMaxSeg');
+    var hcVad=document.getElementById('hcVad');
+    if(hcMaxSeg)hcMaxSeg.addEventListener('input',function(){document.getElementById('hcMaxSegVal').textContent=this.value});
+    if(hcVad)hcVad.addEventListener('input',function(){document.getElementById('hcVadVal').textContent=this.value});
+
+    var hcApply=document.getElementById('hcPipeApply');
+    if(hcApply)hcApply.addEventListener('click',function(){
+      var params={roomId:roomId,clientId:myClientId};
+      var lang=document.getElementById('hcPipeLang');
+      if(lang)params.language=lang.value;
+      var ms=document.getElementById('hcMaxSeg');
+      if(ms)params.maxSegmentSec=parseInt(ms.value,10);
+      var vd=document.getElementById('hcVad');
+      if(vd)params.vadSilenceMs=parseInt(vd.value,10);
+      var bm=document.getElementById('hcBeam');
+      if(bm)params.beamSize=parseInt(bm.value,10);
+      var pr=document.getElementById('hcPrompt');
+      if(pr&&pr.value.trim())params.initialPrompt=pr.value.trim();
+      var st=document.getElementById('hcPipeStatus');
+      if(st)st.textContent='Applying...';
+      var xhr=new XMLHttpRequest();
+      xhr.open('POST','/api/control/pipeline',true);
+      xhr.setRequestHeader('Content-Type','application/json');
+      xhr.onload=function(){
+        try{
+          var res=JSON.parse(xhr.responseText);
+          if(res.ok){if(st)st.textContent='Applied ('+res.changed+' params)';st.style.color='#4f4'}
+          else{if(st){st.textContent=res.error||'Failed';st.style.color='#f44'}}
+        }catch(e){if(st){st.textContent='Error';st.style.color='#f44'}}
+      };
+      xhr.onerror=function(){if(st){st.textContent='Network error';st.style.color='#f44'}};
+      xhr.send(JSON.stringify(params));
+    });
+  }
 }
 
 function showAddGuestPrompt(roomId){

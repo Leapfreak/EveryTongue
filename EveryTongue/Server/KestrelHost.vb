@@ -20,6 +20,7 @@ Imports EveryTongue.Services.Bible
 Imports EveryTongue.Services.Subtitle
 Imports EveryTongue.Services.Translation
 Imports EveryTongue.Services.Rooms
+Imports EveryTongue.Services.Stt
 Imports EveryTongue.Services.Tts
 
 Namespace Server
@@ -143,6 +144,10 @@ Namespace Server
 
             ' ── Build the app ──
             Dim app = builder.Build()
+
+            ' Expose TemplateStore singleton for UI-thread access and sync from config
+            TemplateStore.Instance = app.Services.GetRequiredService(Of TemplateStore)()
+            TemplateStore.Instance.SyncFromConfig(options.ConferenceTemplates)
 
             ' Apply TTS backend preference from config
             Dim ttsSvc = app.Services.GetService(Of ITtsService)()
@@ -280,6 +285,7 @@ Namespace Server
                 Sub(opts) opts.Level = IO.Compression.CompressionLevel.Fastest)
 
             ' Core services
+            services.AddSingleton(Of TemplateStore)()
             services.AddSingleton(Of RoomManager)()
             services.AddSingleton(Of ISubtitleService, SubtitleService)()
             services.AddSingleton(Of ConversationAudioHandler)()
@@ -287,6 +293,9 @@ Namespace Server
             services.AddSingleton(Of IBibleService, BibleService)()
             services.AddSingleton(Of IMetricsService, MetricsService)()
             services.AddSingleton(Of IAudioStreamService, AudioStreamService)()
+
+            ' STT backend registry (backends are created per-session by LiveController, not as singletons)
+            services.AddSingleton(Of SttBackendRegistry)()
 
             ' Translation backends (NllbBackend registered dynamically by FormMain when NLLB sidecar starts)
             services.AddSingleton(Of ITranslationBackend, DeepLBackend)()

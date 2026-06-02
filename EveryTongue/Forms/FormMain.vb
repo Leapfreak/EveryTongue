@@ -236,8 +236,12 @@ Public Class FormMain
         Dim pythonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "python-embed", "python.exe")
         Task.Run(Sub()
                      Try
-                         Dim runner As New LiveStreamRunner()
-                         Dim devices = runner.EnumerateDevicesAsync(pythonPath)
+                         Dim backend As New Services.Stt.FasterWhisperBackend()
+                         Dim deviceInfos = backend.EnumerateDevicesAsync(pythonPath)
+                         Dim devices As New List(Of String)
+                         For Each d In deviceInfos
+                             devices.Add(d.ToString())
+                         Next
                          cboLiveDevice.BeginInvoke(Sub()
                                                        _liveController.UpdateDeviceCombo(devices)
                                                        btnLiveStart.Enabled = True
@@ -593,8 +597,12 @@ del ""%~f0""
         btnLiveStart.Enabled = False
         Task.Run(Sub()
                      Try
-                         Dim runner As New LiveStreamRunner()
-                         Dim devices = runner.EnumerateDevicesAsync(pythonPath2)
+                         Dim backend As New Services.Stt.FasterWhisperBackend()
+                         Dim deviceInfos = backend.EnumerateDevicesAsync(pythonPath2)
+                         Dim devices As New List(Of String)
+                         For Each d In deviceInfos
+                             devices.Add(d.ToString())
+                         Next
                          cboLiveDevice.BeginInvoke(Sub()
                                                        _liveController.UpdateDeviceCombo(devices)
                                                        btnLiveStart.Enabled = True
@@ -1125,7 +1133,8 @@ del ""%~f0""
         Try : trayIcon.Visible = False : Catch : End Try
         Try : trayIcon.Dispose() : Catch : End Try
 
-        ' Clean exit
+        ' Clean exit — stop all conference backends
+        _liveController?.StopAllConferenceBackends()
         KillOrphanedPythonProcesses()
         Try : IO.File.Delete(Program.CrashSentinelPath) : Catch : End Try
         Environment.Exit(0)

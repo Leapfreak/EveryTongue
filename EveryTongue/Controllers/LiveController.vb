@@ -4,6 +4,9 @@ Imports System.Threading
 Imports EveryTongue.Models
 Imports EveryTongue.Pipeline
 Imports EveryTongue.Server
+Imports EveryTongue.Services.Interfaces
+Imports EveryTongue.Services.Models
+Imports EveryTongue.Services.Stt
 
 Namespace Controllers
     ''' <summary>
@@ -46,14 +49,22 @@ Namespace Controllers
         Private ReadOnly _syncInputLangToJob As Action(Of String)
 
         ' State
-        Private _liveRunner As LiveStreamRunner
+        Private _sttBackend As ISttBackend
         Private ReadOnly _liveTranscript As New System.Text.StringBuilder()
-        Private ReadOnly _pendingCommits As New List(Of String)()
+        Private ReadOnly _pendingCommits As New List(Of SttOutputEventArgs)()
         Private _isRemoteCommand As Boolean = False
+
+        ''' <summary>
+        ''' Conference room backends keyed by room ID.
+        ''' Each gets its own ISttBackend instance on a unique port.
+        ''' </summary>
+        Private ReadOnly _sttBackends As New Dictionary(Of String, ISttBackend)()
+        Private ReadOnly _roomTemplateIds As New Dictionary(Of String, String)()
+        Private _nextConferencePort As Integer = 5101
 
         Public ReadOnly Property IsRunning As Boolean
             Get
-                Return _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning
+                Return _sttBackend IsNot Nothing AndAlso _sttBackend.IsRunning
             End Get
         End Property
 
@@ -71,9 +82,9 @@ Namespace Controllers
             End Set
         End Property
 
-        Public ReadOnly Property Runner As LiveStreamRunner
+        Public ReadOnly Property Backend As ISttBackend
             Get
-                Return _liveRunner
+                Return _sttBackend
             End Get
         End Property
 
@@ -204,8 +215,12 @@ Namespace Controllers
 
             Task.Run(Sub()
                          Try
-                             Dim runner As New LiveStreamRunner()
-                             Dim devices = runner.EnumerateDevicesAsync(pythonPath)
+                             Dim backend As New FasterWhisperBackend()
+                             Dim deviceInfos = backend.EnumerateDevicesAsync(pythonPath)
+                             Dim devices As New List(Of String)
+                             For Each d In deviceInfos
+                                 devices.Add(d.ToString())
+                             Next
                              _cboDevice.BeginInvoke(Sub()
                                                          UpdateDeviceCombo(devices)
                                                          _cboDevice.Enabled = True
@@ -261,22 +276,19 @@ Namespace Controllers
             Dim svc1 = _getSubtitleSvc()
             If svc1 IsNot Nothing Then svc1.InputLanguage = inputLang
 
-            _liveRunner = New LiveStreamRunner()
+            _sttBackend = New FasterWhisperBackend()
 
-            AddHandler _liveRunner.OutputLineUpdated, Sub(s, line)
-                                                          _debugLog($"[Live] >>> UPDATE: {line}")
-                                                      End Sub
+            AddHandler _sttBackend.OutputUpdated, Sub(s, e)
+                                                      _debugLog($"[Live] >>> UPDATE: {e.Text}")
+                                                  End Sub
 
-            AddHandler _liveRunner.OutputLineCommitted, Sub(s, line)
-                                                            Dim textOnly = line
-                                                            Dim ti = line.IndexOf(vbTab)
-                                                            If ti > 0 Then textOnly = line.Substring(ti + 1)
-                                                            _liveTranscript.AppendLine(textOnly)
-                                                            _debugLog($"[Live] >>> COMMIT: {line}")
-                                                            TranslateAndBroadcastAsync(line)
-                                                        End Sub
+            AddHandler _sttBackend.OutputCommitted, Sub(s, e)
+                                                        _liveTranscript.AppendLine(e.Text)
+                                                        _debugLog($"[Live] >>> COMMIT: [{e.DetectedLanguage}] {e.Text}")
+                                                        TranslateAndBroadcastAsync(e)
+                                                    End Sub
 
-            AddHandler _liveRunner.ErrorReceived, Sub(s, line)
+            AddHandler _sttBackend.ErrorReceived, Sub(s, line)
                                                       If Not line.StartsWith(">>> UPDATE:") AndAlso
                                                          Not line.StartsWith(">>> COMMIT") AndAlso
                                                          Not line.StartsWith(">>> SENTENCE-COMMIT") AndAlso
@@ -286,15 +298,29 @@ Namespace Controllers
                                                   End Sub
 
             _debugLog($"Live transcription starting (device {deviceId}, lang={inputLang})...")
-            _debugLog($"[Live] faster-whisper + Silero VAD (port {_config.LiveServerPort})")
+            _debugLog($"[Live] {_sttBackend.Name} + Silero VAD (port {_config.LiveServerPort})")
 
-            _liveRunner.Start(_config, deviceId, inputLang, False)
+            Dim sttConfig As New SttConfig() With {
+                .DeviceIndex = deviceId,
+                .Language = inputLang,
+                .ModelPath = _config.PathFasterWhisperModel,
+                .ComputeType = _config.LiveComputeType,
+                .UseGpu = Not _config.NoGpu,
+                .BeamSize = _config.BeamSize,
+                .VadSilenceMs = _config.LiveVadSilenceMs,
+                .MaxSegmentSec = _config.LiveMaxSegmentSec,
+                .InterimIntervalMs = _config.LiveInterimIntervalMs,
+                .InitialPrompt = _config.InitialPrompt,
+                .TranslateToEnglish = False,
+                .ServerPort = _config.LiveServerPort
+            }
+            _sttBackend.Start(sttConfig)
 
-            If _liveRunner.IsRunning Then
+            If _sttBackend.IsRunning Then
                 _getSubtitleSvc()?.BroadcastSystemMessage("[Transcription Started]")
             End If
 
-            If _liveRunner.IsRunning Then
+            If _sttBackend.IsRunning Then
                 _btnStart.Enabled = False
                 _btnStop.Enabled = True
                 _btnTuneStats.Enabled = True
@@ -312,9 +338,9 @@ Namespace Controllers
         End Sub
 
         Public Sub StopLive()
-            If _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning Then
+            If _sttBackend IsNot Nothing AndAlso _sttBackend.IsRunning Then
                 _getSubtitleSvc()?.BroadcastSystemMessage("[Transcription Stopped]")
-                _liveRunner.Stop()
+                _sttBackend.Stop()
                 _debugLog("Live transcription stopped.")
             End If
 
@@ -337,16 +363,16 @@ Namespace Controllers
         End Sub
 
         Private Async Sub PushLiveConfig()
-            If _liveRunner Is Nothing OrElse Not _liveRunner.IsRunning Then Return
+            If _sttBackend Is Nothing OrElse Not _sttBackend.IsRunning Then Return
             Dim cfg As New Dictionary(Of String, Object) From {
                 {"vad_max_segment_s", _trkMaxSegment.Value},
                 {"vad_min_silence_ms", _trkVadSilence.Value}
             }
-            Await _liveRunner.UpdateConfigAsync(cfg)
+            Await _sttBackend.UpdateConfigAsync(cfg)
         End Sub
 
         Public Sub HandleRemoteCommand(command As String)
-            Dim isLiveActive = _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning
+            Dim isLiveActive = _sttBackend IsNot Nothing AndAlso _sttBackend.IsRunning
             _isRemoteCommand = True
             Try
                 Select Case command
@@ -394,18 +420,18 @@ Namespace Controllers
         Private Sub UpdateLiveRunningStatus()
             Dim svc = _getSubtitleSvc()
             If svc IsNot Nothing Then
-                svc.IsLiveRunning = _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning
+                svc.IsLiveRunning = _sttBackend IsNot Nothing AndAlso _sttBackend.IsRunning
             End If
             _updateShellStatus()
         End Sub
 
         Private Async Sub ShowTuneStats()
-            If _liveRunner Is Nothing Then
+            If _sttBackend Is Nothing Then
                 MessageBox.Show(_getString("Live_NoSessionData"), _getString("Live_Tune"), MessageBoxButtons.OK, MessageBoxIcon.Information)
                 Return
             End If
 
-            Dim json = Await _liveRunner.GetStatsAsync()
+            Dim json = Await _sttBackend.GetStatsAsync()
             If String.IsNullOrEmpty(json) Then
                 MessageBox.Show(_getString("Live_NoStatsYet"), _getString("Live_Tune"), MessageBoxButtons.OK, MessageBoxIcon.Information)
                 Return
@@ -455,11 +481,11 @@ Namespace Controllers
         End Sub
 
         Public Function GetTuneJson() As String
-            If _liveRunner Is Nothing Then Return Nothing
+            If _sttBackend Is Nothing Then Return Nothing
 
             Dim json As String = Nothing
             Try
-                json = _liveRunner.GetStatsAsync().Result
+                json = _sttBackend.GetStatsAsync().Result
             Catch ex As Exception
                 _debugLog($"[ERROR] GetTuneJson stats: {ex.Message}")
             End Try
@@ -488,9 +514,9 @@ Namespace Controllers
             SelectInputLang(lang)
             Dim svc2 = _getSubtitleSvc()
             If svc2 IsNot Nothing Then svc2.InputLanguage = lang
-            If _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning Then
+            If _sttBackend IsNot Nothing AndAlso _sttBackend.IsRunning Then
                 Dim config As New Dictionary(Of String, Object) From {{"language", lang}}
-                Task.Run(Function() _liveRunner.UpdateConfigAsync(config))
+                Task.Run(Function() _sttBackend.UpdateConfigAsync(config))
             End If
             _debugLog($"[Live] Input language changed to '{lang}' via client")
         End Sub
@@ -504,7 +530,7 @@ Namespace Controllers
 
             ' Only auto-start translation if a live session is running —
             ' without one there are no subtitles to translate.
-            If _liveRunner Is Nothing OrElse Not _liveRunner.IsRunning Then Return
+            If _sttBackend Is Nothing OrElse Not _sttBackend.IsRunning Then Return
 
             _translationUnloadTimer?.Change(Timeout.Infinite, Timeout.Infinite)
 
@@ -574,12 +600,24 @@ Namespace Controllers
         ''' </summary>
         Public Sub ConfigureSubtitleService(svc As Services.Interfaces.ISubtitleService)
             svc.TuneCallback = AddressOf GetTuneJson
-            svc.IsLiveRunning = (_liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning)
+            svc.IsLiveRunning = (_sttBackend IsNot Nothing AndAlso _sttBackend.IsRunning)
             svc.InputLanguage = "auto"
 
             EndpointRegistration.RemoteCommandHandler = Sub(cmd)
                                                             _ownerForm.BeginInvoke(Sub() HandleRemoteCommand(cmd))
                                                         End Sub
+
+            EndpointRegistration.ConferenceRoomCreatedHandler = Sub(roomId, templateId)
+                                                                     _ownerForm.BeginInvoke(Sub() HandleConferenceRoomCreated(roomId, templateId))
+                                                                 End Sub
+
+            EndpointRegistration.PipelineConfigHandler = Sub(roomId, params)
+                                                              _ownerForm.BeginInvoke(Sub() HandlePipelineConfigCommand(roomId, params))
+                                                          End Sub
+
+            EndpointRegistration.RoomClosedHandler = Sub(roomId)
+                                                          _ownerForm.BeginInvoke(Sub() StopConferenceBackend(roomId))
+                                                      End Sub
 
             AddHandler svc.RemoteCommand, Sub(s, cmd)
                                               _ownerForm.BeginInvoke(Sub() HandleRemoteCommand(cmd))
@@ -590,23 +628,322 @@ Namespace Controllers
                                                  End Sub
         End Sub
 
+        ' ─── Conference Room Pipeline Management ─────────────────────
+
+        ''' <summary>
+        ''' Called when a conference room is created from a template via the web API.
+        ''' Spins up a new ISttBackend for the room with template-derived config.
+        ''' </summary>
+        Public Sub HandleConferenceRoomCreated(roomId As String, templateId As String)
+            Dim template = _config.ConferenceTemplates.FirstOrDefault(Function(t) t.Id = templateId)
+            If template Is Nothing Then
+                _debugLog($"[Conference] Template '{templateId}' not found for room {roomId}")
+                Return
+            End If
+
+            If _sttBackends.ContainsKey(roomId) Then
+                _debugLog($"[Conference] Backend already exists for room {roomId}")
+                Return
+            End If
+
+            ' Build SttConfig from template
+            Dim port = _nextConferencePort
+            _nextConferencePort += 1
+
+            Dim sttConfig As New SttConfig() With {
+                .DeviceIndex = If(template.AudioDeviceId >= 0, template.AudioDeviceId, 0),
+                .Language = If(template.SourceLanguage, "auto"),
+                .ModelPath = If(Not String.IsNullOrEmpty(template.ModelPath), template.ModelPath, _config.PathFasterWhisperModel),
+                .ComputeType = _config.LiveComputeType,
+                .UseGpu = Not _config.NoGpu,
+                .BeamSize = template.BeamSize,
+                .VadSilenceMs = template.VadSilenceMs,
+                .MaxSegmentSec = template.MaxSegmentSec,
+                .InterimIntervalMs = _config.LiveInterimIntervalMs,
+                .InitialPrompt = If(template.InitialPrompt, ""),
+                .TranslateToEnglish = False,
+                .ServerPort = port
+            }
+
+            Dim backend As ISttBackend = New FasterWhisperBackend()
+
+            ' Wire events — route commits to this room's clients
+            AddHandler backend.OutputCommitted, Sub(s, e)
+                                                     _debugLog($"[Conference:{roomId}] COMMIT: [{e.DetectedLanguage}] {e.Text}")
+                                                     TranslateAndBroadcastForRoomAsync(roomId, e)
+                                                 End Sub
+
+            AddHandler backend.ErrorReceived, Sub(s, line)
+                                                   If Not line.StartsWith(">>> UPDATE:") AndAlso
+                                                      Not line.StartsWith(">>> COMMIT") AndAlso
+                                                      Not line.StartsWith(">>> SENTENCE-COMMIT") AndAlso
+                                                      Not line.Contains("ASGI callable returned without completing response") Then
+                                                       _debugLog($"[Conference:{roomId}] {line}")
+                                                   End If
+                                               End Sub
+
+            _sttBackends(roomId) = backend
+            _roomTemplateIds(roomId) = templateId
+            _debugLog($"[Conference] Starting backend for room {roomId} (template={template.Name}, port={port}, lang={sttConfig.Language})")
+            backend.Start(sttConfig)
+
+            If backend.IsRunning Then
+                _debugLog($"[Conference] Backend started for room {roomId}")
+                _getSubtitleSvc()?.BroadcastSystemMessage("[Transcription Started]")
+            Else
+                _debugLog($"[Conference] Backend FAILED to start for room {roomId}")
+                _sttBackends.Remove(roomId)
+                _roomTemplateIds.Remove(roomId)
+            End If
+        End Sub
+
+        ''' <summary>
+        ''' Handles pipeline config changes from the web host control panel.
+        ''' Runtime-changeable params update in-place; restart-required params restart the backend.
+        ''' </summary>
+        Public Sub HandlePipelineConfigCommand(roomId As String, params As Dictionary(Of String, Object))
+            ' Check if this is the desktop pipeline (empty roomId) or a conference backend
+            Dim backend As ISttBackend = Nothing
+            If String.IsNullOrEmpty(roomId) Then
+                backend = _sttBackend
+            Else
+                _sttBackends.TryGetValue(roomId, backend)
+            End If
+
+            If backend Is Nothing OrElse Not backend.IsRunning Then
+                _debugLog($"[Pipeline] No running backend for room '{roomId}'")
+                Return
+            End If
+
+            ' Separate runtime-changeable vs restart-required params
+            Dim runtimeParams As New Dictionary(Of String, Object)
+            Dim needsRestart = False
+
+            For Each kvp In params
+                Select Case kvp.Key
+                    Case "language"
+                        runtimeParams("language") = kvp.Value
+                    Case "maxSegmentSec"
+                        runtimeParams("vad_max_segment_s") = kvp.Value
+                    Case "vadSilenceMs"
+                        runtimeParams("vad_min_silence_ms") = kvp.Value
+                    Case "beamSize", "initialPrompt"
+                        needsRestart = True
+                End Select
+            Next
+
+            ' Apply runtime changes first
+            If runtimeParams.Count > 0 Then
+                _debugLog($"[Pipeline:{roomId}] Updating runtime params: {String.Join(", ", runtimeParams.Keys)}")
+                Task.Run(Function() backend.UpdateConfigAsync(runtimeParams))
+
+                ' Update desktop sliders if this is the desktop pipeline
+                If String.IsNullOrEmpty(roomId) Then
+                    If runtimeParams.ContainsKey("language") Then
+                        Dim lang = CStr(runtimeParams("language"))
+                        SelectInputLang(lang)
+                        Dim svc = _getSubtitleSvc()
+                        If svc IsNot Nothing Then svc.InputLanguage = lang
+                    End If
+                End If
+            End If
+
+            ' Restart if needed (beamSize, initialPrompt require server restart)
+            If needsRestart AndAlso Not String.IsNullOrEmpty(roomId) Then
+                _debugLog($"[Pipeline:{roomId}] Restart required for params: {String.Join(", ", params.Keys)}")
+                RestartConferenceBackend(roomId, params)
+            End If
+        End Sub
+
+        ''' <summary>
+        ''' Stops and restarts a conference backend with updated config.
+        ''' </summary>
+        Private Sub RestartConferenceBackend(roomId As String, configOverrides As Dictionary(Of String, Object))
+            Dim backend As ISttBackend = Nothing
+            If Not _sttBackends.TryGetValue(roomId, backend) Then Return
+
+            ' Find the template for this room
+            Dim tplId As String = Nothing
+            _roomTemplateIds.TryGetValue(roomId, tplId)
+            Dim template = If(Not String.IsNullOrEmpty(tplId),
+                _config.ConferenceTemplates.FirstOrDefault(Function(t) t.Id = tplId), Nothing)
+
+            ' Capture current port before stopping
+            Dim currentPort = 5101 ' fallback
+            ' Stop the old backend
+            backend.Stop()
+
+            ' Resolve config values from template + overrides
+            Dim hasTpl = template IsNot Nothing
+
+            Dim cfgDevice As Integer = 0
+            If hasTpl AndAlso template.AudioDeviceId >= 0 Then cfgDevice = template.AudioDeviceId
+
+            Dim cfgLang As String = "auto"
+            If configOverrides.ContainsKey("language") Then
+                cfgLang = CStr(configOverrides("language"))
+            ElseIf hasTpl AndAlso Not String.IsNullOrEmpty(template.SourceLanguage) Then
+                cfgLang = template.SourceLanguage
+            End If
+
+            Dim cfgModel As String = _config.PathFasterWhisperModel
+            If hasTpl AndAlso Not String.IsNullOrEmpty(template.ModelPath) Then cfgModel = template.ModelPath
+
+            Dim cfgBeam As Integer = _config.BeamSize
+            If configOverrides.ContainsKey("beamSize") Then
+                cfgBeam = CInt(configOverrides("beamSize"))
+            ElseIf hasTpl Then
+                cfgBeam = template.BeamSize
+            End If
+
+            Dim cfgVad As Integer = _config.LiveVadSilenceMs
+            If configOverrides.ContainsKey("vadSilenceMs") Then
+                cfgVad = CInt(configOverrides("vadSilenceMs"))
+            ElseIf hasTpl Then
+                cfgVad = template.VadSilenceMs
+            End If
+
+            Dim cfgMaxSeg As Integer = _config.LiveMaxSegmentSec
+            If configOverrides.ContainsKey("maxSegmentSec") Then
+                cfgMaxSeg = CInt(configOverrides("maxSegmentSec"))
+            ElseIf hasTpl Then
+                cfgMaxSeg = template.MaxSegmentSec
+            End If
+
+            Dim cfgPrompt As String = ""
+            If configOverrides.ContainsKey("initialPrompt") Then
+                cfgPrompt = CStr(configOverrides("initialPrompt"))
+            ElseIf hasTpl AndAlso Not String.IsNullOrEmpty(template.InitialPrompt) Then
+                cfgPrompt = template.InitialPrompt
+            End If
+
+            Dim sttConfig As New SttConfig() With {
+                .DeviceIndex = cfgDevice,
+                .Language = cfgLang,
+                .ModelPath = cfgModel,
+                .ComputeType = _config.LiveComputeType,
+                .UseGpu = Not _config.NoGpu,
+                .BeamSize = cfgBeam,
+                .VadSilenceMs = cfgVad,
+                .MaxSegmentSec = cfgMaxSeg,
+                .InterimIntervalMs = _config.LiveInterimIntervalMs,
+                .InitialPrompt = cfgPrompt,
+                .TranslateToEnglish = False,
+                .ServerPort = currentPort
+            }
+
+            ' Create new backend and wire events
+            Dim newBackend As ISttBackend = New FasterWhisperBackend()
+            AddHandler newBackend.OutputCommitted, Sub(s, e)
+                                                        _debugLog($"[Conference:{roomId}] COMMIT: [{e.DetectedLanguage}] {e.Text}")
+                                                        TranslateAndBroadcastForRoomAsync(roomId, e)
+                                                    End Sub
+            AddHandler newBackend.ErrorReceived, Sub(s, line)
+                                                      If Not line.StartsWith(">>> UPDATE:") AndAlso
+                                                         Not line.StartsWith(">>> COMMIT") AndAlso
+                                                         Not line.StartsWith(">>> SENTENCE-COMMIT") AndAlso
+                                                         Not line.Contains("ASGI callable returned without completing response") Then
+                                                          _debugLog($"[Conference:{roomId}] {line}")
+                                                      End If
+                                                  End Sub
+
+            _sttBackends(roomId) = newBackend
+            _debugLog($"[Pipeline:{roomId}] Restarting backend (port={sttConfig.ServerPort})")
+            newBackend.Start(sttConfig)
+        End Sub
+
+        ''' <summary>
+        ''' Stops and removes a conference backend when a room is closed.
+        ''' </summary>
+        Public Sub StopConferenceBackend(roomId As String)
+            Dim backend As ISttBackend = Nothing
+            If _sttBackends.TryGetValue(roomId, backend) Then
+                _debugLog($"[Conference] Stopping backend for room {roomId}")
+                If backend.IsRunning Then backend.Stop()
+                _sttBackends.Remove(roomId)
+                _roomTemplateIds.Remove(roomId)
+            End If
+        End Sub
+
+        ''' <summary>
+        ''' Stops all conference backends (e.g. on app shutdown).
+        ''' </summary>
+        Public Sub StopAllConferenceBackends()
+            For Each kvp In _sttBackends.ToList()
+                _debugLog($"[Conference] Stopping backend for room {kvp.Key}")
+                If kvp.Value.IsRunning Then kvp.Value.Stop()
+            Next
+            _sttBackends.Clear()
+            _roomTemplateIds.Clear()
+        End Sub
+
+        ''' <summary>
+        ''' Translate-and-broadcast pipeline for a conference room backend.
+        ''' Routes output to the specific room's clients via targetRoomId parameter.
+        ''' </summary>
+        Private Async Sub TranslateAndBroadcastForRoomAsync(roomId As String, commitArgs As SttOutputEventArgs)
+            Dim detectedLang = commitArgs.DetectedLanguage
+            Dim line = commitArgs.Text
+
+            Dim sourceLang = If(Not String.IsNullOrEmpty(detectedLang), WhisperToNllbCode(detectedLang), "eng_Latn")
+            Dim sourceShort = TranslationService.NllbToShortCode(sourceLang)
+
+            Dim subtitleSvc = _getSubtitleSvc()
+            If subtitleSvc Is Nothing Then Return
+
+            If IsGarbageCommit(line) Then
+                _debugLog($"[Conference:{roomId}] Filtered garbage commit")
+                subtitleSvc.BroadcastCommit(line, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang, targetRoomId:=roomId)
+                Return
+            End If
+
+            ' Get active translation languages for clients in this room
+            Dim targets = subtitleSvc.GetActiveTranslationLanguages()
+            targets?.Remove(sourceLang)
+
+            Dim svc = _getTranslationService()
+            Dim translationReady = targets IsNot Nothing AndAlso targets.Count > 0 AndAlso
+                                   svc IsNot Nothing AndAlso svc.IsRunning AndAlso svc.IsModelLoaded
+
+            If Not translationReady Then
+                subtitleSvc.BroadcastCommit(line, skipTranslationClients:=False, lang:=sourceShort, targetRoomId:=roomId)
+                Return
+            End If
+
+            Dim translations As New Dictionary(Of String, String)()
+            Try
+                Dim result = Await svc.TranslateAsync(line, sourceLang, targets)
+                If result IsNot Nothing Then
+                    For Each kvp In result
+                        translations(kvp.Key) = kvp.Value
+                    Next
+                End If
+            Catch ex As Exception
+                _debugLog($"[Conference:{roomId}] Translate error: {ex.Message}")
+            End Try
+
+            translations(sourceLang) = line
+
+            Dim langTags As New Dictionary(Of String, String)
+            For Each kvp In translations
+                langTags(kvp.Key) = TranslationService.NllbToShortCode(kvp.Key)
+            Next
+
+            subtitleSvc.BroadcastCommitTranslated(line, sourceShort, translations, langTags, targetRoomId:=roomId)
+        End Sub
+
         Public Sub PushLiveConfigFromExternal()
-            If _liveRunner IsNot Nothing AndAlso _liveRunner.IsRunning Then
+            If _sttBackend IsNot Nothing AndAlso _sttBackend.IsRunning Then
                 Dim config As New Dictionary(Of String, Object) From {{"language", _config.Language}}
-                Task.Run(Function() _liveRunner.UpdateConfigAsync(config))
+                Task.Run(Function() _sttBackend.UpdateConfigAsync(config))
             End If
         End Sub
 
         ' ─── Translation & Broadcast Pipeline ─────────────────────────
 
-        Private Async Sub TranslateAndBroadcastAsync(commitData As String)
-            Dim detectedLang = ""
-            Dim line = commitData
-            Dim tabIdx = commitData.IndexOf(vbTab)
-            If tabIdx > 0 Then
-                detectedLang = commitData.Substring(0, tabIdx)
-                line = commitData.Substring(tabIdx + 1)
-            End If
+        Private Async Sub TranslateAndBroadcastAsync(commitArgs As SttOutputEventArgs)
+            Dim detectedLang = commitArgs.DetectedLanguage
+            Dim line = commitArgs.Text
 
             _debugLog($"[WHISPER COMMIT] [{detectedLang}] {line}")
 
@@ -627,7 +964,7 @@ Namespace Controllers
 
             If hasTargets AndAlso serviceRunning AndAlso Not modelLoaded Then
                 SyncLock _pendingCommits
-                    _pendingCommits.Add(commitData)
+                    _pendingCommits.Add(commitArgs)
                 End SyncLock
                 _getSubtitleSvc()?.BroadcastCommit(line, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang)
                 _debugLog($"[BUFFERED] commit queued ({_pendingCommits.Count} pending)")
@@ -697,10 +1034,10 @@ Namespace Controllers
             Dim svc = _getTranslationService()
             If svc Is Nothing OrElse Not svc.IsModelLoaded Then Return
 
-            Dim commits As List(Of String)
+            Dim commits As List(Of SttOutputEventArgs)
             SyncLock _pendingCommits
                 If _pendingCommits.Count = 0 Then Return
-                commits = New List(Of String)(_pendingCommits)
+                commits = New List(Of SttOutputEventArgs)(_pendingCommits)
                 _pendingCommits.Clear()
             End SyncLock
 

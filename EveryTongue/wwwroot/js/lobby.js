@@ -12,8 +12,14 @@
     const publicRoomsSection = document.getElementById("public-rooms");
     const roomList = document.getElementById("room-list");
     const btnCreate = document.getElementById("btn-create");
-    const typeOptions = document.querySelectorAll(".type-option");
     const togglePrivate = document.getElementById("toggle-private");
+
+    // Conference hosting refs
+    const conferenceSection = document.getElementById("conference-section");
+    const templateSelect = document.getElementById("template-select");
+    const hostingCodeInput = document.getElementById("hosting-code");
+    const conferenceError = document.getElementById("conference-error");
+    const btnCreateConference = document.getElementById("btn-create-conference");
 
     // QR overlay
     const qrOverlay = document.getElementById("qr-overlay");
@@ -24,7 +30,6 @@
     const btnCloseQr = document.getElementById("btn-close-qr");
 
     // ── State ──
-    let selectedType = "conversation";
     let isPrivate = true;
     let createdRoom = null;
     let refreshTimer = null;
@@ -92,61 +97,114 @@
         updateRoomsVisibility();
     }
 
-    // ── Type picker ──
-    typeOptions.forEach(function (opt) {
-        opt.addEventListener("click", function () {
-            typeOptions.forEach(function (o) { o.classList.remove("selected"); });
-            opt.classList.add("selected");
-            selectedType = opt.dataset.type;
-            // Conversation defaults to private, Conference defaults to public
-            if (selectedType === "conversation" && !isPrivate) {
-                isPrivate = true;
-                togglePrivate.classList.add("on");
-            } else if (selectedType === "conference" && isPrivate) {
-                isPrivate = false;
-                togglePrivate.classList.remove("on");
-            }
-        });
-    });
-
     // ── Private toggle ──
     togglePrivate.addEventListener("click", function () {
         isPrivate = !isPrivate;
         togglePrivate.classList.toggle("on", isPrivate);
     });
 
-    // ── Create room ──
+    // ── Create conversation room ──
     btnCreate.addEventListener("click", async function () {
-        const suffix = Math.random().toString(36).substring(2, 6);
-        const name = selectedType === "conversation"
-            ? "Conversation " + suffix
-            : "Conference " + suffix;
+        var suffix = Math.random().toString(36).substring(2, 6);
+        var name = "Conversation " + suffix;
         btnCreate.disabled = true;
         try {
-            const res = await fetch("/api/rooms", {
+            var res = await fetch("/api/rooms", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     name: name,
-                    type: selectedType,
+                    type: "conversation",
                     visibility: isPrivate ? "private" : "public"
                 })
             });
             if (!res.ok) throw new Error("Server returned " + res.status);
             createdRoom = await res.json();
             addMyRoom(createdRoom);
-            // Conversation rooms: go straight in
-            if (selectedType === "conversation") {
-                location.href = "/index.html?room=" + encodeURIComponent(createdRoom.id);
-                return;
-            }
-            showQrOverlay(createdRoom);
-            loadRooms();
-            renderMyRooms();
+            location.href = "/index.html?room=" + encodeURIComponent(createdRoom.id);
         } catch (err) {
             alert("Failed to create room: " + err.message);
         } finally {
             btnCreate.disabled = false;
+        }
+    });
+
+    // ── Conference hosting ──
+
+    async function loadTemplates() {
+        try {
+            var res = await fetch("/api/templates");
+            if (!res.ok) return;
+            var templates = await res.json();
+            if (!templates || templates.length === 0) {
+                // No templates configured — hide conference section
+                conferenceSection.style.display = "none";
+                return;
+            }
+            conferenceSection.style.display = "block";
+            templateSelect.innerHTML = "";
+            templates.forEach(function (t) {
+                var opt = document.createElement("option");
+                opt.value = t.id;
+                opt.textContent = t.name;
+                templateSelect.appendChild(opt);
+            });
+            updateConferenceButton();
+        } catch (e) {
+            conferenceSection.style.display = "none";
+        }
+    }
+
+    function updateConferenceButton() {
+        var hasTemplate = templateSelect.value && templateSelect.value !== "";
+        var hasCode = hostingCodeInput.value.trim().length > 0;
+        btnCreateConference.disabled = !(hasTemplate && hasCode);
+    }
+
+    templateSelect.addEventListener("change", updateConferenceButton);
+    hostingCodeInput.addEventListener("input", function () {
+        conferenceError.style.display = "none";
+        updateConferenceButton();
+    });
+
+    btnCreateConference.addEventListener("click", async function () {
+        var templateId = templateSelect.value;
+        var code = hostingCodeInput.value.trim();
+        if (!templateId || !code) return;
+
+        btnCreateConference.disabled = true;
+        conferenceError.style.display = "none";
+
+        try {
+            var res = await fetch("/api/rooms/from-template", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    templateId: templateId,
+                    hostingCode: code,
+                    hostClientId: ""
+                })
+            });
+
+            if (res.status === 403) {
+                conferenceError.textContent = "Invalid hosting code";
+                conferenceError.style.display = "block";
+                return;
+            }
+            if (!res.ok) throw new Error("Server returned " + res.status);
+
+            createdRoom = await res.json();
+            addMyRoom(createdRoom);
+            showQrOverlay(createdRoom);
+            loadRooms();
+            renderMyRooms();
+            hostingCodeInput.value = "";
+        } catch (err) {
+            conferenceError.textContent = "Failed: " + err.message;
+            conferenceError.style.display = "block";
+        } finally {
+            btnCreateConference.disabled = false;
+            updateConferenceButton();
         }
     });
 
@@ -224,4 +282,5 @@
     // ── Init ──
     renderMyRooms();
     startAutoRefresh();
+    loadTemplates();
 })();

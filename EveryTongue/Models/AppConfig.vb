@@ -174,6 +174,8 @@ Namespace Models
 
         Public Property AdminPin As String = "1234"
 
+        Public Property ConferenceTemplates As List(Of ConferenceTemplate) = New List(Of ConferenceTemplate)()
+
         Public Property BiblesDirectory As String = ".\Bibles"
         Public Property ShowBibleCopyright As Boolean = True
 

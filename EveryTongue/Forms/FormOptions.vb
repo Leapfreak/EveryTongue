@@ -90,6 +90,8 @@ Public Class FormOptions
         lblFont.Text = langPack.GetString("Opt_Font")
         lblFontSize.Text = langPack.GetString("Opt_FontSize")
         chkBold.Text = langPack.GetString("Opt_Bold")
+        lblTemplatesHeader.Text = langPack.GetString("Tmpl_Title")
+        btnManageTemplates.Text = langPack.GetString("Tmpl_Title") & "..."
 
         ' Translation panel
         lblTranslationHeader.Text = langPack.GetString("Opt_TranslationHeader")
@@ -192,6 +194,9 @@ Public Class FormOptions
         ' Hardware re-scan
         AddHandler btnHwRescan.Click, Sub(s, e) RunHardwareScan()
 
+        ' Template manager
+        AddHandler btnManageTemplates.Click, Sub(s, e) OpenTemplateManager()
+
         ' Browse buttons — folder pickers
         AddHandler btnBrowseFasterWhisper.Click, Sub(s, e) BrowseFolder(txtFasterWhisper)
         AddHandler btnBrowseNllbModel.Click, Sub(s, e) BrowseFolder(txtNllbModel)
@@ -206,6 +211,15 @@ Public Class FormOptions
         For Each locale In _uiLocales
             cboUiLang.Items.Add(locale.Name)
         Next
+    End Sub
+
+    Private Sub OpenTemplateManager()
+        Using frm As New FormTemplateManager(_config)
+            frm.Icon = Me.Icon
+            If frm.ShowDialog(Me) = DialogResult.OK Then
+                ConfigChanged = True
+            End If
+        End Using
     End Sub
 
     ' ═══════════════════════════════════════════════════════════════

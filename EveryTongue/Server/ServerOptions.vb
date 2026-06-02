@@ -62,6 +62,9 @@ Namespace Server
         ''' <summary>Whether to use CPU instead of CUDA for Whisper.</summary>
         Public Property WhisperUseCpu As Boolean = False
 
+        ''' <summary>Conference templates to sync on startup.</summary>
+        Public Property ConferenceTemplates As List(Of Models.ConferenceTemplate)
+
         ''' <summary>Computed HTTPS port.</summary>
         Public ReadOnly Property HttpsPort As Integer
             Get

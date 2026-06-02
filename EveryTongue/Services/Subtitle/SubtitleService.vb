@@ -250,7 +250,8 @@ Namespace Services.Subtitle
         Public Function BroadcastCommit(text As String,
                                          Optional skipTranslationClients As Boolean = False,
                                          Optional lang As String = "",
-                                         Optional sourceLang As String = "") As Integer Implements ISubtitleService.BroadcastCommit
+                                         Optional sourceLang As String = "",
+                                         Optional targetRoomId As String = Nothing) As Integer Implements ISubtitleService.BroadcastCommit
             Dim commitId = Interlocked.Increment(_commitCounter)
             If Not IsRunning Then Return commitId
             _currentLine = ""
@@ -267,10 +268,10 @@ Namespace Services.Subtitle
             Dim buffer = Encoding.UTF8.GetBytes(json)
             Dim deadKeys As New List(Of String)
 
-            Dim targetRoom = TargetRoomId
+            Dim targetRoom = If(targetRoomId, TargetRoomId)
             For Each kvp In _clients
                 Try
-                    ' Room scoping: if TargetRoomId is set, only send to that room's clients
+                    ' Room scoping: if targetRoom is set, only send to that room's clients
                     If Not String.IsNullOrEmpty(targetRoom) Then
                         If kvp.Value.RoomId <> targetRoom Then Continue For
                     Else
@@ -302,7 +303,8 @@ Namespace Services.Subtitle
         Public Function BroadcastCommitTranslated(originalText As String,
                                               sourceLang As String,
                                               translations As Dictionary(Of String, String),
-                                              langTags As Dictionary(Of String, String)) As Integer Implements ISubtitleService.BroadcastCommitTranslated
+                                              langTags As Dictionary(Of String, String),
+                                              Optional targetRoomId As String = Nothing) As Integer Implements ISubtitleService.BroadcastCommitTranslated
             If Not IsRunning Then Return 0
             _currentLine = ""
 
@@ -316,10 +318,10 @@ Namespace Services.Subtitle
             Dim ts = entry.Timestamp.ToString("HH:mm:ss")
             Dim deadKeys As New List(Of String)
 
-            Dim targetRoom = TargetRoomId
+            Dim targetRoom = If(targetRoomId, TargetRoomId)
             For Each kvp In _clients
                 Try
-                    ' Room scoping: if TargetRoomId is set, only send to that room's clients
+                    ' Room scoping: if targetRoom is set, only send to that room's clients
                     If Not String.IsNullOrEmpty(targetRoom) Then
                         If kvp.Value.RoomId <> targetRoom Then Continue For
                     Else

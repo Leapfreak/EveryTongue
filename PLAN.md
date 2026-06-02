@@ -29,7 +29,7 @@ Room model, lobby API, room QR codes, WebSocket routing, conversation rooms with
 - Mesh WiFi / mDNS service discovery for automatic server finding
 - Room templates & presets (medical consultation, Sunday service, staff meeting)
 - Session recording & per-room transcript export
-- ISttBackend interface — pluggable STT engines (Vosk, Azure, etc.)
+- ~~ISttBackend interface~~ — DONE (v1.7.3). Pluggable STT via `ISttBackend` + `SttBackendRegistry` + `FasterWhisperBackend`. Future engines (Vosk, Azure, etc.) just implement the interface.
 - Plugin auto-discovery from `plugins/` folder
 - Plugin Manager UI with model management
 - Engine benchmark suite (STT/Translation/TTS speed, quality, latency, resource usage)
@@ -2212,6 +2212,10 @@ This gives baseline coverage for the majority of Agape's European footprint usin
 - `Services/Rooms/RoomManager.vb` — create, list, join, leave, close, idle cleanup, host claim, kick, lock, virtual members
 - `Services/Rooms/ConversationAudioHandler.vb` — PTT audio processing, text chat, FFmpeg, Whisper, translation with sentence splitting (reuses TranslateController.SplitIntoLines), shared-device multi-translation broadcast, per-client lang tag
 - `Services/Subtitle/ClientConnection.vb` — DisplayName, SpeakingAsVirtualMemberId
+- `Services/Interfaces/ISttBackend.vb` — pluggable STT engine interface
+- `Services/Models/SttModels.vb` — SttOutputEventArgs, SttConfig, AudioDeviceInfo
+- `Services/Stt/SttBackendRegistry.vb` — STT engine registry (mirrors TTS/Translation registries)
+- `Services/Stt/FasterWhisperBackend.vb` — wraps LiveStreamRunner as ISttBackend
 - `Server/EndpointRegistration.vb` — room REST API + governance endpoints
 - `Server/Hubs/SubtitleHub.vb` — room message handling (setDisplayName, speakAs, chatMessage), member broadcasts
 - `wwwroot/js/app.js` — PTT, text chat, host controls, participant bar, virtual members, identity switching, speaker colours, transcript cache
@@ -2308,11 +2312,9 @@ Audio in -> [STT Queue] -> Whisper -> [Translation Queue] -> NLLB -> [TTS Queue]
 **What exists today:**
 - `ITtsBackend` + `TtsBackendRegistry` — pluggable TTS (Piper, MMS-TTS, EdgeTTS)
 - `ITranslationBackend` + `TranslationBackendRegistry` — pluggable translation (NLLB, Cloud APIs)
-- STT is not pluggable — Whisper is hardwired into `LiveStreamRunner`
+- `ISttBackend` + `SttBackendRegistry` — pluggable STT (`FasterWhisperBackend` wraps `LiveStreamRunner`). LiveController uses `ISttBackend` exclusively.
 
 **What's needed:**
-- `ISttBackend` interface + `SttBackendRegistry` — wrap Whisper as `WhisperBackend`
-- Standardise all three interfaces: `Name`, `IsAvailable`, `RequiresInternet`, `RequiresGpu`, async work methods
 - Plugin auto-discovery: scan `plugins/` for DLLs implementing engine interfaces, register in DI
 - Plugin Manager UI: list/enable/disable plugins, model management (download/delete/activate), benchmark results
 - Benchmark suite: standardised speed/quality/latency/resource tests for STT, Translation, and TTS engines

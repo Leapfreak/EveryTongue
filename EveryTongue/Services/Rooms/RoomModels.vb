@@ -37,6 +37,7 @@ Namespace Services.Rooms
         Public Property Type As RoomType = RoomType.Conference
         Public Property Visibility As RoomVisibility = RoomVisibility.Public
         Public Property SourceLang As String = "auto"
+        Public Property TemplateId As String = ""
         Public Property CreatedAt As DateTime = DateTime.Now
         Public Property IsActive As Boolean = True
         Public Property HostClientId As String
