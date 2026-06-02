@@ -138,6 +138,9 @@ Partial Class FormOptions
         Me.lblPort = New System.Windows.Forms.Label()
         Me.lblNetworkSep = New System.Windows.Forms.Label()
         Me.lblNetworkHeader = New System.Windows.Forms.Label()
+        Me.lblTemplatesHeader = New System.Windows.Forms.Label()
+        Me.lblTemplatesSep = New System.Windows.Forms.Label()
+        Me.btnManageTemplates = New System.Windows.Forms.Button()
         ' ── Advanced panel controls ──
         Me.pnlAdvanced = New System.Windows.Forms.Panel()
         Me.lblAdvPipelineHeader = New System.Windows.Forms.Label()
