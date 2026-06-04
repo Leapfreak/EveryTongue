@@ -74,10 +74,10 @@ app = FastAPI()
 model_path_global: str = ""
 
 capturing: bool = False
-_vad_pipeline: VadPipeline | None = None
+_vad_pipeline = None  # type: VadPipeline or None
 
 # SSE subscribers (asyncio queues)
-subscribers: list[asyncio.Queue] = []
+subscribers = []  # list of asyncio.Queue
 subscribers_lock: threading.Lock = threading.Lock()
 
 # Audio config
@@ -87,7 +87,7 @@ SAMPLE_RATE = 16000
 current_config: dict = {}
 
 # Current session stats (accessible via /stats endpoint)
-current_stats: SessionStats | None = None
+current_stats = None  # type: SessionStats or None
 
 # Uvicorn server reference for graceful shutdown
 _server = None
@@ -97,7 +97,7 @@ _shutting_down: bool = False
 _whisper_server_path: str = ""
 _whisper_server_port: int = 0
 _no_gpu: bool = False
-_whisper_server_process: subprocess.Popen | None = None
+_whisper_server_process = None  # type: subprocess.Popen or None
 
 
 # ---------------------------------------------------------------------------
@@ -434,7 +434,7 @@ def _is_hallucination(segments, last_commit_text: str = "", detected_lang: str =
 # ---------------------------------------------------------------------------
 # Known hallucination phrase blocklist
 # ---------------------------------------------------------------------------
-_hallucination_phrases: list[str] = []
+_hallucination_phrases = []  # list of str
 
 
 def _load_hallucination_phrases():

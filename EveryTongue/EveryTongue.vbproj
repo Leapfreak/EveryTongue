@@ -79,6 +79,34 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>live-server\hallucinations.json</Link>
     </Content>
+    <Content Include="..\live-server\vad\__init__.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>live-server\vad\__init__.py</Link>
+    </Content>
+    <Content Include="..\live-server\vad\buffers.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>live-server\vad\buffers.py</Link>
+    </Content>
+    <Content Include="..\live-server\vad\frame_vad.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>live-server\vad\frame_vad.py</Link>
+    </Content>
+    <Content Include="..\live-server\vad\merger.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>live-server\vad\merger.py</Link>
+    </Content>
+    <Content Include="..\live-server\vad\pipeline.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>live-server\vad\pipeline.py</Link>
+    </Content>
+    <Content Include="..\live-server\vad\segment.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>live-server\vad\segment.py</Link>
+    </Content>
+    <Content Include="..\live-server\vad\state_machine.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>live-server\vad\state_machine.py</Link>
+    </Content>
     <Content Include="..\translate-server\profanity.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>translate-server\profanity.json</Link>
@@ -144,6 +172,13 @@
       <ChecksumFile Include="$(PublishDir)live-server\server.py" />
       <ChecksumFile Include="$(PublishDir)live-server\hallucinations.json" />
       <ChecksumFile Include="$(PublishDir)live-server\requirements.txt" />
+      <ChecksumFile Include="$(PublishDir)live-server\vad\__init__.py" />
+      <ChecksumFile Include="$(PublishDir)live-server\vad\buffers.py" />
+      <ChecksumFile Include="$(PublishDir)live-server\vad\frame_vad.py" />
+      <ChecksumFile Include="$(PublishDir)live-server\vad\merger.py" />
+      <ChecksumFile Include="$(PublishDir)live-server\vad\pipeline.py" />
+      <ChecksumFile Include="$(PublishDir)live-server\vad\segment.py" />
+      <ChecksumFile Include="$(PublishDir)live-server\vad\state_machine.py" />
       <ChecksumFile Include="$(PublishDir)mms-tts-server\server.py" />
       <ChecksumFile Include="$(PublishDir)mms-tts-server\requirements.txt" />
       <!-- Locale JSON — only en.json ships; others downloaded on demand -->
