@@ -40,9 +40,35 @@ Conference templates with hosting code protection, multi-pipeline architecture (
 ### Goal
 Replace the current batch-VAD capture loop in `live-server/server.py` (`_capture_loop_whisper_cpp`) with a robust frame-level VAD pipeline that eliminates clipped speech, duplicated text, unreliable endpointing, and transcript corruption during long-running sessions.
 
+### Module Structure
+
+The pipeline lives in a dedicated `vad/` package alongside `server.py`. Each file is small and single-purpose. `server.py` creates a `VadPipeline` instance, passes callbacks, and calls `start()`/`stop()`.
+
+```
+live-server/
+  server.py                 — FastAPI app, endpoints, Whisper/SSE infra (slimmed)
+  vad/
+    __init__.py              — public imports (VadPipeline, VadConfig)
+    buffers.py               — PrerollBuffer, UtteranceBuffer
+    frame_vad.py             — FrameVAD (Silero wrapper + hysteresis)
+    state_machine.py         — State enum, UtteranceStateMachine
+    merger.py                — BoundaryMerger, split_sentences()
+    segment.py               — TranscriptSegment dataclass, SessionStats extensions
+    pipeline.py              — VadPipeline orchestrator (threads, queues, start/stop)
+```
+
+**Dependency direction**: `vad/` modules depend only on each other and stdlib/numpy/torch. They do NOT import from `server.py`. Instead, `server.py` passes callbacks to `VadPipeline`:
+- `transcribe_fn(audio, language, beam_size, initial_prompt)` → Whisper inference
+- `broadcast_fn(event_type, text, lang)` → SSE broadcast to clients
+- `hallucination_fn(segments, last_text, lang, recent_langs)` → hallucination check
+- `stats` object reference → for recording telemetry
+
+This keeps the VAD pipeline testable in isolation and avoids circular imports.
+
 ### Design Principles
 - Silero is the **sole authority** for speech detection and audio endpointing.
 - Whisper is **only responsible** for transcription. It never influences when audio recording stops.
+- **Two-tier silence thresholds**: a soft commit (400ms silence) delivers sentences quickly at natural pause points; a hard commit (750ms silence) marks definitive utterance boundaries. Both are purely VAD-driven.
 - **Post-commit sentence splitting**: after Whisper transcribes a committed utterance, the text is split into sentences and each sentence is broadcast as a separate `commit` event. This gives per-sentence UI updates without Whisper influencing audio boundaries.
 - A dedicated **boundary merger** handles overlap reconciliation, scoped to the actual audio overlap duration (not a fixed word window).
 - **Never** use Whisper timestamps, punctuation, or transcript content to determine speech end.
@@ -88,7 +114,7 @@ Transcription Worker Thread
 
 ### Phase 1: Audio Buffering Infrastructure
 
-**File**: `live-server/server.py` — new classes at module level
+**File**: `live-server/vad/buffers.py`
 
 #### 1a. Pre-roll Ring Buffer
 - Fixed-size circular buffer holding the last 400ms of audio (6400 samples at 16kHz).
@@ -167,6 +193,8 @@ class UtteranceBuffer:
 ```
 
 #### 1c. Sounddevice Callback — Minimal, No State Checks
+**File**: `live-server/vad/pipeline.py` — defined inside `VadPipeline.start()`
+
 - Current: callback appends to `audio_buffer` list under `buffer_lock`.
 - New: callback writes to the pre-roll ring buffer and enqueues the frame to `vad_queue`. **Nothing else**. No state checks, no conditional writes, no locks.
 
@@ -188,7 +216,7 @@ def audio_callback(indata, frames, time_info, status):
 
 ### Phase 2: Frame-Level Silero VAD
 
-**File**: `live-server/server.py` — replace batch `get_speech_timestamps` with per-frame inference
+**File**: `live-server/vad/frame_vad.py`
 
 #### 2a. Silero Frame Size Constraint
 Silero VAD's per-frame `__call__` API accepts specific chunk sizes at 16kHz:
@@ -255,6 +283,8 @@ class FrameVAD:
 - Thresholds configurable via `/start` and `/config` endpoints.
 
 #### 2d. VAD Thread
+**File**: `live-server/vad/pipeline.py` — `VadPipeline._vad_thread()`
+
 - Dedicated thread reads frames from `vad_queue`.
 - Calls `FrameVAD.process_frame()` per frame.
 - **Writes the frame to the utterance buffer** (if SPEAKING) — this is the sole writer.
@@ -277,7 +307,7 @@ def _vad_thread(vad: FrameVAD, state_machine: UtteranceStateMachine,
 
 ### Phase 3: Utterance State Machine
 
-**File**: `live-server/server.py` — new class
+**File**: `live-server/vad/state_machine.py`
 
 #### 3a. States
 ```
@@ -294,10 +324,30 @@ Only two states. COMMIT is not a state — it's an action that transitions SPEAK
 | From | To | Condition |
 |------|----|-----------|
 | IDLE | SPEAKING | `is_speech` becomes True (after `speech_confirm_frames` of prob >= 0.6) |
-| SPEAKING | IDLE | Silence exceeds `silence_commit_ms` (750ms default) since `last_speech_time` |
-| SPEAKING | IDLE | Utterance duration exceeds `max_utterance_s` (25s default) — **force commit, immediately re-enter SPEAKING** |
+| SPEAKING | SPEAKING | Silence exceeds `soft_commit_ms` (400ms) AND utterance > 1s AND has speech since last commit — **soft commit, stay SPEAKING** |
+| SPEAKING | IDLE | Silence exceeds `silence_commit_ms` (750ms default) since `last_speech_time` — **hard commit** |
+| SPEAKING | SPEAKING | Utterance duration exceeds `max_utterance_s` (25s default) — **force commit, seamless re-entry** |
 
-#### 3c. Force-Commit: Seamless Re-entry
+#### 3c. Three Commit Types
+
+| Type | Trigger | Pre-roll overlap? | Merger runs? | Next state |
+|------|---------|-------------------|-------------|------------|
+| SOFT-COMMIT | 400ms silence, mid-speech | No (pre-roll is silence) | No | SPEAKING |
+| COMMIT | 750ms silence, definitive pause | No (pre-roll is silence) | No | IDLE |
+| FORCE-COMMIT | 25s max duration hit | Yes (~400ms speech overlap) | Yes | SPEAKING |
+
+**SOFT-COMMIT** is the key to low-latency sentence delivery. Speakers naturally pause 300–500ms between sentences. A 400ms soft threshold catches these pauses and commits the accumulated speech without waiting for the full 750ms hard threshold. The committed audio is sent to the transcription queue, and a fresh utterance buffer starts with a pre-roll snapshot. Since the pre-roll at a soft-commit point is silence (the speaker just paused for 400ms), there's no speech overlap — the boundary merger is not needed.
+
+If silence continues past 750ms after a soft commit, the new buffer contains only silence. The state machine transitions to IDLE **without committing** the empty buffer (checked via `_has_speech_since_commit` flag). No wasted Whisper inference on silence.
+
+**Example**: Speaker says "First sentence. [450ms pause] Second sentence. [800ms pause]"
+1. 400ms after "First sentence.": soft commit → Whisper transcribes → `commit: "First sentence."` (~400ms + inference latency)
+2. Speaker resumes "Second sentence." — new utterance buffer captures it
+3. 800ms after "Second sentence.": hard commit → IDLE → Whisper transcribes → `commit: "Second sentence."`
+
+Each sentence committed individually with ~400ms + inference latency, instead of both waiting for the 800ms hard silence at the end.
+
+#### 3d. Force-Commit: Seamless Re-entry
 When force-committing (speaker still talking), the state machine does NOT go to IDLE and wait for VAD to re-detect speech. Instead:
 1. Commit current utterance audio to the transcription queue.
 2. Snapshot the current pre-roll as the start of a **new** utterance.
@@ -319,7 +369,7 @@ def _force_commit(self):
     logger.debug(f"[STATE] FORCE-COMMIT → SPEAKING (seamless re-entry)")
 ```
 
-#### 3d. Implementation
+#### 3e. Implementation
 
 ```python
 class State(enum.Enum):
@@ -330,19 +380,22 @@ class UtteranceStateMachine:
     """Two-state machine driven by the VAD thread. Sole writer to utterance buffer."""
     def __init__(self, preroll: PrerollBuffer, utterance: UtteranceBuffer,
                  commit_callback,
-                 silence_commit_ms=750, max_utterance_s=25,
+                 soft_commit_ms=400, silence_commit_ms=750,
+                 max_utterance_s=25,
                  interim_queue=None, interim_interval_s=3.0):
         self.state = State.IDLE
         self._preroll = preroll
         self._utterance = utterance
         self._commit_cb = commit_callback       # (audio, commit_type) → None
         self._interim_queue = interim_queue      # queue.Queue or None
+        self._soft_commit_s = soft_commit_ms / 1000.0
         self._silence_commit_s = silence_commit_ms / 1000.0
         self._max_utterance_s = max_utterance_s
         self._interim_interval_s = interim_interval_s
         self._last_speech_time = 0.0
         self._utterance_start_time = 0.0
         self._last_interim_time = 0.0
+        self._has_speech_since_commit = False    # tracks speech after soft commit
 
     def feed(self, prob: float, is_speech: bool, frame: np.ndarray):
         """Called from VAD thread for every audio frame."""
@@ -356,6 +409,7 @@ class UtteranceStateMachine:
                 self._last_speech_time = now
                 self._utterance_start_time = now
                 self._last_interim_time = now
+                self._has_speech_since_commit = True
                 self.state = State.SPEAKING
                 logger.debug(f"[STATE] IDLE → SPEAKING (prob={prob:.2f})")
 
@@ -365,6 +419,7 @@ class UtteranceStateMachine:
 
             if is_speech:
                 self._last_speech_time = now
+                self._has_speech_since_commit = True
 
             silence_duration = now - self._last_speech_time
             utterance_duration = self._utterance.duration_s()
@@ -375,16 +430,40 @@ class UtteranceStateMachine:
                 self._force_commit()
                 return
 
-            # Silence-based commit → IDLE
+            # Hard commit → IDLE (definitive pause)
             if silence_duration >= self._silence_commit_s:
+                if self._has_speech_since_commit:
+                    logger.debug(
+                        f"[STATE] SPEAKING → IDLE "
+                        f"(silence={silence_duration:.2f}s, duration={utterance_duration:.1f}s)"
+                    )
+                    audio = self._utterance.get_audio()
+                    self._utterance.clear()
+                    self._commit_cb(audio, "COMMIT")
+                else:
+                    # No speech since last soft commit — just discard silence buffer
+                    logger.debug(f"[STATE] SPEAKING → IDLE (silence-only, discarded)")
+                    self._utterance.clear()
+                self.state = State.IDLE
+                self._has_speech_since_commit = False
+                return
+
+            # Soft commit — natural sentence pause (stay SPEAKING)
+            if (silence_duration >= self._soft_commit_s
+                    and self._has_speech_since_commit
+                    and utterance_duration >= 1.0):
                 logger.debug(
-                    f"[STATE] SPEAKING → IDLE "
+                    f"[STATE] SOFT-COMMIT "
                     f"(silence={silence_duration:.2f}s, duration={utterance_duration:.1f}s)"
                 )
                 audio = self._utterance.get_audio()
                 self._utterance.clear()
-                self.state = State.IDLE
-                self._commit_cb(audio, "COMMIT")
+                self._commit_cb(audio, "SOFT-COMMIT")
+                # Stay SPEAKING — start fresh with pre-roll
+                self._utterance.start(self._preroll.read())
+                self._utterance_start_time = now
+                self._last_interim_time = now
+                self._has_speech_since_commit = False
                 return
 
             # Interim update — queue audio snapshot, don't block
@@ -406,21 +485,30 @@ class UtteranceStateMachine:
         self._utterance.start(self._preroll.read())
         self._utterance_start_time = time.time()
         self._last_interim_time = time.time()
+        self._has_speech_since_commit = True  # speaker is still talking
         # Stay in SPEAKING
 ```
 
-#### 3e. Endpointing Rules (Strict)
+#### 3f. Endpointing Rules (Strict)
 - **Single authority**: wall-clock silence duration since last speech frame. Period.
-- Default endpoint: 750ms (configurable via `silence_commit_ms`).
+- **Soft commit**: 400ms silence (configurable via `soft_commit_ms`). Commits audio, stays SPEAKING.
+- **Hard commit**: 750ms silence (configurable via `silence_commit_ms`). Commits audio, transitions to IDLE.
 - Do NOT combine with punctuation, transcript heuristics, or Whisper-derived silence.
 - Do NOT use `_find_sentence_boundary_segment()` or `_find_sentence_boundary_word()` for endpointing.
 - Those functions are **deleted**.
+
+#### 3g. Evaluation Order
+The silence checks are ordered: force-commit > hard commit > soft commit > interim. This ensures:
+- Force-commit always fires at max duration regardless of silence state
+- Hard commit (750ms) takes priority over soft commit (400ms) — if silence reaches 750ms, go directly to IDLE without a redundant soft commit first
+- Soft commit only fires in the 400–749ms window where the speaker paused briefly but might resume
+- Interims only fire when no commit is happening
 
 ---
 
 ### Phase 4: Whisper Integration
 
-**File**: `live-server/server.py` — transcription worker + interim worker + sentence splitter
+**Files**: `live-server/vad/merger.py` (sentence splitter), `live-server/vad/pipeline.py` (worker threads)
 
 #### 4a. Post-Commit Sentence Splitting
 
@@ -578,7 +666,7 @@ The state machine enqueues interim requests via `put_nowait` on the `interim_que
 
 ### Phase 5: Segment Model & Boundary Merger
 
-**File**: `live-server/server.py` — new classes
+**Files**: `live-server/vad/segment.py` (TranscriptSegment), `live-server/vad/merger.py` (BoundaryMerger)
 
 #### 5a. Transcript Segment
 
@@ -590,7 +678,7 @@ class TranscriptSegment:
     end_time: float
     text: str
     language: str
-    commit_type: str        # "COMMIT" | "FORCE-COMMIT"
+    commit_type: str        # "SOFT-COMMIT" | "COMMIT" | "FORCE-COMMIT"
     inference_duration_s: float
     audio_duration_s: float
 ```
@@ -601,7 +689,7 @@ class TranscriptSegment:
 
 #### 5b. Boundary Merger — Commit-Type-Aware, Fuzzy Matching
 
-The merger is **only active for FORCE-COMMIT** utterances, where audio overlap actually exists (~400ms from pre-roll). For normal COMMIT utterances (silence-based), there is no audio overlap — the 750ms silence gap means the pre-roll of the next utterance is pure silence. Running the merger on normal commits would risk stripping intentional spoken repetitions.
+The merger is **only active for FORCE-COMMIT** utterances, where audio overlap actually exists (~400ms from pre-roll). For COMMIT and SOFT-COMMIT utterances (both silence-based), there is no audio overlap — the silence gap means the pre-roll of the next utterance is pure silence. Running the merger on these commits would risk stripping intentional spoken repetitions.
 
 The merger uses `SequenceMatcher` (already imported in server.py) for fuzzy matching, because Whisper can transcribe identical audio differently across runs (e.g., "the world" vs "the World").
 
@@ -676,7 +764,7 @@ class BoundaryMerger:
 ```
 
 #### 5c. Key Merge Rules
-- **Only runs for FORCE-COMMIT** — normal silence-based commits have no audio overlap, so the merger is skipped. This prevents stripping intentional spoken repetitions like "thank you, thank you" that happen to span a commit boundary.
+- **Only runs for FORCE-COMMIT** — SOFT-COMMIT and COMMIT are both silence-based with no audio overlap, so the merger is skipped. This prevents stripping intentional spoken repetitions like "thank you, thank you" that happen to span a commit boundary.
 - Compare **only** the tail of previous utterance (last 3 words) with the head of current utterance (first 3 words).
 - **Never** perform global transcript deduplication.
 - Tight window of 3 words — proportional to the actual ~400ms audio overlap from pre-roll (~1–2 words at conversational pace). Not 8 or 10.
@@ -698,46 +786,83 @@ With the guard, the merger skips normal commits entirely. Both sentences are pre
 
 ### Phase 6: Wire It All Together
 
-**File**: `live-server/server.py` — replace `_capture_loop_whisper_cpp`
+**Files**: `live-server/vad/pipeline.py` (VadPipeline class), `live-server/server.py` (integration)
 
-#### 6a. New Function Signature
+#### 6a. VadPipeline Class
+**File**: `live-server/vad/pipeline.py`
+
+The pipeline orchestrator owns all queues, threads, and internal wiring. `server.py` only calls `start()` and `stop()`.
+
 ```python
-def _capture_loop_whisper_cpp_v2(stream, cfg):
+class VadPipeline:
+    """Orchestrates the VAD capture pipeline: audio → VAD → Whisper → broadcast."""
+
+    def __init__(self, silero_model, config: VadConfig,
+                 transcribe_fn, broadcast_fn, hallucination_fn, stats):
+        """
+        Args:
+            silero_model: loaded Silero VAD model
+            config: VadConfig with all tuning parameters
+            transcribe_fn: (audio, language, beam_size, initial_prompt) → (segments, info)
+            broadcast_fn: (event_type, text, lang) → None
+            hallucination_fn: (segments, last_text, lang, recent_langs) → bool
+            stats: SessionStats object for telemetry
+        """
+        self._model = silero_model
+        self._config = config
+        self._transcribe_fn = transcribe_fn
+        self._broadcast_fn = broadcast_fn
+        self._hallucination_fn = hallucination_fn
+        self._stats = stats
+        self._stop_event = threading.Event()
+        self._threads = []
+
+    def start(self, stream):
+        """Start all pipeline threads and begin processing audio."""
+        ...  # creates PrerollBuffer, UtteranceBuffer, FrameVAD,
+             # UtteranceStateMachine, queues, worker threads
+
+    def stop(self):
+        """Signal all threads to stop and wait for them to finish."""
+        self._stop_event.set()
+        for t in self._threads:
+            t.join(timeout=5.0)
+
+    def update_config(self, **kwargs):
+        """Update tunable parameters at runtime (e.g. from /config endpoint)."""
+        ...
 ```
-Replaces `_capture_loop_whisper_cpp(stream, audio_buffer, buffer_lock, cfg)`.
 
-#### 6b. Setup
+#### 6b. server.py Integration
+
+In `server.py`, the `/start` endpoint creates and starts the pipeline:
+
 ```python
-preroll = PrerollBuffer(duration_ms=cfg.get("vad_preroll_ms", 400))
-utterance = UtteranceBuffer()
-boundary_merger = BoundaryMerger(
-    similarity_threshold=cfg.get("merge_similarity_threshold", 0.75),
-)
-transcribe_queue = queue.Queue(maxsize=50)  # generous — don't drop utterances lightly
-interim_queue = queue.Queue(maxsize=3)      # small — only latest matters
-vad_queue = queue.Queue(maxsize=200)        # ~19s of 96ms frames
-frame_vad = FrameVAD(
-    model=_silero_vad_model,
-    speech_threshold=cfg.get("vad_speech_threshold", 0.6),
-    silence_threshold=cfg.get("vad_silence_threshold", 0.4),
-    speech_confirm_frames=cfg.get("vad_speech_confirm_frames", 2),
-)
+from vad import VadPipeline, VadConfig
 
-def on_commit(audio, commit_type):
-    try:
-        transcribe_queue.put_nowait((audio, commit_type))
-    except queue.Full:
-        logger.warning("[STATE] transcribe_queue full — dropping utterance")
+_vad_pipeline: Optional[VadPipeline] = None
 
-state_machine = UtteranceStateMachine(
-    preroll=preroll,
-    utterance=utterance,
-    commit_callback=on_commit,
-    silence_commit_ms=cfg.get("vad_silence_ms", 750),
-    max_utterance_s=cfg.get("vad_max_segment_s", 25),
-    interim_queue=interim_queue if cfg.get("enable_interim", True) else None,
-    interim_interval_s=cfg.get("interim_interval_s", 3.0),
-)
+def start_capture(cfg):
+    global _vad_pipeline
+    vad_config = VadConfig(
+        device_index=cfg["device_index"],
+        language=cfg.get("language", "auto"),
+        beam_size=cfg.get("beam_size", 5),
+        initial_prompt=cfg.get("initial_prompt", ""),
+        soft_commit_ms=cfg.get("soft_commit_ms", 400),
+        vad_silence_ms=cfg.get("vad_min_silence_ms", 750),
+        vad_max_segment_s=cfg.get("vad_max_segment_s", 25),
+        # ... remaining fields from cfg with defaults ...
+    )
+    _vad_pipeline = VadPipeline(
+        silero_model=_silero_vad_model,
+        config=vad_config,
+        transcribe_fn=_transcribe_whisper_cpp,
+        broadcast_fn=broadcast_event,
+        hallucination_fn=_is_hallucination,
+        stats=_session_stats,
+    )
+    _vad_pipeline.start(stream)
 ```
 
 #### 6c. Thread Architecture
@@ -789,7 +914,7 @@ The `blocksize=1536` ensures each callback delivers exactly one Silero-compatibl
 
 ### Phase 7: Configuration & API Updates
 
-**File**: `live-server/server.py` — `/start` and `/config` endpoints
+**Files**: `live-server/vad/__init__.py` (VadConfig dataclass), `live-server/server.py` (endpoint changes)
 
 #### 7a. New Config Parameters (via `/start` POST body and `/config` PATCH)
 
@@ -797,7 +922,8 @@ The `blocksize=1536` ensures each callback delivers exactly one Silero-compatibl
 |-----------|---------|-------------|
 | `vad_speech_threshold` | 0.6 | Silero probability to confirm speech |
 | `vad_silence_threshold` | 0.4 | Silero probability to confirm silence |
-| `vad_silence_ms` | 750 | Silence duration (ms) to trigger commit |
+| `soft_commit_ms` | 400 | Silence duration (ms) to trigger soft commit (stay SPEAKING) |
+| `vad_silence_ms` | 750 | Silence duration (ms) to trigger hard commit (→ IDLE) |
 | `vad_max_segment_s` | 25 | Force-commit after this many seconds |
 | `vad_preroll_ms` | 400 | Pre-roll buffer duration |
 | `vad_speech_confirm_frames` | 2 | Consecutive speech frames to enter SPEAKING (~192ms) |
@@ -806,16 +932,43 @@ The `blocksize=1536` ensures each callback delivers exactly one Silero-compatibl
 | `interim_interval_s` | 3.0 | Seconds between interim updates while speaking |
 | `enable_sentence_split` | true | Split committed text into sentences (per-sentence commit events) |
 
-#### 7b. Backward Compatibility
+#### 7b. VadConfig Dataclass
+**File**: `live-server/vad/__init__.py`
+
+All parameters bundled into a single config object that `server.py` constructs from the `/start` POST body:
+
+```python
+@dataclasses.dataclass
+class VadConfig:
+    """Configuration for the VAD pipeline. Constructed by server.py from endpoint params."""
+    device_index: int = 0
+    language: str = "auto"
+    beam_size: int = 5
+    initial_prompt: str = ""
+    vad_speech_threshold: float = 0.6
+    vad_silence_threshold: float = 0.4
+    soft_commit_ms: int = 400
+    vad_silence_ms: int = 750
+    vad_max_segment_s: int = 25
+    vad_preroll_ms: int = 400
+    vad_speech_confirm_frames: int = 2
+    merge_similarity_threshold: float = 0.75
+    enable_interim: bool = True
+    interim_interval_s: float = 3.0
+    enable_sentence_split: bool = True
+```
+
+#### 7c. Backward Compatibility
 - Existing `vad_silence_ms` parameter (from AppConfig `LiveVadSilenceMs`) maps directly.
 - Existing `vad_max_segment_s` (from `LiveMaxSegmentSec`) maps directly.
+- `soft_commit_ms` is new — defaults to 400ms. Must be less than `vad_silence_ms` (validated on construction).
 - New parameters have sensible defaults — existing callers (LiveStreamRunner, ConversationAudioHandler) don't need changes.
 
 ---
 
 ### Phase 8: Debug Logging & Telemetry
 
-**File**: `live-server/server.py`
+**Files**: `live-server/vad/segment.py` (SessionStats extensions), all `vad/` modules (structured logging)
 
 #### 8a. Structured Logging
 All log lines use structured prefixes for easy filtering:
@@ -825,6 +978,7 @@ All log lines use structured prefixes for easy filtering:
 | State transition | `[STATE] IDLE → SPEAKING (prob=0.72, preroll=400ms)` |
 | VAD frame | `[VAD] prob=0.82 speech=True consec=3` (every 10th frame to avoid spam) |
 | Silence accumulating | `[STATE] silence=0.45s / 0.75s` (every 200ms while SPEAKING) |
+| Soft commit | `[STATE] SOFT-COMMIT (silence=0.42s, duration=2.8s) — stay SPEAKING` |
 | Normal commit | `[STATE] SPEAKING → IDLE (silence=0.78s, duration=3.2s)` |
 | Force commit | `[STATE] FORCE-COMMIT (25.1s) → SPEAKING (seamless)` |
 | Whisper inference | `[WHISPER] #4: 3.2s audio → 0.8s inference → "Hello world."` |
@@ -837,10 +991,12 @@ All log lines use structured prefixes for easy filtering:
 #### 8b. SessionStats Updates
 Extend existing `SessionStats` class with new fields:
 - `total_utterances`: count of committed utterances
+- `soft_commit_count`: how many soft-commits (phrase pauses, 400ms silence)
+- `commit_count`: how many hard commits (750ms silence → IDLE)
+- `force_commit_count`: how many force-commits (max duration hit)
 - `avg_utterance_duration_s`: mean utterance length
 - `avg_silence_gap_s`: mean gap between utterances
 - `merge_strip_count`: how many times boundary merger stripped words (force-commits only)
-- `force_commit_count`: how many force-commits (max duration hit)
 - `dropped_count`: utterances dropped due to full transcribe_queue
 - `total_sentences`: total sentence-level commits broadcast
 - `multi_sentence_utterances`: count of utterances that contained 2+ sentences
@@ -929,60 +1085,58 @@ Faster-whisper is no longer used anywhere in the software. Remove all references
 
 ---
 
+### Files to Create
+
+| File | Contents |
+|------|----------|
+| `live-server/vad/__init__.py` | Public imports: `VadPipeline`, `VadConfig`. |
+| `live-server/vad/buffers.py` | `PrerollBuffer` (ring buffer), `UtteranceBuffer` (growable buffer). |
+| `live-server/vad/frame_vad.py` | `FrameVAD` (Silero wrapper with hysteresis, per-frame inference). |
+| `live-server/vad/state_machine.py` | `State` enum, `UtteranceStateMachine` (IDLE/SPEAKING, commit logic). |
+| `live-server/vad/merger.py` | `BoundaryMerger` (fuzzy dedup for force-commits), `split_sentences()`. |
+| `live-server/vad/segment.py` | `TranscriptSegment` dataclass, `SessionStats` extensions. |
+| `live-server/vad/pipeline.py` | `VadPipeline` orchestrator: creates queues/threads, starts/stops capture, holds `VadConfig`. Contains `_vad_thread()`, `_transcription_worker()`, `_interim_worker()`, `audio_callback()`. |
+
 ### Files to Modify
 
 | File | Action |
 |------|--------|
-| `live-server/server.py` | Major rewrite of `_capture_loop_whisper_cpp` → `_capture_loop_whisper_cpp_v2`. Add `PrerollBuffer`, `UtteranceBuffer`, `FrameVAD`, `UtteranceStateMachine`, `BoundaryMerger`, `TranscriptSegment`, `_split_sentences`. Add `_transcription_worker` and `_interim_worker` threads. |
-| `live-server/server.py` | Fix `_transcribe_whisper_cpp()` to accept and forward `initial_prompt` as `prompt` field to whisper-server.exe. |
-| `live-server/server.py` | Update `/start` and `/config` endpoints with new VAD parameters. |
-| `live-server/server.py` | Delete all faster-whisper code: `_capture_loop_faster_whisper()`, `WhisperModel` import, `_has_faster_whisper` checks, model loading. |
-| `live-server/server.py` | Extend `SessionStats` with new telemetry fields. |
-| `Services/Stt/FasterWhisperBackend.vb` | **DELETE** entire file. |
-| `Services/Stt/SttBackendRegistry.vb` | Remove `"faster-whisper"` entry. |
-| `Models/AppConfig.vb` | Remove `PathFasterWhisperModel` property. |
-| `Server/ServerOptions.vb` | Simplify `WhisperModelPath` to always use whisper-cpp model. |
-| `Controllers/ServerController.vb` | Remove faster-whisper model path conditional (always use `PathWhisperCppModel`). |
-| `Models/DependencyManager.vb` | Remove faster-whisper dependency entries. |
-| `Forms/FormDownloadManager.vb` | Remove faster-whisper download entries. |
-| `Forms/FormOptions.vb` + `.Designer.vb` | Remove faster-whisper model path controls. |
-| `Pipeline/LiveStreamRunner.vb` | Remove faster-whisper branching. |
-| `Services/Rooms/ConversationAudioHandler.vb` | Remove faster-whisper references. |
-| `Controllers/ConferenceController.vb` | Remove faster-whisper references. |
-| `Services/Models/SttModels.vb` | Remove faster-whisper model definitions. |
-| `Services/Testing/SttComparisonRunner.vb` | Remove faster-whisper benchmark entry. |
-| `Forms/FormTranslationBenchmark.vb` + `.Designer.vb` | Remove faster-whisper benchmark controls. |
-| `Forms/FormMain.vb` + `FormMain.Shell.vb` | Remove faster-whisper references. |
-| `Help/help.*.rtf` (8 files) | Update help docs. |
-| `locales/en.json` | Remove `"Opt_FasterWhisperPath"` key. |
+| `live-server/server.py` | Replace `_capture_loop_whisper_cpp()` call with `VadPipeline.start()`/`stop()`. Pass callbacks (`_transcribe_whisper_cpp`, `broadcast_event`, `_is_hallucination`). Update `/start` and `/config` endpoints with new VAD parameters. Fix `_transcribe_whisper_cpp()` to forward `initial_prompt`. Delete all faster-whisper code. |
+
+### .NET Faster-Whisper Removal (Phase 9e) — DONE
+
+All .NET faster-whisper references removed in commit `25b921d`. See Phase 9e above for details.
 
 ### Files NOT to Modify
 
 | File | Reason |
 |------|--------|
-| `Pipeline/LiveStreamRunner.vb` | Consumes SSE events — protocol unchanged. New params passed through existing `UpdateConfigAsync` / start body. (Only modify for faster-whisper removal per Phase 9e.) |
-| `Services/Rooms/ConversationAudioHandler.vb` | Uses `/transcribe` endpoint (one-shot), not the live capture loop. (Only modify for faster-whisper removal per Phase 9e.) |
+| `Pipeline/LiveStreamRunner.vb` | Consumes SSE events — protocol unchanged. New params passed through existing `UpdateConfigAsync` / start body. |
+| `Services/Rooms/ConversationAudioHandler.vb` | Uses `/transcribe` endpoint (one-shot), not the live capture loop. |
 | `Server/KestrelHost.vb` | No changes needed. |
 | `wwwroot/js/app.js` | Web client consumes `update`/`commit` SSE events — protocol unchanged. |
-| `Models/AppConfig.vb` | Existing `LiveVadSilenceMs`, `LiveMaxSegmentSec` map to new params. New params use defaults server-side. (Only modify for `PathFasterWhisperModel` removal per Phase 9e.) |
+| `Models/AppConfig.vb` | Existing `LiveVadSilenceMs`, `LiveMaxSegmentSec` map to new params. New params use defaults server-side. |
 
 ### Verification
 
 1. **Build**: `pip install` in embedded Python still works (silero-vad, torch, sounddevice, numpy).
 2. **Startup**: `--vad-v2` flag activates new pipeline. Logs show `[STATE] IDLE` on start.
 3. **Short utterance**: Say "Hello" → pre-roll captures the "H", commit after ~750ms silence, 1 commit event = "Hello".
-4. **Multi-sentence utterance**: Say "First sentence. Second sentence. Third sentence." with short pauses (<750ms) between them → 1 VAD utterance → 3 separate `commit` events, one per sentence, in rapid succession.
-5. **Long utterance**: Speak for 30s → force-commit at 25s with seamless re-entry, no gap, remainder continues as new utterance. Boundary merger strips ~1–2 duplicated words at the seam.
-6. **Rapid speech**: Quick back-and-forth with <500ms pauses → stays in SPEAKING, commits as one utterance (split into sentences).
-7. **Intentional repetition (same utterance)**: Say "Go go go" → preserved verbatim in transcript. Merger never touches intra-utterance text.
-8. **Intentional repetition (across commits)**: Say "Thank you." [800ms pause] "Thank you so much." → 2 separate commits, merger SKIPPED (normal commit, no audio overlap). Both "Thank you" preserved.
-9. **Force-commit overlap dedup**: Speak for 25s+ → force-commit boundary → merger strips 1–2 duplicated words from pre-roll overlap only.
-10. **Interim updates**: While speaking for 5s+, `update` events appear every 3s with provisional text.
-11. **Hallucination**: Silence with background noise → VAD stays IDLE, no phantom commits.
-12. **Session stability**: 30-minute continuous session → no memory leak, no buffer growth, no transcript corruption.
-13. **Backpressure**: Slow Whisper + fast speech → queue fills, oldest utterances dropped with log warning, VAD never stalls.
-14. **Frame size**: Verify sounddevice delivers exactly 1536-sample frames, Silero accepts them without error.
-15. **Non-Latin scripts**: Chinese/Japanese/Arabic text → sentence splitting has no effect (no uppercase boundary), full text emitted as single commit. No data loss.
+4. **Soft commit (phrase pause)**: Say "First sentence." [450ms pause] "Second sentence." → soft-commit fires at 400ms for first sentence (stays SPEAKING), second sentence committed separately. Two commits, no latency waiting for 750ms.
+5. **Soft commit to hard commit**: Say "Hello world." [450ms pause, then stay silent] → soft-commit at 400ms, silence continues, but `_has_speech_since_commit` is False so hard commit at 750ms discards empty buffer (no duplicate). State → IDLE.
+6. **Multi-sentence continuous**: Say "First. Second. Third." with <400ms pauses between → 1 VAD utterance → Whisper transcribes all 3 → sentence splitter emits 3 separate `commit` events in rapid succession.
+7. **Long utterance**: Speak for 30s → force-commit at 25s with seamless re-entry, no gap, remainder continues as new utterance. Boundary merger strips ~1–2 duplicated words at the seam.
+8. **Rapid speech**: Quick back-and-forth with <400ms pauses → stays in SPEAKING, no soft commit, commits as one utterance (split into sentences).
+9. **Intentional repetition (same utterance)**: Say "Go go go" → preserved verbatim in transcript. Merger never touches intra-utterance text.
+10. **Intentional repetition (across commits)**: Say "Thank you." [800ms pause] "Thank you so much." → 2 separate commits, merger SKIPPED (normal commit, no audio overlap). Both "Thank you" preserved.
+11. **Force-commit overlap dedup**: Speak for 25s+ → force-commit boundary → merger strips 1–2 duplicated words from pre-roll overlap only.
+12. **Interim updates**: While speaking for 5s+, `update` events appear every 3s with provisional text.
+13. **Hallucination**: Silence with background noise → VAD stays IDLE, no phantom commits.
+14. **Session stability**: 30-minute continuous session → no memory leak, no buffer growth, no transcript corruption.
+15. **Backpressure**: Slow Whisper + fast speech → queue fills, oldest utterances dropped with log warning, VAD never stalls.
+16. **Frame size**: Verify sounddevice delivers exactly 1536-sample frames, Silero accepts them without error.
+17. **Non-Latin scripts**: Chinese/Japanese/Arabic text → sentence splitting has no effect (no uppercase boundary), full text emitted as single commit. No data loss.
+18. **Commit type stats**: After a mixed session, `/stats` endpoint returns `soft_commit_count`, `commit_count`, and `force_commit_count` with correct totals.
 
 ---
 
