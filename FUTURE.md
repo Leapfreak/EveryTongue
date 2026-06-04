@@ -101,7 +101,7 @@ Each step can run on the **Client** (phone), **Server** (local box), or **Cloud*
 
 | Mode | STT | Translation | TTS | Hardware Needed |
 |------|-----|-------------|-----|-----------------|
-| **Full** (offline conference) | Server: Faster Whisper + GPU | Server: NLLB 3.3B + GPU | Server: Piper, or Client: browser voices | Windows/Linux + NVIDIA GPU |
+| **Full** (offline conference) | Server: whisper.cpp + GPU | Server: NLLB 3.3B + GPU | Server: Piper, or Client: browser voices | Windows/Linux + GPU |
 | **Standard** (offline, modest hardware) | Server: whisper.cpp on CPU/Vulkan | Server: NLLB 1.3B on CPU | Client: browser voices | Any modern laptop |
 | **Lite** (online conversation) | Client: Web Speech API | Server: NLLB on CPU | Client: browser voices | Raspberry Pi / any old laptop |
 | **Cloud** (online conference) | Cloud relay to remote GPU | Cloud or Server | Client: browser voices | Local WiFi router + internet |
@@ -126,7 +126,7 @@ All three pipeline stages now have fully pluggable registries with factory metho
 
 | Stage | Registry | Factory | Backends Available | Config Property |
 |-------|----------|---------|-------------------|-----------------|
-| **STT** | `SttBackendRegistry` | `CreateBackend(key)` | Faster Whisper, whisper.cpp Vulkan, whisper.cpp CPU | `AppConfig.SttBackend` |
+| **STT** | `SttBackendRegistry` | `CreateBackend(key)` | whisper.cpp CUDA, whisper.cpp Vulkan, whisper.cpp CPU | `AppConfig.SttBackend` |
 | **Translation** | `TranslationBackendRegistry` | N/A (combo-driven) | NLLB 1.3B, NLLB 3.3B, MADLAD-400, DeepL, Google, Azure | `AppConfig.TranslationBackend` |
 | **TTS** | `TtsBackendRegistry` | N/A (priority list) | Piper, MMS-TTS, Edge TTS | `AppConfig.TtsBackends` |
 
@@ -479,7 +479,7 @@ The goal is one codebase that adapts to what's available:
 
 | What you have | What you get | Status |
 |---------------|-------------|--------|
-| NVIDIA GPU + Windows | Full offline conference mode (Faster Whisper + NLLB 3.3B + Piper) | **Working now** |
+| NVIDIA GPU + Windows | Full offline conference mode (whisper.cpp CUDA + NLLB 3.3B + Piper) | **Working now** |
 | AMD/Intel GPU + Windows | Conference mode via whisper.cpp + Vulkan | **Phase 1 — complete** |
 | Modern CPU, no GPU | Conference mode via whisper.cpp CPU (smaller models) | **Phase 1 — complete** |
 | Old laptop or RPi | Lite mode: conversation rooms, phone-side STT, NLLB on CPU | Phase 2 |
