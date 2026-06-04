@@ -71,8 +71,8 @@ Source: "{#AppPublishDir}\Help\*"; DestDir: "{app}\Help"; Flags: ignoreversion r
 ; --- Whisper CUDA binaries ---
 Source: "{#WhisperBinDir}\whisper-cli.exe"; DestDir: "{app}\whisper"; Flags: ignoreversion
 Source: "{#WhisperBinDir}\*.dll"; DestDir: "{app}\whisper"; Flags: ignoreversion
-; --- NLLB translation server ---
-Source: "{#AppPublishDir}\nllb-server\*"; DestDir: "{app}\nllb-server"; Flags: ignoreversion
+; --- Translation server (NLLB/MADLAD) ---
+Source: "{#AppPublishDir}\translate-server\*"; DestDir: "{app}\translate-server"; Flags: ignoreversion
 ; --- Live transcription server (faster-whisper + VAD) ---
 Source: "{#AppPublishDir}\live-server\*"; DestDir: "{app}\live-server"; Flags: ignoreversion
 ; Locale satellite assemblies
