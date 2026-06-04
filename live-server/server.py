@@ -37,9 +37,17 @@ except ImportError as _vad_err:
     _silero_vad_model = None
     print(f"[LIVE] WARNING: Silero VAD import failed: {_vad_err}", file=sys.stderr)
 
-# VAD pipeline
-from vad import VadPipeline, VadConfig
-from vad.segment import SessionStats
+# VAD pipeline — lazy-safe import (depends on torch via frame_vad.py)
+try:
+    from vad import VadPipeline, VadConfig
+    from vad.segment import SessionStats
+    _has_vad_pipeline = True
+except ImportError as _vad_pipe_err:
+    _has_vad_pipeline = False
+    VadPipeline = None
+    VadConfig = None
+    SessionStats = None
+    print(f"[LIVE] WARNING: VAD pipeline import failed: {_vad_pipe_err}", file=sys.stderr)
 
 # ---------------------------------------------------------------------------
 # Logging — stderr only, captured by PythonSidecarHost -> AppLogger
@@ -472,11 +480,18 @@ def _is_known_hallucination(text: str) -> bool:
 @app.get("/health")
 async def health():
     ws_running = _whisper_server_process is not None and _whisper_server_process.poll() is None
-    return {
+    result = {
         "status": "ok",
         "whisper_server_running": ws_running,
         "capturing": capturing,
     }
+    if _vad_pipeline is not None:
+        alive, reason = _vad_pipeline.is_alive()
+        result["pipeline_alive"] = alive
+        result["pipeline_status"] = reason
+        if not alive:
+            result["status"] = "degraded"
+    return result
 
 
 @app.get("/devices")
@@ -520,10 +535,11 @@ async def start_capture_endpoint(request: Request):
             return JSONResponse({"status": "error", "detail": str(e)}, status_code=500)
     model_path_global = requested_model_path
 
-    # Require Silero VAD
-    if not _has_silero_vad:
+    # Require Silero VAD + pipeline
+    if not _has_silero_vad or not _has_vad_pipeline:
+        detail = "Silero VAD not available" if not _has_silero_vad else "VAD pipeline import failed"
         return JSONResponse(
-            {"status": "error", "detail": "Silero VAD not available (torch/silero-vad not installed)"},
+            {"status": "error", "detail": f"{detail} (torch/silero-vad not installed)"},
             status_code=500
         )
 
