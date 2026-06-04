@@ -20,6 +20,7 @@ class VadConfig:
     soft_commit_ms: int = 400
     vad_silence_ms: int = 750
     vad_max_segment_s: int = 25
+    vad_max_soft_segment_s: int = 8
     vad_preroll_ms: int = 400
     vad_speech_confirm_frames: int = 2
     merge_similarity_threshold: float = 0.75

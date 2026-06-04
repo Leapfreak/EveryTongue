@@ -162,7 +162,7 @@ def _start_whisper_server(server_path: str, model_path: str, port: int, no_gpu: 
     logger.debug(f"WHISPER-SERVER START: {' '.join(cmd)}")
 
     _whisper_server_process = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
     _whisper_server_port = port
@@ -196,8 +196,7 @@ def _start_whisper_server(server_path: str, model_path: str, port: int, no_gpu: 
     # Wait for server to be ready (up to 60s for large model load)
     for i in range(120):
         if _whisper_server_process.poll() is not None:
-            stderr_out = _whisper_server_process.stderr.read().decode(errors="replace")
-            raise RuntimeError(f"whisper-server exited with code {_whisper_server_process.returncode}: {stderr_out[-500:]}")
+            raise RuntimeError(f"whisper-server exited with code {_whisper_server_process.returncode} (check logs above)")
         try:
             req = urllib.request.Request(f"http://127.0.0.1:{port}/health")
             with urllib.request.urlopen(req, timeout=1) as resp:
@@ -269,9 +268,12 @@ def _audio_to_wav_bytes(audio_array: np.ndarray) -> bytes:
     return buf.getvalue()
 
 
+_whisper_lock = threading.Lock()
+
 def _transcribe_whisper_cpp(audio_array: np.ndarray, language=None,
                             beam_size=5, initial_prompt=""):
     """Transcribe audio via whisper-server.exe /inference endpoint.
+    Serialized with _whisper_lock -- whisper-server hangs on concurrent requests.
     Returns (segments, info) or (None, None) on error."""
     audio_duration = len(audio_array) / SAMPLE_RATE
     logger.debug(f"INFERENCE START: sending {audio_duration:.1f}s audio to whisper-server port {_whisper_server_port}")
@@ -288,15 +290,16 @@ def _transcribe_whisper_cpp(audio_array: np.ndarray, language=None,
         fields["prompt"] = initial_prompt
     files = {"file": ("audio.wav", wav_data, "audio/wav")}
 
-    try:
-        result = _post_multipart(
-            f"http://127.0.0.1:{_whisper_server_port}/inference",
-            fields, files, timeout=120,
-        )
-    except Exception as e:
-        elapsed = time.time() - t0
-        logger.error(f"whisper-server /inference failed after {elapsed:.1f}s: {e}")
-        return None, None
+    with _whisper_lock:
+        try:
+            result = _post_multipart(
+                f"http://127.0.0.1:{_whisper_server_port}/inference",
+                fields, files, timeout=30,
+            )
+        except Exception as e:
+            elapsed = time.time() - t0
+            logger.error(f"whisper-server /inference failed after {elapsed:.1f}s: {e}")
+            return None, None
 
     elapsed = time.time() - t0
     raw_segments = result.get("segments", [])

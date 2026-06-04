@@ -128,13 +128,15 @@ class VadPipeline:
             soft_commit_ms=cfg.soft_commit_ms,
             silence_commit_ms=cfg.vad_silence_ms,
             max_utterance_s=cfg.vad_max_segment_s,
+            max_soft_utterance_s=cfg.vad_max_soft_segment_s,
             interim_queue=self._interim_queue,
             interim_interval_s=cfg.interim_interval_s,
         )
         self._sm = sm
         logger.debug(
             f"[PIPELINE] StateMachine OK: soft={cfg.soft_commit_ms}ms "
-            f"silence={cfg.vad_silence_ms}ms max={cfg.vad_max_segment_s}s"
+            f"silence={cfg.vad_silence_ms}ms max={cfg.vad_max_segment_s}s "
+            f"max_soft={cfg.vad_max_soft_segment_s}s"
         )
 
         # Open audio stream (blocksize=1536 ensures each callback = one Silero frame)
@@ -225,6 +227,7 @@ class VadPipeline:
                 soft_commit_ms=kwargs.get("soft_commit_ms"),
                 silence_commit_ms=kwargs.get("vad_min_silence_ms"),
                 max_utterance_s=kwargs.get("vad_max_segment_s"),
+                max_soft_utterance_s=kwargs.get("vad_max_soft_segment_s"),
             )
         if self._vad:
             if "vad_speech_threshold" in kwargs:
@@ -257,16 +260,16 @@ class VadPipeline:
             except queue.Full:
                 pass  # drop frame rather than block audio thread
             self._audio_callback_count += 1
-            # Log first callback and then every 1000th (~96s) as heartbeat
+            # Log first callback only; heartbeat every ~5 min (10000 callbacks at 32ms)
             if self._audio_callback_count == 1:
                 logger.debug(
                     f"[AUDIO] First callback: {len(samples)} samples, "
                     f"dtype={samples.dtype}, range=[{samples.min():.4f}, {samples.max():.4f}]"
                 )
-            elif self._audio_callback_count % 1000 == 0:
+            elif self._audio_callback_count % 10000 == 0:
                 logger.debug(
-                    f"[AUDIO] Heartbeat: {self._audio_callback_count} callbacks, "
-                    f"vad_queue={self._vad_queue.qsize()}"
+                    f"[AUDIO] Heartbeat: {self._audio_callback_count} callbacks "
+                    f"({self._audio_callback_count * 512 / 16000 / 60:.0f}min)"
                 )
         except Exception as e:
             self._audio_callback_errors += 1

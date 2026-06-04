@@ -1,9 +1,10 @@
 """Utterance state machine for the VAD pipeline.
 
-Two states: IDLE and SPEAKING. Three commit types:
+Two states: IDLE and SPEAKING. Four commit types:
 - SOFT-COMMIT: 400ms silence mid-speech, stays SPEAKING (low-latency sentence delivery)
+- DURATION-COMMIT: max soft segment (8s) hit during continuous speech, stays SPEAKING
 - COMMIT: 750ms silence, transitions to IDLE (definitive pause)
-- FORCE-COMMIT: max duration hit, seamless re-entry to SPEAKING
+- FORCE-COMMIT: max duration (25s) hit, seamless re-entry to SPEAKING
 
 The VAD thread is the sole writer to the utterance buffer, eliminating
 cross-thread race conditions.
@@ -30,14 +31,15 @@ class UtteranceStateMachine:
 
     Evaluation order for silence checks:
     1. Force-commit (max duration) -- always fires regardless of silence state
-    2. Hard commit (750ms) -- takes priority, goes directly to IDLE
-    3. Soft commit (400ms) -- only fires in the 400-749ms window
-    4. Interim update -- only when no commit is happening
+    2. Duration-commit (max soft segment) -- continuous speech too long, stays SPEAKING
+    3. Hard commit (750ms) -- takes priority, goes directly to IDLE
+    4. Soft commit (400ms) -- only fires in the 400-749ms window
+    5. Interim update -- only when no commit is happening
     """
 
     def __init__(self, preroll, utterance, commit_callback,
                  soft_commit_ms=400, silence_commit_ms=750,
-                 max_utterance_s=25,
+                 max_utterance_s=25, max_soft_utterance_s=8,
                  interim_queue=None, interim_interval_s=3.0):
         self.state = State.IDLE
         self._preroll = preroll
@@ -47,6 +49,7 @@ class UtteranceStateMachine:
         self._soft_commit_s = soft_commit_ms / 1000.0
         self._silence_commit_s = silence_commit_ms / 1000.0
         self._max_utterance_s = max_utterance_s
+        self._max_soft_utterance_s = max_soft_utterance_s
         self._interim_interval_s = interim_interval_s
         self._last_speech_time = 0.0
         self._utterance_start_time = 0.0
@@ -86,7 +89,26 @@ class UtteranceStateMachine:
                 self._force_commit()
                 return
 
-            # 2. Hard commit -> IDLE (definitive pause)
+            # 2. Duration commit -- continuous speech exceeded max soft segment
+            #    Prevents 10+ second utterances from bulk-committing many sentences.
+            #    Uses SOFT-COMMIT type (no audio overlap to dedup).
+            if (utterance_duration >= self._max_soft_utterance_s
+                    and self._has_speech_since_commit):
+                logger.debug(
+                    f"[STATE] DURATION-COMMIT "
+                    f"({utterance_duration:.1f}s > {self._max_soft_utterance_s}s)"
+                )
+                audio = self._utterance.get_audio()
+                self._utterance.clear()
+                self._commit_cb(audio, "SOFT-COMMIT")
+                # Stay SPEAKING -- start fresh with pre-roll
+                self._utterance.start(self._preroll.read())
+                self._utterance_start_time = now
+                self._last_interim_time = now
+                self._has_speech_since_commit = False
+                return
+
+            # 3. Hard commit -> IDLE (definitive pause)
             if silence_duration >= self._silence_commit_s:
                 if self._has_speech_since_commit:
                     logger.debug(
@@ -104,7 +126,7 @@ class UtteranceStateMachine:
                 self._has_speech_since_commit = False
                 return
 
-            # 3. Soft commit -- natural sentence pause (stay SPEAKING)
+            # 4. Soft commit -- natural sentence pause (stay SPEAKING)
             if (silence_duration >= self._soft_commit_s
                     and self._has_speech_since_commit
                     and utterance_duration >= 1.0):
@@ -122,7 +144,7 @@ class UtteranceStateMachine:
                 self._has_speech_since_commit = False
                 return
 
-            # 4. Interim update -- queue audio snapshot, don't block
+            # 5. Interim update -- queue audio snapshot, don't block
             if (self._interim_queue is not None
                     and utterance_duration >= 2.0
                     and (now - self._last_interim_time) >= self._interim_interval_s):
@@ -145,7 +167,8 @@ class UtteranceStateMachine:
         logger.debug("[STATE] FORCE-COMMIT -> SPEAKING (seamless re-entry)")
 
     def update_thresholds(self, soft_commit_ms=None, silence_commit_ms=None,
-                          max_utterance_s=None, interim_interval_s=None):
+                          max_utterance_s=None, max_soft_utterance_s=None,
+                          interim_interval_s=None):
         """Update tunable parameters at runtime (e.g. from /config endpoint)."""
         if soft_commit_ms is not None:
             self._soft_commit_s = soft_commit_ms / 1000.0
@@ -153,5 +176,7 @@ class UtteranceStateMachine:
             self._silence_commit_s = silence_commit_ms / 1000.0
         if max_utterance_s is not None:
             self._max_utterance_s = max_utterance_s
+        if max_soft_utterance_s is not None:
+            self._max_soft_utterance_s = max_soft_utterance_s
         if interim_interval_s is not None:
             self._interim_interval_s = interim_interval_s
