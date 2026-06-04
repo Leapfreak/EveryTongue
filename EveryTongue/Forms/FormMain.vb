@@ -23,7 +23,7 @@ Public Class FormMain
     Private _config As AppConfig
     Private _transcribeController As Controllers.TranscribeController
     Private _serverController As Controllers.ServerController
-    Private _liveController As Controllers.LiveController
+    Private _conferenceController As Controllers.ConferenceController
     Private _langPack As LanguagePackService
     Private _translationService As TranslationService
     Private _isInitializing As Boolean = True
@@ -38,7 +38,7 @@ Public Class FormMain
     End Property
 
     ' Supported whisper languages
-    Private ReadOnly _whisperLanguages As String() = {
+    Private ReadOnly _sttLanguages As String() = {
         "auto", "en", "es", "fr", "de", "it", "pt", "nl", "pl", "ru",
         "zh", "ja", "ko", "ar", "hi", "tr", "vi", "th", "cs", "el",
         "hu", "ro", "da", "fi", "no", "sv", "sk", "uk", "bg", "hr",
@@ -55,9 +55,9 @@ Public Class FormMain
 
     Private Function LangDisplayName(code As String) As String
         If String.Equals(code, "auto", StringComparison.OrdinalIgnoreCase) Then Return "Auto Detect (auto)"
-        Dim nllb = _langCodeService.ToNllb(code)
-        If Not String.IsNullOrEmpty(nllb) Then
-            Dim name = _langCodeService.GetDisplayName(nllb)
+        Dim flores = _langCodeService.ToFlores(code)
+        If Not String.IsNullOrEmpty(flores) Then
+            Dim name = _langCodeService.GetDisplayName(flores)
             If Not String.IsNullOrEmpty(name) Then Return $"{name} ({code})"
         End If
         Return code
@@ -165,7 +165,7 @@ Public Class FormMain
             lblStartTime, lblEndTime, lblStartColon1, lblStartColon2, lblEndColon1, lblEndColon2,
             txtStartHH, txtStartMM, txtStartSS, txtEndHH, txtEndMM, txtEndSS,
             pbOverall, pbChunk, grpOutputFormats, tabMain, tabPageJob,
-            _whisperLanguages,
+            _sttLanguages,
             AddressOf SaveUiToConfig,
             AddressOf ShowLogPanel,
             Sub(source, msg, clr) AppendUnifiedLog(source, msg, clr),
@@ -202,64 +202,9 @@ Public Class FormMain
         ' Load help content
         LoadHelpContent(_config.UiLanguage)
 
-        ' Create live controller
-        _liveController = New Controllers.LiveController(
-            _config,
-            cboLiveDevice, cboLiveInputLang,
-            btnLiveStart, btnLiveStop,
-            btnRefreshDevices, btnEditFilters,
-            btnTuneStats,
-            grpLiveInput,
-            trkMaxSegment, trkVadSilence,
-            lblMaxSegmentValue, lblVadSilenceValue,
-            _whisperLanguages,
-            AddressOf LangDisplayName,
-            AddressOf LangCodeFromDisplay,
-            AddressOf SaveUiToConfig,
-            Function() SubtitleSvc,
-            Function() _translationService,
-            AddressOf StartTranslationService,
-            AddressOf WriteDebugLog,
-            AddressOf ShowLogPanel,
-            AddressOf UpdateShellStatus,
-            AddressOf GetString,
-            Me.Icon,
-            Me,
-            Sub(lang) SelectComboItem(cboInputLanguage, lang))
-        _liveController.WireEvents()
-        _liveController.PopulateLanguageDropdown()
-
-        ' Enumerate audio devices in the background
-        cboLiveDevice.Items.Add("Detecting devices...")
-        cboLiveDevice.SelectedIndex = 0
-        btnLiveStart.Enabled = False
-        Dim pythonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "python-embed", "python.exe")
-        Task.Run(Sub()
-                     Try
-                         Dim backend As New Services.Stt.FasterWhisperBackend()
-                         Dim deviceInfos = backend.EnumerateDevicesAsync(pythonPath)
-                         Dim devices As New List(Of String)
-                         For Each d In deviceInfos
-                             devices.Add(d.ToString())
-                         Next
-                         cboLiveDevice.BeginInvoke(Sub()
-                                                       _liveController.UpdateDeviceCombo(devices)
-                                                       btnLiveStart.Enabled = True
-                                                   End Sub)
-                     Catch ex As Exception
-                         WriteDebugLog($"[ERROR] Device enumeration failed: {ex.Message}")
-                         cboLiveDevice.BeginInvoke(Sub()
-                                                       cboLiveDevice.Items.Clear()
-                                                       cboLiveDevice.Items.Add("(Device detection failed)")
-                                                       cboLiveDevice.SelectedIndex = 0
-                                                       btnLiveStart.Enabled = True
-                                                   End Sub)
-                     End Try
-                 End Sub)
-
         ' Create server controller
         _serverController = New Controllers.ServerController(
-            _config, wvLiveClients,
+            _config,
             AddressOf UpdateShellStatus,
             AddressOf WriteDebugLog)
 
@@ -303,6 +248,12 @@ Public Class FormMain
             If _config.StartWithWindows Then RegisterStartup() Else UnregisterStartup()
         End If
 
+        ' Start minimized to tray if configured and not first-run
+        If _config.FirstRunComplete AndAlso _config.StartMinimized Then
+            Me.WindowState = FormWindowState.Minimized
+            Me.ShowInTaskbar = False
+        End If
+
         ' Build shell chrome (menu, toolbar, nav rail, status bar)
         InitializeShell()
 
@@ -311,30 +262,44 @@ Public Class FormMain
 
         ' Auto-start subtitle server after form is fully shown
         AddHandler Me.Shown, Sub(s, ev)
-                                  _serverController.StartServer(Sub(svc) _liveController.ConfigureSubtitleService(svc))
+                                  _serverController.StartServer()
+
+                                  ' Create and wire conference controller for template-based rooms
+                                  _conferenceController = New Controllers.ConferenceController(
+                                      _config,
+                                      Function() SubtitleSvc,
+                                      Function() _translationService,
+                                      AddressOf WriteDebugLog,
+                                      Me)
+                                  _conferenceController.WireEndpointHandlers()
 
                                   ' Wire conversation room translation callback
                                   Dim convAudioHandler = TryCast(_serverController.KestrelHost?.Services?.GetService(
                                       GetType(Services.Rooms.ConversationAudioHandler)), Services.Rooms.ConversationAudioHandler)
                                   If convAudioHandler IsNot Nothing Then
-                                      convAudioHandler.EnsureTranslationAvailable = Sub() Me.BeginInvoke(Sub() EnsureNllbForRooms())
+                                      convAudioHandler.EnsureTranslationAvailable = Sub() Me.BeginInvoke(Sub() EnsureTranslationForRooms())
                                   End If
 
-                                  ' Auto-start NLLB translation engine and Whisper live-server
-                                  ' so conversation rooms are ready immediately
-                                  EnsureNllbForRooms()
+                                  ' Warm up engines — update tray tooltip as they start
+                                  trayIcon.Text = GetString("Tray_WarmingUpTranslation")
+                                  EnsureTranslationForRooms()
+
+                                  trayIcon.Text = GetString("Tray_WarmingUpStt")
                                   If convAudioHandler IsNot Nothing Then
                                       WriteDebugLog("[STARTUP] Auto-starting Whisper live-server for conversation rooms...")
                                       Task.Run(Async Function()
                                                    Try
                                                        Dim ready = Await convAudioHandler.EnsureLiveServerAsync(CancellationToken.None)
                                                        WriteDebugLog($"[STARTUP] Whisper live-server auto-start: ready={ready}")
+                                                       Me.BeginInvoke(Sub() trayIcon.Text = GetString("Tray_Ready"))
                                                    Catch ex As Exception
                                                        WriteDebugLog($"[STARTUP] Whisper live-server auto-start failed: {ex.Message}")
+                                                       Me.BeginInvoke(Sub() trayIcon.Text = GetString("Tray_Ready"))
                                                    End Try
                                                End Function)
                                   Else
                                       WriteDebugLog("[STARTUP] ConversationAudioHandler not available — skipping Whisper auto-start")
+                                      trayIcon.Text = GetString("Tray_Ready")
                                   End If
 
                                   InitBibleTab()
@@ -364,6 +329,7 @@ Public Class FormMain
 
     Private Sub ShowFromTray()
         Me.Show()
+        Me.ShowInTaskbar = True
         Me.WindowState = FormWindowState.Maximized
         Me.Activate()
     End Sub
@@ -543,6 +509,21 @@ del ""%~f0""
         If isFirstRun Then
             WriteDebugLog("[FIRSTRUN] Setting FirstRunComplete=True")
             _config.FirstRunComplete = True
+
+            ' Auto-detect best STT backend based on hardware (CUDA → Vulkan → CPU)
+            Try
+                WriteDebugLog("[FIRSTRUN] Running hardware scan for STT auto-detection...")
+                Dim hwInfo = Services.Infrastructure.HardwareScanner.Scan()
+                Dim suggestedBackend = Services.Infrastructure.HardwareScanner.SuggestSttBackend(hwInfo)
+                WriteDebugLog($"[FIRSTRUN] Hardware: GPU={hwInfo.GpuName}, CUDA={hwInfo.HasCuda}, Vulkan={hwInfo.HasVulkan}, Suggested STT={suggestedBackend}")
+                If String.IsNullOrEmpty(_config.SttBackend) OrElse _config.SttBackend = "faster-whisper" OrElse _config.SttBackend = "whisper-cpp-vulkan" Then
+                    _config.SttBackend = suggestedBackend
+                    WriteDebugLog($"[FIRSTRUN] Set SttBackend={suggestedBackend}")
+                End If
+            Catch ex As Exception
+                WriteDebugLog($"[FIRSTRUN] Hardware auto-detection failed: {ex.Message}")
+            End Try
+
             ConfigManager.Save(_config)
 
             ' Show Download Manager opened to Language Packs tab
@@ -591,35 +572,9 @@ del ""%~f0""
         Models.ConfigManager.Save(_config)
         LoadConfigToUi()
         _transcribeController?.PopulateModelDropdown()
-
-        ' Re-enumerate audio devices
-        Dim pythonPath2 = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "python-embed", "python.exe")
-        btnLiveStart.Enabled = False
-        Task.Run(Sub()
-                     Try
-                         Dim backend As New Services.Stt.FasterWhisperBackend()
-                         Dim deviceInfos = backend.EnumerateDevicesAsync(pythonPath2)
-                         Dim devices As New List(Of String)
-                         For Each d In deviceInfos
-                             devices.Add(d.ToString())
-                         Next
-                         cboLiveDevice.BeginInvoke(Sub()
-                                                       _liveController.UpdateDeviceCombo(devices)
-                                                       btnLiveStart.Enabled = True
-                                                   End Sub)
-                     Catch ex As Exception
-                         WriteDebugLog($"[ERROR] Re-enumerate devices failed: {ex.Message}")
-                         cboLiveDevice.BeginInvoke(Sub()
-                                                       cboLiveDevice.Items.Clear()
-                                                       cboLiveDevice.Items.Add("0: Default Device")
-                                                       cboLiveDevice.SelectedIndex = 0
-                                                       btnLiveStart.Enabled = True
-                                                   End Sub)
-                     End Try
-                 End Sub)
     End Sub
 
-    Private Async Sub OpenDownloadManager()
+    Private Sub OpenDownloadManager()
         Try
             Dim biblesDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Bibles")
             Using dlg As New Forms.FormDownloadManager(_config, biblesDir)
@@ -634,14 +589,6 @@ del ""%~f0""
 
                     ' Refresh native Bible tab
                     RefreshBibleTab()
-
-                    ' Refresh Bible dropdown on Live tab WebView
-                    Dim refreshJs = "if(typeof refreshBibleDropdown==='function'){refreshBibleDropdown()}"
-                    Try
-                        If wvLiveClients?.CoreWebView2 IsNot Nothing Then
-                            Await wvLiveClients.CoreWebView2.ExecuteScriptAsync(refreshJs)
-                        End If
-                    Catch : End Try
                 End If
             End Using
         Catch ex As Exception
@@ -686,15 +633,6 @@ del ""%~f0""
         ' Ensure subtitle color config defaults
         If String.IsNullOrEmpty(_config.SubtitleBgColor) OrElse Not _config.SubtitleBgColor.StartsWith("#") Then _config.SubtitleBgColor = "#000000"
         If String.IsNullOrEmpty(_config.SubtitleFgColor) OrElse Not _config.SubtitleFgColor.StartsWith("#") Then _config.SubtitleFgColor = "#FFFFFF"
-
-        ' Live sliders
-        Dim segVal = Math.Max(trkMaxSegment.Minimum, Math.Min(trkMaxSegment.Maximum, _config.LiveMaxSegmentSec))
-        trkMaxSegment.Value = segVal
-        lblMaxSegmentValue.Text = $"{segVal}s"
-
-        Dim silVal = Math.Max(trkVadSilence.Minimum, Math.Min(trkVadSilence.Maximum, _config.LiveVadSilenceMs))
-        trkVadSilence.Value = silVal
-        lblVadSilenceValue.Text = $"{silVal}ms"
     End Sub
 
     Private Sub SaveUiToConfig()
@@ -730,10 +668,6 @@ del ""%~f0""
             _config.OutputLanguage = cboOutputLanguage.SelectedItem.ToString()
         End If
         WriteDebugLog($"[CONFIG] SaveUiToConfig: Language={_config.Language}, OutputLanguage={_config.OutputLanguage}")
-
-        ' Live sliders
-        _config.LiveMaxSegmentSec = trkMaxSegment.Value
-        _config.LiveVadSilenceMs = trkVadSilence.Value
 
         ' Log any changes before saving
         For Each prop In GetType(AppConfig).GetProperties(Reflection.BindingFlags.Public Or Reflection.BindingFlags.Instance)
@@ -773,7 +707,6 @@ del ""%~f0""
         Try
             WriteDebugLog($"[LOCALE] ApplyLocale starting, lang={_langPack.CurrentLanguage}")
             tabPageJob.Text = GetString("Tab_Main")
-            tabPageLive.Text = GetString("Tab_Live")
             tabPageHelp.Text = GetString("Tab_Help")
 
             lblMode.Text = GetString("Lbl_Mode")
@@ -797,17 +730,7 @@ del ""%~f0""
             lnkPreviewSrt.Text = GetString("Lnk_PreviewSrt")
 
 
-            ' Live tab
-            grpLiveInput.Text = GetString("Grp_LiveInput")
-            lblLiveDevice.Text = GetString("Lbl_LiveDevice")
-            btnRefreshDevices.Text = GetString("Btn_RefreshDevices")
-            lblLiveInputLang.Text = GetString("Lbl_LiveInputLang")
-            btnEditFilters.Text = GetString("Btn_Filters")
-            btnLiveStart.Text = GetString("Btn_LiveStart")
-            btnLiveStop.Text = GetString("Btn_LiveStop")
-
-
-            ' Subtitle Server tab
+            ' Status
             If _transcribeController Is Nothing OrElse Not _transcribeController.IsRunning Then
                 lblStepStatus.Text = GetString("Msg_Ready")
             End If
@@ -828,8 +751,6 @@ del ""%~f0""
             mnuToolsVerifyIntegrity.Text = GetString("Menu_ToolsVerifyIntegrity")
             mnuToolsOptions.Text = GetString("Menu_ToolsOptions")
             mnuSession.Text = GetString("Menu_Session")
-            mnuSessionStart.Text = GetString("Menu_SessionStart")
-            mnuSessionStop.Text = GetString("Menu_SessionStop")
             mnuSessionQR.Text = GetString("Menu_SessionQR")
             mnuSessionCopyUrl.Text = GetString("Menu_SessionCopyUrl")
             mnuView.Text = GetString("Menu_View")
@@ -849,11 +770,10 @@ del ""%~f0""
             mnuHelpAbout.Text = GetString("Menu_HelpAbout")
 
             ' Nav rail buttons
-            btnNavLive.Text = GetString("Nav_Live")
             btnNavTranscribe.Text = GetString("Nav_Transcribe")
             btnNavTranslate.Text = GetString("Nav_Translate")
             btnNavBible.Text = GetString("Nav_Bible")
-            WriteDebugLog($"[LOCALE] ApplyLocale complete: Nav_Live={btnNavLive.Text}, Menu_File={mnuFile.Text}")
+            WriteDebugLog($"[LOCALE] ApplyLocale complete: Nav_Transcribe={btnNavTranscribe.Text}, Menu_File={mnuFile.Text}")
         Catch ex As Exception
             WriteDebugLog($"[ERROR] ApplyLocale: {ex.Message}")
         End Try
@@ -973,8 +893,6 @@ del ""%~f0""
 
 #End Region
 
-    ' Live workspace — delegated to LiveController
-
     Private _translationStarting As Boolean = False
 
     Private Sub StartTranslationService()
@@ -1010,68 +928,66 @@ del ""%~f0""
         _translationService = New TranslationService()
         AddHandler _translationService.StatusChanged, Sub(s, msg)
                                                           WriteDebugLog(msg)
-                                                          If msg.Contains("model loaded") Then
-                                                              _liveController?.FlushPendingCommits()
-                                                          End If
                                                       End Sub
 
-        ' Register NllbBackend with the TranslationOrchestrator so conversation rooms
-        ' (and any other ITranslationService consumer) can use NLLB for translation
+        ' Register SidecarTranslationBackend with the TranslationOrchestrator so conversation rooms
+        ' (and any other ITranslationService consumer) can use the translation sidecar
         Try
             Dim orchestrator = TryCast(_serverController?.KestrelHost?.Services?.GetService(
                 GetType(Services.Interfaces.ITranslationService)), Services.Translation.TranslationOrchestrator)
             If orchestrator IsNot Nothing Then
-                Dim nllbBackend As New Services.Translation.NllbBackend(_translationService)
-                orchestrator.RegisterBackend(nllbBackend)
-                WriteDebugLog("[TRANSLATE] NllbBackend registered with TranslationOrchestrator")
+                Dim sidecarBackend As New Services.Translation.SidecarTranslationBackend(_translationService)
+                orchestrator.RegisterBackend(sidecarBackend)
+                WriteDebugLog("[TRANSLATE] SidecarTranslationBackend registered with TranslationOrchestrator")
             Else
-                WriteDebugLog("[TRANSLATE] Warning: TranslationOrchestrator not available to register NllbBackend")
+                WriteDebugLog("[TRANSLATE] Warning: TranslationOrchestrator not available to register SidecarTranslationBackend")
             End If
         Catch ex As Exception
-            WriteDebugLog($"[ERROR] Failed to register NllbBackend: {ex.Message}")
+            WriteDebugLog($"[ERROR] Failed to register SidecarTranslationBackend: {ex.Message}")
         End Try
 
         Dim modelPath = _config.TranslationModelPath
         Dim port = _config.TranslationPort
         Dim device = _config.TranslationDevice
         Dim glossaryPath = _config.TranslationGlossaryPath
+        Dim modelType = If(_config.TranslationModelType, "nllb")
 
-        WriteDebugLog($"[TRANSLATE] StartTranslationService: port={port}, device={device}, modelPath={modelPath}")
-        _translationService.Start(port, modelPath, device, glossaryPath)
+        WriteDebugLog($"[TRANSLATE] StartTranslationService: port={port}, device={device}, modelPath={modelPath}, modelType={modelType}")
+        _translationService.Start(port, modelPath, device, glossaryPath, modelType)
         _translationStarting = False
         WriteDebugLog("Translation service starting...")
     End Sub
 
     ''' <summary>
     ''' Called by ConversationAudioHandler when a conversation room needs translation
-    ''' but no backend is available. Checks NLLB deps and starts the service.
+    ''' but no backend is available. Checks translation deps and starts the service.
     ''' </summary>
-    Private Sub EnsureNllbForRooms()
+    Private Sub EnsureTranslationForRooms()
         If _translationService IsNot Nothing AndAlso _translationService.IsRunning Then
-            ' Already running — just make sure NllbBackend is registered
+            ' Already running — just make sure SidecarTranslationBackend is registered
             Try
                 Dim orchestrator = TryCast(_serverController?.KestrelHost?.Services?.GetService(
                     GetType(Services.Interfaces.ITranslationService)), Services.Translation.TranslationOrchestrator)
                 If orchestrator IsNot Nothing Then
                     Dim backends = orchestrator.GetAllBackends()
-                    Dim nllbRegistered = backends.Any(Function(b) b.Name.Equals("NLLB", StringComparison.OrdinalIgnoreCase))
-                    If Not nllbRegistered Then
-                        Dim nllbBackend As New Services.Translation.NllbBackend(_translationService)
-                        orchestrator.RegisterBackend(nllbBackend)
-                        WriteDebugLog("[ROOMS] Re-registered NllbBackend with orchestrator")
+                    Dim sidecarRegistered = backends.Any(Function(b) b.Name.Equals("Local", StringComparison.OrdinalIgnoreCase))
+                    If Not sidecarRegistered Then
+                        Dim sidecarBackend As New Services.Translation.SidecarTranslationBackend(_translationService)
+                        orchestrator.RegisterBackend(sidecarBackend)
+                        WriteDebugLog("[ROOMS] Re-registered SidecarTranslationBackend with orchestrator")
                     End If
                 End If
             Catch ex As Exception
-                WriteDebugLog($"[ERROR] EnsureNllbForRooms re-register: {ex.Message}")
+                WriteDebugLog($"[ERROR] EnsureTranslationForRooms re-register: {ex.Message}")
             End Try
             Return
         End If
 
-        WriteDebugLog("[ROOMS] Conversation room needs translation — starting NLLB service")
+        WriteDebugLog("[ROOMS] Conversation room needs translation — starting translation sidecar")
 
         Dim deps = Pipeline.TranslationService.CheckDependenciesInstalled()
         If Not deps.pythonOk OrElse Not deps.depsOk OrElse Not deps.modelOk Then
-            WriteDebugLog("[ROOMS] NLLB dependencies not installed — translation unavailable for rooms")
+            WriteDebugLog("[ROOMS] Translation dependencies not installed — translation unavailable for rooms")
             Return
         End If
 
@@ -1133,8 +1049,10 @@ del ""%~f0""
         Try : trayIcon.Visible = False : Catch : End Try
         Try : trayIcon.Dispose() : Catch : End Try
 
-        ' Clean exit — stop all conference backends
-        _liveController?.StopAllConferenceBackends()
+        ' Stop conference backends
+        _conferenceController?.StopAllConferenceBackends()
+
+        ' Clean exit
         KillOrphanedPythonProcesses()
         Try : IO.File.Delete(Program.CrashSentinelPath) : Catch : End Try
         Environment.Exit(0)

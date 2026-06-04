@@ -5,7 +5,7 @@ Namespace Models
         Public Property Name As String = ""
         Public Property HostingCode As String = ""
         Public Property SourceLanguage As String = "auto"
-        Public Property SttBackendKey As String = "faster-whisper"
+        Public Property SttBackendKey As String = "whisper-cpp-vulkan"
         Public Property TranslationBackendKey As String = "nllb"
         Public Property BeamSize As Integer = 7
         Public Property MaxSegmentSec As Integer = 15

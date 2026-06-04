@@ -20,6 +20,7 @@ Partial Class FormOptions
         Me.pnlPages = New System.Windows.Forms.Panel()
         Me.pnlGeneral = New System.Windows.Forms.Panel()
         Me.chkStartWindows = New System.Windows.Forms.CheckBox()
+        Me.chkStartMinimized = New System.Windows.Forms.CheckBox()
         Me.chkMinimizeToTray = New System.Windows.Forms.CheckBox()
         Me.chkResetFirstRun = New System.Windows.Forms.CheckBox()
         Me.lblStartupSep = New System.Windows.Forms.Label()
@@ -52,12 +53,18 @@ Partial Class FormOptions
         Me.btnBrowseModel = New System.Windows.Forms.Button()
         Me.txtModel = New System.Windows.Forms.TextBox()
         Me.lblModelPath = New System.Windows.Forms.Label()
-        Me.btnBrowseNllbModel = New System.Windows.Forms.Button()
-        Me.txtNllbModel = New System.Windows.Forms.TextBox()
-        Me.lblNllbModelPath = New System.Windows.Forms.Label()
+        Me.btnBrowseTransModel = New System.Windows.Forms.Button()
+        Me.txtTransModel = New System.Windows.Forms.TextBox()
+        Me.lblTransModelPath = New System.Windows.Forms.Label()
         Me.btnBrowseFasterWhisper = New System.Windows.Forms.Button()
         Me.txtFasterWhisper = New System.Windows.Forms.TextBox()
         Me.lblFasterWhisperPath = New System.Windows.Forms.Label()
+        Me.btnBrowseWhisperServer = New System.Windows.Forms.Button()
+        Me.txtWhisperServer = New System.Windows.Forms.TextBox()
+        Me.lblWhisperServerPath = New System.Windows.Forms.Label()
+        Me.btnBrowseGgmlModel = New System.Windows.Forms.Button()
+        Me.txtGgmlModel = New System.Windows.Forms.TextBox()
+        Me.lblGgmlModelPath = New System.Windows.Forms.Label()
         Me.lblModelPathsSep = New System.Windows.Forms.Label()
         Me.lblModelPathsHeader = New System.Windows.Forms.Label()
         Me.btnBrowseSubtitleEdit = New System.Windows.Forms.Button()
@@ -78,6 +85,10 @@ Partial Class FormOptions
         Me.lblToolPathsSep = New System.Windows.Forms.Label()
         Me.lblToolPathsHeader = New System.Windows.Forms.Label()
         Me.pnlHardware = New System.Windows.Forms.Panel()
+        Me.cboSttBackend = New System.Windows.Forms.ComboBox()
+        Me.lblSttBackend = New System.Windows.Forms.Label()
+        Me.lblSttEngineSep = New System.Windows.Forms.Label()
+        Me.lblSttEngineHeader = New System.Windows.Forms.Label()
         Me.lblHwHeader = New System.Windows.Forms.Label()
         Me.lblHwSep = New System.Windows.Forms.Label()
         Me.lblHwOverallCaption = New System.Windows.Forms.Label()
@@ -156,6 +167,12 @@ Partial Class FormOptions
         Me.chkKeepChunks = New System.Windows.Forms.CheckBox()
         Me.chkKeepPreview = New System.Windows.Forms.CheckBox()
         Me.chkSkipDownload = New System.Windows.Forms.CheckBox()
+        Me.lblAdvLivePipelineHeader = New System.Windows.Forms.Label()
+        Me.lblAdvLivePipelineSep = New System.Windows.Forms.Label()
+        Me.lblTranslationConcurrency = New System.Windows.Forms.Label()
+        Me.nudTranslationConcurrency = New System.Windows.Forms.NumericUpDown()
+        Me.lblTtsConcurrency = New System.Windows.Forms.Label()
+        Me.nudTtsConcurrency = New System.Windows.Forms.NumericUpDown()
         Me.lblAdvOutputHeader = New System.Windows.Forms.Label()
         Me.lblAdvOutputSep = New System.Windows.Forms.Label()
         Me.chkOutSrt = New System.Windows.Forms.CheckBox()
@@ -242,6 +259,8 @@ Partial Class FormOptions
         CType(Me.nudChunkSize, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudPollInterval, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudChunkTimeout, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudTranslationConcurrency, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudTtsConcurrency, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudThreads, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudProcessors, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudBeamSize, System.ComponentModel.ISupportInitialize).BeginInit()
@@ -350,6 +369,7 @@ Partial Class FormOptions
         Me.pnlGeneral.AutoScroll = True
         Me.pnlGeneral.Controls.Add(Me.chkResetFirstRun)
         Me.pnlGeneral.Controls.Add(Me.chkMinimizeToTray)
+        Me.pnlGeneral.Controls.Add(Me.chkStartMinimized)
         Me.pnlGeneral.Controls.Add(Me.chkStartWindows)
         Me.pnlGeneral.Controls.Add(Me.lblStartupSep)
         Me.pnlGeneral.Controls.Add(Me.lblStartupHeader)
@@ -454,21 +474,31 @@ Partial Class FormOptions
         '
         ' chkMinimizeToTray
         '
+        Me.chkStartMinimized.AutoSize = True
+        Me.chkStartMinimized.Location = New System.Drawing.Point(12, 205)
+        Me.chkStartMinimized.Name = "chkStartMinimized"
+        Me.chkStartMinimized.Size = New System.Drawing.Size(180, 19)
+        Me.chkStartMinimized.TabIndex = 9
+        Me.chkStartMinimized.Text = "Start minimized to tray"
+        Me.chkStartMinimized.UseVisualStyleBackColor = True
+        '
+        ' chkMinimizeToTray
+        '
         Me.chkMinimizeToTray.AutoSize = True
-        Me.chkMinimizeToTray.Location = New System.Drawing.Point(12, 205)
+        Me.chkMinimizeToTray.Location = New System.Drawing.Point(12, 230)
         Me.chkMinimizeToTray.Name = "chkMinimizeToTray"
         Me.chkMinimizeToTray.Size = New System.Drawing.Size(180, 19)
-        Me.chkMinimizeToTray.TabIndex = 9
+        Me.chkMinimizeToTray.TabIndex = 10
         Me.chkMinimizeToTray.Text = "Minimize to tray on close"
         Me.chkMinimizeToTray.UseVisualStyleBackColor = True
         '
         ' chkResetFirstRun
         '
         Me.chkResetFirstRun.AutoSize = True
-        Me.chkResetFirstRun.Location = New System.Drawing.Point(12, 230)
+        Me.chkResetFirstRun.Location = New System.Drawing.Point(12, 255)
         Me.chkResetFirstRun.Name = "chkResetFirstRun"
         Me.chkResetFirstRun.Size = New System.Drawing.Size(200, 19)
-        Me.chkResetFirstRun.TabIndex = 10
+        Me.chkResetFirstRun.TabIndex = 11
         Me.chkResetFirstRun.Text = "Re-run first-time setup on next start"
         Me.chkResetFirstRun.UseVisualStyleBackColor = True
         '
@@ -500,9 +530,15 @@ Partial Class FormOptions
         Me.pnlPaths.Controls.Add(Me.btnBrowseModel)
         Me.pnlPaths.Controls.Add(Me.txtModel)
         Me.pnlPaths.Controls.Add(Me.lblModelPath)
-        Me.pnlPaths.Controls.Add(Me.btnBrowseNllbModel)
-        Me.pnlPaths.Controls.Add(Me.txtNllbModel)
-        Me.pnlPaths.Controls.Add(Me.lblNllbModelPath)
+        Me.pnlPaths.Controls.Add(Me.btnBrowseTransModel)
+        Me.pnlPaths.Controls.Add(Me.txtTransModel)
+        Me.pnlPaths.Controls.Add(Me.lblTransModelPath)
+        Me.pnlPaths.Controls.Add(Me.btnBrowseGgmlModel)
+        Me.pnlPaths.Controls.Add(Me.txtGgmlModel)
+        Me.pnlPaths.Controls.Add(Me.lblGgmlModelPath)
+        Me.pnlPaths.Controls.Add(Me.btnBrowseWhisperServer)
+        Me.pnlPaths.Controls.Add(Me.txtWhisperServer)
+        Me.pnlPaths.Controls.Add(Me.lblWhisperServerPath)
         Me.pnlPaths.Controls.Add(Me.btnBrowseFasterWhisper)
         Me.pnlPaths.Controls.Add(Me.txtFasterWhisper)
         Me.pnlPaths.Controls.Add(Me.lblFasterWhisperPath)
@@ -559,7 +595,7 @@ Partial Class FormOptions
         Me.lblWhisperPath.Name = "lblWhisperPath"
         Me.lblWhisperPath.Size = New System.Drawing.Size(75, 15)
         Me.lblWhisperPath.TabIndex = 2
-        Me.lblWhisperPath.Text = "Whisper CLI:"
+        Me.lblWhisperPath.Text = "Whisper CLI (job):"
         '
         ' txtWhisper
         '
@@ -719,7 +755,7 @@ Partial Class FormOptions
         Me.lblFasterWhisperPath.Name = "lblFasterWhisperPath"
         Me.lblFasterWhisperPath.Size = New System.Drawing.Size(126, 15)
         Me.lblFasterWhisperPath.TabIndex = 19
-        Me.lblFasterWhisperPath.Text = "Faster Whisper model:"
+        Me.lblFasterWhisperPath.Text = "STT model (live):"
         '
         ' txtFasterWhisper
         '
@@ -740,48 +776,104 @@ Partial Class FormOptions
         Me.btnBrowseFasterWhisper.Text = "..."
         Me.btnBrowseFasterWhisper.UseVisualStyleBackColor = True
         '
-        ' lblNllbModelPath
+        ' lblWhisperServerPath
         '
-        Me.lblNllbModelPath.AutoSize = True
-        Me.lblNllbModelPath.Location = New System.Drawing.Point(12, 384)
-        Me.lblNllbModelPath.Name = "lblNllbModelPath"
-        Me.lblNllbModelPath.Size = New System.Drawing.Size(77, 15)
-        Me.lblNllbModelPath.TabIndex = 22
-        Me.lblNllbModelPath.Text = "NLLB model:"
+        Me.lblWhisperServerPath.AutoSize = True
+        Me.lblWhisperServerPath.Location = New System.Drawing.Point(12, 384)
+        Me.lblWhisperServerPath.Name = "lblWhisperServerPath"
+        Me.lblWhisperServerPath.Size = New System.Drawing.Size(95, 15)
+        Me.lblWhisperServerPath.TabIndex = 50
+        Me.lblWhisperServerPath.Text = "whisper-server:"
         '
-        ' txtNllbModel
+        ' txtWhisperServer
         '
-        Me.txtNllbModel.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+        Me.txtWhisperServer.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.txtNllbModel.Location = New System.Drawing.Point(12, 402)
-        Me.txtNllbModel.Name = "txtNllbModel"
-        Me.txtNllbModel.Size = New System.Drawing.Size(510, 23)
-        Me.txtNllbModel.TabIndex = 23
+        Me.txtWhisperServer.Location = New System.Drawing.Point(12, 402)
+        Me.txtWhisperServer.Name = "txtWhisperServer"
+        Me.txtWhisperServer.Size = New System.Drawing.Size(510, 23)
+        Me.txtWhisperServer.TabIndex = 51
         '
-        ' btnBrowseNllbModel
+        ' btnBrowseWhisperServer
         '
-        Me.btnBrowseNllbModel.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnBrowseNllbModel.Location = New System.Drawing.Point(528, 401)
-        Me.btnBrowseNllbModel.Name = "btnBrowseNllbModel"
-        Me.btnBrowseNllbModel.Size = New System.Drawing.Size(36, 25)
-        Me.btnBrowseNllbModel.TabIndex = 24
-        Me.btnBrowseNllbModel.Text = "..."
-        Me.btnBrowseNllbModel.UseVisualStyleBackColor = True
+        Me.btnBrowseWhisperServer.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.btnBrowseWhisperServer.Location = New System.Drawing.Point(528, 401)
+        Me.btnBrowseWhisperServer.Name = "btnBrowseWhisperServer"
+        Me.btnBrowseWhisperServer.Size = New System.Drawing.Size(36, 25)
+        Me.btnBrowseWhisperServer.TabIndex = 52
+        Me.btnBrowseWhisperServer.Text = "..."
+        Me.btnBrowseWhisperServer.UseVisualStyleBackColor = True
+        '
+        ' lblGgmlModelPath
+        '
+        Me.lblGgmlModelPath.AutoSize = True
+        Me.lblGgmlModelPath.Location = New System.Drawing.Point(12, 436)
+        Me.lblGgmlModelPath.Name = "lblGgmlModelPath"
+        Me.lblGgmlModelPath.Size = New System.Drawing.Size(150, 15)
+        Me.lblGgmlModelPath.TabIndex = 53
+        Me.lblGgmlModelPath.Text = "GGML model (Vulkan/CPU):"
+        '
+        ' txtGgmlModel
+        '
+        Me.txtGgmlModel.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.txtGgmlModel.Location = New System.Drawing.Point(12, 454)
+        Me.txtGgmlModel.Name = "txtGgmlModel"
+        Me.txtGgmlModel.Size = New System.Drawing.Size(510, 23)
+        Me.txtGgmlModel.TabIndex = 54
+        '
+        ' btnBrowseGgmlModel
+        '
+        Me.btnBrowseGgmlModel.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.btnBrowseGgmlModel.Location = New System.Drawing.Point(528, 453)
+        Me.btnBrowseGgmlModel.Name = "btnBrowseGgmlModel"
+        Me.btnBrowseGgmlModel.Size = New System.Drawing.Size(36, 25)
+        Me.btnBrowseGgmlModel.TabIndex = 55
+        Me.btnBrowseGgmlModel.Text = "..."
+        Me.btnBrowseGgmlModel.UseVisualStyleBackColor = True
+        '
+        ' lblTransModelPath
+        '
+        Me.lblTransModelPath.AutoSize = True
+        Me.lblTransModelPath.Location = New System.Drawing.Point(12, 488)
+        Me.lblTransModelPath.Name = "lblTransModelPath"
+        Me.lblTransModelPath.Size = New System.Drawing.Size(77, 15)
+        Me.lblTransModelPath.TabIndex = 22
+        Me.lblTransModelPath.Text = "Translation model:"
+        '
+        ' txtTransModel
+        '
+        Me.txtTransModel.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.txtTransModel.Location = New System.Drawing.Point(12, 506)
+        Me.txtTransModel.Name = "txtTransModel"
+        Me.txtTransModel.Size = New System.Drawing.Size(510, 23)
+        Me.txtTransModel.TabIndex = 23
+        '
+        ' btnBrowseTransModel
+        '
+        Me.btnBrowseTransModel.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.btnBrowseTransModel.Location = New System.Drawing.Point(528, 505)
+        Me.btnBrowseTransModel.Name = "btnBrowseTransModel"
+        Me.btnBrowseTransModel.Size = New System.Drawing.Size(36, 25)
+        Me.btnBrowseTransModel.TabIndex = 24
+        Me.btnBrowseTransModel.Text = "..."
+        Me.btnBrowseTransModel.UseVisualStyleBackColor = True
         '
         ' lblModelPath
         '
         Me.lblModelPath.AutoSize = True
-        Me.lblModelPath.Location = New System.Drawing.Point(12, 436)
+        Me.lblModelPath.Location = New System.Drawing.Point(12, 540)
         Me.lblModelPath.Name = "lblModelPath"
         Me.lblModelPath.Size = New System.Drawing.Size(119, 15)
         Me.lblModelPath.TabIndex = 25
-        Me.lblModelPath.Text = "Whisper model (job):"
+        Me.lblModelPath.Text = "STT model (job):"
         '
         ' txtModel
         '
         Me.txtModel.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.txtModel.Location = New System.Drawing.Point(12, 454)
+        Me.txtModel.Location = New System.Drawing.Point(12, 558)
         Me.txtModel.Name = "txtModel"
         Me.txtModel.Size = New System.Drawing.Size(510, 23)
         Me.txtModel.TabIndex = 26
@@ -789,7 +881,7 @@ Partial Class FormOptions
         ' btnBrowseModel
         '
         Me.btnBrowseModel.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnBrowseModel.Location = New System.Drawing.Point(528, 453)
+        Me.btnBrowseModel.Location = New System.Drawing.Point(528, 557)
         Me.btnBrowseModel.Name = "btnBrowseModel"
         Me.btnBrowseModel.Size = New System.Drawing.Size(36, 25)
         Me.btnBrowseModel.TabIndex = 27
@@ -799,17 +891,17 @@ Partial Class FormOptions
         ' lblModelAudioPath
         '
         Me.lblModelAudioPath.AutoSize = True
-        Me.lblModelAudioPath.Location = New System.Drawing.Point(12, 488)
+        Me.lblModelAudioPath.Location = New System.Drawing.Point(12, 592)
         Me.lblModelAudioPath.Name = "lblModelAudioPath"
         Me.lblModelAudioPath.Size = New System.Drawing.Size(136, 15)
         Me.lblModelAudioPath.TabIndex = 28
-        Me.lblModelAudioPath.Text = "Whisper model (audio):"
+        Me.lblModelAudioPath.Text = "STT model (audio):"
         '
         ' txtModelAudio
         '
         Me.txtModelAudio.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.txtModelAudio.Location = New System.Drawing.Point(12, 506)
+        Me.txtModelAudio.Location = New System.Drawing.Point(12, 610)
         Me.txtModelAudio.Name = "txtModelAudio"
         Me.txtModelAudio.Size = New System.Drawing.Size(510, 23)
         Me.txtModelAudio.TabIndex = 29
@@ -817,7 +909,7 @@ Partial Class FormOptions
         ' btnBrowseModelAudio
         '
         Me.btnBrowseModelAudio.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnBrowseModelAudio.Location = New System.Drawing.Point(528, 505)
+        Me.btnBrowseModelAudio.Location = New System.Drawing.Point(528, 609)
         Me.btnBrowseModelAudio.Name = "btnBrowseModelAudio"
         Me.btnBrowseModelAudio.Size = New System.Drawing.Size(36, 25)
         Me.btnBrowseModelAudio.TabIndex = 30
@@ -828,7 +920,7 @@ Partial Class FormOptions
         '
         Me.lblDirectoriesHeader.AutoSize = True
         Me.lblDirectoriesHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
-        Me.lblDirectoriesHeader.Location = New System.Drawing.Point(8, 540)
+        Me.lblDirectoriesHeader.Location = New System.Drawing.Point(8, 644)
         Me.lblDirectoriesHeader.Name = "lblDirectoriesHeader"
         Me.lblDirectoriesHeader.Size = New System.Drawing.Size(89, 20)
         Me.lblDirectoriesHeader.TabIndex = 31
@@ -839,7 +931,7 @@ Partial Class FormOptions
         Me.lblDirectoriesSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.lblDirectoriesSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
-        Me.lblDirectoriesSep.Location = New System.Drawing.Point(8, 562)
+        Me.lblDirectoriesSep.Location = New System.Drawing.Point(8, 666)
         Me.lblDirectoriesSep.Name = "lblDirectoriesSep"
         Me.lblDirectoriesSep.Size = New System.Drawing.Size(520, 1)
         Me.lblDirectoriesSep.TabIndex = 32
@@ -847,7 +939,7 @@ Partial Class FormOptions
         ' lblOutputRootPath
         '
         Me.lblOutputRootPath.AutoSize = True
-        Me.lblOutputRootPath.Location = New System.Drawing.Point(12, 570)
+        Me.lblOutputRootPath.Location = New System.Drawing.Point(12, 674)
         Me.lblOutputRootPath.Name = "lblOutputRootPath"
         Me.lblOutputRootPath.Size = New System.Drawing.Size(73, 15)
         Me.lblOutputRootPath.TabIndex = 33
@@ -857,7 +949,7 @@ Partial Class FormOptions
         '
         Me.txtOutputRoot.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.txtOutputRoot.Location = New System.Drawing.Point(12, 588)
+        Me.txtOutputRoot.Location = New System.Drawing.Point(12, 692)
         Me.txtOutputRoot.Name = "txtOutputRoot"
         Me.txtOutputRoot.Size = New System.Drawing.Size(510, 23)
         Me.txtOutputRoot.TabIndex = 34
@@ -865,7 +957,7 @@ Partial Class FormOptions
         ' btnBrowseOutputRoot
         '
         Me.btnBrowseOutputRoot.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnBrowseOutputRoot.Location = New System.Drawing.Point(528, 587)
+        Me.btnBrowseOutputRoot.Location = New System.Drawing.Point(528, 691)
         Me.btnBrowseOutputRoot.Name = "btnBrowseOutputRoot"
         Me.btnBrowseOutputRoot.Size = New System.Drawing.Size(36, 25)
         Me.btnBrowseOutputRoot.TabIndex = 35
@@ -875,7 +967,7 @@ Partial Class FormOptions
         ' lblGlossaryPath
         '
         Me.lblGlossaryPath.AutoSize = True
-        Me.lblGlossaryPath.Location = New System.Drawing.Point(12, 622)
+        Me.lblGlossaryPath.Location = New System.Drawing.Point(12, 726)
         Me.lblGlossaryPath.Name = "lblGlossaryPath"
         Me.lblGlossaryPath.Size = New System.Drawing.Size(76, 15)
         Me.lblGlossaryPath.TabIndex = 36
@@ -885,7 +977,7 @@ Partial Class FormOptions
         '
         Me.txtGlossary.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.txtGlossary.Location = New System.Drawing.Point(12, 640)
+        Me.txtGlossary.Location = New System.Drawing.Point(12, 744)
         Me.txtGlossary.Name = "txtGlossary"
         Me.txtGlossary.Size = New System.Drawing.Size(510, 23)
         Me.txtGlossary.TabIndex = 37
@@ -893,7 +985,7 @@ Partial Class FormOptions
         ' btnBrowseGlossary
         '
         Me.btnBrowseGlossary.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnBrowseGlossary.Location = New System.Drawing.Point(528, 639)
+        Me.btnBrowseGlossary.Location = New System.Drawing.Point(528, 743)
         Me.btnBrowseGlossary.Name = "btnBrowseGlossary"
         Me.btnBrowseGlossary.Size = New System.Drawing.Size(36, 25)
         Me.btnBrowseGlossary.TabIndex = 38
@@ -903,7 +995,7 @@ Partial Class FormOptions
         ' lblBiblesPath
         '
         Me.lblBiblesPath.AutoSize = True
-        Me.lblBiblesPath.Location = New System.Drawing.Point(12, 674)
+        Me.lblBiblesPath.Location = New System.Drawing.Point(12, 778)
         Me.lblBiblesPath.Name = "lblBiblesPath"
         Me.lblBiblesPath.Size = New System.Drawing.Size(95, 15)
         Me.lblBiblesPath.TabIndex = 39
@@ -913,7 +1005,7 @@ Partial Class FormOptions
         '
         Me.txtBibles.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.txtBibles.Location = New System.Drawing.Point(12, 692)
+        Me.txtBibles.Location = New System.Drawing.Point(12, 796)
         Me.txtBibles.Name = "txtBibles"
         Me.txtBibles.Size = New System.Drawing.Size(510, 23)
         Me.txtBibles.TabIndex = 40
@@ -921,7 +1013,7 @@ Partial Class FormOptions
         ' btnBrowseBibles
         '
         Me.btnBrowseBibles.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnBrowseBibles.Location = New System.Drawing.Point(528, 691)
+        Me.btnBrowseBibles.Location = New System.Drawing.Point(528, 795)
         Me.btnBrowseBibles.Name = "btnBrowseBibles"
         Me.btnBrowseBibles.Size = New System.Drawing.Size(36, 25)
         Me.btnBrowseBibles.TabIndex = 41
@@ -932,7 +1024,7 @@ Partial Class FormOptions
         '
         Me.lblAdvancedHeader.AutoSize = True
         Me.lblAdvancedHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
-        Me.lblAdvancedHeader.Location = New System.Drawing.Point(8, 726)
+        Me.lblAdvancedHeader.Location = New System.Drawing.Point(8, 830)
         Me.lblAdvancedHeader.Name = "lblAdvancedHeader"
         Me.lblAdvancedHeader.Size = New System.Drawing.Size(82, 20)
         Me.lblAdvancedHeader.TabIndex = 42
@@ -943,7 +1035,7 @@ Partial Class FormOptions
         Me.lblAdvancedSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.lblAdvancedSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
-        Me.lblAdvancedSep.Location = New System.Drawing.Point(8, 748)
+        Me.lblAdvancedSep.Location = New System.Drawing.Point(8, 852)
         Me.lblAdvancedSep.Name = "lblAdvancedSep"
         Me.lblAdvancedSep.Size = New System.Drawing.Size(520, 1)
         Me.lblAdvancedSep.TabIndex = 43
@@ -951,7 +1043,7 @@ Partial Class FormOptions
         ' lblYtdlpFormat
         '
         Me.lblYtdlpFormat.AutoSize = True
-        Me.lblYtdlpFormat.Location = New System.Drawing.Point(12, 756)
+        Me.lblYtdlpFormat.Location = New System.Drawing.Point(12, 860)
         Me.lblYtdlpFormat.Name = "lblYtdlpFormat"
         Me.lblYtdlpFormat.Size = New System.Drawing.Size(81, 15)
         Me.lblYtdlpFormat.TabIndex = 44
@@ -961,7 +1053,7 @@ Partial Class FormOptions
         '
         Me.txtYtdlpFormat.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.txtYtdlpFormat.Location = New System.Drawing.Point(12, 774)
+        Me.txtYtdlpFormat.Location = New System.Drawing.Point(12, 878)
         Me.txtYtdlpFormat.Name = "txtYtdlpFormat"
         Me.txtYtdlpFormat.Size = New System.Drawing.Size(550, 23)
         Me.txtYtdlpFormat.TabIndex = 45
@@ -1462,6 +1554,10 @@ Partial Class FormOptions
         ' pnlHardware
         '
         Me.pnlHardware.AutoScroll = True
+        Me.pnlHardware.Controls.Add(Me.cboSttBackend)
+        Me.pnlHardware.Controls.Add(Me.lblSttBackend)
+        Me.pnlHardware.Controls.Add(Me.lblSttEngineSep)
+        Me.pnlHardware.Controls.Add(Me.lblSttEngineHeader)
         Me.pnlHardware.Controls.Add(Me.btnHwRescan)
         Me.pnlHardware.Controls.Add(Me.txtHwRecs)
         Me.pnlHardware.Controls.Add(Me.lblHwRecsSep)
@@ -1664,6 +1760,46 @@ Partial Class FormOptions
         Me.btnHwRescan.Text = "Re-scan"
         Me.btnHwRescan.UseVisualStyleBackColor = True
         '
+        ' lblSttEngineHeader
+        '
+        Me.lblSttEngineHeader.AutoSize = True
+        Me.lblSttEngineHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
+        Me.lblSttEngineHeader.Location = New System.Drawing.Point(8, 452)
+        Me.lblSttEngineHeader.Name = "lblSttEngineHeader"
+        Me.lblSttEngineHeader.Size = New System.Drawing.Size(102, 20)
+        Me.lblSttEngineHeader.TabIndex = 17
+        Me.lblSttEngineHeader.Text = "STT Engine"
+        '
+        ' lblSttEngineSep
+        '
+        Me.lblSttEngineSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.lblSttEngineSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
+        Me.lblSttEngineSep.Location = New System.Drawing.Point(8, 474)
+        Me.lblSttEngineSep.Name = "lblSttEngineSep"
+        Me.lblSttEngineSep.Size = New System.Drawing.Size(520, 1)
+        Me.lblSttEngineSep.TabIndex = 18
+        '
+        ' lblSttBackend
+        '
+        Me.lblSttBackend.AutoSize = True
+        Me.lblSttBackend.Location = New System.Drawing.Point(12, 484)
+        Me.lblSttBackend.Name = "lblSttBackend"
+        Me.lblSttBackend.Size = New System.Drawing.Size(77, 15)
+        Me.lblSttBackend.TabIndex = 19
+        Me.lblSttBackend.Text = "Engine:"
+        '
+        ' cboSttBackend
+        '
+        Me.cboSttBackend.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.cboSttBackend.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboSttBackend.FormattingEnabled = True
+        Me.cboSttBackend.Location = New System.Drawing.Point(12, 502)
+        Me.cboSttBackend.Name = "cboSttBackend"
+        Me.cboSttBackend.Size = New System.Drawing.Size(350, 23)
+        Me.cboSttBackend.TabIndex = 20
+        '
         ' ══════════════════════════════════════════════════════════════
         ' ADVANCED PANEL
         ' ══════════════════════════════════════════════════════════════
@@ -1684,6 +1820,12 @@ Partial Class FormOptions
         Me.pnlAdvanced.Controls.Add(Me.chkKeepChunks)
         Me.pnlAdvanced.Controls.Add(Me.chkKeepPreview)
         Me.pnlAdvanced.Controls.Add(Me.chkSkipDownload)
+        Me.pnlAdvanced.Controls.Add(Me.lblAdvLivePipelineHeader)
+        Me.pnlAdvanced.Controls.Add(Me.lblAdvLivePipelineSep)
+        Me.pnlAdvanced.Controls.Add(Me.lblTranslationConcurrency)
+        Me.pnlAdvanced.Controls.Add(Me.nudTranslationConcurrency)
+        Me.pnlAdvanced.Controls.Add(Me.lblTtsConcurrency)
+        Me.pnlAdvanced.Controls.Add(Me.nudTtsConcurrency)
         Me.pnlAdvanced.Controls.Add(Me.lblAdvOutputHeader)
         Me.pnlAdvanced.Controls.Add(Me.lblAdvOutputSep)
         Me.pnlAdvanced.Controls.Add(Me.chkOutSrt)
@@ -1890,16 +2032,76 @@ Partial Class FormOptions
         Me.chkSkipDownload.Text = "Skip download if exists"
         Me.chkSkipDownload.UseVisualStyleBackColor = True
         '
-        ' ── Section 2: Output Formats ──
+        ' ── Section 2: Live Pipeline ──
+        '
+        ' lblAdvLivePipelineHeader
+        '
+        Me.lblAdvLivePipelineHeader.AutoSize = True
+        Me.lblAdvLivePipelineHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
+        Me.lblAdvLivePipelineHeader.Location = New System.Drawing.Point(8, 125)
+        Me.lblAdvLivePipelineHeader.Name = "lblAdvLivePipelineHeader"
+        Me.lblAdvLivePipelineHeader.Size = New System.Drawing.Size(96, 20)
+        Me.lblAdvLivePipelineHeader.TabIndex = 13
+        Me.lblAdvLivePipelineHeader.Text = "Live Pipeline"
+        '
+        ' lblAdvLivePipelineSep
+        '
+        Me.lblAdvLivePipelineSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.lblAdvLivePipelineSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
+        Me.lblAdvLivePipelineSep.Location = New System.Drawing.Point(8, 147)
+        Me.lblAdvLivePipelineSep.Name = "lblAdvLivePipelineSep"
+        Me.lblAdvLivePipelineSep.Size = New System.Drawing.Size(520, 1)
+        Me.lblAdvLivePipelineSep.TabIndex = 14
+        '
+        ' lblTranslationConcurrency
+        '
+        Me.lblTranslationConcurrency.AutoSize = True
+        Me.lblTranslationConcurrency.Location = New System.Drawing.Point(12, 152)
+        Me.lblTranslationConcurrency.Name = "lblTranslationConcurrency"
+        Me.lblTranslationConcurrency.Size = New System.Drawing.Size(155, 15)
+        Me.lblTranslationConcurrency.TabIndex = 15
+        Me.lblTranslationConcurrency.Text = "Translation concurrency:"
+        '
+        ' nudTranslationConcurrency
+        '
+        Me.nudTranslationConcurrency.Location = New System.Drawing.Point(180, 150)
+        Me.nudTranslationConcurrency.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
+        Me.nudTranslationConcurrency.Maximum = New Decimal(New Integer() {10, 0, 0, 0})
+        Me.nudTranslationConcurrency.Name = "nudTranslationConcurrency"
+        Me.nudTranslationConcurrency.Size = New System.Drawing.Size(60, 23)
+        Me.nudTranslationConcurrency.TabIndex = 16
+        Me.nudTranslationConcurrency.Value = New Decimal(New Integer() {3, 0, 0, 0})
+        '
+        ' lblTtsConcurrency
+        '
+        Me.lblTtsConcurrency.AutoSize = True
+        Me.lblTtsConcurrency.Location = New System.Drawing.Point(260, 152)
+        Me.lblTtsConcurrency.Name = "lblTtsConcurrency"
+        Me.lblTtsConcurrency.Size = New System.Drawing.Size(115, 15)
+        Me.lblTtsConcurrency.TabIndex = 17
+        Me.lblTtsConcurrency.Text = "TTS concurrency:"
+        '
+        ' nudTtsConcurrency
+        '
+        Me.nudTtsConcurrency.Location = New System.Drawing.Point(390, 150)
+        Me.nudTtsConcurrency.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
+        Me.nudTtsConcurrency.Maximum = New Decimal(New Integer() {10, 0, 0, 0})
+        Me.nudTtsConcurrency.Name = "nudTtsConcurrency"
+        Me.nudTtsConcurrency.Size = New System.Drawing.Size(60, 23)
+        Me.nudTtsConcurrency.TabIndex = 18
+        Me.nudTtsConcurrency.Value = New Decimal(New Integer() {3, 0, 0, 0})
+        '
+        ' ── Section 3: Output Formats ──
         '
         ' lblAdvOutputHeader
         '
         Me.lblAdvOutputHeader.AutoSize = True
         Me.lblAdvOutputHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
-        Me.lblAdvOutputHeader.Location = New System.Drawing.Point(8, 128)
+        Me.lblAdvOutputHeader.Location = New System.Drawing.Point(8, 184)
         Me.lblAdvOutputHeader.Name = "lblAdvOutputHeader"
         Me.lblAdvOutputHeader.Size = New System.Drawing.Size(120, 20)
-        Me.lblAdvOutputHeader.TabIndex = 13
+        Me.lblAdvOutputHeader.TabIndex = 19
         Me.lblAdvOutputHeader.Text = "Output Formats"
         '
         ' lblAdvOutputSep
@@ -1907,212 +2109,212 @@ Partial Class FormOptions
         Me.lblAdvOutputSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.lblAdvOutputSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
-        Me.lblAdvOutputSep.Location = New System.Drawing.Point(8, 150)
+        Me.lblAdvOutputSep.Location = New System.Drawing.Point(8, 206)
         Me.lblAdvOutputSep.Name = "lblAdvOutputSep"
         Me.lblAdvOutputSep.Size = New System.Drawing.Size(520, 1)
-        Me.lblAdvOutputSep.TabIndex = 14
+        Me.lblAdvOutputSep.TabIndex = 20
         '
         ' chkOutSrt
         '
         Me.chkOutSrt.AutoSize = True
-        Me.chkOutSrt.Location = New System.Drawing.Point(12, 158)
+        Me.chkOutSrt.Location = New System.Drawing.Point(12, 214)
         Me.chkOutSrt.Name = "chkOutSrt"
         Me.chkOutSrt.Size = New System.Drawing.Size(47, 19)
-        Me.chkOutSrt.TabIndex = 15
+        Me.chkOutSrt.TabIndex = 21
         Me.chkOutSrt.Text = "SRT"
         Me.chkOutSrt.UseVisualStyleBackColor = True
         '
         ' chkOutVtt
         '
         Me.chkOutVtt.AutoSize = True
-        Me.chkOutVtt.Location = New System.Drawing.Point(170, 158)
+        Me.chkOutVtt.Location = New System.Drawing.Point(170, 214)
         Me.chkOutVtt.Name = "chkOutVtt"
         Me.chkOutVtt.Size = New System.Drawing.Size(47, 19)
-        Me.chkOutVtt.TabIndex = 16
+        Me.chkOutVtt.TabIndex = 22
         Me.chkOutVtt.Text = "VTT"
         Me.chkOutVtt.UseVisualStyleBackColor = True
         '
         ' chkOutTxt
         '
         Me.chkOutTxt.AutoSize = True
-        Me.chkOutTxt.Location = New System.Drawing.Point(330, 158)
+        Me.chkOutTxt.Location = New System.Drawing.Point(330, 214)
         Me.chkOutTxt.Name = "chkOutTxt"
         Me.chkOutTxt.Size = New System.Drawing.Size(75, 19)
-        Me.chkOutTxt.TabIndex = 17
+        Me.chkOutTxt.TabIndex = 23
         Me.chkOutTxt.Text = "Plain text"
         Me.chkOutTxt.UseVisualStyleBackColor = True
         '
         ' chkOutJson
         '
         Me.chkOutJson.AutoSize = True
-        Me.chkOutJson.Location = New System.Drawing.Point(12, 183)
+        Me.chkOutJson.Location = New System.Drawing.Point(12, 239)
         Me.chkOutJson.Name = "chkOutJson"
         Me.chkOutJson.Size = New System.Drawing.Size(54, 19)
-        Me.chkOutJson.TabIndex = 18
+        Me.chkOutJson.TabIndex = 24
         Me.chkOutJson.Text = "JSON"
         Me.chkOutJson.UseVisualStyleBackColor = True
         '
         ' chkOutCsv
         '
         Me.chkOutCsv.AutoSize = True
-        Me.chkOutCsv.Location = New System.Drawing.Point(170, 183)
+        Me.chkOutCsv.Location = New System.Drawing.Point(170, 239)
         Me.chkOutCsv.Name = "chkOutCsv"
         Me.chkOutCsv.Size = New System.Drawing.Size(48, 19)
-        Me.chkOutCsv.TabIndex = 19
+        Me.chkOutCsv.TabIndex = 25
         Me.chkOutCsv.Text = "CSV"
         Me.chkOutCsv.UseVisualStyleBackColor = True
         '
         ' chkOutLrc
         '
         Me.chkOutLrc.AutoSize = True
-        Me.chkOutLrc.Location = New System.Drawing.Point(330, 183)
+        Me.chkOutLrc.Location = New System.Drawing.Point(330, 239)
         Me.chkOutLrc.Name = "chkOutLrc"
         Me.chkOutLrc.Size = New System.Drawing.Size(46, 19)
-        Me.chkOutLrc.TabIndex = 20
+        Me.chkOutLrc.TabIndex = 26
         Me.chkOutLrc.Text = "LRC"
         Me.chkOutLrc.UseVisualStyleBackColor = True
         '
-        ' ── Section 3: Whisper Parameters ──
+        ' ── Section 4: STT Parameters ──
         '
         ' lblAdvWhisperHeader
         '
         Me.lblAdvWhisperHeader.AutoSize = True
         Me.lblAdvWhisperHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
-        Me.lblAdvWhisperHeader.Location = New System.Drawing.Point(8, 213)
+        Me.lblAdvWhisperHeader.Location = New System.Drawing.Point(8, 269)
         Me.lblAdvWhisperHeader.Name = "lblAdvWhisperHeader"
         Me.lblAdvWhisperHeader.Size = New System.Drawing.Size(156, 20)
-        Me.lblAdvWhisperHeader.TabIndex = 21
-        Me.lblAdvWhisperHeader.Text = "Whisper Parameters"
+        Me.lblAdvWhisperHeader.TabIndex = 27
+        Me.lblAdvWhisperHeader.Text = "STT Parameters"
         '
         ' lblAdvWhisperSep
         '
         Me.lblAdvWhisperSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.lblAdvWhisperSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
-        Me.lblAdvWhisperSep.Location = New System.Drawing.Point(8, 235)
+        Me.lblAdvWhisperSep.Location = New System.Drawing.Point(8, 291)
         Me.lblAdvWhisperSep.Name = "lblAdvWhisperSep"
         Me.lblAdvWhisperSep.Size = New System.Drawing.Size(520, 1)
-        Me.lblAdvWhisperSep.TabIndex = 22
+        Me.lblAdvWhisperSep.TabIndex = 28
         '
-        ' Row 1: Threads (left), Processors (right) — Y=243
+        ' Row 1: Threads (left), Processors (right) — Y=299
         '
         ' lblThreads
         '
         Me.lblThreads.AutoSize = True
-        Me.lblThreads.Location = New System.Drawing.Point(12, 245)
+        Me.lblThreads.Location = New System.Drawing.Point(12, 301)
         Me.lblThreads.Name = "lblThreads"
         Me.lblThreads.Size = New System.Drawing.Size(52, 15)
-        Me.lblThreads.TabIndex = 23
+        Me.lblThreads.TabIndex = 29
         Me.lblThreads.Text = "Threads:"
         '
         ' nudThreads
         '
-        Me.nudThreads.Location = New System.Drawing.Point(130, 243)
+        Me.nudThreads.Location = New System.Drawing.Point(130, 299)
         Me.nudThreads.Maximum = New Decimal(New Integer() {32, 0, 0, 0})
         Me.nudThreads.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
         Me.nudThreads.Name = "nudThreads"
         Me.nudThreads.Size = New System.Drawing.Size(60, 23)
-        Me.nudThreads.TabIndex = 24
+        Me.nudThreads.TabIndex = 30
         Me.nudThreads.Value = New Decimal(New Integer() {4, 0, 0, 0})
         '
         ' lblProcessors
         '
         Me.lblProcessors.AutoSize = True
-        Me.lblProcessors.Location = New System.Drawing.Point(280, 245)
+        Me.lblProcessors.Location = New System.Drawing.Point(280, 301)
         Me.lblProcessors.Name = "lblProcessors"
         Me.lblProcessors.Size = New System.Drawing.Size(67, 15)
-        Me.lblProcessors.TabIndex = 25
+        Me.lblProcessors.TabIndex = 31
         Me.lblProcessors.Text = "Processors:"
         '
         ' nudProcessors
         '
-        Me.nudProcessors.Location = New System.Drawing.Point(400, 243)
+        Me.nudProcessors.Location = New System.Drawing.Point(400, 299)
         Me.nudProcessors.Maximum = New Decimal(New Integer() {8, 0, 0, 0})
         Me.nudProcessors.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
         Me.nudProcessors.Name = "nudProcessors"
         Me.nudProcessors.Size = New System.Drawing.Size(60, 23)
-        Me.nudProcessors.TabIndex = 26
+        Me.nudProcessors.TabIndex = 32
         Me.nudProcessors.Value = New Decimal(New Integer() {1, 0, 0, 0})
         '
-        ' Row 2: Beam size (left), Best of (right) — Y=271
+        ' Row 2: Beam size (left), Best of (right) — Y=327
         '
         ' lblBeamSize
         '
         Me.lblBeamSize.AutoSize = True
-        Me.lblBeamSize.Location = New System.Drawing.Point(12, 273)
+        Me.lblBeamSize.Location = New System.Drawing.Point(12, 329)
         Me.lblBeamSize.Name = "lblBeamSize"
         Me.lblBeamSize.Size = New System.Drawing.Size(61, 15)
-        Me.lblBeamSize.TabIndex = 27
+        Me.lblBeamSize.TabIndex = 33
         Me.lblBeamSize.Text = "Beam size:"
         '
         ' nudBeamSize
         '
-        Me.nudBeamSize.Location = New System.Drawing.Point(130, 271)
+        Me.nudBeamSize.Location = New System.Drawing.Point(130, 327)
         Me.nudBeamSize.Maximum = New Decimal(New Integer() {20, 0, 0, 0})
         Me.nudBeamSize.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
         Me.nudBeamSize.Name = "nudBeamSize"
         Me.nudBeamSize.Size = New System.Drawing.Size(60, 23)
-        Me.nudBeamSize.TabIndex = 28
+        Me.nudBeamSize.TabIndex = 34
         Me.nudBeamSize.Value = New Decimal(New Integer() {7, 0, 0, 0})
         '
         ' lblBestOf
         '
         Me.lblBestOf.AutoSize = True
-        Me.lblBestOf.Location = New System.Drawing.Point(280, 273)
+        Me.lblBestOf.Location = New System.Drawing.Point(280, 329)
         Me.lblBestOf.Name = "lblBestOf"
         Me.lblBestOf.Size = New System.Drawing.Size(46, 15)
-        Me.lblBestOf.TabIndex = 29
+        Me.lblBestOf.TabIndex = 35
         Me.lblBestOf.Text = "Best of:"
         '
         ' nudBestOf
         '
-        Me.nudBestOf.Location = New System.Drawing.Point(400, 271)
+        Me.nudBestOf.Location = New System.Drawing.Point(400, 327)
         Me.nudBestOf.Maximum = New Decimal(New Integer() {10, 0, 0, 0})
         Me.nudBestOf.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
         Me.nudBestOf.Name = "nudBestOf"
         Me.nudBestOf.Size = New System.Drawing.Size(60, 23)
-        Me.nudBestOf.TabIndex = 30
+        Me.nudBestOf.TabIndex = 36
         Me.nudBestOf.Value = New Decimal(New Integer() {5, 0, 0, 0})
         '
-        ' Row 3: Temperature (left), Temperature increment (right) — Y=299
+        ' Row 3: Temperature (left), Temperature increment (right) — Y=355
         '
         ' lblTemperature
         '
         Me.lblTemperature.AutoSize = True
-        Me.lblTemperature.Location = New System.Drawing.Point(12, 301)
+        Me.lblTemperature.Location = New System.Drawing.Point(12, 357)
         Me.lblTemperature.Name = "lblTemperature"
         Me.lblTemperature.Size = New System.Drawing.Size(76, 15)
-        Me.lblTemperature.TabIndex = 31
+        Me.lblTemperature.TabIndex = 37
         Me.lblTemperature.Text = "Temperature:"
         '
         ' nudTemperature
         '
         Me.nudTemperature.DecimalPlaces = 2
         Me.nudTemperature.Increment = New Decimal(New Integer() {5, 0, 0, 131072})
-        Me.nudTemperature.Location = New System.Drawing.Point(130, 299)
+        Me.nudTemperature.Location = New System.Drawing.Point(130, 355)
         Me.nudTemperature.Maximum = New Decimal(New Integer() {1, 0, 0, 0})
         Me.nudTemperature.Name = "nudTemperature"
         Me.nudTemperature.Size = New System.Drawing.Size(60, 23)
-        Me.nudTemperature.TabIndex = 32
+        Me.nudTemperature.TabIndex = 38
         '
         ' lblTempInc
         '
         Me.lblTempInc.AutoSize = True
-        Me.lblTempInc.Location = New System.Drawing.Point(280, 301)
+        Me.lblTempInc.Location = New System.Drawing.Point(280, 357)
         Me.lblTempInc.Name = "lblTempInc"
         Me.lblTempInc.Size = New System.Drawing.Size(120, 15)
-        Me.lblTempInc.TabIndex = 33
+        Me.lblTempInc.TabIndex = 39
         Me.lblTempInc.Text = "Temperature increment:"
         '
         ' nudTempInc
         '
         Me.nudTempInc.DecimalPlaces = 2
         Me.nudTempInc.Increment = New Decimal(New Integer() {5, 0, 0, 131072})
-        Me.nudTempInc.Location = New System.Drawing.Point(400, 299)
+        Me.nudTempInc.Location = New System.Drawing.Point(400, 355)
         Me.nudTempInc.Maximum = New Decimal(New Integer() {1, 0, 0, 0})
         Me.nudTempInc.Name = "nudTempInc"
         Me.nudTempInc.Size = New System.Drawing.Size(60, 23)
-        Me.nudTempInc.TabIndex = 34
+        Me.nudTempInc.TabIndex = 40
         '
         ' Row 4: Max context (left), Max segment length (right) — Y=327
         '
@@ -2342,7 +2544,7 @@ Partial Class FormOptions
         Me.txtHotwords.Size = New System.Drawing.Size(400, 23)
         Me.txtHotwords.TabIndex = 58
         '
-        ' ── Section 4: Whisper Flags ──
+        ' ── Section 4: STT Flags ──
         '
         ' lblAdvFlagsHeader
         '
@@ -2352,7 +2554,7 @@ Partial Class FormOptions
         Me.lblAdvFlagsHeader.Name = "lblAdvFlagsHeader"
         Me.lblAdvFlagsHeader.Size = New System.Drawing.Size(112, 20)
         Me.lblAdvFlagsHeader.TabIndex = 59
-        Me.lblAdvFlagsHeader.Text = "Whisper Flags"
+        Me.lblAdvFlagsHeader.Text = "STT Flags"
         '
         ' lblAdvFlagsSep
         '
@@ -2659,6 +2861,8 @@ Partial Class FormOptions
         CType(Me.nudTransPort, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudFontSize, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudUnload, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudTranslationConcurrency, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudTtsConcurrency, System.ComponentModel.ISupportInitialize).EndInit()
         Me.ResumeLayout(False)
 
     End Sub
@@ -2689,6 +2893,7 @@ Partial Class FormOptions
     Friend WithEvents lblStartupHeader As System.Windows.Forms.Label
     Friend WithEvents lblStartupSep As System.Windows.Forms.Label
     Friend WithEvents chkStartWindows As System.Windows.Forms.CheckBox
+    Friend WithEvents chkStartMinimized As System.Windows.Forms.CheckBox
     Friend WithEvents chkMinimizeToTray As System.Windows.Forms.CheckBox
     Friend WithEvents chkResetFirstRun As System.Windows.Forms.CheckBox
 
@@ -2721,9 +2926,15 @@ Partial Class FormOptions
     Friend WithEvents lblFasterWhisperPath As System.Windows.Forms.Label
     Friend WithEvents txtFasterWhisper As System.Windows.Forms.TextBox
     Friend WithEvents btnBrowseFasterWhisper As System.Windows.Forms.Button
-    Friend WithEvents lblNllbModelPath As System.Windows.Forms.Label
-    Friend WithEvents txtNllbModel As System.Windows.Forms.TextBox
-    Friend WithEvents btnBrowseNllbModel As System.Windows.Forms.Button
+    Friend WithEvents lblWhisperServerPath As System.Windows.Forms.Label
+    Friend WithEvents txtWhisperServer As System.Windows.Forms.TextBox
+    Friend WithEvents btnBrowseWhisperServer As System.Windows.Forms.Button
+    Friend WithEvents lblGgmlModelPath As System.Windows.Forms.Label
+    Friend WithEvents txtGgmlModel As System.Windows.Forms.TextBox
+    Friend WithEvents btnBrowseGgmlModel As System.Windows.Forms.Button
+    Friend WithEvents lblTransModelPath As System.Windows.Forms.Label
+    Friend WithEvents txtTransModel As System.Windows.Forms.TextBox
+    Friend WithEvents btnBrowseTransModel As System.Windows.Forms.Button
     Friend WithEvents lblModelPath As System.Windows.Forms.Label
     Friend WithEvents txtModel As System.Windows.Forms.TextBox
     Friend WithEvents btnBrowseModel As System.Windows.Forms.Button
@@ -2814,6 +3025,10 @@ Partial Class FormOptions
     Friend WithEvents lblHwRecsSep As System.Windows.Forms.Label
     Friend WithEvents txtHwRecs As System.Windows.Forms.TextBox
     Friend WithEvents btnHwRescan As System.Windows.Forms.Button
+    Friend WithEvents lblSttEngineHeader As System.Windows.Forms.Label
+    Friend WithEvents lblSttEngineSep As System.Windows.Forms.Label
+    Friend WithEvents lblSttBackend As System.Windows.Forms.Label
+    Friend WithEvents cboSttBackend As System.Windows.Forms.ComboBox
 
     ' Advanced panel
     Friend WithEvents pnlAdvanced As System.Windows.Forms.Panel
@@ -2901,5 +3116,11 @@ Partial Class FormOptions
     Friend WithEvents lblAdvBibleHeader As System.Windows.Forms.Label
     Friend WithEvents lblAdvBibleSep As System.Windows.Forms.Label
     Friend WithEvents chkShowBibleCopyright As System.Windows.Forms.CheckBox
+    Friend WithEvents lblAdvLivePipelineHeader As System.Windows.Forms.Label
+    Friend WithEvents lblAdvLivePipelineSep As System.Windows.Forms.Label
+    Friend WithEvents lblTranslationConcurrency As System.Windows.Forms.Label
+    Friend WithEvents nudTranslationConcurrency As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblTtsConcurrency As System.Windows.Forms.Label
+    Friend WithEvents nudTtsConcurrency As System.Windows.Forms.NumericUpDown
 
 End Class

@@ -14,7 +14,9 @@ Namespace Services.Stt
         End Class
 
         Private Shared ReadOnly _backends As New List(Of Entry) From {
-            New Entry With {.Key = "faster-whisper", .DisplayName = "Faster Whisper (offline)", .RequiresInternet = False}
+            New Entry With {.Key = "whisper-cpp-vulkan", .DisplayName = "whisper.cpp Vulkan (offline)", .RequiresInternet = False},
+            New Entry With {.Key = "whisper-cpp-cuda", .DisplayName = "whisper.cpp CUDA (offline)", .RequiresInternet = False},
+            New Entry With {.Key = "whisper-cpp-cpu", .DisplayName = "whisper.cpp CPU (offline)", .RequiresInternet = False}
         }
 
         Public Shared Function GetAll() As IReadOnlyList(Of Entry)
@@ -30,6 +32,23 @@ Namespace Services.Stt
                 })
             End If
         End Sub
+
+        ''' <summary>
+        ''' Create an ISttBackend instance for the given key.
+        ''' Falls back to WhisperCppBackend (Vulkan) for unknown keys.
+        ''' </summary>
+        Public Shared Function CreateBackend(Optional key As String = "whisper-cpp-vulkan") As Interfaces.ISttBackend
+            Select Case If(key, "whisper-cpp-vulkan").ToLowerInvariant()
+                Case "whisper-cpp-vulkan", "whisper-cpp-cuda"
+                    Return New WhisperCppBackend(useGpu:=True)
+                Case "whisper-cpp-cpu"
+                    Return New WhisperCppBackend(useGpu:=False)
+                Case "faster-whisper"
+                    Return New FasterWhisperBackend()
+                Case Else
+                    Return New WhisperCppBackend(useGpu:=True)
+            End Select
+        End Function
 
     End Class
 

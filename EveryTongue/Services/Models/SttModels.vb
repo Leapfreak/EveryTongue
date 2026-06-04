@@ -34,6 +34,18 @@ Namespace Services.Models
         Public Property InitialPrompt As String = ""
         Public Property TranslateToEnglish As Boolean = False
         Public Property ServerPort As Integer = 5100
+
+        ''' <summary>Backend key: "whisper-cpp-vulkan", "whisper-cpp-cuda", "whisper-cpp-cpu", "faster-whisper".</summary>
+        Public Property Backend As String = "whisper-cpp-vulkan"
+
+        ''' <summary>Path to whisper-server.exe (whisper-cpp backends only).</summary>
+        Public Property WhisperServerPath As String = ""
+
+        ''' <summary>Port for whisper-server.exe inference endpoint.</summary>
+        Public Property WhisperServerPort As Integer = 8178
+
+        ''' <summary>Path to Silero VAD GGML model for whisper-server built-in VAD.</summary>
+        Public Property SileroVadModelPath As String = ""
     End Class
 
     ''' <summary>

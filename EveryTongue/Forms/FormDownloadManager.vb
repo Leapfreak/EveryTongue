@@ -549,10 +549,12 @@ Namespace Forms
             Select Case name
                 Case "yt-dlp", "FFmpeg", "Subtitle Edit"
                     Return lp.GetString("DM_CategoryTool")
-                Case "Whisper Model (ggml-large-v3)", "faster-whisper Model (large-v3)"
+                Case "Whisper Model (ggml-large-v3)", "GGML Whisper Model", "Silero VAD Model"
                     Return lp.GetString("DM_CategoryAiModel")
-                Case "NLLB Translation Model"
+                Case "NLLB Translation Model", "NLLB 3.3B Translation Model"
                     Return lp.GetString("DM_CategoryAiModel")
+                Case "whisper-server (Vulkan)"
+                    Return lp.GetString("DM_CategoryTool")
                 Case "Piper TTS"
                     Return lp.GetString("DM_CategoryTts")
                 Case Else
@@ -582,6 +584,11 @@ Namespace Forms
                 Else
                     toDownload.Add(st)
                 End If
+            Next
+
+            Services.Infrastructure.AppLogger.Log($"[DM] Download button: {toDownload.Count} tools, needPython={needPython}, needPythonDeps={needPythonDeps}")
+            For Each tool In toDownload
+                Services.Infrastructure.AppLogger.Log($"[DM]   queued: '{tool.Name}' status={tool.Status}")
             Next
 
             If toDownload.Count = 0 AndAlso Not needPython AndAlso Not needPythonDeps Then
@@ -939,9 +946,9 @@ Namespace Forms
         Private Shared Function GetLanguageDisplayName(iso3Code As String) As String
             If String.IsNullOrEmpty(iso3Code) Then Return iso3Code
             Dim langSvc = Services.Infrastructure.LanguageCodeService.Instance
-            Dim nllb = langSvc.Iso3ToNllb(iso3Code)
-            If Not String.IsNullOrEmpty(nllb) Then
-                Dim name = langSvc.GetDisplayName(nllb)
+            Dim flores = langSvc.Iso3ToFlores(iso3Code)
+            If Not String.IsNullOrEmpty(flores) Then
+                Dim name = langSvc.GetDisplayName(flores)
                 If Not String.IsNullOrEmpty(name) Then Return name
             End If
             Return iso3Code

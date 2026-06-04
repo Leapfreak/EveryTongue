@@ -3,7 +3,7 @@ Imports System.Text.RegularExpressions
 Namespace Controllers
     ''' <summary>
     ''' Manages the Translate workspace — source/target language selection,
-    ''' text translation via NLLB, swap, copy/clear buttons.
+    ''' text translation, swap, copy/clear buttons.
     ''' Extracted from FormMain.Shell.vb.
     ''' </summary>
     Friend Class TranslateController
@@ -25,7 +25,7 @@ Namespace Controllers
         Private ReadOnly _config As Models.AppConfig
         Private ReadOnly _langDisplayName As Func(Of String, String)
         Private ReadOnly _langCodeFromDisplay As Func(Of String, String)
-        Private ReadOnly _whisperLanguages As String()
+        Private ReadOnly _sttLanguages As String()
         Private ReadOnly _startTranslationService As Action
         Private ReadOnly _getTranslationService As Func(Of Pipeline.TranslationService)
         Private ReadOnly _debugLog As Action(Of String)
@@ -38,7 +38,7 @@ Namespace Controllers
                        btnCopy As Button, btnClear As Button,
                        btnOutCopy As Button, btnOutClear As Button,
                        lblStatus As Label,
-                       whisperLanguages As String(),
+                       sttLanguages As String(),
                        langDisplayName As Func(Of String, String),
                        langCodeFromDisplay As Func(Of String, String),
                        startTranslationService As Action,
@@ -57,7 +57,7 @@ Namespace Controllers
             _btnOutCopy = btnOutCopy
             _btnOutClear = btnOutClear
             _lblStatus = lblStatus
-            _whisperLanguages = whisperLanguages
+            _sttLanguages = sttLanguages
             _langDisplayName = langDisplayName
             _langCodeFromDisplay = langCodeFromDisplay
             _startTranslationService = startTranslationService
@@ -109,7 +109,7 @@ Namespace Controllers
         End Sub
 
         Public Sub PopulateLanguageDropdowns()
-            For Each lang In _whisperLanguages
+            For Each lang In _sttLanguages
                 If lang = "auto" Then Continue For
                 Dim display = _langDisplayName(lang)
                 _cboSource.Items.Add(display)
@@ -145,8 +145,8 @@ Namespace Controllers
             Dim targetWhisper = _langCodeFromDisplay(_cboTarget.Text)
 
             Dim sourceLang = If(sourceWhisper = "auto", "eng_Latn",
-                Pipeline.TranslationService.WhisperToNllbLang(sourceWhisper))
-            Dim targetLang = Pipeline.TranslationService.WhisperToNllbLang(targetWhisper)
+                Pipeline.TranslationService.WhisperToFloresLang(sourceWhisper))
+            Dim targetLang = Pipeline.TranslationService.WhisperToFloresLang(targetWhisper)
 
             If String.IsNullOrEmpty(targetLang) Then
                 _lblStatus.Text = String.Format(_getString("Trans_UnsupportedLang"), targetWhisper)
@@ -312,7 +312,7 @@ Namespace Controllers
 
         ''' <summary>
         ''' Splits input preserving every line break. Each line is further split
-        ''' into sentences for NLLB. Blank lines are kept as-is.
+        ''' into sentences for translation. Blank lines are kept as-is.
         ''' </summary>
         Friend Shared Function SplitIntoLines(text As String) As List(Of TextLine)
             Dim result As New List(Of TextLine)()

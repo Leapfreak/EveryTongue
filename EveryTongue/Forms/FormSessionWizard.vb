@@ -14,7 +14,7 @@ Public Class FormSessionWizard
     ' ── Config / state ────────────────────────────────────────────
     Private ReadOnly _config As AppConfig
     Private ReadOnly _devices As String()
-    Private ReadOnly _whisperLanguages As String()
+    Private ReadOnly _sttLanguages As String()
     Private Shared ReadOnly _langCodeService As Services.Infrastructure.LanguageCodeService = Services.Infrastructure.LanguageCodeService.Instance
 
     ' ── Step state ────────────────────────────────────────────────
@@ -26,10 +26,10 @@ Public Class FormSessionWizard
     ' Constructor
     ' ═══════════════════════════════════════════════════════════════
     Public Sub New(config As AppConfig, devices As String(),
-                   whisperLanguages As String())
+                   sttLanguages As String())
         _config = config
         _devices = If(devices, {})
-        _whisperLanguages = whisperLanguages
+        _sttLanguages = sttLanguages
 
         InitializeComponent()
 
@@ -190,9 +190,9 @@ Public Class FormSessionWizard
             lstDevices.SelectedIndex = 0
         End If
 
-        For Each lang In _whisperLanguages
-            Dim nllb = _langCodeService.ToNllb(lang)
-            Dim name = If(Not String.IsNullOrEmpty(nllb), _langCodeService.GetDisplayName(nllb), "")
+        For Each lang In _sttLanguages
+            Dim flores = _langCodeService.ToFlores(lang)
+            Dim name = If(Not String.IsNullOrEmpty(flores), _langCodeService.GetDisplayName(flores), "")
             If Not String.IsNullOrEmpty(name) Then
                 cboSpeakerLang.Items.Add($"{name} ({lang})")
             Else

@@ -179,6 +179,10 @@ Namespace Server
                 convAudioHandler.WhisperModelPath = options.WhisperModelPath
                 convAudioHandler.WhisperComputeType = options.WhisperComputeType
                 convAudioHandler.WhisperUseCpu = options.WhisperUseCpu
+                convAudioHandler.WhisperServerPath = options.WhisperServerPath
+                convAudioHandler.WhisperServerPort = options.WhisperServerPort
+                convAudioHandler.SttBackend = options.SttBackend
+                convAudioHandler.SileroVadModelPath = options.SileroVadModelPath
             End If
 
             ' Start MMS-TTS sidecar if deps are installed (optional tier-2 offline TTS)
@@ -262,6 +266,7 @@ Namespace Server
                                       options As ServerOptions,
                                       certService As CertificateService)
             ' Configuration
+            services.AddSingleton(options)
             services.AddSingleton(Of IOptions(Of ServerOptions))(
                 Microsoft.Extensions.Options.Options.Create(options))
 
@@ -294,10 +299,10 @@ Namespace Server
             services.AddSingleton(Of IMetricsService, MetricsService)()
             services.AddSingleton(Of IAudioStreamService, AudioStreamService)()
 
-            ' STT backend registry (backends are created per-session by LiveController, not as singletons)
+            ' STT backend registry (backends are created per-session, not as singletons)
             services.AddSingleton(Of SttBackendRegistry)()
 
-            ' Translation backends (NllbBackend registered dynamically by FormMain when NLLB sidecar starts)
+            ' Translation backends (SidecarTranslationBackend registered dynamically by FormMain when translation sidecar starts)
             services.AddSingleton(Of ITranslationBackend, DeepLBackend)()
             services.AddSingleton(Of ITranslationBackend, GoogleBackend)()
             services.AddSingleton(Of ITranslationBackend, AzureBackend)()

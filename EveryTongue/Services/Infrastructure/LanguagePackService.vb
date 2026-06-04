@@ -8,7 +8,7 @@ Namespace Services.Infrastructure
     ''' <summary>
     ''' JSON-based localization service. Loads locale strings from JSON files in the
     ''' locales/ folder. Downloads missing packs from GitHub on demand.
-    ''' English is always built-in; all other languages are downloaded or generated via NLLB.
+    ''' English is always built-in; all other languages are downloaded or generated via translation.
     ''' </summary>
     Public Class LanguagePackService
 
@@ -216,9 +216,9 @@ Namespace Services.Infrastructure
             Dim result As New List(Of (Code As String, Name As String, Native As String))()
             Dim langService = LanguageCodeService.Instance
             For Each code In GetAvailableLanguages()
-                Dim nllb = langService.ToNllb(code)
-                Dim displayName = If(Not String.IsNullOrEmpty(nllb), langService.GetDisplayName(nllb), "")
-                Dim nativeName = If(Not String.IsNullOrEmpty(nllb), langService.GetNativeName(nllb), "")
+                Dim flores = langService.ToFlores(code)
+                Dim displayName = If(Not String.IsNullOrEmpty(flores), langService.GetDisplayName(flores), "")
+                Dim nativeName = If(Not String.IsNullOrEmpty(flores), langService.GetNativeName(flores), "")
                 If String.IsNullOrEmpty(displayName) Then
                     Try
                         Dim ci = Globalization.CultureInfo.GetCultureInfo(code)

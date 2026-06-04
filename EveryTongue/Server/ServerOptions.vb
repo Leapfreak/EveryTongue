@@ -53,7 +53,7 @@ Namespace Server
         ''' <summary>Path to FFmpeg executable. Used by ConversationAudioHandler for audio conversion.</summary>
         Public Property FfmpegPath As String = ""
 
-        ''' <summary>Path to faster-whisper model directory. Used to auto-load model for conversation rooms.</summary>
+        ''' <summary>Path to Whisper model (faster-whisper dir or whisper.cpp .bin). Used to auto-load model for conversation rooms.</summary>
         Public Property WhisperModelPath As String = ""
 
         ''' <summary>Compute type for Whisper model (e.g. "int8_float16"). Used for auto-load.</summary>
@@ -61,6 +61,24 @@ Namespace Server
 
         ''' <summary>Whether to use CPU instead of CUDA for Whisper.</summary>
         Public Property WhisperUseCpu As Boolean = False
+
+        ''' <summary>Path to whisper-server.exe (for whisper-cpp backend).</summary>
+        Public Property WhisperServerPath As String = ""
+
+        ''' <summary>Port for whisper-server.exe HTTP API (default 8178).</summary>
+        Public Property WhisperServerPort As Integer = 8178
+
+        ''' <summary>STT backend key (e.g. "whisper-cpp-vulkan", "whisper-cpp-cpu", "faster-whisper"). Set from AppConfig.</summary>
+        Public Property SttBackend As String = ""
+
+        ''' <summary>Path to Silero VAD GGML model for whisper-server built-in VAD.</summary>
+        Public Property SileroVadModelPath As String = ""
+
+        ''' <summary>Max concurrent translation requests through the priority queue.</summary>
+        Public Property TranslationConcurrency As Integer = 3
+
+        ''' <summary>Max concurrent TTS synthesis requests through the priority queue.</summary>
+        Public Property TtsConcurrency As Integer = 3
 
         ''' <summary>Conference templates to sync on startup.</summary>
         Public Property ConferenceTemplates As List(Of Models.ConferenceTemplate)

@@ -98,7 +98,7 @@ Namespace Services.Tts
         End Function
 
         Private Shared Function GetVoiceForLanguage(language As String) As String
-            ' Map common NLLB codes to Edge TTS voice names
+            ' Map common FLORES codes to Edge TTS voice names
             ' Default to a reasonable voice per language
             Select Case language.Split("_"c)(0).ToLower()
                 Case "eng" : Return "en-US-JennyNeural"

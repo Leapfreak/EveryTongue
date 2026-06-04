@@ -103,8 +103,12 @@ Namespace Models
                 CheckFfmpegAsync(),
                 CheckModelAsync(),
                 CheckSubtitleEditAsync(),
-                CheckFasterWhisperModelAsync(),
+                CheckWhisperServerAsync(),
+                CheckWhisperServerCudaAsync(),
+                CheckGgmlModelAsync(),
+                CheckSileroVadModelAsync(),
                 CheckNllbModelAsync(),
+                CheckNllb33bModelAsync(),
                 CheckPiperAsync()
             }
             Await Task.WhenAll(tasks)
@@ -313,7 +317,7 @@ Namespace Models
         End Function
 
         ' ──────────────────────────────────────────
-        '  Python Embedded + NLLB pip deps
+        '  Python Embedded + Translation pip deps
         ' ──────────────────────────────────────────
 
         Private Function PythonEmbedDir() As String
@@ -371,27 +375,27 @@ Namespace Models
         End Function
 
         Public Async Function InstallPythonDepsAsync(progress As IProgress(Of (downloaded As Long, total As Long))) As Task
-            Dim nllbReq = Path.Combine(_toolsDir, "nllb-server", "requirements.txt")
+            Dim translateReq = Path.Combine(_toolsDir, "translate-server", "requirements.txt")
             Dim liveReq = Path.Combine(_toolsDir, "live-server", "requirements.txt")
 
-            If Not File.Exists(nllbReq) AndAlso Not File.Exists(liveReq) Then
+            If Not File.Exists(translateReq) AndAlso Not File.Exists(liveReq) Then
                 Throw New FileNotFoundException("No requirements.txt files found")
             End If
 
             ' Install each requirements file separately, falling back to individual packages
-            Dim nllbFailed = False
-            If File.Exists(nllbReq) Then
+            Dim translateFailed = False
+            If File.Exists(translateReq) Then
                 Try
                     Await RunProcessAsync(PythonExePath(),
-                        $"-m pip install -r ""{nllbReq}"" --no-warn-script-location", _toolsDir, 600000)
+                        $"-m pip install -r ""{translateReq}"" --no-warn-script-location", _toolsDir, 600000)
                 Catch ex As Exception
-                    Services.Infrastructure.AppLogger.Log($"[ERROR] InstallPythonDepsAsync: NLLB requirements install failed — {ex.Message}")
-                    nllbFailed = True
+                    Services.Infrastructure.AppLogger.Log($"[ERROR] InstallPythonDepsAsync: Translation requirements install failed — {ex.Message}")
+                    translateFailed = True
                 End Try
             End If
 
-            ' Fallback: install core nllb packages individually (nvidia-cublas may fail on non-CUDA)
-            If nllbFailed Then
+            ' Fallback: install core translation packages individually (nvidia-cublas may fail on non-CUDA)
+            If translateFailed Then
                 For Each pkg In {"ctranslate2", "sentencepiece", "fastapi", "uvicorn"}
                     Try
                         Await RunProcessAsync(PythonExePath(),
@@ -474,39 +478,18 @@ Namespace Models
             End Try
         End Function
 
-        Public Function CheckLiveDepsAsync() As Task(Of (pythonOk As Boolean, depsOk As Boolean, modelOk As Boolean))
-            Dim pythonOk = File.Exists(PythonExePath())
-            Dim depsOk = False
-            If pythonOk Then
-                Try
-                    Dim psi As New Diagnostics.ProcessStartInfo With {
-                        .FileName = PythonExePath(),
-                        .Arguments = "-c ""import faster_whisper; import sounddevice""",
-                        .UseShellExecute = False,
-                        .RedirectStandardOutput = True,
-                        .RedirectStandardError = True,
-                        .CreateNoWindow = True
-                    }
-                    Using proc = Diagnostics.Process.Start(psi)
-                        proc.WaitForExit(10000)
-                        depsOk = (proc.ExitCode = 0)
-                    End Using
-                Catch ex As Exception
-                    FormMain.WriteDebugLog($"[Deps] Live deps check failed: {ex.Message}")
-                End Try
-            End If
-            Dim modelDir = FasterWhisperModelDir()
-            Dim modelOk = Directory.Exists(modelDir) AndAlso
-                          File.Exists(Path.Combine(modelDir, "model.bin"))
-            Return Task.FromResult((pythonOk, depsOk, modelOk))
-        End Function
-
         Public Function CheckTranslationDepsAsync() As Task(Of (pythonOk As Boolean, depsOk As Boolean, modelOk As Boolean))
             Dim pythonOk = File.Exists(PythonExePath())
             Dim depsOk = If(pythonOk, CheckPythonDepsInstalled(), False)
-            Dim modelOk = Directory.Exists(NllbModelDir()) AndAlso
-                          File.Exists(Path.Combine(NllbModelDir(), "model.bin")) AndAlso
-                          File.Exists(Path.Combine(NllbModelDir(), "sentencepiece.bpe.model"))
+
+            ' Check the model directory for the currently selected backend
+            Dim modelDir = AppConfig.ResolvePath(If(_config.TranslationModelPath, ".\nllb-model"))
+            Dim modelType = If(_config.TranslationModelType, "nllb")
+            Dim hasModelBin = Directory.Exists(modelDir) AndAlso File.Exists(Path.Combine(modelDir, "model.bin"))
+            Dim hasSp As Boolean
+            hasSp = File.Exists(Path.Combine(modelDir, "sentencepiece.bpe.model"))
+            Dim modelOk = hasModelBin AndAlso hasSp
+
             Return Task.FromResult((pythonOk, depsOk, modelOk))
         End Function
 
@@ -570,6 +553,45 @@ Namespace Models
 
             Dim baseUrl = "https://huggingface.co/JustFrederik/nllb-200-1.3B-ct2-float16/resolve/main"
             Dim files = {"model.bin", "sentencepiece.bpe.model", "shared_vocabulary.txt", "config.json", "tokenizer_config.json"}
+
+            For Each f In files
+                Dim destPath = Path.Combine(modelDir, f)
+                If Not File.Exists(destPath) Then
+                    Dim url = $"{baseUrl}/{f}"
+                    Await DownloadFileAsync(url, destPath, progress)
+                End If
+            Next
+        End Function
+
+        ' ──────────────────────────────────────────
+        '  NLLB 3.3B Translation Model
+        ' ──────────────────────────────────────────
+
+        Private Function Nllb33bModelDir() As String
+            Return Path.Combine(_toolsDir, "nllb-3.3b-model")
+        End Function
+
+        Public Function CheckNllb33bModelAsync() As Task(Of ToolState)
+            Dim state As New ToolState With {
+                .Name = "NLLB 3.3B Translation Model",
+                .DownloadUrl = "https://huggingface.co/entai2965/nllb-200-3.3B-ctranslate2-float16/resolve/main"
+            }
+            Dim modelDir = Nllb33bModelDir()
+            If Directory.Exists(modelDir) AndAlso
+               File.Exists(Path.Combine(modelDir, "model.bin")) AndAlso
+               File.Exists(Path.Combine(modelDir, "sentencepiece.bpe.model")) Then
+                state.Status = ToolStatus.UpToDate
+                state.InstalledVersion = "installed"
+            End If
+            Return Task.FromResult(state)
+        End Function
+
+        Public Async Function DownloadNllb33bModelAsync(progress As IProgress(Of (downloaded As Long, total As Long))) As Task
+            Dim modelDir = Nllb33bModelDir()
+            If Not Directory.Exists(modelDir) Then Directory.CreateDirectory(modelDir)
+
+            Dim baseUrl = "https://huggingface.co/entai2965/nllb-200-3.3B-ctranslate2-float16/resolve/main"
+            Dim files = {"model.bin", "sentencepiece.bpe.model", "shared_vocabulary.json", "config.json", "tokenizer_config.json"}
 
             For Each f In files
                 Dim destPath = Path.Combine(modelDir, f)
@@ -653,20 +675,20 @@ Namespace Models
         End Function
 
         ''' <summary>
-        ''' Downloads a Piper voice model for the given NLLB language prefix (e.g. "fra", "deu").
+        ''' Downloads a Piper voice model for the given FLORES language prefix (e.g. "fra", "deu").
         ''' Downloads both the .onnx model and .onnx.json config from HuggingFace.
         ''' </summary>
-        Public Async Function DownloadPiperVoiceAsync(nllbLanguage As String,
+        Public Async Function DownloadPiperVoiceAsync(floresLanguage As String,
                                                        progress As IProgress(Of (downloaded As Long, total As Long))) As Task
             Dim voicesDir = PiperVoicesDir()
             If Not Directory.Exists(voicesDir) Then Directory.CreateDirectory(voicesDir)
 
-            Dim modelFile = PiperBackend.GetModelFileName(nllbLanguage)
+            Dim modelFile = PiperBackend.GetModelFileName(floresLanguage)
             If modelFile Is Nothing Then
-                Throw New ArgumentException($"No Piper voice available for language: {nllbLanguage}")
+                Throw New ArgumentException($"No Piper voice available for language: {floresLanguage}")
             End If
 
-            Dim baseUrl = PiperBackend.GetModelDownloadUrl(nllbLanguage)
+            Dim baseUrl = PiperBackend.GetModelDownloadUrl(floresLanguage)
             If baseUrl Is Nothing Then Return
 
             ' Download .onnx model file
@@ -683,7 +705,7 @@ Namespace Models
         End Function
 
         ''' <summary>
-        ''' Returns a list of NLLB language prefixes that have Piper voice models installed.
+        ''' Returns a list of FLORES language prefixes that have Piper voice models installed.
         ''' </summary>
         Public Function GetInstalledPiperVoices() As List(Of String)
             Dim installed As New List(Of String)()
@@ -700,7 +722,7 @@ Namespace Models
         End Function
 
         ''' <summary>
-        ''' Returns all NLLB language prefixes that have Piper voices available for download.
+        ''' Returns all FLORES language prefixes that have Piper voices available for download.
         ''' </summary>
         Public Shared Function GetAvailablePiperVoices() As List(Of String)
             Return PiperBackend.VoiceMap.Keys.ToList()
@@ -745,41 +767,149 @@ Namespace Models
         End Function
 
         ' ──────────────────────────────────────────
-        '  faster-whisper Model
+        '  whisper-server (Vulkan build for whisper.cpp)
         ' ──────────────────────────────────────────
 
-        Private Function FasterWhisperModelDir() As String
-            Return Path.Combine(_toolsDir, "faster-whisper-large-v3")
+        Private Function WhisperServerInstalledPath() As String
+            Return AppConfig.ResolvePath(_config.PathWhisperServer)
         End Function
 
-        Public Function CheckFasterWhisperModelAsync() As Task(Of ToolState)
+        Public Async Function CheckWhisperServerAsync() As Task(Of ToolState)
             Dim state As New ToolState With {
-                .Name = "faster-whisper Model (large-v3)",
-                .DownloadUrl = "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/main"
+                .Name = "whisper-server (Vulkan)"
             }
-            Dim modelDir = FasterWhisperModelDir()
-            If Directory.Exists(modelDir) AndAlso
-               File.Exists(Path.Combine(modelDir, "model.bin")) Then
+            Try
+                If File.Exists(WhisperServerInstalledPath()) Then
+                    state.InstalledVersion = GetSavedVersion("whisper-server (Vulkan)")
+                    If String.IsNullOrEmpty(state.InstalledVersion) Then state.InstalledVersion = "installed"
+                    state.Status = ToolStatus.Installed
+                End If
+
+                ' Vulkan build hosted on EveryTongue releases (built from whisper.cpp source with -DGGML_VULKAN=ON)
+                Dim release = Await GetLatestReleaseAsync("LeapFreak/EveryTongue")
+                If release IsNot Nothing Then
+                    state.LatestVersion = release.Value.TagName
+                    state.DownloadUrl = FindAsset(release.Value.Assets, "whisper-server-vulkan.*x64\.zip$")
+
+                    If state.Status = ToolStatus.Installed Then
+                        state.Status = CompareVersionTags(state.InstalledVersion, state.LatestVersion)
+                    End If
+                End If
+            Catch ex As Exception
+                Services.Infrastructure.AppLogger.Log($"[Deps] whisper-server check failed: {ex.Message}")
+                If state.Status = ToolStatus.Missing Then state.Status = ToolStatus.CheckFailed
+            End Try
+            Return state
+        End Function
+
+        Public Async Function DownloadWhisperServerAsync(url As String, progress As IProgress(Of (downloaded As Long, total As Long))) As Task
+            ' Download the Vulkan build ZIP from GitHub releases
+            Dim zipPath = Path.Combine(_toolsDir, "whisper-server-vulkan.zip")
+            Try
+                Await DownloadFileAsync(url, zipPath, progress)
+                ' Extract whisper-server.exe and required DLLs
+                ExtractAllFromZip(zipPath, _toolsDir)
+            Finally
+                If File.Exists(zipPath) Then File.Delete(zipPath)
+            End Try
+        End Function
+
+        ' ──────────────────────────────────────────
+        '  whisper-server-cuda (CUDA build for whisper.cpp — NVIDIA only)
+        ' ──────────────────────────────────────────
+
+        Private Function WhisperServerCudaInstalledPath() As String
+            Dim vulkanDir = Path.GetDirectoryName(WhisperServerInstalledPath())
+            If vulkanDir Is Nothing Then Return ""
+            Return Path.Combine(vulkanDir, "whisper-server-cuda.exe")
+        End Function
+
+        Public Async Function CheckWhisperServerCudaAsync() As Task(Of ToolState)
+            Dim state As New ToolState With {
+                .Name = "whisper-server (CUDA)"
+            }
+            Try
+                If File.Exists(WhisperServerCudaInstalledPath()) Then
+                    state.InstalledVersion = GetSavedVersion("whisper-server (CUDA)")
+                    If String.IsNullOrEmpty(state.InstalledVersion) Then state.InstalledVersion = "installed"
+                    state.Status = ToolStatus.Installed
+                End If
+
+                ' CUDA build hosted on EveryTongue releases
+                Dim release = Await GetLatestReleaseAsync("LeapFreak/EveryTongue")
+                If release IsNot Nothing Then
+                    state.LatestVersion = release.Value.TagName
+                    state.DownloadUrl = FindAsset(release.Value.Assets, "whisper-server-cuda.*x64\.zip$")
+
+                    If state.Status = ToolStatus.Installed Then
+                        state.Status = CompareVersionTags(state.InstalledVersion, state.LatestVersion)
+                    End If
+                End If
+            Catch ex As Exception
+                Services.Infrastructure.AppLogger.Log($"[Deps] whisper-server-cuda check failed: {ex.Message}")
+                If state.Status = ToolStatus.Missing Then state.Status = ToolStatus.CheckFailed
+            End Try
+            Return state
+        End Function
+
+        Public Async Function DownloadWhisperServerCudaAsync(url As String, progress As IProgress(Of (downloaded As Long, total As Long))) As Task
+            Dim zipPath = Path.Combine(_toolsDir, "whisper-server-cuda.zip")
+            Try
+                Await DownloadFileAsync(url, zipPath, progress)
+                ExtractAllFromZip(zipPath, _toolsDir)
+            Finally
+                If File.Exists(zipPath) Then File.Delete(zipPath)
+            End Try
+        End Function
+
+        ' ──────────────────────────────────────────
+        '  GGML Whisper Model (for whisper.cpp)
+        ' ──────────────────────────────────────────
+
+        Private Function GgmlModelInstalledPath() As String
+            Return AppConfig.ResolvePath(_config.PathWhisperCppModel)
+        End Function
+
+        Public Function CheckGgmlModelAsync() As Task(Of ToolState)
+            Dim state As New ToolState With {
+                .Name = "GGML Whisper Model",
+                .DownloadUrl = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin"
+            }
+            If File.Exists(GgmlModelInstalledPath()) Then
                 state.Status = ToolStatus.UpToDate
                 state.InstalledVersion = "installed"
             End If
             Return Task.FromResult(state)
         End Function
 
-        Public Async Function DownloadFasterWhisperModelAsync(progress As IProgress(Of (downloaded As Long, total As Long))) As Task
-            Dim modelDir = FasterWhisperModelDir()
-            If Not Directory.Exists(modelDir) Then Directory.CreateDirectory(modelDir)
+        Public Async Function DownloadGgmlModelAsync(url As String, progress As IProgress(Of (downloaded As Long, total As Long))) As Task
+            Dim destPath = Path.Combine(_toolsDir, "ggml-large-v3-turbo.bin")
+            Await DownloadFileAsync(url, destPath, progress)
+        End Function
 
-            Dim baseUrl = "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/main"
-            Dim files = {"model.bin", "config.json", "tokenizer.json", "preprocessor_config.json", "vocabulary.json"}
+        ' ──────────────────────────────────────────
+        '  Silero VAD Model (for whisper-server built-in VAD)
+        ' ──────────────────────────────────────────
 
-            For Each f In files
-                Dim destPath = Path.Combine(modelDir, f)
-                If Not File.Exists(destPath) Then
-                    Dim url = $"{baseUrl}/{f}"
-                    Await DownloadFileAsync(url, destPath, progress)
-                End If
-            Next
+        Private Function SileroVadModelInstalledPath() As String
+            Return AppConfig.ResolvePath(_config.PathSileroVadModel)
+        End Function
+
+        Public Function CheckSileroVadModelAsync() As Task(Of ToolState)
+            Dim state As New ToolState With {
+                .Name = "Silero VAD Model",
+                .DownloadUrl = "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v6.2.0.bin"
+            }
+            If File.Exists(SileroVadModelInstalledPath()) Then
+                state.Status = ToolStatus.UpToDate
+                state.InstalledVersion = "installed"
+            End If
+            Return Task.FromResult(state)
+        End Function
+
+        Public Async Function DownloadSileroVadModelAsync(url As String, progress As IProgress(Of (downloaded As Long, total As Long))) As Task
+            Dim destPath = Path.Combine(_toolsDir, "ggml-silero-v6.2.0.bin")
+            Await DownloadFileAsync(url, destPath, progress)
         End Function
 
         ' ──────────────────────────────────────────
@@ -800,27 +930,45 @@ Namespace Models
         End Function
 
         Public Async Function DownloadToolAsync(state As ToolState, progress As IProgress(Of (downloaded As Long, total As Long))) As Task
-            Select Case state.Name
-                Case "yt-dlp"
-                    Await DownloadYtDlpAsync(state.DownloadUrl, progress)
-                Case "FFmpeg"
-                    Await DownloadFfmpegAsync(state.DownloadUrl, progress)
-                Case "Whisper Model (ggml-large-v3)"
-                    Await DownloadModelAsync(state.DownloadUrl, progress)
-                Case "Subtitle Edit"
-                    Await DownloadSubtitleEditAsync(state.DownloadUrl, progress)
-                Case "NLLB Translation Model"
-                    Await DownloadNllbModelAsync(progress)
-                Case "faster-whisper Model (large-v3)"
-                    Await DownloadFasterWhisperModelAsync(progress)
-                Case "Piper TTS"
-                    Await DownloadPiperAsync(progress)
-            End Select
+            Services.Infrastructure.AppLogger.Log($"[DOWNLOAD] Starting download: {state.Name} (Status={state.Status}, URL={state.DownloadUrl})")
+            Try
+                Select Case state.Name
+                    Case "yt-dlp"
+                        Await DownloadYtDlpAsync(state.DownloadUrl, progress)
+                    Case "FFmpeg"
+                        Await DownloadFfmpegAsync(state.DownloadUrl, progress)
+                    Case "Whisper Model (ggml-large-v3)"
+                        Await DownloadModelAsync(state.DownloadUrl, progress)
+                    Case "Subtitle Edit"
+                        Await DownloadSubtitleEditAsync(state.DownloadUrl, progress)
+                    Case "NLLB Translation Model"
+                        Await DownloadNllbModelAsync(progress)
+                    Case "NLLB 3.3B Translation Model"
+                        Await DownloadNllb33bModelAsync(progress)
+                    Case "Piper TTS"
+                        Await DownloadPiperAsync(progress)
+                    Case "whisper-server (Vulkan)"
+                        Await DownloadWhisperServerAsync(state.DownloadUrl, progress)
+                    Case "whisper-server (CUDA)"
+                        Await DownloadWhisperServerCudaAsync(state.DownloadUrl, progress)
+                    Case "GGML Whisper Model"
+                        Await DownloadGgmlModelAsync(state.DownloadUrl, progress)
+                    Case "Silero VAD Model"
+                        Await DownloadSileroVadModelAsync(state.DownloadUrl, progress)
+                    Case Else
+                        Services.Infrastructure.AppLogger.Log($"[DOWNLOAD] Unknown tool name: '{state.Name}' — no download handler")
+                End Select
 
-            ' Save the downloaded version
-            If Not String.IsNullOrEmpty(state.LatestVersion) Then
-                SaveVersion(state.Name, state.LatestVersion)
-            End If
+                Services.Infrastructure.AppLogger.Log($"[DOWNLOAD] Completed: {state.Name}")
+
+                ' Save the downloaded version
+                If Not String.IsNullOrEmpty(state.LatestVersion) Then
+                    SaveVersion(state.Name, state.LatestVersion)
+                End If
+            Catch ex As Exception
+                Services.Infrastructure.AppLogger.Log($"[DOWNLOAD] FAILED: {state.Name} — {ex.GetType().Name}: {ex.Message}")
+                Throw
+            End Try
         End Function
 
         ' ──────────────────────────────────────────

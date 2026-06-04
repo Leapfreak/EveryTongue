@@ -10,6 +10,8 @@ Namespace Services.Infrastructure
         Public Property GpuName As String = ""
         Public Property GpuMemoryMB As Integer = 0
         Public Property GpuScore As Integer = 0
+        Public Property HasCuda As Boolean = False
+        Public Property HasVulkan As Boolean = False
 
         Public Property CpuName As String = ""
         Public Property CpuCores As Integer = 0
@@ -105,6 +107,16 @@ Namespace Services.Infrastructure
             Return info
         End Function
 
+        ''' <summary>
+        ''' Returns the best STT backend key based on detected hardware.
+        ''' CUDA → "whisper-cpp-cuda", Vulkan → "whisper-cpp-vulkan", else → "whisper-cpp-cpu".
+        ''' </summary>
+        Public Shared Function SuggestSttBackend(info As HardwareInfo) As String
+            If info.HasCuda Then Return "whisper-cpp-cuda"
+            If info.HasVulkan Then Return "whisper-cpp-vulkan"
+            Return "whisper-cpp-cpu"
+        End Function
+
         Private Shared Sub ScanGpu(info As HardwareInfo)
             ' Try nvidia-smi first for NVIDIA GPUs
             Try
@@ -122,6 +134,7 @@ Namespace Services.Infrastructure
                             If parts.Length >= 2 Then
                                 info.GpuName = parts(0).Trim()
                                 Integer.TryParse(parts(1).Trim(), info.GpuMemoryMB)
+                                info.HasCuda = True
                             End If
                         End If
                     End If
@@ -152,24 +165,48 @@ Namespace Services.Infrastructure
                 End Try
             End If
 
-            ' Score GPU per plan scoring table
+            ' Detect Vulkan support (vulkan-1.dll in System32 = Vulkan runtime installed)
+            Try
+                Dim vulkanDll = IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "vulkan-1.dll")
+                info.HasVulkan = IO.File.Exists(vulkanDll)
+                If info.HasVulkan Then
+                    FormMain.WriteDebugLog($"[HW] Vulkan runtime detected ({vulkanDll})")
+                End If
+            Catch ex As Exception
+                FormMain.WriteDebugLog($"[HW] Vulkan detection failed: {ex.Message}")
+            End Try
+
+            ' Score GPU — NVIDIA with CUDA scores highest, but AMD/Intel with Vulkan are now viable
             Dim isNvidia = info.GpuName.Contains("NVIDIA", StringComparison.OrdinalIgnoreCase) OrElse
                            info.GpuName.Contains("GeForce", StringComparison.OrdinalIgnoreCase) OrElse
                            info.GpuName.Contains("RTX", StringComparison.OrdinalIgnoreCase) OrElse
                            info.GpuName.Contains("GTX", StringComparison.OrdinalIgnoreCase)
 
-            If Not isNvidia Then
-                info.GpuScore = 10 ' No NVIDIA GPU
-            ElseIf info.GpuMemoryMB >= 8000 Then
-                info.GpuScore = 100
-            ElseIf info.GpuMemoryMB >= 6000 Then
-                info.GpuScore = 80
-            ElseIf info.GpuMemoryMB >= 4000 Then
-                info.GpuScore = 55
-            ElseIf info.GpuMemoryMB >= 2000 Then
-                info.GpuScore = 25
+            If isNvidia Then
+                If info.GpuMemoryMB >= 8000 Then
+                    info.GpuScore = 100
+                ElseIf info.GpuMemoryMB >= 6000 Then
+                    info.GpuScore = 80
+                ElseIf info.GpuMemoryMB >= 4000 Then
+                    info.GpuScore = 55
+                ElseIf info.GpuMemoryMB >= 2000 Then
+                    info.GpuScore = 25
+                Else
+                    info.GpuScore = 10
+                End If
+            ElseIf info.HasVulkan AndAlso info.GpuMemoryMB >= 2000 Then
+                ' Non-NVIDIA with Vulkan: AMD/Intel discrete or capable iGPU
+                If info.GpuMemoryMB >= 8000 Then
+                    info.GpuScore = 70
+                ElseIf info.GpuMemoryMB >= 4000 Then
+                    info.GpuScore = 50
+                Else
+                    info.GpuScore = 30
+                End If
+            ElseIf info.HasVulkan Then
+                info.GpuScore = 20 ' Vulkan available but very limited VRAM (integrated)
             Else
-                info.GpuScore = 10
+                info.GpuScore = 10 ' No usable GPU acceleration
             End If
         End Sub
 

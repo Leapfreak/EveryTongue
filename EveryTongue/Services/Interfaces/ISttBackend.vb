@@ -4,7 +4,7 @@ Imports EveryTongue.Services.Models
 Namespace Services.Interfaces
     ''' <summary>
     ''' A pluggable STT backend (Faster Whisper, Vosk, Azure Speech, etc.).
-    ''' Each backend implements this interface. LiveController creates instances per-session.
+    ''' Each backend implements this interface. Instances are created per-session.
     ''' </summary>
     Public Interface ISttBackend
         ReadOnly Property Name As String

@@ -2,12 +2,14 @@ Imports System.Threading
 Imports Microsoft.Extensions.Logging
 Imports EveryTongue.Services.Interfaces
 Imports EveryTongue.Services.Models
+Imports EveryTongue.Services.Scheduling
 
 Namespace Services.Tts
     ''' <summary>
     ''' TTS orchestrator — selects the best available backend for the requested language,
     ''' caches audio per commit, and returns URL paths for Kestrel to serve.
     ''' Tiered fallback: Piper (local, priority 1) -> MMS-TTS (local, priority 2) -> Edge TTS (cloud, priority 3).
+    ''' Uses a priority queue to schedule synthesis requests under multi-room load.
     ''' </summary>
     Public Class TtsOrchestrator
         Implements ITtsService
@@ -16,16 +18,19 @@ Namespace Services.Tts
         Private ReadOnly _cache As TtsCache
         Private ReadOnly _logger As ILogger(Of TtsOrchestrator)
         Private ReadOnly _preferredCodec As String = "mp3"
-        Private ReadOnly _semaphore As New SemaphoreSlim(3, 3)
+        Private ReadOnly _queue As PriorityWorkQueue(Of String)
         Private _preferredBackends As HashSet(Of String)
 
         Public Sub New(backends As IEnumerable(Of ITtsBackend),
                        cache As TtsCache,
-                       logger As ILogger(Of TtsOrchestrator))
+                       logger As ILogger(Of TtsOrchestrator),
+                       options As Server.ServerOptions)
             ' Sort by priority (lowest first = preferred)
             _backends = backends.OrderBy(Function(b) b.Priority).ToList()
             _cache = cache
             _logger = logger
+            Dim concurrency = Math.Max(1, If(options?.TtsConcurrency, 3))
+            _queue = New PriorityWorkQueue(Of String)(concurrency, starvationMs:=5000)
         End Sub
 
         ''' <summary>
@@ -52,68 +57,88 @@ Namespace Services.Tts
             End Get
         End Property
 
+        Public ReadOnly Property TtsQueueMetrics As QueueMetrics Implements ITtsService.TtsQueueMetrics
+            Get
+                Return _queue.GetMetrics()
+            End Get
+        End Property
+
         Public Async Function SynthesiseAsync(text As String,
                                               language As String,
                                               commitId As Integer,
-                                              ct As CancellationToken
+                                              ct As CancellationToken,
+                                              Optional priority As TranslationPriority = TranslationPriority.Workspace
         ) As Task(Of String) Implements ITtsService.SynthesiseAsync
 
-            ' Check cache first
+            ' Check cache first (no need to queue for cache hits)
             Dim cached = _cache.TryGet(language, commitId)
             If cached IsNot Nothing Then Return cached
 
-            ' Limit concurrent TTS processes
-            Await _semaphore.WaitAsync(ct)
-            Try
-                ' Re-check cache after acquiring semaphore (another task may have filled it)
-                cached = _cache.TryGet(language, commitId)
-                If cached IsNot Nothing Then Return cached
+            ' Route through the priority queue for concurrency control
+            Return Await _queue.EnqueueAsync(
+                Async Function(ct2)
+                    Return Await SynthesiseInternal(text, language, commitId, ct2)
+                End Function,
+                CInt(priority),
+                ct)
+        End Function
 
-                ' Try each backend in priority order (filtered by preference)
-                For Each backend In _backends
-                    If ct.IsCancellationRequested Then Exit For
+        ''' <summary>
+        ''' Actual TTS synthesis logic — tries each backend in priority order.
+        ''' Called from within the priority queue's concurrency slot.
+        ''' </summary>
+        Private Async Function SynthesiseInternal(text As String,
+                                                   language As String,
+                                                   commitId As Integer,
+                                                   ct As CancellationToken
+        ) As Task(Of String)
 
-                    ' Skip backends not in the preferred list (if set)
-                    If _preferredBackends IsNot Nothing AndAlso _preferredBackends.Count > 0 Then
-                        If Not _preferredBackends.Contains(backend.Name.ToLower()) Then
-                            _logger.LogDebug("TTS skipping {Backend} (not in preferred list) for {Language}",
-                                backend.Name, language)
-                            Continue For
-                        End If
+            ' Re-check cache (another task may have filled it while we waited in queue)
+            Dim cached = _cache.TryGet(language, commitId)
+            If cached IsNot Nothing Then Return cached
+
+            ' Try each backend in priority order (filtered by preference)
+            For Each backend In _backends
+                If ct.IsCancellationRequested Then Exit For
+
+                ' Skip backends not in the preferred list (if set)
+                If _preferredBackends IsNot Nothing AndAlso _preferredBackends.Count > 0 Then
+                    If Not _preferredBackends.Contains(backend.Name.ToLower()) Then
+                        _logger.LogDebug("TTS skipping {Backend} (not in preferred list) for {Language}",
+                            backend.Name, language)
+                        Continue For
+                    End If
+                End If
+
+                Try
+                    Dim supported = Await backend.IsLanguageSupportedAsync(language, ct)
+                    If Not supported Then
+                        _logger.LogInformation("TTS backend {Backend} does not support {Language}",
+                            backend.Name, language)
+                        Continue For
                     End If
 
-                    Try
-                        Dim supported = Await backend.IsLanguageSupportedAsync(language, ct)
-                        If Not supported Then
-                            _logger.LogInformation("TTS backend {Backend} does not support {Language}",
-                                backend.Name, language)
-                            Continue For
-                        End If
-
-                        _logger.LogInformation("TTS trying {Backend} for {Language}, commit {Id}",
-                            backend.Name, language, commitId)
-                        Dim result = Await backend.SynthesiseAsync(text, language, ct)
-                        If result IsNot Nothing AndAlso result.AudioData IsNot Nothing Then
-                            ' Store in cache and return URL
-                            Dim url = _cache.Store(language, commitId,
-                                result.AudioData, If(result.Codec, _preferredCodec))
-                            _logger.LogInformation("TTS synthesised via {Backend} for {Language}, commit {Id}",
-                                            backend.Name, language, commitId)
-                            Return url
-                        Else
-                            _logger.LogWarning("TTS backend {Backend} returned no audio for {Language}",
-                                backend.Name, language)
-                        End If
-                    Catch ex As OperationCanceledException
-                        Throw
-                    Catch ex As Exception
-                        _logger.LogWarning(ex, "TTS backend {Backend} failed for {Language}",
-                                          backend.Name, language)
-                    End Try
-                Next
-            Finally
-                _semaphore.Release()
-            End Try
+                    _logger.LogInformation("TTS trying {Backend} for {Language}, commit {Id}",
+                        backend.Name, language, commitId)
+                    Dim result = Await backend.SynthesiseAsync(text, language, ct)
+                    If result IsNot Nothing AndAlso result.AudioData IsNot Nothing Then
+                        ' Store in cache and return URL
+                        Dim url = _cache.Store(language, commitId,
+                            result.AudioData, If(result.Codec, _preferredCodec))
+                        _logger.LogInformation("TTS synthesised via {Backend} for {Language}, commit {Id}",
+                                        backend.Name, language, commitId)
+                        Return url
+                    Else
+                        _logger.LogWarning("TTS backend {Backend} returned no audio for {Language}",
+                            backend.Name, language)
+                    End If
+                Catch ex As OperationCanceledException
+                    Throw
+                Catch ex As Exception
+                    _logger.LogWarning(ex, "TTS backend {Backend} failed for {Language}",
+                                      backend.Name, language)
+                End Try
+            Next
 
             ' No backend could synthesise — client falls back to browser speechSynthesis
             Return Nothing

@@ -43,7 +43,7 @@ Namespace Services.Rooms
         ''' <summary>Path to FFmpeg executable.</summary>
         Public Property FfmpegPath As String = ""
 
-        ''' <summary>Path to faster-whisper model directory.</summary>
+        ''' <summary>Path to Whisper model (faster-whisper dir or whisper.cpp .bin).</summary>
         Public Property WhisperModelPath As String = ""
 
         ''' <summary>Compute type for Whisper model.</summary>
@@ -52,9 +52,21 @@ Namespace Services.Rooms
         ''' <summary>Whether to use CPU instead of CUDA.</summary>
         Public Property WhisperUseCpu As Boolean = False
 
+        ''' <summary>Path to whisper-server.exe (for whisper-cpp backend).</summary>
+        Public Property WhisperServerPath As String = ""
+
+        ''' <summary>Port for whisper-server.exe HTTP API.</summary>
+        Public Property WhisperServerPort As Integer = 8178
+
+        ''' <summary>STT backend key (e.g. "whisper-cpp-vulkan", "whisper-cpp-cpu", "faster-whisper"). Set from AppConfig.</summary>
+        Public Property SttBackend As String = ""
+
+        ''' <summary>Path to Silero VAD GGML model for whisper-server built-in VAD.</summary>
+        Public Property SileroVadModelPath As String = ""
+
         ''' <summary>
         ''' Callback invoked when conversation rooms need translation but no backend is available.
-        ''' FormMain wires this to start the NLLB translation service and register NllbBackend.
+        ''' FormMain wires this to start the translation service and register SidecarTranslationBackend.
         ''' </summary>
         Public Property EnsureTranslationAvailable As Action
 
@@ -140,13 +152,13 @@ Namespace Services.Rooms
             End If
 
             ' Use the client's language setting so Whisper doesn't guess wrong
-            ' Client language is NLLB code (e.g. "eng_Latn") — convert to Whisper code (e.g. "en")
-            Dim clientLangNllb = If(speakerLang, "")
-            Dim whisperLang = If(Not String.IsNullOrEmpty(clientLangNllb),
-                TranslationService.NllbToShortCode(clientLangNllb).ToLowerInvariant(), "")
+            ' Client language is FLORES code (e.g. "eng_Latn") — convert to Whisper code (e.g. "en")
+            Dim clientLangFlores = If(speakerLang, "")
+            Dim whisperLang = If(Not String.IsNullOrEmpty(clientLangFlores),
+                TranslationService.FloresToShortCode(clientLangFlores).ToLowerInvariant(), "")
             If Not String.IsNullOrEmpty(whisperLang) Then
                 transcribeUrl &= $"?lang={Uri.EscapeDataString(whisperLang)}"
-                _logger.LogInformation("Transcribe with forced language: {Lang} (from client {Nllb})", whisperLang, clientLangNllb)
+                _logger.LogInformation("Transcribe with forced language: {Lang} (from client {Flores})", whisperLang, clientLangFlores)
             End If
 
             Try
@@ -196,7 +208,7 @@ Namespace Services.Rooms
 
         ''' <summary>
         ''' Ensures the live-server is running and the Whisper model is loaded.
-        ''' Checks health first — if LiveController already started it, reuses it.
+        ''' Checks health first — if already started, reuses it.
         ''' Otherwise starts its own instance and calls /load-model.
         ''' </summary>
         Public Async Function EnsureLiveServerAsync(ct As CancellationToken) As Task(Of Boolean)
@@ -209,7 +221,7 @@ Namespace Services.Rooms
             Try
                 If _serverEnsured Then Return True
 
-                ' Check if server is already running (started by LiveController or previous call)
+                ' Check if server is already running (started on warm-up or by a previous call)
                 Dim healthy = Await CheckHealthAsync(ct).ConfigureAwait(False)
                 If healthy Then
                     _logger.LogInformation("Live server already running on port {Port}", LiveServerPort)
@@ -232,27 +244,50 @@ Namespace Services.Rooms
                     Return False
                 End If
 
-                _sidecar.Start(serverScript, "")
+                ' Build args based on STT backend
+                Dim useWhisperCpp = SttBackend IsNot Nothing AndAlso SttBackend.StartsWith("whisper-cpp", StringComparison.OrdinalIgnoreCase)
+                Dim sidecarArgs As String
+                If useWhisperCpp Then
+                    Dim wsPath = If(WhisperServerPath, "")
+                    Dim wsPort = WhisperServerPort
+                    Dim noGpuFlag = If(SttBackend.Equals("whisper-cpp-cpu", StringComparison.OrdinalIgnoreCase), " --no-gpu", "")
+                    Dim vadPath = If(SileroVadModelPath, "")
+                    Dim vadFlag = If(Not String.IsNullOrEmpty(vadPath) AndAlso File.Exists(vadPath),
+                        $" --vad-model-path ""{vadPath}""", "")
+                    sidecarArgs = $"--backend whisper-cpp --whisper-server-path ""{wsPath}"" --whisper-server-port {wsPort}{noGpuFlag}{vadFlag}"
+                Else
+                    sidecarArgs = ""
+                End If
 
-                ' Wait for server to be ready (up to 30s for model loading)
-                Dim deadline = DateTime.UtcNow.AddSeconds(30)
-                Dim ready = False
+                _sidecar.Start(serverScript, sidecarArgs)
+
+                ' Wait for server HTTP to be reachable (up to 15s)
+                Dim deadline = DateTime.UtcNow.AddSeconds(15)
+                Dim serverUp = False
                 While DateTime.UtcNow < deadline AndAlso Not ct.IsCancellationRequested
                     Await Task.Delay(500, ct).ConfigureAwait(False)
-                    ready = Await CheckHealthAsync(ct).ConfigureAwait(False)
-                    If ready Then Exit While
+                    serverUp = Await CheckServerUpAsync(ct).ConfigureAwait(False)
+                    If serverUp Then Exit While
                 End While
 
-                If Not ready Then
-                    _logger.LogWarning("Live server failed to start within 30s")
+                If Not serverUp Then
+                    _logger.LogWarning("Live server failed to start within 15s")
                     Return False
                 End If
 
-                ' Load the Whisper model via /load-model
+                ' Check if model is already loaded (e.g. server was already running)
+                Dim alreadyReady = Await CheckHealthAsync(ct).ConfigureAwait(False)
+                If alreadyReady Then
+                    _logger.LogInformation("Live server already has model loaded")
+                    _serverEnsured = True
+                    Return True
+                End If
+
+                ' Load the Whisper model via /load-model (single attempt, not in a retry loop)
                 _logger.LogInformation("Loading Whisper model for conversation rooms...")
                 Dim loadResult = Await LoadModelAsync(ct).ConfigureAwait(False)
                 If Not loadResult Then
-                    _logger.LogWarning("Failed to load Whisper model")
+                    _logger.LogWarning("Failed to load Whisper model — check CUDA/GPU availability")
                     Return False
                 End If
 
@@ -279,11 +314,21 @@ Namespace Services.Rooms
                 Using doc = JsonDocument.Parse(json)
                     Dim modelLoaded As JsonElement = Nothing
                     If doc.RootElement.TryGetProperty("model_loaded", modelLoaded) Then
-                        If modelLoaded.GetBoolean() Then Return True
+                        Return modelLoaded.GetBoolean()
                     End If
                 End Using
-                ' Server is up but model not loaded — need to call /load-model
-                Return Await LoadModelAsync(ct).ConfigureAwait(False)
+                ' Server is up (no model_loaded field = legacy server, assume ready)
+                Return True
+            Catch
+                Return False
+            End Try
+        End Function
+
+        ''' <summary>Check if the server HTTP endpoint is reachable (ignoring model state).</summary>
+        Private Async Function CheckServerUpAsync(ct As CancellationToken) As Task(Of Boolean)
+            Try
+                Dim response = Await _httpClient.GetAsync($"http://127.0.0.1:{LiveServerPort}/health", ct).ConfigureAwait(False)
+                Return response.IsSuccessStatusCode
             Catch
                 Return False
             End Try
@@ -292,24 +337,40 @@ Namespace Services.Rooms
         Private Async Function LoadModelAsync(ct As CancellationToken) As Task(Of Boolean)
             Try
                 Dim device = If(WhisperUseCpu, "cpu", "cuda")
+                Dim loaded = Await TryLoadModelWithDeviceAsync(device, ct).ConfigureAwait(False)
+
+                ' Auto-fallback: if CUDA failed, retry on CPU
+                If Not loaded AndAlso device = "cuda" Then
+                    _logger.LogWarning("CUDA model load failed — retrying on CPU...")
+                    loaded = Await TryLoadModelWithDeviceAsync("cpu", ct).ConfigureAwait(False)
+                End If
+
+                Return loaded
+            Catch ex As Exception
+                _logger.LogWarning("LoadModelAsync failed: {Message}", ex.Message)
+                Return False
+            End Try
+        End Function
+
+        Private Async Function TryLoadModelWithDeviceAsync(device As String, ct As CancellationToken) As Task(Of Boolean)
+            Try
                 Dim jsonBody = $"{{""model_path"":{JsonSerializer.Serialize(WhisperModelPath)},""compute_type"":{JsonSerializer.Serialize(WhisperComputeType)},""device"":{JsonSerializer.Serialize(device)}}}"
                 Dim content As New StringContent(jsonBody, Encoding.UTF8, "application/json")
 
-                ' Model loading can take 10-20s on first load
                 Using cts = CancellationTokenSource.CreateLinkedTokenSource(ct)
                     cts.CancelAfter(TimeSpan.FromSeconds(60))
                     Dim response = Await _httpClient.PostAsync(
                         $"http://127.0.0.1:{LiveServerPort}/load-model", content, cts.Token).ConfigureAwait(False)
                     If response.IsSuccessStatusCode Then
-                        _logger.LogInformation("Whisper model loaded successfully")
+                        _logger.LogInformation("Whisper model loaded successfully on {Device}", device)
                         Return True
                     End If
                     Dim body = Await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(False)
-                    _logger.LogWarning("Failed to load model: {Status} {Body}", response.StatusCode, body)
+                    _logger.LogWarning("Failed to load model on {Device}: {Status} {Body}", device, response.StatusCode, body)
                     Return False
                 End Using
             Catch ex As Exception
-                _logger.LogWarning("LoadModelAsync failed: {Message}", ex.Message)
+                _logger.LogWarning("LoadModel ({Device}) exception: {Message}", device, ex.Message)
                 Return False
             End Try
         End Function
@@ -356,22 +417,22 @@ Namespace Services.Rooms
             _logger.LogInformation("BroadcastToRoom: {Count} recipients (incl. speaker), speaker={Speaker}, targetLangs=[{Langs}]",
                 roomClients.Count, speaker.RemoteEndpoint, String.Join(",", targetLangs))
 
-            ' Convert detected whisper lang (e.g. "en") to NLLB code for source
-            Dim sourceNllb = TranslationService.WhisperToNllbLang(sourceLang)
-            Dim sourceShort = TranslationService.NllbToShortCode(sourceNllb)
-            _logger.LogInformation("BroadcastToRoom: sourceNllb={Source} sourceShort={Short}", sourceNllb, sourceShort)
+            ' Convert detected whisper lang (e.g. "en") to FLORES code for source
+            Dim sourceFlores = TranslationService.WhisperToFloresLang(sourceLang)
+            Dim sourceShort = TranslationService.FloresToShortCode(sourceFlores)
+            _logger.LogInformation("BroadcastToRoom: sourceFlores={Source} sourceShort={Short}", sourceFlores, sourceShort)
 
             ' Remove source language from targets (no self-translation)
-            targetLangs.Remove(sourceNllb)
+            targetLangs.Remove(sourceFlores)
 
             ' Translate to all needed languages in one batch call
             Dim translations As Dictionary(Of String, String) = Nothing
             If targetLangs.Count > 0 AndAlso _translationService IsNot Nothing Then
-                ' Check if any backend is actually available; if not, request NLLB startup
+                ' Check if any backend is actually available; if not, request translation startup
                 Dim backends = _translationService.GetAllBackends()
                 Dim anyAvailable = backends.Any(Function(b) b.IsAvailable)
                 If Not anyAvailable Then
-                    _logger.LogInformation("No translation backend available — requesting NLLB startup")
+                    _logger.LogInformation("No translation backend available — requesting translation startup")
                     Try
                         EnsureTranslationAvailable?.Invoke()
                     Catch ex As Exception
@@ -380,14 +441,15 @@ Namespace Services.Rooms
                 End If
 
                 Try
-                    ' Split into lines/sentences for NLLB (same as Translate workspace)
+                    ' Split into lines/sentences for translation (same as Translate workspace)
                     Dim textLines = TranslateController.SplitIntoLines(text)
                     Dim totalSentences = textLines.Sum(Function(tl) tl.Sentences.Count)
 
                     If totalSentences <= 1 Then
                         ' Single sentence — translate directly
                         translations = Await _translationService.TranslateAsync(
-                            text, sourceNllb, targetLangs.ToList(), ct).ConfigureAwait(False)
+                            text, sourceFlores, targetLangs.ToList(), ct,
+                            Scheduling.TranslationPriority.Room).ConfigureAwait(False)
                     Else
                         ' Multi-sentence — translate per sentence, reassemble with line breaks
                         Dim perLang As New Dictionary(Of String, Text.StringBuilder)()
@@ -406,7 +468,8 @@ Namespace Services.Rooms
 
                             For Each sentence In tl.Sentences
                                 Dim sentResult = Await _translationService.TranslateAsync(
-                                    sentence, sourceNllb, targetLangs.ToList(), ct).ConfigureAwait(False)
+                                    sentence, sourceFlores, targetLangs.ToList(), ct,
+                                    Scheduling.TranslationPriority.Room).ConfigureAwait(False)
                                 For Each lang In targetLangs
                                     If perLang(lang).Length > 0 AndAlso Not perLang(lang).ToString().EndsWith(vbLf) Then
                                         perLang(lang).Append(" ")
@@ -449,7 +512,7 @@ Namespace Services.Rooms
                 If isSharedDevice Then
                     ' Build translations dict including original text under source language
                     Dim allTranslations As New Dictionary(Of String, String)()
-                    allTranslations(sourceNllb) = text
+                    allTranslations(sourceFlores) = text
                     If translations IsNot Nothing Then
                         For Each kvp In translations
                             allTranslations(kvp.Key) = kvp.Value
@@ -468,7 +531,7 @@ Namespace Services.Rooms
                         transJson.Append(SubtitleService.EscapeJson(kvp.Value))
                     Next
                     transJson.Append("}")
-                    Dim json = $"{{""type"":""commit"",""id"":{commitId},""speaker"":{SubtitleService.EscapeJson(speakerName)},""lang"":{SubtitleService.EscapeJson(sourceShort)},""time"":{SubtitleService.EscapeJson(ts)},""sourceLang"":{SubtitleService.EscapeJson(sourceNllb)},""translations"":{transJson.ToString()}}}"
+                    Dim json = $"{{""type"":""commit"",""id"":{commitId},""speaker"":{SubtitleService.EscapeJson(speakerName)},""lang"":{SubtitleService.EscapeJson(sourceShort)},""time"":{SubtitleService.EscapeJson(ts)},""sourceLang"":{SubtitleService.EscapeJson(sourceFlores)},""translations"":{transJson.ToString()}}}"
                     Dim buffer = Encoding.UTF8.GetBytes(json)
                     _logger.LogInformation("BroadcastToRoom: sending id={Id} to shared-device {Endpoint} with {Count} translations",
                         commitId, client.RemoteEndpoint, allTranslations.Count)
@@ -479,7 +542,7 @@ Namespace Services.Rooms
 
                     If client.Id = speaker.Id Then
                         clientText = text
-                    ElseIf String.IsNullOrEmpty(client.Language) OrElse client.Language = sourceNllb Then
+                    ElseIf String.IsNullOrEmpty(client.Language) OrElse client.Language = sourceFlores Then
                         clientText = text
                     ElseIf translations IsNot Nothing AndAlso translations.ContainsKey(client.Language) Then
                         clientText = translations(client.Language)
@@ -489,13 +552,13 @@ Namespace Services.Rooms
 
                     ' Lang tag = language of the TEXT being sent (target lang for translated, source for original)
                     Dim textLang As String
-                    If client.Id = speaker.Id OrElse String.IsNullOrEmpty(client.Language) OrElse client.Language = sourceNllb Then
+                    If client.Id = speaker.Id OrElse String.IsNullOrEmpty(client.Language) OrElse client.Language = sourceFlores Then
                         textLang = sourceShort
                     Else
-                        textLang = TranslationService.NllbToShortCode(client.Language)
+                        textLang = TranslationService.FloresToShortCode(client.Language)
                     End If
                     Dim commitId = Interlocked.Increment(_nextCommitId)
-                    Dim json = $"{{""type"":""commit"",""id"":{commitId},""text"":{SubtitleService.EscapeJson(clientText)},""lang"":{SubtitleService.EscapeJson(textLang)},""time"":{SubtitleService.EscapeJson(ts)},""speaker"":{SubtitleService.EscapeJson(speakerName)},""sourceLang"":{SubtitleService.EscapeJson(sourceNllb)}}}"
+                    Dim json = $"{{""type"":""commit"",""id"":{commitId},""text"":{SubtitleService.EscapeJson(clientText)},""lang"":{SubtitleService.EscapeJson(textLang)},""time"":{SubtitleService.EscapeJson(ts)},""speaker"":{SubtitleService.EscapeJson(speakerName)},""sourceLang"":{SubtitleService.EscapeJson(sourceFlores)}}}"
                     Dim buffer = Encoding.UTF8.GetBytes(json)
                     _logger.LogInformation("BroadcastToRoom: sending id={Id} to {Endpoint} lang={Lang} text={Text}",
                         commitId, client.RemoteEndpoint, textLang, If(clientText.Length > 80, clientText.Substring(0, 80) & "...", clientText))
@@ -576,9 +639,9 @@ Namespace Services.Rooms
                 speakerLang = If(client.Language, "")
             End If
 
-            ' Convert NLLB code to Whisper short code for source lang resolution
-            Dim sourceNllb = If(speakerLang, "eng_Latn")
-            Dim sourceLang = TranslationService.NllbToShortCode(sourceNllb)
+            ' Convert FLORES code to Whisper short code for source lang resolution
+            Dim sourceFlores = If(speakerLang, "eng_Latn")
+            Dim sourceLang = TranslationService.FloresToShortCode(sourceFlores)
 
             _logger.LogInformation("Room {RoomId} chat [{Lang}] {Speaker}: {Text}",
                 client.RoomId, sourceLang, speakerName, text)

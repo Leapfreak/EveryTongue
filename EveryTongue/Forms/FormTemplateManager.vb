@@ -95,7 +95,7 @@ Public Class FormTemplateManager
 
         Threading.Tasks.Task.Run(Sub()
                                      Try
-                                         Dim backend As New FasterWhisperBackend()
+                                         Dim backend = Services.Stt.SttBackendRegistry.CreateBackend()
                                          Dim devices = backend.EnumerateDevicesAsync(pythonPath)
                                          Me.BeginInvoke(Sub()
                                                             For Each d In devices
@@ -211,31 +211,65 @@ Public Class FormTemplateManager
         PopulateAudioDevices()
     End Sub
 
-    Private Sub btnBrowseModel_Click(sender As Object, e As EventArgs) Handles btnBrowseModel.Click
-        Using fbd As New FolderBrowserDialog()
-            fbd.Description = "Select Whisper model directory"
-            ' Default to current value, fall back to global model path from settings
-            Dim startPath = txtModelPath.Text
-            If String.IsNullOrWhiteSpace(startPath) Then
-                startPath = AppConfig.ResolvePath(_config.PathFasterWhisperModel)
-            End If
-            If Not String.IsNullOrWhiteSpace(startPath) Then
-                ' Navigate to parent if path points to a file or doesn't exist as directory
-                If IO.Directory.Exists(startPath) Then
-                    fbd.InitialDirectory = startPath
-                ElseIf IO.File.Exists(startPath) Then
-                    fbd.InitialDirectory = IO.Path.GetDirectoryName(startPath)
-                Else
-                    Dim parent = IO.Path.GetDirectoryName(startPath)
-                    If parent IsNot Nothing AndAlso IO.Directory.Exists(parent) Then
-                        fbd.InitialDirectory = parent
+    Private Sub cboSttEngine_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cboSttEngine.SelectedIndexChanged
+        PopulateModelDropdown()
+    End Sub
+
+    Private Sub PopulateModelDropdown(Optional selectPath As String = "")
+        Dim previousPath = selectPath
+        If String.IsNullOrEmpty(previousPath) AndAlso cboModel.SelectedItem IsNot Nothing Then
+            Dim sel = TryCast(cboModel.SelectedItem, ModelItem)
+            If sel IsNot Nothing Then previousPath = sel.Path
+        End If
+
+        cboModel.Items.Clear()
+
+        Dim sttKey = ExtractEngineKey(cboSttEngine)
+        Dim isWhisperCpp = sttKey.StartsWith("whisper-cpp", StringComparison.OrdinalIgnoreCase)
+        Dim baseDir = AppDomain.CurrentDomain.BaseDirectory
+
+        ' Add "(Default)" option — uses global config path for the selected backend
+        Dim defaultLabel = LanguagePackService.Instance.GetString("Tmpl_ModelDefault")
+        If String.IsNullOrEmpty(defaultLabel) Then defaultLabel = "(Default)"
+        cboModel.Items.Add(New ModelItem(defaultLabel, ""))
+
+        If isWhisperCpp Then
+            ' Scan for GGML .bin model files in the app directory
+            Try
+                For Each f In IO.Directory.GetFiles(baseDir, "*.bin")
+                    Dim name = IO.Path.GetFileName(f)
+                    ' Skip tiny files that aren't models
+                    If New IO.FileInfo(f).Length > 10 * 1024 * 1024 Then
+                        cboModel.Items.Add(New ModelItem(name, f))
                     End If
+                Next
+            Catch
+            End Try
+        Else
+            ' Scan for model directories (contain config.json or model files)
+            Try
+                For Each d In IO.Directory.GetDirectories(baseDir)
+                    If IO.File.Exists(IO.Path.Combine(d, "config.json")) Then
+                        cboModel.Items.Add(New ModelItem(IO.Path.GetFileName(d), d))
+                    End If
+                Next
+            Catch
+            End Try
+        End If
+
+        ' Select previous or default
+        Dim found = False
+        If Not String.IsNullOrEmpty(previousPath) Then
+            For i = 0 To cboModel.Items.Count - 1
+                Dim item = TryCast(cboModel.Items(i), ModelItem)
+                If item IsNot Nothing AndAlso item.Path.Equals(previousPath, StringComparison.OrdinalIgnoreCase) Then
+                    cboModel.SelectedIndex = i
+                    found = True
+                    Exit For
                 End If
-            End If
-            If fbd.ShowDialog(Me) = DialogResult.OK Then
-                txtModelPath.Text = fbd.SelectedPath
-            End If
-        End Using
+            Next
+        End If
+        If Not found Then cboModel.SelectedIndex = 0
     End Sub
 
     Private Sub ShowDetail(visible As Boolean)
@@ -278,7 +312,7 @@ Public Class FormTemplateManager
         Next
         If Not deviceFound AndAlso cboAudioDevice.Items.Count > 0 Then cboAudioDevice.SelectedIndex = 0
 
-        txtModelPath.Text = t.ModelPath
+        PopulateModelDropdown(t.ModelPath)
 
         Dim visIdx = cboVisibility.Items.IndexOf(t.DefaultVisibility)
         cboVisibility.SelectedIndex = If(visIdx >= 0, visIdx, 0)
@@ -303,7 +337,8 @@ Public Class FormTemplateManager
             t.AudioDeviceId = -1
             t.AudioSourceLabel = ""
         End If
-        t.ModelPath = txtModelPath.Text.Trim()
+        Dim selModel = TryCast(cboModel.SelectedItem, ModelItem)
+        t.ModelPath = If(selModel IsNot Nothing, selModel.Path, "")
         t.DefaultVisibility = If(cboVisibility.SelectedItem IsNot Nothing, cboVisibility.SelectedItem.ToString(), "public")
     End Sub
 
@@ -335,5 +370,20 @@ Public Class FormTemplateManager
         If dashIdx > 0 Then Return txt.Substring(0, dashIdx)
         Return txt
     End Function
+
+    ''' <summary>Item for the model dropdown — displays name, stores full path.</summary>
+    Private Class ModelItem
+        Public ReadOnly Property DisplayName As String
+        Public ReadOnly Property Path As String
+
+        Public Sub New(displayName As String, path As String)
+            Me.DisplayName = displayName
+            Me.Path = If(path, "")
+        End Sub
+
+        Public Overrides Function ToString() As String
+            Return DisplayName
+        End Function
+    End Class
 
 End Class

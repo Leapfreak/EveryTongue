@@ -35,12 +35,10 @@ Partial Class FormMain
         mnuToolsDownloadMgr = New ToolStripMenuItem()
         mnuToolsVerifyPaths = New ToolStripMenuItem()
         mnuToolsVerifyIntegrity = New ToolStripMenuItem()
+        mnuToolsBenchmark = New ToolStripMenuItem()
         mnuToolsSep3 = New ToolStripSeparator()
         mnuToolsOptions = New ToolStripMenuItem()
         mnuSession = New ToolStripMenuItem()
-        mnuSessionStart = New ToolStripMenuItem()
-        mnuSessionStop = New ToolStripMenuItem()
-        mnuSessionSep1 = New ToolStripSeparator()
         mnuSessionQR = New ToolStripMenuItem()
         mnuSessionCopyUrl = New ToolStripMenuItem()
         mnuView = New ToolStripMenuItem()
@@ -64,7 +62,6 @@ Partial Class FormMain
         mnuHelpUpdates = New ToolStripMenuItem()
         mnuHelpAbout = New ToolStripMenuItem()
         tsNavBar = New ToolStrip()
-        btnNavLive = New ToolStripButton()
         btnNavTranscribe = New ToolStripButton()
         btnNavTranslate = New ToolStripButton()
         btnNavBible = New ToolStripButton()
@@ -72,32 +69,9 @@ Partial Class FormMain
         tslServerStatus = New ToolStripStatusLabel()
         tslClients = New ToolStripStatusLabel()
         tslSpring = New ToolStripStatusLabel()
-        tslLiveStatus = New ToolStripStatusLabel()
-        tslElapsed = New ToolStripStatusLabel()
         tslLogToggle = New ToolStripStatusLabel()
-        liveElapsedTimer = New Timer(components)
         pnlContent = New Panel()
         tabMain = New TabControl()
-        tabPageLive = New TabPage()
-        grpLiveInput = New GroupBox()
-        lblLiveDevice = New Label()
-        cboLiveDevice = New ComboBox()
-        btnRefreshDevices = New Button()
-        lblLiveInputLang = New Label()
-        cboLiveInputLang = New ComboBox()
-        btnEditFilters = New Button()
-        pnlLiveButtons = New Panel()
-        btnLiveStart = New Button()
-        btnLiveStop = New Button()
-        lblMaxSegment = New Label()
-        trkMaxSegment = New TrackBar()
-        lblMaxSegmentValue = New Label()
-        lblVadSilence = New Label()
-        trkVadSilence = New TrackBar()
-        lblVadSilenceValue = New Label()
-        btnTuneStats = New Button()
-        pnlLiveOutput = New Panel()
-        wvLiveClients = New Microsoft.Web.WebView2.WinForms.WebView2()
 
         tabPageJob = New TabPage()
         lblMode = New Label()
@@ -216,13 +190,6 @@ Partial Class FormMain
         statusMain.SuspendLayout()
         pnlContent.SuspendLayout()
         tabMain.SuspendLayout()
-        tabPageLive.SuspendLayout()
-        grpLiveInput.SuspendLayout()
-        pnlLiveButtons.SuspendLayout()
-        CType(trkMaxSegment, ComponentModel.ISupportInitialize).BeginInit()
-        CType(trkVadSilence, ComponentModel.ISupportInitialize).BeginInit()
-        pnlLiveOutput.SuspendLayout()
-        CType(wvLiveClients, ComponentModel.ISupportInitialize).BeginInit()
         tabPageJob.SuspendLayout()
         grpInput.SuspendLayout()
         grpOutputFormats.SuspendLayout()
@@ -299,7 +266,7 @@ Partial Class FormMain
         ' 
         ' mnuTools
         ' 
-        mnuTools.DropDownItems.AddRange(New ToolStripItem() {mnuToolsTranscribe, mnuToolsTranslate, mnuToolsBible, mnuToolsSep1, mnuToolsGlossary, mnuToolsLocalization, mnuToolsSep2, mnuToolsDownloadMgr, mnuToolsVerifyPaths, mnuToolsVerifyIntegrity, mnuToolsSep3, mnuToolsOptions})
+        mnuTools.DropDownItems.AddRange(New ToolStripItem() {mnuToolsTranscribe, mnuToolsTranslate, mnuToolsBible, mnuToolsSep1, mnuToolsGlossary, mnuToolsLocalization, mnuToolsSep2, mnuToolsDownloadMgr, mnuToolsVerifyPaths, mnuToolsVerifyIntegrity, mnuToolsBenchmark, mnuToolsSep3, mnuToolsOptions})
         mnuTools.Name = "mnuTools"
         mnuTools.Size = New Size(47, 20)
         mnuTools.Text = "&Tools"
@@ -363,7 +330,13 @@ Partial Class FormMain
         mnuToolsVerifyIntegrity.Name = "mnuToolsVerifyIntegrity"
         mnuToolsVerifyIntegrity.Size = New Size(184, 22)
         mnuToolsVerifyIntegrity.Text = "Verify File Integrity"
-        ' 
+        '
+        ' mnuToolsBenchmark
+        '
+        mnuToolsBenchmark.Name = "mnuToolsBenchmark"
+        mnuToolsBenchmark.Size = New Size(184, 22)
+        mnuToolsBenchmark.Text = "Translation Benchmark..."
+        '
         ' mnuToolsSep3
         ' 
         mnuToolsSep3.Name = "mnuToolsSep3"
@@ -380,30 +353,11 @@ Partial Class FormMain
         ' 
         ' mnuSession
         ' 
-        mnuSession.DropDownItems.AddRange(New ToolStripItem() {mnuSessionStart, mnuSessionStop, mnuSessionSep1, mnuSessionQR, mnuSessionCopyUrl})
+        mnuSession.DropDownItems.AddRange(New ToolStripItem() {mnuSessionQR, mnuSessionCopyUrl})
         mnuSession.Name = "mnuSession"
         mnuSession.Size = New Size(58, 20)
-        mnuSession.Text = "&Session"
-        ' 
-        ' mnuSessionStart
-        ' 
-        mnuSessionStart.Name = "mnuSessionStart"
-        mnuSessionStart.ShortcutKeys = Keys.F5
-        mnuSessionStart.Size = New Size(173, 22)
-        mnuSessionStart.Text = "Start Live"
-        ' 
-        ' mnuSessionStop
-        ' 
-        mnuSessionStop.Name = "mnuSessionStop"
-        mnuSessionStop.ShortcutKeys = Keys.Shift Or Keys.F5
-        mnuSessionStop.Size = New Size(173, 22)
-        mnuSessionStop.Text = "Stop Live"
-        ' 
-        ' mnuSessionSep1
-        ' 
-        mnuSessionSep1.Name = "mnuSessionSep1"
-        mnuSessionSep1.Size = New Size(170, 6)
-        ' 
+        mnuSession.Text = "&Server"
+        '
         ' mnuSessionQR
         ' 
         mnuSessionQR.Name = "mnuSessionQR"
@@ -544,24 +498,13 @@ Partial Class FormMain
         tsNavBar.Dock = DockStyle.Top
         tsNavBar.GripStyle = ToolStripGripStyle.Hidden
         tsNavBar.ImageScalingSize = New Size(28, 28)
-        tsNavBar.Items.AddRange(New ToolStripItem() {btnNavLive, btnNavTranscribe, btnNavTranslate, btnNavBible})
+        tsNavBar.Items.AddRange(New ToolStripItem() {btnNavTranscribe, btnNavTranslate, btnNavBible})
         tsNavBar.Location = New Point(0, 0)
         tsNavBar.Name = "tsNavBar"
         tsNavBar.Padding = New Padding(4, 2, 4, 2)
         tsNavBar.RenderMode = ToolStripRenderMode.ManagerRenderMode
         tsNavBar.Size = New Size(880, 40)
         tsNavBar.TabIndex = 1
-        '
-        ' btnNavLive
-        '
-        btnNavLive.AutoSize = True
-        btnNavLive.ForeColor = Color.FromArgb(CByte(60), CByte(60), CByte(60))
-        btnNavLive.ImageScaling = ToolStripItemImageScaling.None
-        btnNavLive.Margin = New Padding(0, 0, 2, 0)
-        btnNavLive.Name = "btnNavLive"
-        btnNavLive.Padding = New Padding(8, 2, 8, 2)
-        btnNavLive.Text = "Live"
-        btnNavLive.TextImageRelation = TextImageRelation.ImageBeforeText
         '
         ' btnNavTranscribe
         '
@@ -598,7 +541,7 @@ Partial Class FormMain
         ' 
         ' statusMain
         ' 
-        statusMain.Items.AddRange(New ToolStripItem() {tslServerStatus, tslClients, tslSpring, tslLiveStatus, tslElapsed, tslLogToggle})
+        statusMain.Items.AddRange(New ToolStripItem() {tslServerStatus, tslClients, tslSpring, tslLogToggle})
         statusMain.Location = New Point(0, 626)
         statusMain.Name = "statusMain"
         statusMain.Size = New Size(880, 24)
@@ -623,20 +566,7 @@ Partial Class FormMain
         tslSpring.Name = "tslSpring"
         tslSpring.Size = New Size(639, 19)
         tslSpring.Spring = True
-        ' 
-        ' tslLiveStatus
-        ' 
-        tslLiveStatus.BorderSides = ToolStripStatusLabelBorderSides.Right
-        tslLiveStatus.Name = "tslLiveStatus"
-        tslLiveStatus.Size = New Size(43, 19)
-        tslLiveStatus.Text = "Ready"
-        ' 
-        ' tslElapsed
-        ' 
-        tslElapsed.BorderSides = ToolStripStatusLabelBorderSides.Right
-        tslElapsed.Name = "tslElapsed"
-        tslElapsed.Size = New Size(4, 19)
-        ' 
+        '
         ' tslLogToggle
         ' 
         tslLogToggle.IsLink = True
@@ -644,11 +574,7 @@ Partial Class FormMain
         tslLogToggle.Name = "tslLogToggle"
         tslLogToggle.Size = New Size(27, 19)
         tslLogToggle.Text = "Log"
-        ' 
-        ' liveElapsedTimer
-        ' 
-        liveElapsedTimer.Interval = 1000
-        ' 
+        '
         ' pnlContent
         ' 
         pnlContent.Controls.Add(tabMain)
@@ -664,7 +590,6 @@ Partial Class FormMain
         ' tabMain
         ' 
         tabMain.Appearance = TabAppearance.FlatButtons
-        tabMain.Controls.Add(tabPageLive)
         tabMain.Controls.Add(tabPageJob)
         tabMain.Controls.Add(tabPageHelp)
         tabMain.Controls.Add(tabPageTranslate)
@@ -677,213 +602,7 @@ Partial Class FormMain
         tabMain.Size = New Size(800, 602)
         tabMain.SizeMode = TabSizeMode.Fixed
         tabMain.TabIndex = 0
-        ' 
-        ' tabPageLive
-        ' 
-        tabPageLive.Controls.Add(grpLiveInput)
-        tabPageLive.Controls.Add(pnlLiveButtons)
-        tabPageLive.Controls.Add(pnlLiveOutput)
-        tabPageLive.Location = New Point(4, 5)
-        tabPageLive.Name = "tabPageLive"
-        tabPageLive.Padding = New Padding(8)
-        tabPageLive.Size = New Size(792, 593)
-        tabPageLive.TabIndex = 0
-        tabPageLive.Text = "Live Translation"
-        ' 
-        ' grpLiveInput
-        ' 
-        grpLiveInput.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        grpLiveInput.Controls.Add(lblLiveDevice)
-        grpLiveInput.Controls.Add(cboLiveDevice)
-        grpLiveInput.Controls.Add(btnRefreshDevices)
-        grpLiveInput.Controls.Add(lblLiveInputLang)
-        grpLiveInput.Controls.Add(cboLiveInputLang)
-        grpLiveInput.Controls.Add(btnEditFilters)
-        grpLiveInput.Location = New Point(8, 6)
-        grpLiveInput.Name = "grpLiveInput"
-        grpLiveInput.Size = New Size(1440, 130)
-        grpLiveInput.TabIndex = 0
-        grpLiveInput.TabStop = False
-        grpLiveInput.Text = "Live Translation Settings"
-        ' 
-        ' lblLiveDevice
-        ' 
-        lblLiveDevice.AutoSize = True
-        lblLiveDevice.Location = New Point(10, 22)
-        lblLiveDevice.Name = "lblLiveDevice"
-        lblLiveDevice.Size = New Size(80, 15)
-        lblLiveDevice.TabIndex = 0
-        lblLiveDevice.Text = "Audio Device:"
-        ' 
-        ' cboLiveDevice
-        ' 
-        cboLiveDevice.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        cboLiveDevice.DropDownStyle = ComboBoxStyle.DropDownList
-        cboLiveDevice.Location = New Point(10, 38)
-        cboLiveDevice.Name = "cboLiveDevice"
-        cboLiveDevice.Size = New Size(1280, 23)
-        cboLiveDevice.TabIndex = 1
-        ' 
-        ' btnRefreshDevices
-        ' 
-        btnRefreshDevices.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        btnRefreshDevices.Location = New Point(1300, 37)
-        btnRefreshDevices.Name = "btnRefreshDevices"
-        btnRefreshDevices.Size = New Size(85, 25)
-        btnRefreshDevices.TabIndex = 2
-        btnRefreshDevices.Text = "Refresh"
-        ' 
-        ' lblLiveInputLang
-        ' 
-        lblLiveInputLang.AutoSize = True
-        lblLiveInputLang.Location = New Point(10, 70)
-        lblLiveInputLang.Name = "lblLiveInputLang"
-        lblLiveInputLang.Size = New Size(93, 15)
-        lblLiveInputLang.TabIndex = 3
-        lblLiveInputLang.Text = "Input Language:"
-        ' 
-        ' cboLiveInputLang
-        ' 
-        cboLiveInputLang.Location = New Point(10, 86)
-        cboLiveInputLang.Name = "cboLiveInputLang"
-        cboLiveInputLang.Size = New Size(150, 23)
-        cboLiveInputLang.TabIndex = 4
-        ' 
-        ' btnEditFilters
-        ' 
-        btnEditFilters.Location = New Point(170, 85)
-        btnEditFilters.Name = "btnEditFilters"
-        btnEditFilters.Size = New Size(80, 25)
-        btnEditFilters.TabIndex = 5
-        btnEditFilters.Text = "Filters..."
-        ' 
-        ' pnlLiveButtons
-        ' 
-        pnlLiveButtons.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        pnlLiveButtons.Controls.Add(btnLiveStart)
-        pnlLiveButtons.Controls.Add(btnLiveStop)
-        pnlLiveButtons.Controls.Add(lblMaxSegment)
-        pnlLiveButtons.Controls.Add(trkMaxSegment)
-        pnlLiveButtons.Controls.Add(lblMaxSegmentValue)
-        pnlLiveButtons.Controls.Add(lblVadSilence)
-        pnlLiveButtons.Controls.Add(trkVadSilence)
-        pnlLiveButtons.Controls.Add(lblVadSilenceValue)
-        pnlLiveButtons.Controls.Add(btnTuneStats)
-        pnlLiveButtons.Location = New Point(8, 142)
-        pnlLiveButtons.Name = "pnlLiveButtons"
-        pnlLiveButtons.Size = New Size(1440, 35)
-        pnlLiveButtons.TabIndex = 1
-        ' 
-        ' btnLiveStart
-        ' 
-        btnLiveStart.Location = New Point(0, 0)
-        btnLiveStart.Name = "btnLiveStart"
-        btnLiveStart.Size = New Size(100, 30)
-        btnLiveStart.TabIndex = 0
-        btnLiveStart.Text = "Start"
-        ' 
-        ' btnLiveStop
-        ' 
-        btnLiveStop.Enabled = False
-        btnLiveStop.Location = New Point(110, 0)
-        btnLiveStop.Name = "btnLiveStop"
-        btnLiveStop.Size = New Size(100, 30)
-        btnLiveStop.TabIndex = 1
-        btnLiveStop.Text = "Stop"
-        ' 
-        ' lblMaxSegment
-        ' 
-        lblMaxSegment.AutoSize = True
-        lblMaxSegment.Location = New Point(230, 7)
-        lblMaxSegment.Name = "lblMaxSegment"
-        lblMaxSegment.Size = New Size(82, 15)
-        lblMaxSegment.TabIndex = 2
-        lblMaxSegment.Text = "Max Segment:"
-        ' 
-        ' trkMaxSegment
-        ' 
-        trkMaxSegment.LargeChange = 10
-        trkMaxSegment.Location = New Point(315, 0)
-        trkMaxSegment.Maximum = 60
-        trkMaxSegment.Minimum = 5
-        trkMaxSegment.Name = "trkMaxSegment"
-        trkMaxSegment.Size = New Size(180, 45)
-        trkMaxSegment.SmallChange = 5
-        trkMaxSegment.TabIndex = 3
-        trkMaxSegment.TickFrequency = 5
-        trkMaxSegment.Value = 15
-        ' 
-        ' lblMaxSegmentValue
-        ' 
-        lblMaxSegmentValue.AutoSize = True
-        lblMaxSegmentValue.Location = New Point(500, 7)
-        lblMaxSegmentValue.Name = "lblMaxSegmentValue"
-        lblMaxSegmentValue.Size = New Size(24, 15)
-        lblMaxSegmentValue.TabIndex = 4
-        lblMaxSegmentValue.Text = "15s"
-        ' 
-        ' lblVadSilence
-        ' 
-        lblVadSilence.AutoSize = True
-        lblVadSilence.Location = New Point(540, 7)
-        lblVadSilence.Name = "lblVadSilence"
-        lblVadSilence.Size = New Size(72, 15)
-        lblVadSilence.TabIndex = 5
-        lblVadSilence.Text = "VAD Silence:"
-        ' 
-        ' trkVadSilence
-        ' 
-        trkVadSilence.LargeChange = 200
-        trkVadSilence.Location = New Point(625, 0)
-        trkVadSilence.Maximum = 1500
-        trkVadSilence.Minimum = 200
-        trkVadSilence.Name = "trkVadSilence"
-        trkVadSilence.Size = New Size(150, 45)
-        trkVadSilence.SmallChange = 100
-        trkVadSilence.TabIndex = 6
-        trkVadSilence.TickFrequency = 100
-        trkVadSilence.Value = 800
-        ' 
-        ' lblVadSilenceValue
-        ' 
-        lblVadSilenceValue.AutoSize = True
-        lblVadSilenceValue.Location = New Point(780, 7)
-        lblVadSilenceValue.Name = "lblVadSilenceValue"
-        lblVadSilenceValue.Size = New Size(41, 15)
-        lblVadSilenceValue.TabIndex = 7
-        lblVadSilenceValue.Text = "800ms"
-        ' 
-        ' btnTuneStats
-        ' 
-        btnTuneStats.Enabled = False
-        btnTuneStats.Location = New Point(830, 0)
-        btnTuneStats.Name = "btnTuneStats"
-        btnTuneStats.Size = New Size(70, 30)
-        btnTuneStats.TabIndex = 8
-        btnTuneStats.Text = "Tune"
-        ' 
-        ' pnlLiveOutput
-        ' 
-        pnlLiveOutput.Anchor = AnchorStyles.Top Or AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
-        pnlLiveOutput.Controls.Add(wvLiveClients)
-
-        pnlLiveOutput.Location = New Point(8, 183)
-        pnlLiveOutput.Name = "pnlLiveOutput"
-        pnlLiveOutput.Size = New Size(776, 402)
-        pnlLiveOutput.TabIndex = 2
-        ' 
-        ' wvLiveClients
-        ' 
-        wvLiveClients.AllowExternalDrop = True
-        wvLiveClients.CreationProperties = Nothing
-        wvLiveClients.DefaultBackgroundColor = Color.Black
-        wvLiveClients.Dock = DockStyle.Fill
-        wvLiveClients.Location = New Point(0, 0)
-        wvLiveClients.Name = "wvLiveClients"
-        wvLiveClients.Size = New Size(776, 402)
-        wvLiveClients.TabIndex = 0
-        wvLiveClients.ZoomFactor = 1R
-        ' 
+        '
         ' tabPageJob
         ' 
         tabPageJob.AutoScroll = True
@@ -1931,15 +1650,6 @@ Partial Class FormMain
         statusMain.PerformLayout()
         pnlContent.ResumeLayout(False)
         tabMain.ResumeLayout(False)
-        tabPageLive.ResumeLayout(False)
-        grpLiveInput.ResumeLayout(False)
-        grpLiveInput.PerformLayout()
-        pnlLiveButtons.ResumeLayout(False)
-        pnlLiveButtons.PerformLayout()
-        CType(trkMaxSegment, ComponentModel.ISupportInitialize).EndInit()
-        CType(trkVadSilence, ComponentModel.ISupportInitialize).EndInit()
-        pnlLiveOutput.ResumeLayout(False)
-        CType(wvLiveClients, ComponentModel.ISupportInitialize).EndInit()
         tabPageJob.ResumeLayout(False)
         tabPageJob.PerformLayout()
         grpInput.ResumeLayout(False)
@@ -2004,12 +1714,10 @@ Partial Class FormMain
     Friend WithEvents mnuToolsDownloadMgr As ToolStripMenuItem
     Friend WithEvents mnuToolsVerifyPaths As ToolStripMenuItem
     Friend WithEvents mnuToolsVerifyIntegrity As ToolStripMenuItem
+    Friend WithEvents mnuToolsBenchmark As ToolStripMenuItem
     Friend WithEvents mnuToolsSep3 As ToolStripSeparator
     Friend WithEvents mnuToolsOptions As ToolStripMenuItem
     Friend WithEvents mnuSession As ToolStripMenuItem
-    Friend WithEvents mnuSessionStart As ToolStripMenuItem
-    Friend WithEvents mnuSessionStop As ToolStripMenuItem
-    Friend WithEvents mnuSessionSep1 As ToolStripSeparator
     Friend WithEvents mnuSessionQR As ToolStripMenuItem
     Friend WithEvents mnuSessionCopyUrl As ToolStripMenuItem
     Friend WithEvents mnuView As ToolStripMenuItem
@@ -2035,7 +1743,6 @@ Partial Class FormMain
 
     ' Shell: Nav rail
     Friend WithEvents tsNavBar As ToolStrip
-    Friend WithEvents btnNavLive As ToolStripButton
     Friend WithEvents btnNavTranscribe As ToolStripButton
     Friend WithEvents btnNavTranslate As ToolStripButton
     Friend WithEvents btnNavBible As ToolStripButton
@@ -2045,10 +1752,7 @@ Partial Class FormMain
     Friend WithEvents tslServerStatus As ToolStripStatusLabel
     Friend WithEvents tslClients As ToolStripStatusLabel
     Friend WithEvents tslSpring As ToolStripStatusLabel
-    Friend WithEvents tslLiveStatus As ToolStripStatusLabel
-    Friend WithEvents tslElapsed As ToolStripStatusLabel
     Friend WithEvents tslLogToggle As ToolStripStatusLabel
-    Friend WithEvents liveElapsedTimer As Timer
 
     ' Shell: Content panel
     Friend WithEvents pnlContent As Panel
@@ -2068,7 +1772,6 @@ Partial Class FormMain
     ' TabControl
     Friend WithEvents tabMain As TabControl
     Friend WithEvents tabPageJob As TabPage
-    Friend WithEvents tabPageLive As TabPage
     Friend WithEvents tabPageHelp As TabPage
     Friend WithEvents tabPageTranslate As TabPage
     Friend WithEvents tabPageBibleWs As TabPage
@@ -2123,28 +1826,6 @@ Partial Class FormMain
     Friend WithEvents lnkPreviewSrt As LinkLabel
 
     Friend WithEvents rtbHelp As RichTextBox
-
-    ' Tab: Live
-    Friend WithEvents grpLiveInput As GroupBox
-    Friend WithEvents lblLiveDevice As Label
-    Friend WithEvents cboLiveDevice As ComboBox
-    Friend WithEvents btnRefreshDevices As Button
-    Friend WithEvents lblLiveInputLang As Label
-    Friend WithEvents cboLiveInputLang As ComboBox
-    Friend WithEvents btnEditFilters As Button
-    Friend WithEvents pnlLiveButtons As Panel
-    Friend WithEvents btnLiveStart As Button
-    Friend WithEvents btnLiveStop As Button
-
-    Friend WithEvents lblMaxSegment As Label
-    Friend WithEvents trkMaxSegment As TrackBar
-    Friend WithEvents lblMaxSegmentValue As Label
-    Friend WithEvents lblVadSilence As Label
-    Friend WithEvents trkVadSilence As TrackBar
-    Friend WithEvents lblVadSilenceValue As Label
-    Friend WithEvents btnTuneStats As Button
-    Friend WithEvents pnlLiveOutput As Panel
-    Friend WithEvents wvLiveClients As Microsoft.Web.WebView2.WinForms.WebView2
 
     ' Tab: Translate
     Friend WithEvents pnlTransTop As Panel

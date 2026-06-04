@@ -41,7 +41,8 @@ Namespace Services.Translation
         Public MustOverride Function TranslateAsync(text As String,
                                                      sourceLang As String,
                                                      targetLangs As IReadOnlyList(Of String),
-                                                     ct As CancellationToken
+                                                     ct As CancellationToken,
+                                                     Optional noCache As Boolean = False
         ) As Task(Of Dictionary(Of String, String)) Implements ITranslationBackend.TranslateAsync
 
         Public MustOverride Function GetSupportedLanguagesAsync(ct As CancellationToken
@@ -66,7 +67,8 @@ Namespace Services.Translation
         Public Overrides Async Function TranslateAsync(text As String,
                                                         sourceLang As String,
                                                         targetLangs As IReadOnlyList(Of String),
-                                                        ct As CancellationToken
+                                                        ct As CancellationToken,
+                                                        Optional noCache As Boolean = False
         ) As Task(Of Dictionary(Of String, String))
             If Not IsAvailable Then Return New Dictionary(Of String, String)()
 
@@ -133,7 +135,8 @@ Namespace Services.Translation
         Public Overrides Async Function TranslateAsync(text As String,
                                                         sourceLang As String,
                                                         targetLangs As IReadOnlyList(Of String),
-                                                        ct As CancellationToken
+                                                        ct As CancellationToken,
+                                                        Optional noCache As Boolean = False
         ) As Task(Of Dictionary(Of String, String))
             If Not IsAvailable Then Return New Dictionary(Of String, String)()
 
@@ -192,7 +195,8 @@ Namespace Services.Translation
         Public Overrides Async Function TranslateAsync(text As String,
                                                         sourceLang As String,
                                                         targetLangs As IReadOnlyList(Of String),
-                                                        ct As CancellationToken
+                                                        ct As CancellationToken,
+                                                        Optional noCache As Boolean = False
         ) As Task(Of Dictionary(Of String, String))
             If Not IsAvailable Then Return New Dictionary(Of String, String)()
 

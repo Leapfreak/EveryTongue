@@ -55,6 +55,7 @@ Public Class FormOptions
         lblTheme.Text = langPack.GetString("Opt_Theme")
         lblStartupHeader.Text = langPack.GetString("Opt_StartupHeader")
         chkStartWindows.Text = langPack.GetString("Opt_StartWithWindows")
+        chkStartMinimized.Text = langPack.GetString("Opt_StartMinimized")
         chkMinimizeToTray.Text = langPack.GetString("Opt_MinimizeToTray")
         chkResetFirstRun.Text = langPack.GetString("Opt_ResetFirstRun")
 
@@ -67,7 +68,9 @@ Public Class FormOptions
         lblSubtitleEditPath.Text = langPack.GetString("Opt_SubtitleEditPath")
         lblModelPathsHeader.Text = langPack.GetString("Opt_ModelPathsHeader")
         lblFasterWhisperPath.Text = langPack.GetString("Opt_FasterWhisperPath")
-        lblNllbModelPath.Text = langPack.GetString("Opt_NllbModelPath")
+        lblWhisperServerPath.Text = langPack.GetString("Opt_WhisperServerPath")
+        lblGgmlModelPath.Text = langPack.GetString("Opt_GgmlModelPath")
+        lblTransModelPath.Text = langPack.GetString("Opt_TransModelPath")
         lblModelPath.Text = langPack.GetString("Opt_ModelPath")
         lblModelAudioPath.Text = langPack.GetString("Opt_ModelAudioPath")
         lblDirectoriesHeader.Text = langPack.GetString("Opt_DirectoriesHeader")
@@ -116,6 +119,8 @@ Public Class FormOptions
         If _hwInfo Is Nothing Then
             lblHwVerdict.Text = langPack.GetString("Opt_HwVerdict")
         End If
+        lblSttEngineHeader.Text = langPack.GetString("Opt_SttEngineHeader")
+        lblSttBackend.Text = langPack.GetString("Opt_SttBackend")
 
         ' Advanced panel
         lblAdvPipelineHeader.Text = langPack.GetString("Opt_AdvPipelineHeader")
@@ -165,6 +170,9 @@ Public Class FormOptions
         lblLiveInterim.Text = langPack.GetString("Opt_LiveInterim")
         lblAdvBibleHeader.Text = langPack.GetString("Opt_AdvBibleHeader")
         chkShowBibleCopyright.Text = langPack.GetString("Opt_ShowBibleCopyright")
+        lblAdvLivePipelineHeader.Text = langPack.GetString("Opt_AdvLivePipelineHeader")
+        lblTranslationConcurrency.Text = langPack.GetString("Opt_TranslationConcurrency")
+        lblTtsConcurrency.Text = langPack.GetString("Opt_TtsConcurrency")
     End Sub
 
     ' ═══════════════════════════════════════════════════════════════
@@ -187,6 +195,8 @@ Public Class FormOptions
         AddHandler btnBrowseFfmpeg.Click, Sub(s, e) BrowseFile(txtFfmpeg)
         AddHandler btnBrowseFfprobe.Click, Sub(s, e) BrowseFile(txtFfprobe)
         AddHandler btnBrowseSubtitleEdit.Click, Sub(s, e) BrowseFile(txtSubtitleEdit)
+        AddHandler btnBrowseWhisperServer.Click, Sub(s, e) BrowseFile(txtWhisperServer)
+        AddHandler btnBrowseGgmlModel.Click, Sub(s, e) BrowseFile(txtGgmlModel)
         AddHandler btnBrowseModel.Click, Sub(s, e) BrowseFile(txtModel)
         AddHandler btnBrowseModelAudio.Click, Sub(s, e) BrowseFile(txtModelAudio)
         AddHandler btnBrowseGlossary.Click, Sub(s, e) BrowseFile(txtGlossary)
@@ -199,7 +209,7 @@ Public Class FormOptions
 
         ' Browse buttons — folder pickers
         AddHandler btnBrowseFasterWhisper.Click, Sub(s, e) BrowseFolder(txtFasterWhisper)
-        AddHandler btnBrowseNllbModel.Click, Sub(s, e) BrowseFolder(txtNllbModel)
+        AddHandler btnBrowseTransModel.Click, Sub(s, e) BrowseFolder(txtTransModel)
         AddHandler btnBrowseOutputRoot.Click, Sub(s, e) BrowseFolder(txtOutputRoot)
         AddHandler btnBrowseBibles.Click, Sub(s, e) BrowseFolder(txtBibles)
     End Sub
@@ -259,6 +269,7 @@ Public Class FormOptions
         Next
         SelectItem(cboTheme, _config.Theme.ToString())
         chkStartWindows.Checked = _config.StartWithWindows
+        chkStartMinimized.Checked = _config.StartMinimized
         chkMinimizeToTray.Checked = _config.MinimizeToTray
 
         ' Paths
@@ -267,7 +278,9 @@ Public Class FormOptions
         txtFfmpeg.Text = _config.PathFfmpeg
         txtFfprobe.Text = _config.PathFfprobe
         txtFasterWhisper.Text = _config.PathFasterWhisperModel
-        txtNllbModel.Text = _config.TranslationModelPath
+        txtWhisperServer.Text = _config.PathWhisperServer
+        txtGgmlModel.Text = _config.PathWhisperCppModel
+        txtTransModel.Text = _config.TranslationModelPath
         txtModel.Text = _config.PathModel
         txtModelAudio.Text = _config.PathModelAudio
         txtOutputRoot.Text = _config.PathOutputRoot
@@ -299,6 +312,10 @@ Public Class FormOptions
         ' TTS
         PopulateTtsCombos()
         LoadTtsPreferences(_config.TtsBackends)
+
+        ' STT Engine
+        PopulateSttBackendCombo()
+        SelectSttBackend(_config.SttBackend)
 
         ' Advanced — Pipeline
         nudParallelJobs.Value = _config.ParallelJobs
@@ -357,6 +374,10 @@ Public Class FormOptions
         nudLiveVadSilence.Value = _config.LiveVadSilenceMs
         nudLiveMaxSeg.Value = _config.LiveMaxSegmentSec
         nudLiveInterim.Value = _config.LiveInterimIntervalMs
+
+        ' Advanced — Live Pipeline concurrency
+        nudTranslationConcurrency.Value = Math.Max(1, Math.Min(10, _config.TranslationConcurrency))
+        nudTtsConcurrency.Value = Math.Max(1, Math.Min(10, _config.TtsConcurrency))
     End Sub
 
     Private Sub ApplyToConfig()
@@ -371,6 +392,7 @@ Public Class FormOptions
             End If
         End If
         _config.StartWithWindows = chkStartWindows.Checked
+        _config.StartMinimized = chkStartMinimized.Checked
         _config.MinimizeToTray = chkMinimizeToTray.Checked
         If chkResetFirstRun.Checked Then _config.FirstRunComplete = False
 
@@ -380,7 +402,9 @@ Public Class FormOptions
         _config.PathFfmpeg = txtFfmpeg.Text
         _config.PathFfprobe = txtFfprobe.Text
         _config.PathFasterWhisperModel = txtFasterWhisper.Text
-        _config.TranslationModelPath = txtNllbModel.Text
+        _config.PathWhisperServer = txtWhisperServer.Text
+        _config.PathWhisperCppModel = txtGgmlModel.Text
+        _config.TranslationModelPath = txtTransModel.Text
         _config.PathModel = txtModel.Text
         _config.PathModelAudio = txtModelAudio.Text
         _config.PathOutputRoot = txtOutputRoot.Text
@@ -401,8 +425,12 @@ Public Class FormOptions
         _config.SubtitleFontBold = chkBold.Checked
 
         ' Translation
-        If cboTransBackend.SelectedIndex >= 0 AndAlso cboTransBackend.SelectedIndex < _transKeys.Length Then
-            _config.TranslationBackend = _transKeys(cboTransBackend.SelectedIndex)
+        If cboTransBackend.SelectedIndex >= 0 AndAlso cboTransBackend.SelectedIndex < _transEntries.Count Then
+            Dim entry = _transEntries(cboTransBackend.SelectedIndex)
+            _config.TranslationBackend = entry.Key
+            If entry.ModelType IsNot Nothing Then
+                _config.TranslationModelType = entry.ModelType
+            End If
         End If
         _config.TranslationEnabled = chkTransEnabled.Checked
         If cboDevice.SelectedItem IsNot Nothing Then _config.TranslationDevice = cboDevice.SelectedItem.ToString()
@@ -411,6 +439,11 @@ Public Class FormOptions
 
         ' TTS
         _config.TtsBackends = BuildTtsBackendsString()
+
+        ' STT Engine
+        If cboSttBackend.SelectedIndex >= 0 AndAlso cboSttBackend.SelectedIndex < _sttKeys.Length Then
+            _config.SttBackend = _sttKeys(cboSttBackend.SelectedIndex)
+        End If
 
         ' Advanced — Pipeline
         _config.ParallelJobs = CInt(nudParallelJobs.Value)
@@ -469,6 +502,10 @@ Public Class FormOptions
         _config.LiveVadSilenceMs = CInt(nudLiveVadSilence.Value)
         _config.LiveMaxSegmentSec = CInt(nudLiveMaxSeg.Value)
         _config.LiveInterimIntervalMs = CInt(nudLiveInterim.Value)
+
+        ' Advanced — Live Pipeline concurrency
+        _config.TranslationConcurrency = CInt(nudTranslationConcurrency.Value)
+        _config.TtsConcurrency = CInt(nudTtsConcurrency.Value)
 
         FormMain.WriteDebugLog($"[OPTIONS] ApplyToConfig: Language={_config.Language}, OutputLanguage={_config.OutputLanguage}, BiblesDirectory={_config.BiblesDirectory}, Theme={_config.Theme}, UiLanguage={_config.UiLanguage}, TranslationEnabled={_config.TranslationEnabled}")
         ConfigManager.Save(_config)
@@ -529,27 +566,90 @@ Public Class FormOptions
             txtHwRecs.Text = String.Join(Environment.NewLine & Environment.NewLine, recs)
         End If
 
+        ' Auto-select best STT backend based on hardware
+        Dim suggested = HardwareScanner.SuggestSttBackend(info)
+        SelectSttBackend(suggested)
+        FormMain.WriteDebugLog($"[HW] Suggested STT backend: {suggested}")
+
         FormMain.WriteDebugLog($"[HW] Scan complete: Overall={info.OverallScore}, GPU={info.GpuScore}, CPU={info.CpuScore}, RAM={info.RamScore}, Disk={info.DiskScore}, OS={info.OsScore}, Rating={info.Rating}")
+    End Sub
+
+    ' ═══════════════════════════════════════════════════════════════
+    ' STT backend combo — driven by SttBackendRegistry
+    ' ═══════════════════════════════════════════════════════════════
+    Private _sttKeys As String()
+
+    Private Sub PopulateSttBackendCombo()
+        Dim entries = Services.Stt.SttBackendRegistry.GetAll()
+        _sttKeys = New String(entries.Count - 1) {}
+        cboSttBackend.Items.Clear()
+        For i = 0 To entries.Count - 1
+            _sttKeys(i) = entries(i).Key
+            cboSttBackend.Items.Add(entries(i).DisplayName)
+        Next
+    End Sub
+
+    Private Sub SelectSttBackend(key As String)
+        Dim idx = Array.IndexOf(_sttKeys, If(key, "whisper-cpp-vulkan"))
+        cboSttBackend.SelectedIndex = If(idx >= 0, idx, 0)
     End Sub
 
     ' ═══════════════════════════════════════════════════════════════
     ' Translation backend combo — driven by TranslationBackendRegistry
     ' ═══════════════════════════════════════════════════════════════
     Private _transKeys As String()
+    Private _transEntries As IReadOnlyList(Of Services.Translation.TranslationBackendRegistry.Entry)
 
     Private Sub PopulateTransBackendCombo()
-        Dim entries = Services.Translation.TranslationBackendRegistry.GetAll()
-        _transKeys = New String(entries.Count - 1) {}
+        _transEntries = Services.Translation.TranslationBackendRegistry.GetAll()
+        _transKeys = New String(_transEntries.Count - 1) {}
         cboTransBackend.Items.Clear()
-        For i = 0 To entries.Count - 1
-            _transKeys(i) = entries(i).Key
-            cboTransBackend.Items.Add(entries(i).DisplayName)
+        For i = 0 To _transEntries.Count - 1
+            _transKeys(i) = _transEntries(i).Key
+            cboTransBackend.Items.Add(_transEntries(i).DisplayName)
         Next
+
+        AddHandler cboTransBackend.SelectedIndexChanged, AddressOf TransBackendCombo_Changed
     End Sub
 
+    ''' <summary>
+    ''' Select the backend combo using the backend key (e.g. "nllb", "nllb-3.3b").
+    ''' </summary>
     Private Sub SelectTransBackend(key As String)
         Dim idx = Array.IndexOf(_transKeys, If(key, "nllb"))
+        If idx < 0 Then
+            ' Fallback: try matching by model type for older configs
+            Dim modelType = If(_config.TranslationModelType, "nllb")
+            idx = Array.IndexOf(_transKeys, modelType)
+        End If
         cboTransBackend.SelectedIndex = If(idx >= 0, idx, 0)
+    End Sub
+
+    ''' <summary>
+    ''' When the user switches translation engine, auto-update the model path
+    ''' if it currently matches the previous engine's default path.
+    ''' </summary>
+    Private Sub TransBackendCombo_Changed(sender As Object, e As EventArgs)
+        If cboTransBackend.SelectedIndex < 0 OrElse cboTransBackend.SelectedIndex >= _transEntries.Count Then Return
+        Dim entry = _transEntries(cboTransBackend.SelectedIndex)
+        If String.IsNullOrEmpty(entry.DefaultModelPath) Then Return
+
+        ' Collect all known default paths from the registry (both relative and resolved)
+        Dim defaultPaths As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        For Each en In _transEntries
+            If Not String.IsNullOrEmpty(en.DefaultModelPath) Then
+                defaultPaths.Add(en.DefaultModelPath)
+                defaultPaths.Add(Models.AppConfig.ResolvePath(en.DefaultModelPath))
+            End If
+        Next
+
+        ' If current model path is one of the known defaults (or empty), swap to the new default
+        Dim currentPath = txtTransModel.Text.Trim()
+        If String.IsNullOrEmpty(currentPath) OrElse
+           defaultPaths.Contains(currentPath) OrElse
+           defaultPaths.Contains(Models.AppConfig.ResolvePath(currentPath)) Then
+            txtTransModel.Text = entry.DefaultModelPath
+        End If
     End Sub
 
     ' ═══════════════════════════════════════════════════════════════

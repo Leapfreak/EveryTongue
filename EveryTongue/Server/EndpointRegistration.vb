@@ -87,6 +87,19 @@ Namespace Server
                                            Return context.Response.WriteAsJsonAsync(metricsSvc.GetSnapshot())
                                        End Function)
 
+            ' Queue metrics — priority queue stats for translation and TTS pipelines
+            app.MapGet("/api/queue-metrics", Function(context As HttpContext) As Task
+                                                 Dim translationSvc = context.RequestServices.
+                                                     GetService(Of ITranslationService)
+                                                 Dim ttsSvc = context.RequestServices.
+                                                     GetService(Of ITtsService)
+                                                 Return context.Response.WriteAsJsonAsync(New With {
+                                                     .translation = translationSvc?.TranslationQueueMetrics,
+                                                     .tts = ttsSvc?.TtsQueueMetrics,
+                                                     .timestamp = DateTime.UtcNow
+                                                 })
+                                             End Function)
+
             ' Client configuration — replaces {{BG_COLOR}}/{{FG_COLOR}} template injection
             ' Client fetches this on load to configure itself.
             ' Cached 60s — colors/config rarely change mid-service.
@@ -173,12 +186,12 @@ Namespace Server
                                       End Function)
 
             ' Serve language list from language-codes.json — /api/languages
-            ' Returns array of [nllbCode, nativeName, englishName, iso1Code]
+            ' Returns array of [floresCode, nativeName, englishName, iso1Code]
             app.MapGet("/api/languages", Function(context As HttpContext) As Task
                                               context.Response.Headers.CacheControl = "public, max-age=3600"
                                               Dim langSvc = LanguageCodeService.Instance
                                               Dim langs = langSvc.GetAllLanguagesForWeb()
-                                              Dim result = langs.Select(Function(l) New Object() {l.Nllb, l.Native, l.Name, l.Iso1}).ToArray()
+                                              Dim result = langs.Select(Function(l) New Object() {l.Flores, l.Native, l.Name, l.Iso1}).ToArray()
                                               Return context.Response.WriteAsJsonAsync(result)
                                           End Function)
 
@@ -186,7 +199,6 @@ Namespace Server
 
         ''' <summary>
         ''' Callback for remote control commands from /api/control.
-        ''' Set by LiveController to handle start/stop/restart/clear/setSliders.
         ''' Uses Volatile read/write for thread safety (set from UI thread, read from HTTP threads).
         ''' </summary>
         Private _remoteCommandHandler As Action(Of String)
@@ -201,7 +213,7 @@ Namespace Server
 
         ''' <summary>
         ''' Callback fired when a conference room is created from a template.
-        ''' Args: (roomId, templateId). Set by FormMain/LiveController to spin up the pipeline.
+        ''' Args: (roomId, templateId). Set by FormMain to spin up the pipeline.
         ''' </summary>
         Private _conferenceRoomCreatedHandler As Action(Of String, String)
         Public Property ConferenceRoomCreatedHandler As Action(Of String, String)
@@ -215,7 +227,7 @@ Namespace Server
 
         ''' <summary>
         ''' Callback for pipeline config changes from web host controls.
-        ''' Args: (roomId, Dictionary of param name → value). Set by LiveController.
+        ''' Args: (roomId, Dictionary of param name → value).
         ''' </summary>
         Private _pipelineConfigHandler As Action(Of String, Dictionary(Of String, Object))
         Public Property PipelineConfigHandler As Action(Of String, Dictionary(Of String, Object))
@@ -229,7 +241,6 @@ Namespace Server
 
         ''' <summary>
         ''' Callback fired when a conference room is closed. Arg: roomId.
-        ''' Used by LiveController to stop the conference backend.
         ''' </summary>
         Private _roomClosedHandler As Action(Of String)
         Public Property RoomClosedHandler As Action(Of String)

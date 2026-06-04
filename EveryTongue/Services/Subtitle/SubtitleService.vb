@@ -177,9 +177,9 @@ Namespace Services.Subtitle
                         If Not root.TryGetProperty("language", langProp2) Then Return
                         Dim ttsText = textProp.GetString()
                         Dim ttsLang = langProp2.GetString()
-                        ' Convert NLLB codes (e.g. "spa_Latn") to ISO 639-3 (e.g. "spa") for TTS backends
+                        ' Convert FLORES codes (e.g. "spa_Latn") to ISO 639-3 (e.g. "spa") for TTS backends
                         If Not String.IsNullOrEmpty(ttsLang) AndAlso ttsLang.Contains("_") Then
-                            ttsLang = Pipeline.TranslationService.NllbToIso3(ttsLang)
+                            ttsLang = Pipeline.TranslationService.FloresToIso3(ttsLang)
                         End If
                         If TtsService IsNot Nothing AndAlso
                            Not String.IsNullOrEmpty(ttsText) AndAlso
@@ -633,10 +633,13 @@ Namespace Services.Subtitle
                         Dim ttsText = kvp.Value
                         Dim ttsCommitId = commitId
                         Dim roomId = targetRoomId
+                        Dim ttsPriority = If(String.IsNullOrEmpty(roomId),
+                            Scheduling.TranslationPriority.Live,
+                            Scheduling.TranslationPriority.Room)
                         Task.Run(Async Function()
                                      Try
                                          Dim url = Await TtsService.SynthesiseAsync(
-                                             ttsText, ttsLang, ttsCommitId, CancellationToken.None)
+                                             ttsText, ttsLang, ttsCommitId, CancellationToken.None, ttsPriority)
                                          If url IsNot Nothing Then
                                              NotifyTtsReady(ttsCommitId, ttsLang, url, roomId)
                                          End If
@@ -656,10 +659,13 @@ Namespace Services.Subtitle
                 Dim srcLang = sourceLang
                 Dim srcCommitId = commitId
                 Dim roomId = targetRoomId
+                Dim srcPriority = If(String.IsNullOrEmpty(roomId),
+                    Scheduling.TranslationPriority.Live,
+                    Scheduling.TranslationPriority.Room)
                 Task.Run(Async Function()
                              Try
                                  Dim url = Await TtsService.SynthesiseAsync(
-                                     srcText, srcLang, srcCommitId, CancellationToken.None)
+                                     srcText, srcLang, srcCommitId, CancellationToken.None, srcPriority)
                                  If url IsNot Nothing Then
                                      NotifyTtsReady(srcCommitId, srcLang, url, roomId)
                                  End If

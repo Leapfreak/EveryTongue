@@ -53,7 +53,7 @@ Namespace Controllers
         Private ReadOnly _appendLog As Action(Of String, String, Drawing.Color)
         Private ReadOnly _getString As Func(Of String, String)
         Private ReadOnly _log As Action(Of String)
-        Private ReadOnly _whisperLanguages As String()
+        Private ReadOnly _sttLanguages As String()
 
         ' State
         Private _isRunning As Boolean = False
@@ -83,7 +83,7 @@ Namespace Controllers
                        pbOverall As ProgressBar, pbChunk As ProgressBar,
                        grpOutputFormats As GroupBox,
                        tabMain As TabControl, tabPageJob As TabPage,
-                       whisperLanguages As String(),
+                       sttLanguages As String(),
                        saveUiToConfig As Action,
                        showLogPanel As Action,
                        appendLog As Action(Of String, String, Drawing.Color),
@@ -123,7 +123,7 @@ Namespace Controllers
             _grpOutputFormats = grpOutputFormats
             _tabMain = tabMain
             _tabPageJob = tabPageJob
-            _whisperLanguages = whisperLanguages
+            _sttLanguages = sttLanguages
             _saveUiToConfig = saveUiToConfig
             _showLogPanel = showLogPanel
             _appendLog = appendLog
@@ -155,7 +155,7 @@ Namespace Controllers
         Public Sub PopulateLanguageDropdowns()
             _cboInputLanguage.Items.Clear()
             _cboOutputLanguage.Items.Clear()
-            For Each lang In _whisperLanguages
+            For Each lang In _sttLanguages
                 _cboInputLanguage.Items.Add(lang)
                 _cboOutputLanguage.Items.Add(lang)
             Next

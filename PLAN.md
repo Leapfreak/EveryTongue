@@ -1,4 +1,4 @@
-# EveryTongue — TODO (updated 2026-06-02)
+# EveryTongue — TODO (updated 2026-06-04)
 
 > **Architecture shift:** EveryTongue is evolving from a single-session desktop transcription tool into a **headless multi-room translation server**. The desktop app still has operator workspaces (Live, Transcribe, Translate, Bible), but the primary user interface is now the **phone web client**. Anyone with a phone can create rooms, manage conversations, and receive translations — no operator required. The desktop just runs the server and auto-starts engines at launch.
 
@@ -11,7 +11,17 @@ All 10 phases done. Kestrel in-process with DI, WebSocket hub, static files, TTS
 All 11 items done plus additional cleanup. TTS and Translation backend registries added for pluggable engine discovery. FormOptions is now the single source of truth for all settings.
 
 ### Rooms — GOVERNANCE COMPLETE + POLISHED (see [#19](#19-rooms--multi-room-translation))
-Room model, lobby API, room QR codes, WebSocket routing, conversation rooms with bidirectional PTT audio, NLLB translation, self-echo, language forcing, auto-start of Whisper and NLLB at app launch, host controls (end/lock/kick/PTT mode), host reconnection via token, display names, participant bar with kick UI, virtual members (shared device support with identity switching and multi-language transcript), text chat with translation, speaker colours, conference room targeting from desktop — all working. v1.7.2: WebSocket send serialization, dock padding fix, multi-line chat, on-demand translation, host claim protection, conference default public. v1.7.3: TTS works in rooms (server TTS via requestTts + browser voice with language matching), speaking/recording indicator (banner + pulsing PTT button), per-window sessionStorage isolation, room commit lang field matches text language (not source), sentence splitting for multi-line room translations, client-to-server debug logging (SLOG), End Room no longer double-confirms. All governance + polish items complete.
+Room model, lobby API, room QR codes, WebSocket routing, conversation rooms with bidirectional PTT audio, local translation, self-echo, language forcing, auto-start of Whisper and translation sidecar at app launch, host controls (end/lock/kick/PTT mode), host reconnection via token, display names, participant bar with kick UI, virtual members (shared device support with identity switching and multi-language transcript), text chat with translation, speaker colours, conference room targeting from desktop — all working. v1.7.2: WebSocket send serialization, dock padding fix, multi-line chat, on-demand translation, host claim protection, conference default public. v1.7.3: TTS works in rooms (server TTS via requestTts + browser voice with language matching), speaking/recording indicator (banner + pulsing PTT button), per-window sessionStorage isolation, room commit lang field matches text language (not source), sentence splitting for multi-line room translations, client-to-server debug logging (SLOG), End Room no longer double-confirms. All governance + polish items complete.
+
+### Conference Room Templates — COMPLETE (v1.7.4–1.7.5)
+Conference templates with hosting code protection, multi-pipeline architecture (each room gets its own ISttBackend on a unique port), template manager UI (browse model path, audio device dropdown), lobby two-step hosting flow, pipeline controls in host admin panel (speaker language, beam size, VAD silence, max segment, initial prompt). v1.7.4: Full implementation — model, API, pipeline integration, lobby, host controls, template manager, localization. v1.7.5: Fix double TTS playback (server-push + client-request both firing), room-scope TTS generation (FireTtsForCommit/NotifyTtsReady filter by targetRoomId), fix server crash on pipeline config change (BeginInvoke double try/catch), fix duplicate rooms in lobby, conference rooms stripped of conversation features (no PTT, no participant bar), stale room redirect to lobby, locale-safe exception filtering (SocketErrorCode enums).
+
+### Engine Genericization — COMPLETE (v1.7.5)
+- **Translation backend switching fix**: Options dialog now detects when the translation backend/model/device changes and restarts the sidecar automatically. Previously, switching from MADLAD to NLLB (or vice versa) in Options had no effect — the old model kept running because `StartTranslationService` returned "already running".
+- **NLLB 3.3B support**: Added NLLB-200 3.3B (float16) as a selectable translation engine. New entry in `TranslationBackendRegistry`, Download Manager integration (downloads from `entai2965/nllb-200-3.3B-ctranslate2-float16`), installs to `nllb-3.3b-model/`. Benchmarked: ~3–6% better quality than 1.3B across all pairs, 9GB VRAM, minimal latency increase.
+- **Translation dep checks genericized**: `TranslationService.CheckDependenciesInstalled()` and `DependencyManager.CheckTranslationDepsAsync()` now check the configured model path/type instead of hardcoding `nllb-model/`.
+- **STT genericized**: Removed all hardcoded "Whisper" terminology from user-facing UI. Labels now say "STT model (live/job/audio)", "STT Parameters", "STT Flags". All 8 locale files updated (en, es, fr, de, ca, pt, zh, ja). Added `AppConfig.SttBackend` property. All `New FasterWhisperBackend()` calls (5 sites) replaced with `SttBackendRegistry.CreateBackend(config.SttBackend)` factory method. Internal variables renamed `_whisperLanguages` → `_sttLanguages` across 6 files. New STT engines can now be added without touching any UI code.
+- **SemaphoreSlim fix**: Wrapped `sem.Release()` in benchmark runner's Finally block with `Try/Catch ObjectDisposedException` to prevent crash when cancellation disposes the semaphore before all tasks finish.
 
 ## User-Reported Issues & Tasks
 - [x] Implement stubs — most done (QR Code, Hardware Score, Diagnostics Export, File Integrity, Translate workspace). Remaining stubs: Session Wizard, Audio Level Monitor, Glossary Simple Mode, Event Profiles, Spec Sheet Generator, Portable Mode, Feedback prompt
@@ -25,14 +35,33 @@ Room model, lobby API, room QR codes, WebSocket routing, conversation rooms with
 
 ## Future Work (not scheduled)
 - **Headless server / Windows Service mode** — run EveryTongue as a Windows service (no GUI, auto-start with OS). The desktop app becomes optional — the server hosts rooms, engines, and the web client independently. Remove/deprecate the WebView2 viewer panel (redundant now that rooms + phone web client handle everything). Operator controls (start/stop engines, view logs) move to a web-based admin dashboard served by Kestrel. Install/uninstall service via CLI or installer option.
+- **Cross-platform (Linux / macOS)** — the headless server is the prerequisite for this. Once the WinForms dependency is removed:
+  - **What's already cross-platform:** Kestrel (ASP.NET Core), all web client HTML/JS/CSS, Python sidecars (translation, MMS-TTS, live-server), Piper TTS, whisper.cpp. The entire phone experience (rooms, lobby, translation, TTS, Bible) has zero Windows dependency.
+  - **What needs replacing:** WinForms UI → web-based admin dashboard (already planned for headless mode). WebView2 → not needed (phones are the primary UI). NAudio audio capture → platform-specific audio backends or USB audio passed to whisper.cpp directly. Firewall rules (`netsh`) → platform-aware or manual setup.
+  - **Linux** — highest-value target. Cheaper to run a headless Ubuntu/Debian server than Windows. Churches in developing countries could use low-cost hardware. Raspberry Pi 5 (ARM64) is viable for single-stream STT with whisper.cpp.
+  - **macOS** — Metal backend for whisper.cpp is fast (~1.2–1.5x vs CUDA, near real-time on M-series). Apple Silicon Macs are increasingly common in churches/organisations.
+  - **Docker** — package headless server + all sidecars (translation, Piper, whisper.cpp) as a single Docker image. One `docker run` and it's serving rooms. GPU passthrough via `--gpus all` (NVIDIA) or `--device /dev/dri` (AMD/Intel). This is the ideal deployment for technical users and cloud hosting.
+  - **Build approach:** Extract all server logic into a shared `EveryTongue.Core` library (no WinForms references). The Windows desktop app references Core + WinForms. A new `EveryTongue.Server` console app references Core only — this is the cross-platform headless entry point. Both share the same Kestrel pipeline, DI container, and engine orchestrators.
 - Priority queue pipeline with dynamic priority scoring and backpressure/degradation
 - Mesh WiFi / mDNS service discovery for automatic server finding
-- Room templates & presets (medical consultation, Sunday service, staff meeting)
+- ~~Room templates & presets~~ — DONE (v1.7.4–1.7.5). Conference templates with hosting codes, multi-pipeline, template manager UI, lobby hosting flow.
 - Session recording & per-room transcript export
-- ~~ISttBackend interface~~ — DONE (v1.7.3). Pluggable STT via `ISttBackend` + `SttBackendRegistry` + `FasterWhisperBackend`. Future engines (Vosk, Azure, etc.) just implement the interface.
+- ~~ISttBackend interface~~ — DONE (v1.7.3–1.7.5). Pluggable STT via `ISttBackend` + `SttBackendRegistry` + `FasterWhisperBackend`. Factory method `SttBackendRegistry.CreateBackend(key)` used everywhere. UI fully genericized to "STT" terminology. Future engines (Vosk, Azure, whisper.cpp+Vulkan) just implement the interface and add one registry line.
 - Plugin auto-discovery from `plugins/` folder
 - Plugin Manager UI with model management
-- Engine benchmark suite (STT/Translation/TTS speed, quality, latency, resource usage)
+- ~~Engine benchmark suite~~ — DONE (v1.7.5). Pipeline Benchmark form tests Translation, TTS, and STT stages with configurable concurrency/iterations. STT Engine Comparison benchmarks all available backends (CUDA/Vulkan/CPU) side-by-side with the same audio file, showing model load time, avg/min/max inference latency, speedup ratio, and transcribed text.
+- ~~**Cross-GPU STT (v1.8.0)**~~ — DONE. Strategy: CUDA → Vulkan → CPU. All components implemented:
+  - **Shared sidecar**: `live-server/server.py` extended with `--backend whisper-cpp` mode — starts `whisper-server.exe` as subprocess, translates `/transcribe` and live capture to whisper-server's `/inference` API. Shares all VAD, hallucination detection, SSE, and stats logic with faster-whisper path.
+  - **whisper-server.exe**: Standalone C++ inference server (from whisper.cpp project). Keeps model in memory, serves `/inference` (multipart POST) and `/health`. Vulkan GPU acceleration by default, `-ng` flag for CPU-only.
+  - **Backend**: `WhisperCppBackend.vb` implements `ISttBackend` (thin adapter wrapping `LiveStreamRunner` with backend="whisper-cpp"). Single class handles both Vulkan and CPU modes via `useGpu` parameter.
+  - **Registry**: `"whisper-cpp-vulkan"` and `"whisper-cpp-cpu"` entries in `SttBackendRegistry` with `CreateBackend()` factory.
+  - **Auto-detection**: `HardwareScanner` detects CUDA (nvidia-smi) and Vulkan (vulkan-1.dll). `SuggestSttBackend()` returns best key. First-run auto-sets `AppConfig.SttBackend`.
+  - **Manual selection**: STT Engine combo on Options → Hardware panel. Re-scan auto-suggests best backend; user can override to any available engine.
+  - **Download Manager**: whisper-server.exe (Vulkan build) + GGML model (ggml-large-v3-turbo.bin) as downloadable dependencies.
+  - **Paths**: whisper-server.exe and GGML model path controls in Options → Tool Paths panel.
+  - **Benchmark**: STT Engine Comparison in Pipeline Benchmark form — tests each available backend with the same WAV file, shows side-by-side latency and speedup comparison.
+  - **Localization**: All new UI strings in 8 locale files (en, es, fr, de, ca, pt, zh, ja).
+  - **Speed**: Vulkan ~1.2-1.8x slower than CUDA. CPU ~3-6x slower. Both viable for single-stream conference use.
 
 ---
 
@@ -67,6 +96,7 @@ Implementation plan for making Every Tongue field-deployable by a non-technical 
 | [17](#17-text-chat-in-rooms) | Text Chat in Rooms | **Done** (in conversation rooms) | 2 |
 | [18](#18-dictation-in-translate-workspace) | Dictation in Translate Workspace | New | 2 |
 | [19](#19-rooms--multi-room-translation) | Rooms — Multi-Room Translation | **Governance Complete** (TTS remaining) | 1 |
+| [20](#20-translation-load-testing-suite) | Translation Load Testing Suite | New | 2 |
 
 **[Implementation Order](#implementation-order)** | **[Development Notes](#development-notes)** | **[Notes](#notes)**
 
@@ -197,7 +227,7 @@ Gather into a single JSON object, using `HardwareScanner.vb` (shared with Featur
 - Python environment: Python version, pip package versions from both venvs
 
 ### b) Log Bundler
-- Collect last 3 days of `*_pipeline-debug.log` and `*_nllb-debug.log`
+- Collect last 3 days of `*_pipeline-debug.log` and `*_translate-debug.log`
 - Include `live-server/server.py` stderr capture if available
 - Truncate each to last 500KB if larger
 
@@ -226,9 +256,9 @@ Critical files can get corrupted during USB transfers, incomplete downloads, or 
   "files": {
     "EveryTongue.exe": { "sha256": "a1b2c3...", "size": 152064 },
     "EveryTongue.dll": { "sha256": "d4e5f6...", "size": 294912 },
-    "nllb-server/server.py": { "sha256": "g7h8i9...", "size": 18432 },
+    "translate-server/server.py": { "sha256": "g7h8i9...", "size": 18432 },
     "live-server/server.py": { "sha256": "j0k1l2...", "size": 24576 },
-    "nllb-server/glossary.json": { "sha256": "m3n4o5...", "size": 4096 },
+    "translate-server/glossary.json": { "sha256": "m3n4o5...", "size": 4096 },
     "live-server/hallucinations.json": { "sha256": "p6q7r8...", "size": 1024 }
   },
   "models": {
@@ -287,7 +317,7 @@ Critical files can get corrupted during USB transfers, incomplete downloads, or 
 
 ## 5. Glossary Management — Simplified for Non-Technical Users
 
-**Status:** Fully implemented. `glossary.json` with trigger/source-lang/fixes model. `FormFilterEditor.vb` provides editing UI. Server-side application in `nllb-server/server.py` with hot-reload.
+**Status:** Fully implemented. `glossary.json` with trigger/source-lang/fixes model. `FormFilterEditor.vb` provides editing UI. Server-side application in `translate-server/server.py` with hot-reload.
 
 **What exists:**
 - 21 entries, mostly Catalan theological terms
@@ -320,7 +350,7 @@ Critical files can get corrupted during USB transfers, incomplete downloads, or 
 
 **Files to modify:**
 - `FormFilterEditor.vb` — simple mode toggle, import/export buttons
-- `nllb-server/glossary.json` — no structural changes needed
+- `translate-server/glossary.json` — no structural changes needed
 - New file: `glossary-packs/christian-theological.json`
 - `Strings.*.resx` — new UI labels
 
@@ -337,7 +367,7 @@ Critical files can get corrupted during USB transfers, incomplete downloads, or 
 - **TtsCache** — Ring-buffer cache in `%APPDATA%/EveryTongue/tts-cache/`, keyed by `{lang}_commit_{id}.mp3`, evicts oldest when 200 entries/lang exceeded. Hit/miss tracking.
 - **`/tts/cache/{file}` endpoint** — serves cached audio with path traversal validation.
 - **Fire-and-forget TTS pipeline** — `SubtitleService` generates TTS after each `BroadcastCommit`/`BroadcastCommitTranslated`, only for languages with connected clients. Sends `{"type":"tts","id":N,"url":"...","lang":"..."}` WebSocket message to matching clients.
-- **(c) Hybrid Approach** — "Server TTS" toggle in phone settings panel. Client uses server audio when toggled on OR when browser lacks a voice for the translation language. Falls back to `speechSynthesis` otherwise. NLLB-to-BCP47 voice detection map for 20 languages.
+- **(c) Hybrid Approach** — "Server TTS" toggle in phone settings panel. Client uses server audio when toggled on OR when browser lacks a voice for the translation language. Falls back to `speechSynthesis` otherwise. FLORES-to-BCP47 voice detection map for 20 languages.
 - **Audio queue with skip-to-live** — sequential playback via reusable `<audio>` element. Floating "N behind — tap to skip" indicator when queue ≥ 2 items. No automatic dropping.
 - **Bible Verse TTS** — per-verse speaker button and "Read All" button on chapter/verse views. Browser-first; server fallback via `requestTts` WebSocket message with hash-based cache key.
 - **Local Audio Output (NAudio)** — `TtsAudioOutput` plays cached TTS to a configurable Windows audio output device (for PA/NDI via Virtual Audio Cable). `ServerOptions.TtsOutputDevice` / `TtsOutputVolume`. `/tts/devices` endpoint lists available devices.
@@ -362,7 +392,7 @@ Critical files can get corrupted during USB transfers, incomplete downloads, or 
 ### a) Server-Side TTS (Piper or Coqui)
 The browser Speech API is device-dependent — many Android phones have poor or missing voices for smaller European languages.
 
-- Add a Python TTS sidecar (similar pattern to nllb-server and live-server)
+- Add a Python TTS sidecar (similar pattern to translate-server and live-server)
 - Use **Piper TTS** (open source, offline, fast, supports 30+ languages, small models ~15-50MB each)
 - Endpoint: `POST /tts` with `{"text": "...", "language": "fra"}` → returns WAV/MP3 audio
 - Phone client requests audio from server instead of using local synthesis
@@ -1150,10 +1180,10 @@ Each component scored independently, then weighted into an overall score:
 
 | Component | Weight | Scoring Criteria |
 |-----------|--------|-----------------|
-| **GPU** | 40% | NVIDIA + VRAM is the dominant factor for whisper/NLLB performance |
+| **GPU** | 40% | NVIDIA + VRAM is the dominant factor for whisper/translation performance |
 | **CPU** | 25% | Matters for CPU-only fallback and general overhead |
 | **RAM** | 20% | Models need memory; too little causes swapping |
-| **Disk** | 10% | Models are large; need space for whisper + NLLB + TTS |
+| **Disk** | 10% | Models are large; need space for whisper + translation + TTS |
 | **OS** | 5% | 64-bit Windows 10+ required; older = 0 |
 
 **GPU scoring (0-100, weight 40%):**
@@ -1251,10 +1281,10 @@ Use the hardware score to auto-configure optimal settings:
 
 | Score Range | Auto-Configuration |
 |-------------|-------------------|
-| 75+ | Medium whisper model, NLLB enabled, all features on |
-| 50-74 | Small whisper model, NLLB enabled, warn about TTS overhead |
-| 25-49 | Base whisper model, suggest disabling NLLB (transcription only), longer interim intervals |
-| < 25 | Tiny whisper model, NLLB disabled by default, maximum interim interval |
+| 75+ | Medium whisper model, translation enabled, all features on |
+| 50-74 | Small whisper model, translation enabled, warn about TTS overhead |
+| 25-49 | Base whisper model, suggest disabling translation (transcription only), longer interim intervals |
+| < 25 | Tiny whisper model, translation disabled by default, maximum interim interval |
 
 - Auto-configuration applied on first run; user can override in Settings
 - Show what was auto-configured and why: "Based on your hardware score (58/100), we've selected the 'small' whisper model for the best balance of speed and accuracy."
@@ -1405,17 +1435,17 @@ For languages not yet in the UI (e.g., before Feature #9 adds Polish/Romanian), 
 **What's done:**
 - **(a) Backend Abstraction** — `ITranslationBackend` interface with `TranslateAsync`, `GetSupportedLanguagesAsync`, `CheckHealthAsync`, `IsAvailable`, `RequiresInternet`, `Name`. `TranslationOrchestrator` implements `ITranslationService` with fallback chain and per-language backend overrides.
 - **(b) Cloud Backend Implementations** — `DeepLBackend`, `GoogleBackend`, `AzureBackend` all coded in `Services/Translation/CloudTranslationBackend.vb`. Each has `Configure(apiKey)` method. Return `IsAvailable=False` until API keys set.
-- `NllbBackend` wraps existing `TranslationService` as an `ITranslationBackend`
+- `SidecarTranslationBackend` wraps existing `TranslationService` as an `ITranslationBackend`
 - All backends registered in Kestrel DI container
 - **(c) Configuration UI** — `TranslationBackendRegistry` with engine selector combo in Options → Translation panel. `AppConfig.TranslationBackend` stores selection. Options dialog auto-populates from registry.
-- **(d) Language Mapping** — `language-codes.json` (161 languages) with `LanguageCodeService` singleton providing cross-format conversion (NLLB ↔ ISO 639-1 ↔ ISO 639-3 ↔ DeepL ↔ Google ↔ Azure ↔ Whisper). Replaces all hardcoded dictionaries in `TranslationService` and `BibleService`.
-- **(e) Hybrid Mode** — `TranslationOrchestrator.LanguageOverrides` dictionary supports per-language backend selection with NLLB as always-available fallback
+- **(d) Language Mapping** — `language-codes.json` (161 languages) with `LanguageCodeService` singleton providing cross-format conversion (FLORES ↔ ISO 639-1 ↔ ISO 639-3 ↔ DeepL ↔ Google ↔ Azure ↔ Whisper). Replaces all hardcoded dictionaries in `TranslationService` and `BibleService`.
+- **(e) Hybrid Mode** — `TranslationOrchestrator.LanguageOverrides` dictionary supports per-language backend selection with local sidecar as always-available fallback
 
 **What's NOT done:**
 - **(f) Cost Awareness** — No usage tracking or budget limits
 - **(g) Latency Considerations** — No batching or latency indicators
 - **(h) Glossary Integration** — Not wired to cloud backends
-- NllbBackend not yet registered in DI (needs legacy TranslationService instance from FormMain)
+- SidecarTranslationBackend not yet registered in DI (needs legacy TranslationService instance from FormMain)
 
 **Original problem description (kept for context):**
 
@@ -1431,7 +1461,7 @@ Refactor the translation pipeline to support pluggable backends:
 
 ```
 ITranslationBackend
-  ├── NllbBackend        (existing — local Python sidecar)
+  ├── SidecarTranslationBackend  (existing — local Python sidecar)
   ├── DeepLBackend       (cloud API)
   ├── GoogleBackend      (cloud API)
   ├── AzureBackend       (cloud API)
@@ -1476,16 +1506,16 @@ The existing `TranslationService.vb` becomes the orchestrator that delegates to 
 
 On the Settings tab, new "Translation" section:
 
-- **Backend selector:** dropdown — "Offline (NLLB-200)" / "DeepL" / "Google Translate" / "Azure Translator" / "Custom API"
+- **Backend selector:** dropdown — "Local (NLLB/MADLAD)" / "DeepL" / "Google Translate" / "Azure Translator" / "Custom API"
 - **API key field:** text input, shown only for cloud backends, stored encrypted in AppConfig
 - **Test button:** sends a sample translation request, shows result and latency
-- **Fallback toggle:** "Fall back to offline (NLLB) if cloud API is unreachable" — enabled by default
+- **Fallback toggle:** "Fall back to offline translation if cloud API is unreachable" — enabled by default
 - **Status indicator:** shows current backend health (connected/disconnected/rate-limited)
 
 ### d) Language Mapping
 
 Each backend uses different language codes:
-- NLLB: `fra_Latn`, `deu_Latn`, `pol_Latn`
+- FLORES: `fra_Latn`, `deu_Latn`, `pol_Latn`
 - DeepL: `FR`, `DE`, `PL`
 - Google/Azure: `fr`, `de`, `pl`
 
@@ -1494,7 +1524,7 @@ Create a language mapping table (`language-codes.json`) that maps between all fo
 ```json
 {
   "french": {
-    "nllb": "fra_Latn",
+    "flores": "fra_Latn",
     "deepl": "FR",
     "google": "fr",
     "azure": "fr",
@@ -1510,8 +1540,8 @@ The backend abstraction handles translation between code formats transparently.
 
 Allow mixing backends for best results:
 - Primary backend: DeepL (high quality for supported languages)
-- Fallback for unsupported languages: NLLB (covers ~200 languages)
-- Example: DeepL handles French/German/Spanish; NLLB handles Catalan/Albanian/Georgian
+- Fallback for unsupported languages: local sidecar (covers ~200 languages)
+- Example: DeepL handles French/German/Spanish; local sidecar handles Catalan/Albanian/Georgian
 - Configuration: per-language backend override (advanced setting)
 
 ### f) Cost Awareness
@@ -1520,11 +1550,11 @@ Cloud APIs charge per character. Show usage tracking:
 - Characters translated this session / this month
 - Estimated cost based on known pricing (DeepL: €5/1M chars, Google: $20/1M chars)
 - Warning when approaching free tier limits
-- Option to set a monthly character budget — switch to NLLB when exceeded
+- Option to set a monthly character budget — switch to offline translation when exceeded
 
 ### g) Latency Considerations
 
-Cloud APIs add network latency (100-500ms per request) vs NLLB's local processing (~50ms):
+Cloud APIs add network latency (100-500ms per request) vs the local sidecar's processing (~50ms):
 - Batch translations: collect text for 1-2 seconds before sending to reduce API calls
 - Show latency indicator in the UI so the operator knows the translation delay
 - If latency exceeds a threshold (e.g., 2 seconds), warn and suggest switching to offline
@@ -1540,7 +1570,7 @@ For simplicity, apply the existing local glossary (Feature #5) as a post-process
 
 **Files to modify:**
 - New file: `ITranslationBackend.vb` — interface definition
-- New file: `NllbBackend.vb` — wraps existing TranslationService.vb logic
+- New file: `SidecarTranslationBackend.vb` — wraps existing TranslationService.vb logic
 - New file: `DeepLBackend.vb` — DeepL API client
 - New file: `GoogleTranslateBackend.vb` — Google API client
 - New file: `AzureTranslatorBackend.vb` — Azure API client
@@ -1714,9 +1744,9 @@ The operator needs to know when the system is approaching its limits — before 
 | **Bytes out/sec** | Network counter | Actual bandwidth usage. Compare against Wi-Fi capacity |
 | **CPU usage** | `Process.GetCurrentProcess()` | Server process CPU — includes Kestrel, WebSocket handling, TTS generation |
 | **Memory usage** | `Process.WorkingSet64` | Memory pressure — leak detection over long sessions |
-| **GPU usage** | `nvidia-smi` query (if available) | Is whisper/NLLB saturating the GPU? |
+| **GPU usage** | `nvidia-smi` query (if available) | Is whisper/translation saturating the GPU? |
 | **Transcription lag** | Time from audio capture to committed text | Is whisper keeping up with real-time speech? |
-| **Translation lag** | Time from committed text to translated text broadcast | Is NLLB/cloud API keeping up? |
+| **Translation lag** | Time from committed text to translated text broadcast | Is the translation backend keeping up? |
 | **TTS generation time** | Time to generate audio clip | Is TTS keeping up? If generation > speech interval, audio falls behind |
 
 **Implementation:**
@@ -1898,7 +1928,7 @@ Use freely available Bible translations in structured format:
 ```sql
 CREATE TABLE translations (
     id TEXT PRIMARY KEY,         -- e.g., "ESV", "RVR1960", "LSG"
-    language TEXT NOT NULL,      -- NLLB/ISO code
+    language TEXT NOT NULL,      -- FLORES/ISO code
     name TEXT NOT NULL,          -- "English Standard Version"
     license TEXT,                -- license info
     copyright TEXT               -- attribution text
@@ -2102,7 +2132,7 @@ This gives baseline coverage for the majority of Agape's European footprint usin
 - Text input field in the room UI (below the PTT button)
 - User types a message, hits Send
 - Message sent to server via WebSocket as a text message (not audio)
-- Server translates the text to each room member's language using the same NLLB pipeline
+- Server translates the text to each room member's language using the same translation pipeline
 - Broadcast to room members as a commit, same as PTT results
 
 #### b) Server-side handling
@@ -2169,10 +2199,10 @@ This gives baseline coverage for the majority of Agape's European footprint usin
 - WebSocket routing: clients subscribe to rooms, messages route per-room
 - Web client lobby with "Your Rooms" section (localStorage host token persistence)
 - Conversation rooms: bidirectional PTT audio via MediaRecorder + FFmpeg + Whisper
-- Translation pipeline: PTT -> FFmpeg -> Whisper -> NLLB -> broadcast to room members
+- Translation pipeline: PTT -> FFmpeg -> Whisper -> translation sidecar -> broadcast to room members
 - Self-echo: speakers see their own text in the conversation
 - Language forcing: client's language setting passed to Whisper (no more wrong language detection)
-- Auto-start: Whisper and NLLB engines start at app launch, ready for first message
+- Auto-start: Whisper and translation sidecar start at app launch, ready for first message
 - Room lifecycle: idle expiry, host-only close, private rooms hidden from lobby
 - Room isolation: room messages don't leak to desktop Live workspace or other rooms
 - Host controls: end room, lock room, kick participant, PTT mode toggle (hold/tap)
@@ -2231,8 +2261,8 @@ This gives baseline coverage for the majority of Agape's European footprint usin
                     |    (headless PC / laptop)   |
                     |                             |
                     |  +--------+  +-----------+  |
-                    |  | Whisper |  |   NLLB    |  |
-                    |  |  (STT)  |  | (Translate)|  |
+                    |  | Whisper |  | Translate |  |
+                    |  |  (STT)  |  | (sidecar) |  |
                     |  +--------+  +-----------+  |
                     |  +---------+  +----------+  |
                     |  | Piper / |  |   Room    |  |
@@ -2264,7 +2294,7 @@ This gives baseline coverage for the majority of Agape's European footprint usin
 - **Whisper concurrency:** One shared instance with room-tagged queuing (GPU memory constraint)
 - **Interaction mode:** Push-to-talk (simpler, avoids cross-talk and echo cancellation)
 - **Room persistence:** Memory-only (lost on restart) — sufficient for v1
-- **Language forcing:** Client's NLLB language converted to Whisper code, passed via `?lang=` param
+- **Language forcing:** Client's FLORES language code converted to Whisper code, passed via `?lang=` param
 
 ### Hardware Implications
 
@@ -2279,10 +2309,10 @@ Conversation rooms are the most expensive: a 5-person conversation = 5x Whisper 
 
 ### Future: Priority Queue Pipeline
 
-When multiple rooms run concurrently, the server has three bottlenecks: Whisper (STT), NLLB (translation), and TTS. Each gets a priority queue so the system degrades gracefully under load.
+When multiple rooms run concurrently, the server has three bottlenecks: Whisper (STT), translation sidecar, and TTS. Each gets a priority queue so the system degrades gracefully under load.
 
 ```
-Audio in -> [STT Queue] -> Whisper -> [Translation Queue] -> NLLB -> [TTS Queue] -> Piper/MMS -> Client
+Audio in -> [STT Queue] -> Whisper -> [Translation Queue] -> Translate -> [TTS Queue] -> Piper/MMS -> Client
 ```
 
 **Dynamic priority scoring** — the system observes interaction patterns and adapts:
@@ -2311,7 +2341,7 @@ Audio in -> [STT Queue] -> Whisper -> [Translation Queue] -> NLLB -> [TTS Queue]
 
 **What exists today:**
 - `ITtsBackend` + `TtsBackendRegistry` — pluggable TTS (Piper, MMS-TTS, EdgeTTS)
-- `ITranslationBackend` + `TranslationBackendRegistry` — pluggable translation (NLLB, Cloud APIs)
+- `ITranslationBackend` + `TranslationBackendRegistry` — pluggable translation (Local, Cloud APIs)
 - `ISttBackend` + `SttBackendRegistry` — pluggable STT (`FasterWhisperBackend` wraps `LiveStreamRunner`). LiveController uses `ISttBackend` exclusively.
 
 **What's needed:**
@@ -2599,6 +2629,73 @@ Key advice for operators:
 
 ---
 
+## 20. Translation Load Testing Suite
+
+**Status:** New
+
+**Goal:** A built-in testing tool that fires static translation tasks at the translation server under controlled load, measuring throughput, latency, and output quality. Answers: "How fast is my translation server?", "Does output degrade under load?", "Is my hardware keeping up?"
+
+### What exists today
+
+- Translation server exposes `/translate` endpoint (single request, blocking)
+- `TranslationService.TranslateAsync()` handles one source→N target calls sequentially
+- No way to stress-test without a live conference session
+- No output quality validation — operator has to eyeball translations
+
+### What to build
+
+#### a) Test corpus
+- Ship a static test corpus in `test-data/translation-corpus.json` — curated sentence pairs with known-good reference translations
+- Organised by domain: general, religious/sermon, medical, legal — so operators can test with realistic content
+- Each entry: `{ source, sourceLang, targets: [{ lang, reference }] }` — source text + expected translations for comparison
+- Start with 50-100 sentences covering the most common language pairs (ca→en, ca→es, ca→fr, ca→de, en→es, en→fr)
+
+#### b) Load test runner
+- New workspace or dialog: **Tools → Translation Benchmark**
+- Parameters: corpus selection, concurrency level (1/2/5/10 simultaneous requests), number of iterations, target languages
+- Fires requests directly at the translation server's `/translate` endpoint (or via `TranslationService`)
+- Measures per-request: latency (ms), tokens in/out, source→target pair
+- Measures aggregate: requests/sec, p50/p95/p99 latency, total throughput (tokens/sec), error rate
+- Progress bar with live stats during the run
+
+#### c) Output quality scoring
+- Compare translation output against reference translations using simple similarity metrics (character-level edit distance, token overlap, or BLEU-like n-gram scoring)
+- Flag translations that diverge significantly from references — helps catch model regressions or bad language pairs
+- Quality score per language pair: "en→de: 87% match, en→ja: 62% match"
+- Not a full MT evaluation suite — just enough to spot obvious problems
+
+#### d) Results report
+- Summary table: language pair, avg latency, throughput, quality score, error count
+- Exportable as JSON or CSV for tracking across versions/hardware
+- Compare against previous runs: "v1.7.5 on RTX 3060: 45 req/s" vs "v1.7.5 on CPU: 3 req/s"
+- Store last result in config so it shows on next open without re-running
+
+#### e) Regression detection
+- After a model update or config change, operator re-runs the benchmark
+- Compare output quality scores against the stored baseline
+- Highlight any language pairs where quality dropped significantly
+- "Warning: de→fr quality dropped from 85% to 61% after model change"
+
+### Implementation notes
+
+- The test runner should work whether or not a live session is active — it talks directly to the translation server
+- Concurrency testing reveals whether the server handles parallel requests (important for multi-room scenarios)
+- Keep the corpus small enough to ship with the app (~50KB JSON) but representative enough to be useful
+- The corpus can also serve as a smoke test after translation model downloads — "run quick test" to verify the model works
+- Consider adding a "Quick Test" (5 sentences, 1 thread) vs "Full Benchmark" (full corpus, configurable load) mode
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `test-data/translation-corpus.json` | NEW — static test sentences with reference translations |
+| `Forms/FormTranslationBenchmark.vb` | NEW — benchmark dialog UI |
+| `Forms/FormTranslationBenchmark.Designer.vb` | NEW — benchmark dialog layout |
+| `Services/Testing/TranslationBenchmarkRunner.vb` | NEW — load test engine, metrics collection, quality scoring |
+| `Forms/FormOptions.vb` or menu | Add "Translation Benchmark" menu item under Tools |
+
+---
+
 ## Development Notes
 
 **Solo developer context:** This plan is maintained by one person (Jeremy) and developed incrementally alongside a live deployment serving a 300-person church congregation. Every Sunday is a live test with real users who don't speak the same language as the speaker.
@@ -2631,7 +2728,7 @@ The following developer/user documentation needs to be written. These may live i
 - The phone client JS must remain ES5 compatible (no const/let/arrow functions) except for specific modern APIs (Wake Lock, Web Speech) — **unless** the Kestrel migration (Feature #15) extracts the client to separate files, at which point modern JS can be considered with a transpilation step
 - Test each feature with the "borrowed laptop" scenario: no admin rights, unfamiliar Windows install, no internet
 - `specs.json` must be reviewed and updated each release if resource requirements change
-- Cloud translation backends (Feature #14) should gracefully degrade to NLLB when offline — the offline-first principle remains core to the product
+- Cloud translation backends (Feature #14) should gracefully degrade to offline translation when offline — the offline-first principle remains core to the product
 - Bible text must always show copyright/attribution per the translation's license terms
 - Kestrel migration is complete — all new endpoints built on Kestrel
 - Rooms (#19) is the highest-priority active work — engines auto-start at launch, phone clients manage rooms independently
@@ -2687,10 +2784,10 @@ before anything else. This sets the UI language for the entire application.
 - Large flag + native language name tiles in a responsive grid
 - Most common/supported languages shown first (configurable order)
 - Search box at the bottom — filters as you type, matches native name and English name
-- "More languages..." expands to show all NLLB-supported languages (auto-translated UI)
+- "More languages..." expands to show all supported languages (auto-translated UI)
 - Selecting a language immediately applies it and proceeds to the main window
 - The choice is saved in config; can be changed later via View > Language or Options > General
-- If the selected language has no `.resx` yet, the editor auto-generates one via NLLB on the spot
+- If the selected language has no `.resx` yet, the editor auto-generates one via local translation on the spot
 
 **Implementation:** `FormLanguagePicker.vb` — shown once on first run, before FormMain loads.
 
@@ -2780,7 +2877,7 @@ Tools
   Localization Editor...      (edit/create UI translations — see Localization System)
   ─────────────
   Download Manager            (Feature #5/7 — models, Bibles, TTS voices)
-  Check Dependencies          (Python venvs, NLLB, faster-whisper)
+  Check Dependencies          (Python venvs, translation model, faster-whisper)
   Verify Paths
   Verify File Integrity       (Feature #4d — checksums)
   ─────────────
@@ -2892,7 +2989,7 @@ The primary feature. Clean, focused, minimal controls visible by default.
 ┌─────────────────────────────────────────────────────────────────┐
 │                                                                 │
 │  From: [Auto Detect ▼]              To: [Spanish ▼]             │
-│  Engine: [NLLB (local) ▼]  Status: Model loaded                 │
+│  Engine: [Local (NLLB/MADLAD) ▼]  Status: Model loaded           │
 │                                                                 │
 │  ┌──────────────────────┐    ┌──────────────────────────────┐   │
 │  │                      │    │                              │   │
@@ -2903,7 +3000,7 @@ The primary feature. Clean, focused, minimal controls visible by default.
 │                                                                 │
 │  [ Translate ]  [ Clear ]  [ Copy ]  [ Swap ]                   │
 │                                                                 │
-│  Backend: NLLB (local) | DeepL | Google | Azure | Custom        │
+│  Backend: Local | DeepL | Google | Azure | Custom                │
 │  (per Feature #14 — pluggable backends with fallback)           │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
@@ -2987,7 +3084,7 @@ Categories and settings:
   Paths        — All 12 tool paths with Browse buttons:
                  whisper-cli, yt-dlp, ffmpeg, ffprobe,
                  YouTube model, Audio model, faster-whisper model,
-                 NLLB model, output root, SubtitleEdit,
+                 translation model, output root, SubtitleEdit,
                  glossary, Bibles directory
                — yt-dlp format string
                — [Verify All Paths]
@@ -2995,11 +3092,11 @@ Categories and settings:
 
   Translation
     Engines    — Translation enabled toggle
-               — Backend selector: NLLB / DeepL / Google / Azure / Custom
+               — Backend selector: Local / DeepL / Google / Azure / Custom
                  (Feature #14 — pluggable backends)
                — API key fields (shown per backend)
                — [Test] button
-               — Fallback to NLLB when offline toggle
+               — Fallback to offline translation when offline toggle
                — Device: CUDA / CPU
                — Unload timer (minutes)
                — Translation port
@@ -3057,7 +3154,7 @@ Step 1 of 5: Hardware Check
 │  │  Disk: 42 GB free                 ██████████  100/100    │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                                                                 │
-│  Auto-configured: medium whisper model, NLLB enabled            │
+│  Auto-configured: medium whisper model, translation enabled            │
 │  (Feature #12f — smart defaults based on score)                 │
 │                                                                 │
 │                                    [ Skip ]  [ Next > ]         │
@@ -3090,7 +3187,7 @@ Step 3 of 5: Translation
 │  Enable live translation?                                       │
 │  [x] Yes — translate subtitles for phone viewers                │
 │                                                                 │
-│  Translation engine: [NLLB (local, private) ▼]                  │
+│  Translation engine: [Local (NLLB/MADLAD) ▼]                    │
 │  Device: [CUDA ▼]                                               │
 │                                                                 │
 │  Status: ✓ Model loaded    ✓ Dependencies OK                    │
@@ -3132,7 +3229,7 @@ Step 5 of 5: Ready
 │                                                                 │
 │  Audio:       Microphone (Realtek HD Audio)                     │
 │  Language:    English                                           │
-│  Translation: Enabled (NLLB, CUDA) — 4 languages               │
+│  Translation: Enabled (Local, CUDA) — 4 languages               │
 │  Display:     White on Black, Segoe UI 12pt                     │
 │  Server:      https://192.168.1.5:5081                          │
 │  Hardware:    78/100 (Green)                                    │
@@ -3289,7 +3386,7 @@ When running from USB (`portable.flag` detected):
 ### Overview
 
 A two-tier localization system: an **in-app Localization Editor** for end users and
-translators, backed by NLLB for auto-translation, plus a **CLI script** for developer
+translators, backed by local translation (NLLB/MADLAD) for auto-translation, plus a **CLI script** for developer
 batch operations. Both read/write the same `.resx` files and use the same
 `auto`/`human` tracking mechanism.
 
@@ -3298,14 +3395,14 @@ batch operations. Both read/write the same `.resx` files and use the same
 Each `.resx` `<data>` entry uses the `<comment>` element to track its source:
 
 ```xml
-<!-- Auto-translated by NLLB — will be overwritten on next auto-generate -->
+<!-- Auto-translated — will be overwritten on next auto-generate -->
 <data name="Btn_Start"><value>Iniciar</value><comment>auto</comment></data>
 
 <!-- Human-submitted — protected from auto-overwrite -->
 <data name="Btn_Stop"><value>Detener</value><comment>human</comment></data>
 ```
 
-- `auto` — machine-translated via NLLB, regenerated on demand
+- `auto` — machine-translated via local translation, regenerated on demand
 - `human` — submitted by a native speaker, permanently locked from auto-overwrite
 - (missing comment) — treated as `auto` for legacy entries on first run
 
@@ -3333,7 +3430,7 @@ This is the primary way translators interact with localizations.
 │                                                                   │
 │  🟢 = human   🟡 = auto   🔴 = missing                            │
 │                                                                   │
-│  [Auto-Fill Missing (NLLB)]  [Auto-Fill All (NLLB)]               │
+│  [Auto-Fill Missing]  [Auto-Fill All]                              │
 │  [Export Template CSV...]    [Import Template CSV...]              │
 │  [Reset Selected to Auto]                                         │
 │                                                                   │
@@ -3345,25 +3442,25 @@ This is the primary way translators interact with localizations.
 
 - **Language selector** — dropdown of existing locales + "New Language" to create one from scratch
 - **New Language** — prompts for locale code and display name, creates a new `.resx` with all keys
-  auto-translated via NLLB in one pass
+  auto-translated via local translation in one pass
 - **DataGridView** — key, English source, current translation, status indicator
 - **Inline editing** — click a translation cell to edit; saving marks it `human`
 - **Filter dropdown** — All / Missing only / Auto only / Human only
 - **Search** — filter keys by name or English text
-- **Auto-Fill Missing (NLLB)** — translates only missing/empty keys using the app's
-  built-in NLLB translation service, marks them `auto`
-- **Auto-Fill All (NLLB)** — retranslates all `auto` keys (leaves `human` untouched)
+- **Auto-Fill Missing** — translates only missing/empty keys using the app's
+  built-in local translation service, marks them `auto`
+- **Auto-Fill All** — retranslates all `auto` keys (leaves `human` untouched)
 - **Export Template CSV** — for offline editing or sending to a volunteer
 - **Import Template CSV** — loads a completed CSV, marks imported entries `human`
 - **Reset Selected to Auto** — demotes selected rows back to `auto` (bad human translation)
 - **Save** — writes the `.resx` file and regenerates the `app.js` i18n block
 
-**NLLB integration:**
+**Local translation integration:**
 
 The editor calls the same `ITranslationService` already used for live translation.
-If NLLB is loaded, translations happen instantly on-device. If not loaded, the editor
+If the translation model is loaded, translations happen instantly on-device. If not loaded, the editor
 offers to load it (respecting the unload timer from Options). This means the app can
-generate its own UI translations in any of the 200+ languages NLLB supports, without
+generate its own UI translations in any of the 200+ languages the local engine supports, without
 any external API or internet connection.
 
 ### CLI script (developer tool)
@@ -3372,7 +3469,7 @@ any external API or internet connection.
 
 | Command | What it does |
 |---|---|
-| `--auto` | Fill missing + refresh `auto` keys across all locales via NLLB |
+| `--auto` | Fill missing + refresh `auto` keys across all locales via local translation |
 | `--auto --lang ko,ar` | Same but only for specific locales |
 | `--export-template es` | Generate CSV template for a volunteer |
 | `--import file.csv --lang es` | Import volunteer translations, mark as `human` |
@@ -3399,7 +3496,7 @@ any external API or internet connection.
 
 When a developer adds a new key to `Strings.resx` (English master):
 - Opening the Localization Editor shows the key as 🔴 missing for all languages
-- Clicking **Auto-Fill Missing** translates it via NLLB with `comment=auto`
+- Clicking **Auto-Fill Missing** translates it via local translation with `comment=auto`
 - Or the CLI `--auto` run does the same in batch
 - Existing `human` entries are untouched
 - A translator can later edit the auto value to upgrade it to `human`
@@ -3477,15 +3574,15 @@ This avoids layout shifts as features are added later.
 | **File Integrity Check** | Implemented | Part of Diagnostics Export (#4d), build-time manifest + runtime verification |
 | **Portable Mode** | STUB | Detection logic placeholder |
 | **Feedback prompt** | STUB | Post-session dialog placeholder |
-| **Localization Editor** | Implemented | Tools menu, DataGridView editor, NLLB auto-fill, CSV import/export |
-| **First-Run Language Picker** | Implemented | Flag grid, search, auto-generates .resx via NLLB for new languages |
+| **Localization Editor** | Implemented | Tools menu, DataGridView editor, local translation auto-fill, CSV import/export |
+| **First-Run Language Picker** | Implemented | Flag grid, search, auto-generates .resx via local translation for new languages |
 
 ---
 
 ## Implementation Approach
 
 ### Phase 1: Shell + Navigation
-- `FormLanguagePicker.vb` — first-run language selector with flag tiles, search, NLLB auto-generation
+- `FormLanguagePicker.vb` — first-run language selector with flag tiles, search, local translation auto-generation
 - New FormMain with MenuStrip, ToolStrip, nav rail (Panel with styled buttons), workspace Panel, StatusStrip, log panel (SplitContainer)
 - Nav rail switches workspace content by showing/hiding UserControls
 - All workspaces created — implemented ones have real content, others show stub placeholder
@@ -3499,7 +3596,7 @@ This avoids layout shifts as features are added later.
 - `LogPanel.vb` — unified log from current job log + server log
 - `BibleWorkspace.vb` — WebView2 hosting the existing web Bible UI
 - `TranslateWorkspace.vb` — STUB: language selectors + two text boxes + disabled Translate button
-- `FormLocalizationEditor.vb` — DataGridView editor for `.resx` files, NLLB auto-fill, CSV import/export, auto/human tracking
+- `FormLocalizationEditor.vb` — DataGridView editor for `.resx` files, local translation auto-fill, CSV import/export, auto/human tracking
 - Move all event handlers from FormMain into the respective UserControls
 - FormMain becomes a thin shell that hosts UserControls and coordinates between them
 
@@ -3515,7 +3612,7 @@ This avoids layout shifts as features are added later.
 - Audio level monitor — `/audio-level` endpoint + polling + meter control
 - Diagnostics export — system info collector + ZIP bundler
 - File integrity — checksums.json generation + verification UI
-- Translate workspace — wire to NLLB backend, then pluggable backends (Feature #14)
+- Translate workspace — wire to local translation backend, then pluggable backends (Feature #14)
 - Glossary simple mode — two-column editing UI
 - Event profiles — save/load named profiles in AppConfig
 

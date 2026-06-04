@@ -5,10 +5,10 @@ Imports EveryTongue.Services.Models
 
 Namespace Services.Translation
     ''' <summary>
-    ''' Wraps the existing TranslationService (NLLB Python sidecar) as an ITranslationBackend.
+    ''' Wraps the existing TranslationService (local Python sidecar) as an ITranslationBackend.
     ''' Always available offline. Used as the default fallback in the orchestrator.
     ''' </summary>
-    Public Class NllbBackend
+    Public Class SidecarTranslationBackend
         Implements ITranslationBackend
 
         Private ReadOnly _legacyService As TranslationService
@@ -19,7 +19,7 @@ Namespace Services.Translation
 
         Public ReadOnly Property Name As String Implements ITranslationBackend.Name
             Get
-                Return "NLLB"
+                Return "Local"
             End Get
         End Property
 
@@ -38,13 +38,14 @@ Namespace Services.Translation
         Public Async Function TranslateAsync(text As String,
                                              sourceLang As String,
                                              targetLangs As IReadOnlyList(Of String),
-                                             ct As CancellationToken
+                                             ct As CancellationToken,
+                                             Optional noCache As Boolean = False
         ) As Task(Of Dictionary(Of String, String)) Implements ITranslationBackend.TranslateAsync
             If Not IsAvailable Then Return New Dictionary(Of String, String)()
 
             ' Delegate to existing service (it uses its own internal timeout)
             Return Await _legacyService.TranslateAsync(
-                text, sourceLang, New List(Of String)(targetLangs))
+                text, sourceLang, New List(Of String)(targetLangs), noCache)
         End Function
 
         Public Function GetSupportedLanguagesAsync(ct As CancellationToken
@@ -54,7 +55,7 @@ Namespace Services.Translation
             For Each kvp In TranslationService.GetLangMap()
                 result.Add(New LanguageInfo With {
                     .WhisperCode = kvp.Key,
-                    .NllbCode = kvp.Value
+                    .FloresCode = kvp.Value
                 })
             Next
             Return Task.FromResult(DirectCast(result, IReadOnlyList(Of LanguageInfo)))

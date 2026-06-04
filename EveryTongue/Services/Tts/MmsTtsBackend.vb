@@ -11,7 +11,7 @@ Namespace Services.Tts
     ''' <summary>
     ''' Meta MMS-TTS backend — 1100+ languages via PyTorch VITS.
     ''' Priority 2 (fallback when Piper doesn't cover the language).
-    ''' Runs as a Python FastAPI sidecar on port 5092 (same pattern as NLLB).
+    ''' Runs as a Python FastAPI sidecar on port 5092 (same pattern as translate-server).
     ''' Optional — requires PyTorch (~200 MB CPU-only) and transformers.
     ''' Models auto-download from HuggingFace on first use per language (~100 MB each).
     ''' </summary>

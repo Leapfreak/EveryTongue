@@ -7,7 +7,7 @@ Partial Public Class FormFilterEditor
 
     Private ReadOnly _baseDir As String
     Private ReadOnly _livePort As Integer
-    Private ReadOnly _nllbPort As Integer
+    Private ReadOnly _transPort As Integer
     Private ReadOnly _httpClient As New HttpClient() With {.Timeout = TimeSpan.FromSeconds(5)}
     ' File paths
     Private ReadOnly _hallucinationsPath As String
@@ -26,14 +26,14 @@ Partial Public Class FormFilterEditor
         Return Services.Infrastructure.LanguagePackService.Instance.GetString(key)
     End Function
 
-    Public Sub New(baseDir As String, livePort As Integer, nllbPort As Integer)
+    Public Sub New(baseDir As String, livePort As Integer, transPort As Integer)
         _baseDir = baseDir
         _livePort = livePort
-        _nllbPort = nllbPort
+        _transPort = transPort
 
         _hallucinationsPath = Path.Combine(baseDir, "live-server", "hallucinations.json")
-        _glossaryPath = Path.Combine(baseDir, "nllb-server", "glossary.json")
-        _profanityPath = Path.Combine(baseDir, "nllb-server", "profanity.json")
+        _glossaryPath = Path.Combine(baseDir, "translate-server", "glossary.json")
+        _profanityPath = Path.Combine(baseDir, "translate-server", "profanity.json")
 
         InitializeComponent()
         ApplyLocalization()
@@ -281,7 +281,7 @@ Partial Public Class FormFilterEditor
     End Sub
 
     Private Sub btnProfAddLang_Click(sender As Object, e As EventArgs) Handles btnProfAddLang.Click
-        Dim lang = InputBox(S("FE_PromptNllbCode"), S("FE_AddLanguage"))
+        Dim lang = InputBox(S("FE_PromptFloresCode"), S("FE_AddLanguage"))
         If String.IsNullOrWhiteSpace(lang) Then Return
         lang = lang.Trim()
         If _profData.ContainsKey(lang) Then
@@ -509,12 +509,12 @@ Partial Public Class FormFilterEditor
             FormMain.WriteDebugLog($"[ERROR] ReloadServersAsync (hallucinations/reload): {ex.Message}")
         End Try
         Try
-            Await _httpClient.PostAsync($"http://127.0.0.1:{_nllbPort}/glossary/reload", New StringContent("{}", Encoding.UTF8, "application/json"))
+            Await _httpClient.PostAsync($"http://127.0.0.1:{_transPort}/glossary/reload", New StringContent("{}", Encoding.UTF8, "application/json"))
         Catch ex As Exception
             FormMain.WriteDebugLog($"[ERROR] ReloadServersAsync (glossary/reload): {ex.Message}")
         End Try
         Try
-            Await _httpClient.PostAsync($"http://127.0.0.1:{_nllbPort}/profanity/reload", New StringContent("{}", Encoding.UTF8, "application/json"))
+            Await _httpClient.PostAsync($"http://127.0.0.1:{_transPort}/profanity/reload", New StringContent("{}", Encoding.UTF8, "application/json"))
         Catch ex As Exception
             FormMain.WriteDebugLog($"[ERROR] ReloadServersAsync (profanity/reload): {ex.Message}")
         End Try

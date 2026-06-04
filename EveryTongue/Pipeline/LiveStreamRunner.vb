@@ -123,6 +123,21 @@ Namespace Pipeline
             Return devices
         End Function
 
+        ''' <summary>Backend key for the sidecar (whisper-cpp-vulkan, whisper-cpp-cuda, whisper-cpp-cpu, or faster-whisper).</summary>
+        Public Property Backend As String = "whisper-cpp-vulkan"
+
+        ''' <summary>Path to whisper-server.exe (only used when Backend is whisper-cpp).</summary>
+        Public Property WhisperServerPath As String = ""
+
+        ''' <summary>Port for whisper-server.exe inference (only used when Backend is whisper-cpp).</summary>
+        Public Property WhisperServerPort As Integer = 8178
+
+        ''' <summary>Disable GPU for whisper-cpp (CPU-only mode).</summary>
+        Public Property NoGpu As Boolean = False
+
+        ''' <summary>Path to Silero VAD GGML model for whisper-server built-in VAD.</summary>
+        Public Property SileroVadModelPath As String = ""
+
         ''' <summary>
         ''' Start the live-server Python process and begin capturing.
         ''' </summary>
@@ -152,7 +167,21 @@ Namespace Pipeline
                 _serverReady = False
 
                 Dim serverScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "live-server", "server.py")
-                _host.Start(serverScript, "")
+
+                ' Build extra args for backend selection
+                Dim extraArgs = ""
+                Dim backendKey = If(Backend, "whisper-cpp-vulkan")
+                If backendKey.StartsWith("whisper-cpp", StringComparison.OrdinalIgnoreCase) Then
+                    Dim wsPath = AppConfig.ResolvePath(If(WhisperServerPath, ""))
+                    extraArgs = $"--backend whisper-cpp --whisper-server-path ""{wsPath}"" --whisper-server-port {WhisperServerPort}"
+                    Dim vadPath = AppConfig.ResolvePath(If(SileroVadModelPath, ""))
+                    If Not String.IsNullOrEmpty(vadPath) AndAlso IO.File.Exists(vadPath) Then
+                        extraArgs &= $" --vad-model-path ""{vadPath}"""
+                    End If
+                    If NoGpu Then extraArgs &= " --no-gpu"
+                End If
+
+                _host.Start(serverScript, extraArgs)
             End If
 
             ' Wait for server ready, then start capture
@@ -194,7 +223,15 @@ Namespace Pipeline
 
         Private Sub StartCapture(config As AppConfig, deviceIndex As Integer, inputLanguage As String, translateToEnglish As Boolean)
             Try
-                Dim modelPath = AppConfig.ResolvePath(config.PathFasterWhisperModel)
+                ' Resolve model path based on backend
+                Dim backendKey = If(Backend, "whisper-cpp-vulkan")
+                Dim modelPath As String
+                If backendKey.StartsWith("whisper-cpp", StringComparison.OrdinalIgnoreCase) Then
+                    modelPath = AppConfig.ResolvePath(config.PathWhisperCppModel)
+                Else
+                    modelPath = AppConfig.ResolvePath(config.PathFasterWhisperModel)
+                End If
+
                 Dim jsonBody = $"{{""device_index"":{deviceIndex}," &
                     $"""language"":""{inputLanguage}""," &
                     $"""translate"":{If(translateToEnglish, "true", "false")}," &
@@ -205,7 +242,8 @@ Namespace Pipeline
                     $"""beam_size"":{config.BeamSize}," &
                     $"""vad_min_silence_ms"":{config.LiveVadSilenceMs}," &
                     $"""vad_max_segment_s"":{config.LiveMaxSegmentSec}," &
-                    $"""interim_interval_ms"":{config.LiveInterimIntervalMs}}}"
+                    $"""interim_interval_ms"":{config.LiveInterimIntervalMs}," &
+                    $"""whisper_server_port"":{config.WhisperServerPort}}}"
 
                 Dim content As New StringContent(jsonBody, Encoding.UTF8, "application/json")
                 Dim response = _httpClient.PostAsync($"http://127.0.0.1:{_host.Port}/start", content).Result

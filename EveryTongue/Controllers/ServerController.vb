@@ -11,9 +11,6 @@ Namespace Controllers
     ''' </summary>
     Friend Class ServerController
 
-        ' UI controls (only those on active tabs)
-        Private ReadOnly _wvLiveClients As Microsoft.Web.WebView2.WinForms.WebView2
-
         ' Callbacks
         Private ReadOnly _config As AppConfig
         Private ReadOnly _updateShellStatus As Action
@@ -42,10 +39,8 @@ Namespace Controllers
         End Property
 
         Public Sub New(config As AppConfig,
-                       wvLiveClients As Microsoft.Web.WebView2.WinForms.WebView2,
                        updateShellStatus As Action, log As Action(Of String))
             _config = config
-            _wvLiveClients = wvLiveClients
             _updateShellStatus = updateShellStatus
             _log = log
         End Sub
@@ -76,9 +71,17 @@ Namespace Controllers
                     .ShowBibleCopyright = _config.ShowBibleCopyright,
                     .LiveServerPort = _config.LiveServerPort,
                     .FfmpegPath = Models.AppConfig.ResolvePath(_config.PathFfmpeg),
-                    .WhisperModelPath = Models.AppConfig.ResolvePath(_config.PathFasterWhisperModel),
+                    .WhisperModelPath = If(_config.SttBackend?.StartsWith("whisper-cpp"),
+                        Models.AppConfig.ResolvePath(_config.PathWhisperCppModel),
+                        Models.AppConfig.ResolvePath(_config.PathFasterWhisperModel)),
                     .WhisperComputeType = If(_config.LiveComputeType, "int8_float16"),
                     .WhisperUseCpu = _config.NoGpu,
+                    .WhisperServerPath = Models.AppConfig.ResolvePath(_config.PathWhisperServer),
+                    .WhisperServerPort = _config.WhisperServerPort,
+                    .SttBackend = If(_config.SttBackend, "whisper-cpp-vulkan"),
+                    .SileroVadModelPath = Models.AppConfig.ResolvePath(_config.PathSileroVadModel),
+                    .TranslationConcurrency = _config.TranslationConcurrency,
+                    .TtsConcurrency = _config.TtsConcurrency,
                     .ConferenceTemplates = _config.ConferenceTemplates
                 }
 
@@ -101,7 +104,6 @@ Namespace Controllers
                 End If
 
                 _log($"[Server] Server started on HTTP:{port} HTTPS:{port + 1}")
-                NavigateLivePreview(port)
                 Dim localIp = GetLocalIpAddress()
                 _log($"[Server] Phones should open: https://{localIp}:{port + 1}")
                 _log("[Server] (Accept the certificate warning on first visit)")
@@ -147,15 +149,6 @@ Namespace Controllers
                 Clipboard.SetText(url)
                 _log("[Server] URL copied to clipboard.")
             End If
-        End Sub
-
-        Private Sub NavigateLivePreview(port As Integer)
-            Try
-                Dim bust = DateTime.Now.Ticks
-                _wvLiveClients.Source = New Uri($"http://127.0.0.1:{port}/?preview=1&_cb={bust}")
-            Catch ex As Exception
-                _log($"[Server] Live preview: {ex.Message}")
-            End Try
         End Sub
 
         ''' <summary>

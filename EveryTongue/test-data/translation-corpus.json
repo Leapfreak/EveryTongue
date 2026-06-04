@@ -1,0 +1,362 @@
+[
+  {
+    "id": 1,
+    "domain": "sermon",
+    "source": "Déu estima el món d'una manera tan gran que va donar el seu Fill únic.",
+    "sourceLang": "cat_Latn",
+    "targets": [
+      { "lang": "eng_Latn", "reference": "God so loved the world that he gave his only Son." },
+      { "lang": "spa_Latn", "reference": "Dios amó tanto al mundo que dio a su Hijo único." },
+      { "lang": "fra_Latn", "reference": "Dieu a tant aimé le monde qu'il a donné son Fils unique." },
+      { "lang": "deu_Latn", "reference": "Gott hat die Welt so sehr geliebt, dass er seinen einzigen Sohn gab." }
+    ]
+  },
+  {
+    "id": 2,
+    "domain": "sermon",
+    "source": "La resurrecció no era una metàfora, era el fonament de tot el que predicaven.",
+    "sourceLang": "cat_Latn",
+    "targets": [
+      { "lang": "eng_Latn", "reference": "The resurrection was not a metaphor, it was the foundation of everything they preached." },
+      { "lang": "spa_Latn", "reference": "La resurrección no era una metáfora, era el fundamento de todo lo que predicaban." },
+      { "lang": "fra_Latn", "reference": "La résurrection n'était pas une métaphore, c'était le fondement de tout ce qu'ils prêchaient." },
+      { "lang": "deu_Latn", "reference": "Die Auferstehung war keine Metapher, sie war das Fundament von allem, was sie predigten." }
+    ]
+  },
+  {
+    "id": 3,
+    "domain": "sermon",
+    "source": "Pere proclama que Déu el va ressuscitar d'entre els morts.",
+    "sourceLang": "cat_Latn",
+    "targets": [
+      { "lang": "eng_Latn", "reference": "Peter proclaims that God raised him from the dead." },
+      { "lang": "spa_Latn", "reference": "Pedro proclama que Dios lo resucitó de entre los muertos." },
+      { "lang": "fra_Latn", "reference": "Pierre proclame que Dieu l'a ressuscité d'entre les morts." },
+      { "lang": "deu_Latn", "reference": "Petrus verkündet, dass Gott ihn von den Toten auferweckt hat." }
+    ]
+  },
+  {
+    "id": 4,
+    "domain": "sermon",
+    "source": "Sense creu no hi ha evangeli, però no es quedaven a casa.",
+    "sourceLang": "cat_Latn",
+    "targets": [
+      { "lang": "eng_Latn", "reference": "Without the cross there is no gospel, but they did not stay at home." },
+      { "lang": "spa_Latn", "reference": "Sin la cruz no hay evangelio, pero no se quedaban en casa." },
+      { "lang": "fra_Latn", "reference": "Sans la croix il n'y a pas d'évangile, mais ils ne restaient pas à la maison." },
+      { "lang": "deu_Latn", "reference": "Ohne das Kreuz gibt es kein Evangelium, aber sie blieben nicht zu Hause." }
+    ]
+  },
+  {
+    "id": 5,
+    "domain": "sermon",
+    "source": "Si Jesús no ha ressuscitat, tot cau. La nostra fe seria en va.",
+    "sourceLang": "cat_Latn",
+    "targets": [
+      { "lang": "eng_Latn", "reference": "If Jesus has not risen, everything falls. Our faith would be in vain." },
+      { "lang": "spa_Latn", "reference": "Si Jesús no ha resucitado, todo se derrumba. Nuestra fe sería en vano." },
+      { "lang": "fra_Latn", "reference": "Si Jésus n'est pas ressuscité, tout s'effondre. Notre foi serait vaine." },
+      { "lang": "deu_Latn", "reference": "Wenn Jesus nicht auferstanden ist, fällt alles zusammen. Unser Glaube wäre vergeblich." }
+    ]
+  },
+  {
+    "id": 6,
+    "domain": "sermon",
+    "source": "D'això nosaltres en som testimonis. Hem vist la seva glòria.",
+    "sourceLang": "cat_Latn",
+    "targets": [
+      { "lang": "eng_Latn", "reference": "Of this we are witnesses. We have seen his glory." },
+      { "lang": "spa_Latn", "reference": "De esto nosotros somos testigos. Hemos visto su gloria." },
+      { "lang": "fra_Latn", "reference": "De cela nous sommes témoins. Nous avons vu sa gloire." },
+      { "lang": "deu_Latn", "reference": "Davon sind wir Zeugen. Wir haben seine Herrlichkeit gesehen." }
+    ]
+  },
+  {
+    "id": 7,
+    "domain": "sermon",
+    "source": "Allà es va pagar el preu del pecat, una vegada per sempre.",
+    "sourceLang": "cat_Latn",
+    "targets": [
+      { "lang": "eng_Latn", "reference": "There the price of sin was paid, once and for all." },
+      { "lang": "spa_Latn", "reference": "Allí se pagó el precio del pecado, una vez y para siempre." },
+      { "lang": "fra_Latn", "reference": "Là le prix du péché a été payé, une fois pour toutes." },
+      { "lang": "deu_Latn", "reference": "Dort wurde der Preis der Sünde bezahlt, ein für alle Mal." }
+    ]
+  },
+  {
+    "id": 8,
+    "domain": "sermon",
+    "source": "Predicaven el Jesús ressuscitat amb valentia davant de tothom.",
+    "sourceLang": "cat_Latn",
+    "targets": [
+      { "lang": "eng_Latn", "reference": "They preached the risen Jesus with boldness before everyone." },
+      { "lang": "spa_Latn", "reference": "Predicaban al Jesús resucitado con valentía ante todos." },
+      { "lang": "fra_Latn", "reference": "Ils prêchaient le Jésus ressuscité avec audace devant tous." },
+      { "lang": "deu_Latn", "reference": "Sie predigten den auferstandenen Jesus mit Kühnheit vor allen." }
+    ]
+  },
+  {
+    "id": 9,
+    "domain": "sermon",
+    "source": "La gràcia de Déu és suficient per a tots nosaltres.",
+    "sourceLang": "cat_Latn",
+    "targets": [
+      { "lang": "eng_Latn", "reference": "The grace of God is sufficient for all of us." },
+      { "lang": "spa_Latn", "reference": "La gracia de Dios es suficiente para todos nosotros." },
+      { "lang": "fra_Latn", "reference": "La grâce de Dieu est suffisante pour nous tous." },
+      { "lang": "deu_Latn", "reference": "Die Gnade Gottes ist ausreichend für uns alle." }
+    ]
+  },
+  {
+    "id": 10,
+    "domain": "sermon",
+    "source": "Obriu la porta del perdó i deixeu que l'amor de Déu entri a les vostres vides.",
+    "sourceLang": "cat_Latn",
+    "targets": [
+      { "lang": "eng_Latn", "reference": "Open the door of forgiveness and let the love of God enter your lives." },
+      { "lang": "spa_Latn", "reference": "Abrid la puerta del perdón y dejad que el amor de Dios entre en vuestras vidas." },
+      { "lang": "fra_Latn", "reference": "Ouvrez la porte du pardon et laissez l'amour de Dieu entrer dans vos vies." },
+      { "lang": "deu_Latn", "reference": "Öffnet die Tür der Vergebung und lasst die Liebe Gottes in euer Leben eintreten." }
+    ]
+  },
+  {
+    "id": 11,
+    "domain": "general",
+    "source": "Good morning everyone, welcome to today's session.",
+    "sourceLang": "eng_Latn",
+    "targets": [
+      { "lang": "spa_Latn", "reference": "Buenos días a todos, bienvenidos a la sesión de hoy." },
+      { "lang": "fra_Latn", "reference": "Bonjour à tous, bienvenue à la session d'aujourd'hui." },
+      { "lang": "deu_Latn", "reference": "Guten Morgen allerseits, willkommen zur heutigen Sitzung." },
+      { "lang": "cat_Latn", "reference": "Bon dia a tothom, benvinguts a la sessió d'avui." }
+    ]
+  },
+  {
+    "id": 12,
+    "domain": "general",
+    "source": "Please take a seat, we will begin in a few minutes.",
+    "sourceLang": "eng_Latn",
+    "targets": [
+      { "lang": "spa_Latn", "reference": "Por favor tomen asiento, comenzaremos en unos minutos." },
+      { "lang": "fra_Latn", "reference": "Veuillez vous asseoir, nous commencerons dans quelques minutes." },
+      { "lang": "deu_Latn", "reference": "Bitte nehmen Sie Platz, wir beginnen in wenigen Minuten." },
+      { "lang": "cat_Latn", "reference": "Si us plau, seieu, començarem en uns minuts." }
+    ]
+  },
+  {
+    "id": 13,
+    "domain": "general",
+    "source": "The weather today is very hot, make sure to drink plenty of water.",
+    "sourceLang": "eng_Latn",
+    "targets": [
+      { "lang": "spa_Latn", "reference": "El clima hoy es muy caluroso, asegúrense de beber mucha agua." },
+      { "lang": "fra_Latn", "reference": "Le temps aujourd'hui est très chaud, assurez-vous de boire beaucoup d'eau." },
+      { "lang": "deu_Latn", "reference": "Das Wetter heute ist sehr heiß, trinken Sie unbedingt viel Wasser." },
+      { "lang": "cat_Latn", "reference": "El temps avui és molt calorós, assegureu-vos de beure molta aigua." }
+    ]
+  },
+  {
+    "id": 14,
+    "domain": "general",
+    "source": "We need volunteers to help with the event next Saturday.",
+    "sourceLang": "eng_Latn",
+    "targets": [
+      { "lang": "spa_Latn", "reference": "Necesitamos voluntarios para ayudar con el evento del próximo sábado." },
+      { "lang": "fra_Latn", "reference": "Nous avons besoin de bénévoles pour aider à l'événement de samedi prochain." },
+      { "lang": "deu_Latn", "reference": "Wir brauchen Freiwillige, die beim Event nächsten Samstag helfen." },
+      { "lang": "cat_Latn", "reference": "Necessitem voluntaris per ajudar amb l'esdeveniment del proper dissabte." }
+    ]
+  },
+  {
+    "id": 15,
+    "domain": "general",
+    "source": "Thank you for your generosity, it makes a real difference in people's lives.",
+    "sourceLang": "eng_Latn",
+    "targets": [
+      { "lang": "spa_Latn", "reference": "Gracias por su generosidad, hace una diferencia real en la vida de las personas." },
+      { "lang": "fra_Latn", "reference": "Merci pour votre générosité, elle fait une vraie différence dans la vie des gens." },
+      { "lang": "deu_Latn", "reference": "Vielen Dank für Ihre Großzügigkeit, sie macht einen echten Unterschied im Leben der Menschen." },
+      { "lang": "cat_Latn", "reference": "Gràcies per la vostra generositat, fa una diferència real a la vida de les persones." }
+    ]
+  },
+  {
+    "id": 16,
+    "domain": "general",
+    "source": "The children's programme starts at ten o'clock in the room next door.",
+    "sourceLang": "eng_Latn",
+    "targets": [
+      { "lang": "spa_Latn", "reference": "El programa infantil comienza a las diez en la sala de al lado." },
+      { "lang": "fra_Latn", "reference": "Le programme pour enfants commence à dix heures dans la salle d'à côté." },
+      { "lang": "deu_Latn", "reference": "Das Kinderprogramm beginnt um zehn Uhr im Raum nebenan." },
+      { "lang": "cat_Latn", "reference": "El programa infantil comença a les deu a la sala del costat." }
+    ]
+  },
+  {
+    "id": 17,
+    "domain": "conversation",
+    "source": "Excuse me, could you tell me where the bathroom is?",
+    "sourceLang": "eng_Latn",
+    "targets": [
+      { "lang": "spa_Latn", "reference": "Disculpe, ¿podría decirme dónde está el baño?" },
+      { "lang": "fra_Latn", "reference": "Excusez-moi, pourriez-vous me dire où sont les toilettes ?" },
+      { "lang": "deu_Latn", "reference": "Entschuldigung, könnten Sie mir sagen, wo die Toilette ist?" },
+      { "lang": "cat_Latn", "reference": "Disculpi, em podria dir on és el lavabo?" }
+    ]
+  },
+  {
+    "id": 18,
+    "domain": "conversation",
+    "source": "I don't understand what you are saying, can you speak more slowly please?",
+    "sourceLang": "eng_Latn",
+    "targets": [
+      { "lang": "spa_Latn", "reference": "No entiendo lo que dice, ¿puede hablar más despacio por favor?" },
+      { "lang": "fra_Latn", "reference": "Je ne comprends pas ce que vous dites, pouvez-vous parler plus lentement s'il vous plaît ?" },
+      { "lang": "deu_Latn", "reference": "Ich verstehe nicht, was Sie sagen, können Sie bitte langsamer sprechen?" },
+      { "lang": "cat_Latn", "reference": "No entenc el que diu, pot parlar més a poc a poc si us plau?" }
+    ]
+  },
+  {
+    "id": 19,
+    "domain": "sermon",
+    "source": "Jesús va dir: Jo sóc el camí, la veritat i la vida.",
+    "sourceLang": "cat_Latn",
+    "targets": [
+      { "lang": "eng_Latn", "reference": "Jesus said: I am the way, the truth and the life." },
+      { "lang": "spa_Latn", "reference": "Jesús dijo: Yo soy el camino, la verdad y la vida." },
+      { "lang": "fra_Latn", "reference": "Jésus a dit : Je suis le chemin, la vérité et la vie." },
+      { "lang": "deu_Latn", "reference": "Jesus sagte: Ich bin der Weg, die Wahrheit und das Leben." }
+    ]
+  },
+  {
+    "id": 20,
+    "domain": "sermon",
+    "source": "No tingueu por, jo he vençut el món. Aquestes paraules ens donen esperança.",
+    "sourceLang": "cat_Latn",
+    "targets": [
+      { "lang": "eng_Latn", "reference": "Do not be afraid, I have overcome the world. These words give us hope." },
+      { "lang": "spa_Latn", "reference": "No tengáis miedo, yo he vencido al mundo. Estas palabras nos dan esperanza." },
+      { "lang": "fra_Latn", "reference": "N'ayez pas peur, j'ai vaincu le monde. Ces paroles nous donnent de l'espérance." },
+      { "lang": "deu_Latn", "reference": "Fürchtet euch nicht, ich habe die Welt überwunden. Diese Worte geben uns Hoffnung." }
+    ]
+  },
+  {
+    "id": 21,
+    "domain": "general",
+    "source": "El proper diumenge celebrarem el baptisme de tres persones noves.",
+    "sourceLang": "cat_Latn",
+    "targets": [
+      { "lang": "eng_Latn", "reference": "Next Sunday we will celebrate the baptism of three new people." },
+      { "lang": "spa_Latn", "reference": "El próximo domingo celebraremos el bautismo de tres personas nuevas." },
+      { "lang": "fra_Latn", "reference": "Dimanche prochain, nous célébrerons le baptême de trois nouvelles personnes." },
+      { "lang": "deu_Latn", "reference": "Nächsten Sonntag feiern wir die Taufe von drei neuen Menschen." }
+    ]
+  },
+  {
+    "id": 22,
+    "domain": "general",
+    "source": "After the service there will be coffee and cake in the hall.",
+    "sourceLang": "eng_Latn",
+    "targets": [
+      { "lang": "spa_Latn", "reference": "Después del servicio habrá café y pastel en el salón." },
+      { "lang": "fra_Latn", "reference": "Après le service, il y aura du café et du gâteau dans la salle." },
+      { "lang": "deu_Latn", "reference": "Nach dem Gottesdienst gibt es Kaffee und Kuchen im Saal." },
+      { "lang": "cat_Latn", "reference": "Després del servei hi haurà cafè i pastís a la sala." }
+    ]
+  },
+  {
+    "id": 23,
+    "domain": "sermon",
+    "source": "L'amor és pacient, l'amor és bondadós, no té enveja ni es vanagloria.",
+    "sourceLang": "cat_Latn",
+    "targets": [
+      { "lang": "eng_Latn", "reference": "Love is patient, love is kind, it does not envy or boast." },
+      { "lang": "spa_Latn", "reference": "El amor es paciente, el amor es bondadoso, no tiene envidia ni se jacta." },
+      { "lang": "fra_Latn", "reference": "L'amour est patient, l'amour est bon, il n'envie pas et ne se vante pas." },
+      { "lang": "deu_Latn", "reference": "Die Liebe ist geduldig, die Liebe ist gütig, sie ist nicht neidisch und prahlt nicht." }
+    ]
+  },
+  {
+    "id": 24,
+    "domain": "conversation",
+    "source": "Hola, com et dius? D'on ets?",
+    "sourceLang": "cat_Latn",
+    "targets": [
+      { "lang": "eng_Latn", "reference": "Hello, what is your name? Where are you from?" },
+      { "lang": "spa_Latn", "reference": "Hola, ¿cómo te llamas? ¿De dónde eres?" },
+      { "lang": "fra_Latn", "reference": "Bonjour, comment tu t'appelles ? D'où viens-tu ?" },
+      { "lang": "deu_Latn", "reference": "Hallo, wie heißt du? Woher kommst du?" }
+    ]
+  },
+  {
+    "id": 25,
+    "domain": "conversation",
+    "source": "Fa molt de temps que no ens veiem, com estàs?",
+    "sourceLang": "cat_Latn",
+    "targets": [
+      { "lang": "eng_Latn", "reference": "It has been a long time since we last saw each other, how are you?" },
+      { "lang": "spa_Latn", "reference": "Hace mucho tiempo que no nos vemos, ¿cómo estás?" },
+      { "lang": "fra_Latn", "reference": "Cela fait longtemps que nous ne nous sommes pas vus, comment vas-tu ?" },
+      { "lang": "deu_Latn", "reference": "Es ist lange her, seit wir uns gesehen haben, wie geht es dir?" }
+    ]
+  },
+  {
+    "id": 26,
+    "domain": "sermon",
+    "source": "Déu va crear els cels i la terra, i tot el que hi ha en ells.",
+    "sourceLang": "cat_Latn",
+    "targets": [
+      { "lang": "eng_Latn", "reference": "God created the heavens and the earth, and everything in them." },
+      { "lang": "spa_Latn", "reference": "Dios creó los cielos y la tierra, y todo lo que hay en ellos." },
+      { "lang": "fra_Latn", "reference": "Dieu a créé les cieux et la terre, et tout ce qui s'y trouve." },
+      { "lang": "deu_Latn", "reference": "Gott schuf den Himmel und die Erde und alles, was darin ist." }
+    ]
+  },
+  {
+    "id": 27,
+    "domain": "general",
+    "source": "The meeting has been moved to Wednesday at seven in the evening.",
+    "sourceLang": "eng_Latn",
+    "targets": [
+      { "lang": "spa_Latn", "reference": "La reunión se ha trasladado al miércoles a las siete de la tarde." },
+      { "lang": "fra_Latn", "reference": "La réunion a été déplacée à mercredi à dix-neuf heures." },
+      { "lang": "deu_Latn", "reference": "Das Treffen wurde auf Mittwoch um sieben Uhr abends verschoben." },
+      { "lang": "cat_Latn", "reference": "La reunió s'ha traslladat al dimecres a les set del vespre." }
+    ]
+  },
+  {
+    "id": 28,
+    "domain": "sermon",
+    "source": "Perdoneu i sereu perdonats. Doneu i se us donarà.",
+    "sourceLang": "cat_Latn",
+    "targets": [
+      { "lang": "eng_Latn", "reference": "Forgive and you will be forgiven. Give and it will be given to you." },
+      { "lang": "spa_Latn", "reference": "Perdonad y seréis perdonados. Dad y se os dará." },
+      { "lang": "fra_Latn", "reference": "Pardonnez et vous serez pardonnés. Donnez et il vous sera donné." },
+      { "lang": "deu_Latn", "reference": "Vergebt und euch wird vergeben werden. Gebt und es wird euch gegeben werden." }
+    ]
+  },
+  {
+    "id": 29,
+    "domain": "general",
+    "source": "If you need a translation of the documents, please contact the office.",
+    "sourceLang": "eng_Latn",
+    "targets": [
+      { "lang": "spa_Latn", "reference": "Si necesita una traducción de los documentos, por favor contacte la oficina." },
+      { "lang": "fra_Latn", "reference": "Si vous avez besoin d'une traduction des documents, veuillez contacter le bureau." },
+      { "lang": "deu_Latn", "reference": "Wenn Sie eine Übersetzung der Dokumente benötigen, wenden Sie sich bitte an das Büro." },
+      { "lang": "cat_Latn", "reference": "Si necessiteu una traducció dels documents, si us plau contacteu l'oficina." }
+    ]
+  },
+  {
+    "id": 30,
+    "domain": "sermon",
+    "source": "El Senyor és el meu pastor, no em manca res. Em fa descansar en prats verds.",
+    "sourceLang": "cat_Latn",
+    "targets": [
+      { "lang": "eng_Latn", "reference": "The Lord is my shepherd, I lack nothing. He makes me lie down in green pastures." },
+      { "lang": "spa_Latn", "reference": "El Señor es mi pastor, nada me falta. Me hace descansar en verdes praderas." },
+      { "lang": "fra_Latn", "reference": "L'Éternel est mon berger, je ne manque de rien. Il me fait reposer dans de verts pâturages." },
+      { "lang": "deu_Latn", "reference": "Der Herr ist mein Hirte, mir mangelt an nichts. Er lässt mich lagern auf grünen Auen." }
+    ]
+  }
+]

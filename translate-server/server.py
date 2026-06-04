@@ -1,6 +1,7 @@
 """
-NLLB-200 Translation Sidecar for Every Tongue.
+Translation Sidecar for Every Tongue.
 FastAPI REST server wrapping CTranslate2 for real-time multi-target translation.
+Uses NLLB-200 models.
 """
 
 import argparse
@@ -19,7 +20,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-logger = logging.getLogger("nllb-server")
+logger = logging.getLogger("translate-server")
 logger.setLevel(logging.DEBUG)
 logger.propagate = False
 # Stderr handler for UI display (VB captures via ErrorDataReceived)
@@ -29,12 +30,12 @@ _stderr_handler.setFormatter(logging.Formatter("%(message)s"))
 logger.addHandler(_stderr_handler)
 
 # Debug logger — writes to stderr so VB captures via ErrorDataReceived → AppLogger
-_debug_logger = logging.getLogger("nllb-debug")
+_debug_logger = logging.getLogger("translate-debug")
 _debug_logger.setLevel(logging.DEBUG)
 _debug_logger.propagate = False
 _debug_stderr = logging.StreamHandler()
 _debug_stderr.setLevel(logging.DEBUG)
-_debug_stderr.setFormatter(logging.Formatter("[NLLB] %(message)s"))
+_debug_stderr.setFormatter(logging.Formatter("[TRANSLATE] %(message)s"))
 _debug_logger.addHandler(_debug_stderr)
 
 app = FastAPI()
@@ -206,6 +207,7 @@ class TranslateRequest(BaseModel):
     text: str
     source_lang: str
     target_langs: list[str]
+    no_cache: bool = False
 
 
 class TranslateResponse(BaseModel):
@@ -225,8 +227,8 @@ class StatusResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Translation helpers
 # ---------------------------------------------------------------------------
-def _translate_single(text: str, source_lang: str, target_lang: str) -> str:
-    """Translate text from source_lang to target_lang using the loaded model."""
+def _translate_single(text: str, source_lang: str, target_lang: str, no_cache: bool = False) -> str:
+    """Translate text from source_lang to target_lang using the loaded NLLB model."""
     _debug_logger.debug("─" * 60)
     _debug_logger.debug("[TRANSLATE] %s -> %s", source_lang, target_lang)
     _debug_logger.debug("[INPUT] %r", text)
@@ -234,30 +236,30 @@ def _translate_single(text: str, source_lang: str, target_lang: str) -> str:
     cleaned = text.strip()
 
     cache_key = (cleaned, source_lang, target_lang)
-    cached = cache.get(cache_key)
-    if cached is not None:
-        _debug_logger.debug("[CACHE HIT] %r", cached)
-        return cached
+    if not no_cache:
+        cached = cache.get(cache_key)
+        if cached is not None:
+            _debug_logger.debug("[CACHE HIT] %r", cached)
+            return cached
 
-    # Tokenize with SentencePiece
+    # Tokenize: prepend source language token, append EOS, use target_prefix
     t_tok = time.perf_counter()
     sp_model.set_encode_extra_options("")
     tokens = sp_model.encode(cleaned, out_type=str)
     tok_ms = (time.perf_counter() - t_tok) * 1000
-    _debug_logger.debug("[TOKENS] %d tokens (%.1fms): %s", len(tokens), tok_ms, " ".join(tokens[:30]))
+    _debug_logger.debug("[TOKENS] %d tokens (%.1fms): %s",
+                        len(tokens), tok_ms, " ".join(tokens[:30]))
 
-    # Prepend source language token and append EOS (required by NLLB)
     tokens = [source_lang] + tokens + ["</s>"]
 
-    # Translate
-    t_nllb = time.perf_counter()
+    t_xlate = time.perf_counter()
     results = translator.translate_batch(
         [tokens],
         target_prefix=[[target_lang]],
         beam_size=4,
         max_decoding_length=256,
     )
-    nllb_ms = (time.perf_counter() - t_nllb) * 1000
+    xlate_ms = (time.perf_counter() - t_xlate) * 1000
 
     # Decode: skip the target language token
     output_tokens = results[0].hypotheses[0]
@@ -265,7 +267,7 @@ def _translate_single(text: str, source_lang: str, target_lang: str) -> str:
         output_tokens = output_tokens[1:]
 
     translated = sp_model.decode(output_tokens)
-    _debug_logger.debug("[OUTPUT RAW] %r  (nllb: %.1fms)", translated, nllb_ms)
+    _debug_logger.debug("[OUTPUT RAW] %r  (translate: %.1fms)", translated, xlate_ms)
     cache.put(cache_key, translated)
     return translated
 
@@ -285,14 +287,14 @@ def _reload_on_cpu():
         translator = None
 
 
-def _translate_to_targets(text: str, source_lang: str, target_langs: list[str]) -> dict[str, str]:
+def _translate_to_targets(text: str, source_lang: str, target_langs: list[str], no_cache: bool = False) -> dict[str, str]:
     """Translate to all target languages, then apply glossary fixes."""
     global translator
     t_total = time.perf_counter()
     results = {}
     for tl in target_langs:
         try:
-            translated = _translate_single(text, source_lang, tl)
+            translated = _translate_single(text, source_lang, tl, no_cache=no_cache)
             after_glossary = glossary.apply(text, source_lang, tl, translated)
             if after_glossary != translated:
                 _debug_logger.debug("[GLOSSARY] %s: %r -> %r", tl, translated, after_glossary)
@@ -307,7 +309,7 @@ def _translate_to_targets(text: str, source_lang: str, target_langs: list[str]) 
                 _reload_on_cpu()
                 if translator is not None:
                     try:
-                        translated = _translate_single(text, source_lang, tl)
+                        translated = _translate_single(text, source_lang, tl, no_cache=no_cache)
                         results[tl] = _filter_profanity(glossary.apply(text, source_lang, tl, translated), tl)
                         continue
                     except Exception as e2:
@@ -332,7 +334,7 @@ async def translate(req: TranslateRequest):
     try:
         result = await asyncio.wait_for(
             loop.run_in_executor(
-                None, _translate_to_targets, req.text, req.source_lang, req.target_langs
+                None, _translate_to_targets, req.text, req.source_lang, req.target_langs, req.no_cache
             ),
             timeout=10.0,
         )
@@ -353,25 +355,31 @@ async def load_model(req: LoadRequest):
             logger.info("Loading model from %s on %s...", model_path_global, device)
 
             # Try CUDA, fall back to CPU
+            # Use compute_type="auto" so quantized models (int8, int8_float16)
+            # run with their native precision instead of being dequantized.
             try:
                 translator = ctranslate2.Translator(
-                    model_path_global, device=device, compute_type="float16"
+                    model_path_global, device=device, compute_type="auto"
                 )
                 device_in_use = device
             except Exception:
                 if device != "cpu":
                     logger.warning("CUDA failed, falling back to CPU")
                     translator = ctranslate2.Translator(
-                        model_path_global, device="cpu", compute_type="float32"
+                        model_path_global, device="cpu", compute_type="auto"
                     )
                     device_in_use = "cpu"
                 else:
                     raise
 
             # Load SentencePiece model
-            sp_path = model_path_global.rstrip("/\\") + "/sentencepiece.bpe.model"
+            model_dir = model_path_global.rstrip("/\\")
+            sp_path = os.path.join(model_dir, "sentencepiece.bpe.model")
+            if not os.path.exists(sp_path):
+                sp_path = os.path.join(model_dir, "spiece.model")
             sp_model = spm.SentencePieceProcessor()
             sp_model.load(sp_path)
+            logger.info("Loaded tokenizer from %s", sp_path)
 
             logger.info("Model loaded successfully on %s", device_in_use)
             return StatusResponse(status="ok", model_loaded=True, device=device_in_use)
@@ -420,16 +428,19 @@ async def health():
 # Main
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="NLLB-200 Translation Server")
+    parser = argparse.ArgumentParser(description="NLLB Translation Server")
     parser.add_argument("--port", type=int, default=5090)
     parser.add_argument("--model-path", type=str, required=True)
     parser.add_argument("--device", type=str, default="cuda")
+    parser.add_argument("--model-type", type=str, default="nllb",
+                        help="Model architecture (kept for backward compatibility)")
     parser.add_argument("--glossary", type=str, default="",
                         help="Path to glossary.json for post-translation fixes")
     args = parser.parse_args()
 
     model_path_global = args.model_path
-    _debug_logger.debug("NLLB server started")
+    _debug_stderr.setFormatter(logging.Formatter("[NLLB] %(message)s"))
+    _debug_logger.debug("Translation server started")
 
     # Load glossary: explicit path, or default next to server.py
     glossary_path_global = args.glossary

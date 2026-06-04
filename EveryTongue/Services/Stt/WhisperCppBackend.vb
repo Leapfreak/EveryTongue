@@ -7,15 +7,18 @@ Imports EveryTongue.Services.Models
 Namespace Services.Stt
 
     ''' <summary>
-    ''' Wraps the existing LiveStreamRunner as an ISttBackend.
-    ''' Thin adapter — delegates all real work to LiveStreamRunner.
+    ''' ISttBackend using whisper.cpp via whisper-server.exe (Vulkan or CPU).
+    ''' Thin adapter — delegates to LiveStreamRunner with backend="whisper-cpp".
     ''' </summary>
-    Friend Class FasterWhisperBackend
+    Friend Class WhisperCppBackend
         Implements ISttBackend
 
         Private ReadOnly _runner As New LiveStreamRunner()
+        Private ReadOnly _useGpu As Boolean
 
-        Public Sub New()
+        Public Sub New(useGpu As Boolean)
+            _useGpu = useGpu
+
             AddHandler _runner.OutputLineUpdated, Sub(s, line)
                                                       RaiseEvent OutputUpdated(Me, New SttOutputEventArgs(line))
                                                   End Sub
@@ -38,7 +41,7 @@ Namespace Services.Stt
 
         Public ReadOnly Property Name As String Implements ISttBackend.Name
             Get
-                Return "Faster Whisper"
+                Return If(_useGpu, "whisper.cpp (Vulkan)", "whisper.cpp (CPU)")
             End Get
         End Property
 
@@ -71,12 +74,19 @@ Namespace Services.Stt
         Public Event ErrorReceived As EventHandler(Of String) Implements ISttBackend.ErrorReceived
 
         Public Sub Start(config As SttConfig) Implements ISttBackend.Start
-            _runner.Backend = "faster-whisper"
+            ' Configure the runner for whisper-cpp backend
+            _runner.Backend = If(_useGpu, "whisper-cpp-vulkan", "whisper-cpp-cpu")
+            _runner.WhisperServerPath = config.WhisperServerPath
+            _runner.WhisperServerPort = config.WhisperServerPort
+            _runner.SileroVadModelPath = config.SileroVadModelPath
+            _runner.NoGpu = Not _useGpu
+
             Dim appConfig As New AppConfig() With {
                 .LiveServerPort = config.ServerPort,
-                .PathFasterWhisperModel = config.ModelPath,
-                .LiveComputeType = config.ComputeType,
-                .NoGpu = Not config.UseGpu,
+                .PathWhisperCppModel = config.ModelPath,
+                .PathWhisperServer = config.WhisperServerPath,
+                .WhisperServerPort = config.WhisperServerPort,
+                .NoGpu = Not _useGpu,
                 .BeamSize = config.BeamSize,
                 .LiveVadSilenceMs = config.VadSilenceMs,
                 .LiveMaxSegmentSec = config.MaxSegmentSec,

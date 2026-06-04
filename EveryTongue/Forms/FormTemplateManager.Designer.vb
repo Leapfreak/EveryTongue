@@ -50,8 +50,7 @@ Partial Class FormTemplateManager
         Me.cboAudioDevice = New System.Windows.Forms.ComboBox()
         Me.btnRefreshDevices = New System.Windows.Forms.Button()
         Me.lblModelPath = New System.Windows.Forms.Label()
-        Me.txtModelPath = New System.Windows.Forms.TextBox()
-        Me.btnBrowseModel = New System.Windows.Forms.Button()
+        Me.cboModel = New System.Windows.Forms.ComboBox()
         Me.btnSave = New System.Windows.Forms.Button()
         Me.btnCancelEdit = New System.Windows.Forms.Button()
         Me.grpDetail.SuspendLayout()
@@ -136,8 +135,7 @@ Partial Class FormTemplateManager
         '
         Me.grpDetail.Controls.Add(Me.btnCancelEdit)
         Me.grpDetail.Controls.Add(Me.btnSave)
-        Me.grpDetail.Controls.Add(Me.btnBrowseModel)
-        Me.grpDetail.Controls.Add(Me.txtModelPath)
+        Me.grpDetail.Controls.Add(Me.cboModel)
         Me.grpDetail.Controls.Add(Me.lblModelPath)
         Me.grpDetail.Controls.Add(Me.btnRefreshDevices)
         Me.grpDetail.Controls.Add(Me.cboAudioDevice)
@@ -380,21 +378,13 @@ Partial Class FormTemplateManager
         Me.lblModelPath.TabIndex = 22
         Me.lblModelPath.Text = "Model Path"
         '
-        ' txtModelPath
+        ' cboModel
         '
-        Me.txtModelPath.Location = New System.Drawing.Point(130, 217)
-        Me.txtModelPath.Name = "txtModelPath"
-        Me.txtModelPath.Size = New System.Drawing.Size(330, 23)
-        Me.txtModelPath.TabIndex = 23
-        '
-        ' btnBrowseModel
-        '
-        Me.btnBrowseModel.Location = New System.Drawing.Point(466, 216)
-        Me.btnBrowseModel.Name = "btnBrowseModel"
-        Me.btnBrowseModel.Size = New System.Drawing.Size(64, 25)
-        Me.btnBrowseModel.TabIndex = 27
-        Me.btnBrowseModel.Text = "Browse..."
-        Me.btnBrowseModel.UseVisualStyleBackColor = True
+        Me.cboModel.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboModel.Location = New System.Drawing.Point(130, 217)
+        Me.cboModel.Name = "cboModel"
+        Me.cboModel.Size = New System.Drawing.Size(400, 23)
+        Me.cboModel.TabIndex = 23
         '
         ' btnSave
         '
@@ -475,8 +465,7 @@ Partial Class FormTemplateManager
     Friend WithEvents cboAudioDevice As System.Windows.Forms.ComboBox
     Friend WithEvents btnRefreshDevices As System.Windows.Forms.Button
     Friend WithEvents lblModelPath As System.Windows.Forms.Label
-    Friend WithEvents txtModelPath As System.Windows.Forms.TextBox
-    Friend WithEvents btnBrowseModel As System.Windows.Forms.Button
+    Friend WithEvents cboModel As System.Windows.Forms.ComboBox
     Friend WithEvents btnSave As System.Windows.Forms.Button
     Friend WithEvents btnCancelEdit As System.Windows.Forms.Button
 

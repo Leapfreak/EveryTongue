@@ -12,10 +12,15 @@ Namespace Services.Translation
             Public Property DisplayName As String
             Public Property RequiresInternet As Boolean
             Public Property RequiresApiKey As Boolean
+            ''' <summary>Model type passed to the Python sidecar (e.g. "nllb"). Null for cloud backends.</summary>
+            Public Property ModelType As String
+            ''' <summary>Default model directory path (e.g. ".\nllb-model"). Null for cloud backends.</summary>
+            Public Property DefaultModelPath As String
         End Class
 
         Private Shared ReadOnly _backends As New List(Of Entry) From {
-            New Entry With {.Key = "nllb", .DisplayName = "NLLB (offline)", .RequiresInternet = False, .RequiresApiKey = False}
+            New Entry With {.Key = "nllb", .DisplayName = "NLLB 1.3B (offline)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-model"},
+            New Entry With {.Key = "nllb-3.3b", .DisplayName = "NLLB 3.3B (offline)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-3.3b-model"}
         }
 
         Public Shared Function GetAll() As IReadOnlyList(Of Entry)

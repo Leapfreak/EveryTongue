@@ -4,7 +4,7 @@ Namespace Services.Models
     ''' </summary>
     Public Class LanguageInfo
         Public Property WhisperCode As String
-        Public Property NllbCode As String
+        Public Property FloresCode As String
         Public Property DeepLCode As String
         Public Property GoogleCode As String
         Public Property AzureCode As String

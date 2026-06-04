@@ -64,7 +64,7 @@ var detectedBrowserLang='';
 })();
 function t(k){return T[k]||k}
 
-/* ── Language data: [nllbCode, nativeName, englishName, bcp47Prefix] ── */
+/* ── Language data: [floresCode, nativeName, englishName, bcp47Prefix] ── */
 /* Loaded from /api/languages; minimal fallback until fetch completes */
 var LANGS=[['eng_Latn','English','English','en']];
 var _langsLoaded=false;
@@ -123,9 +123,9 @@ function pickLang(code){
   /* Auto-select a matching voice for the new language, unless user manually chose one */
   if(!voiceManuallySet&&!serverTtsActive){autoSelectVoiceForLang(code)}
 }
-function autoSelectVoiceForLang(nllbCode){
-  var bcp=nllbToBcp47Lookup(nllbCode);
-  if(!bcp){LOG('autoSelectVoice: no BCP47 mapping for '+nllbCode);return}
+function autoSelectVoiceForLang(floresCode){
+  var bcp=floresToBcp47Lookup(floresCode);
+  if(!bcp){LOG('autoSelectVoice: no BCP47 mapping for '+floresCode);return}
   var voices=synth.getVoices();
   for(var i=0;i<voices.length;i++){
     if(voices[i].lang&&voices[i].lang.toLowerCase().indexOf(bcp)===0){
@@ -341,16 +341,16 @@ var ttsQueue=[];
 var ttsPlaying=false;
 var ttsSkipIndicator=null;
 
-/* NLLB language code to BCP47 prefix — built dynamically from LANGS */
-function nllbToBcp47Lookup(nllb){
-  for(var i=0;i<LANGS.length;i++){if(LANGS[i][0]===nllb)return LANGS[i][3]}
+/* FLORES language code to BCP47 prefix — built dynamically from LANGS */
+function floresToBcp47Lookup(flores){
+  for(var i=0;i<LANGS.length;i++){if(LANGS[i][0]===flores)return LANGS[i][3]}
   return '';
 }
 
 function hasBrowserVoiceForLang(){
   var transLang=myTransLang||'';
   if(!transLang)return true; /* original language — browser usually has it */
-  var bcp=nllbToBcp47Lookup(transLang);
+  var bcp=floresToBcp47Lookup(transLang);
   if(!bcp)return false;
   var voices=synth.getVoices();
   for(var i=0;i<voices.length;i++){
@@ -899,7 +899,7 @@ function getBibleLang(){
   var params=new URLSearchParams(window.location.search);
   var bl=params.get('bibleLang');
   if(bl)return bl;
-  /* 2. Use app translation language — extract 3-letter code from NLLB code */
+  /* 2. Use app translation language — extract 3-letter code from FLORES code */
   var tl=myTransLang||'';
   if(tl){
     for(var i=0;i<LANGS.length;i++){if(LANGS[i][0]===tl)return LANGS[i][0].substring(0,3)}
@@ -1327,7 +1327,7 @@ function speakBibleVerseServer(text){
   synth.cancel();
   bibleTtsActive=true;
   if(!wsRef||wsRef.readyState!==1){LOG('speakBibleVerseServer BAIL: ws not open');bibleTtsActive=false;return}
-  /* Bible language codes (ISO 639-3: eng, spa, fra) match NLLB prefixes directly */
+  /* Bible language codes (ISO 639-3: eng, spa, fra) match FLORES prefixes directly */
   var lang='eng';
   for(var i=0;i<bibleTranslations.length;i++){
     if(bibleTranslations[i].id===currentBibleTrans){
@@ -2171,7 +2171,7 @@ function updateVirtualMemberPtt(){
   adjustDockPadding();
 }
 
-/* Get the NLLB language code for the currently active identity */
+/* Get the FLORES language code for the currently active identity */
 function getActiveIdentityLang(){
   if(activeVirtualMemberId===''){
     /* Self — use the client's chosen translation language (JS var, not localStorage — avoids cross-tab issues) */

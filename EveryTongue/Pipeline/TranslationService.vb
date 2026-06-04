@@ -50,20 +50,20 @@ Namespace Pipeline
             End Get
         End Property
 
-        Public Shared Function WhisperToNllbLang(whisperLang As String) As String
-            Return _langService.WhisperToNllb(whisperLang)
+        Public Shared Function WhisperToFloresLang(whisperLang As String) As String
+            Return _langService.WhisperToFlores(whisperLang)
         End Function
 
         Public Shared Function GetLangMap() As Dictionary(Of String, String)
-            Return _langService.GetWhisperToNllbMap()
+            Return _langService.GetWhisperToFloresMap()
         End Function
 
-        Public Shared Function NllbToShortCode(nllbCode As String) As String
-            Return _langService.NllbToShortCode(nllbCode)
+        Public Shared Function FloresToShortCode(floresCode As String) As String
+            Return _langService.FloresToShortCode(floresCode)
         End Function
 
-        Public Shared Function NllbToIso3(nllbCode As String) As String
-            Return _langService.NllbToIso3(nllbCode)
+        Public Shared Function FloresToIso3(floresCode As String) As String
+            Return _langService.FloresToIso3(floresCode)
         End Function
 
         Public Shared Function CheckDependenciesInstalled() As (pythonOk As Boolean, depsOk As Boolean, modelOk As Boolean)
@@ -91,23 +91,28 @@ Namespace Pipeline
                 End Try
             End If
 
-            Dim modelDir = Path.Combine(baseDir, "nllb-model")
-            Dim modelOk = Directory.Exists(modelDir) AndAlso
-                          File.Exists(Path.Combine(modelDir, "model.bin")) AndAlso
-                          File.Exists(Path.Combine(modelDir, "sentencepiece.bpe.model"))
+            ' Check the configured model path, not just the default nllb-model dir
+            Dim config = Models.ConfigManager.Load()
+            Dim modelDir = Models.AppConfig.ResolvePath(If(config.TranslationModelPath, ".\nllb-model"))
+            Dim modelType = If(config.TranslationModelType, "nllb")
+            Dim hasModelBin = Directory.Exists(modelDir) AndAlso File.Exists(Path.Combine(modelDir, "model.bin"))
+            Dim hasSp As Boolean
+            hasSp = File.Exists(Path.Combine(modelDir, "sentencepiece.bpe.model"))
+            Dim modelOk = hasModelBin AndAlso hasSp
 
             Return (pythonOk, depsOk, modelOk)
         End Function
 
-        Public Sub Start(port As Integer, modelPath As String, device As String, Optional glossaryPath As String = "")
+        Public Sub Start(port As Integer, modelPath As String, device As String,
+                         Optional glossaryPath As String = "", Optional modelType As String = "nllb")
             _port = port
             _device = device
             _host.Port = port
 
             Dim resolvedModelPath = Models.AppConfig.ResolvePath(modelPath)
-            Dim serverScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "nllb-server", "server.py")
+            Dim serverScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "translate-server", "server.py")
 
-            Dim extraArgs = $"--model-path ""{resolvedModelPath}"" --device {device}"
+            Dim extraArgs = $"--model-path ""{resolvedModelPath}"" --device {device} --model-type nllb"
 
             If Not String.IsNullOrEmpty(glossaryPath) Then
                 Dim resolvedGlossary = Models.AppConfig.ResolvePath(glossaryPath)
@@ -137,6 +142,9 @@ Namespace Pipeline
                             RaiseEvent StatusChanged(Me, "Translation server ready, loading model...")
                             Try
                                 LoadModelAsync().Wait()
+                                If _modelLoaded Then
+                                    WarmUpModel()
+                                End If
                             Catch ex As Exception
                                 Services.Infrastructure.AppLogger.Log($"[ERROR] WaitForReady: LoadModelAsync failed — {ex.Message}")
                             End Try
@@ -173,6 +181,30 @@ Namespace Pipeline
             End Try
         End Function
 
+        ''' <summary>
+        ''' Send a throwaway translation to prime the PyTorch JIT cache.
+        ''' Without this, the first real translation takes ~1000ms+ (cold start).
+        ''' After warmup, translations complete in ~20ms.
+        ''' </summary>
+        Private Sub WarmUpModel()
+            Try
+                RaiseEvent StatusChanged(Me, "Translation: warming up engine...")
+                Dim sw = Diagnostics.Stopwatch.StartNew()
+
+                Dim json = "{""text"":""Hello"",""source_lang"":""eng_Latn"",""target_langs"":[""spa_Latn""]}"
+                Dim content As New StringContent(json, Encoding.UTF8, "application/json")
+
+                Using cts As New CancellationTokenSource(TimeSpan.FromSeconds(30))
+                    Dim response = _httpClient.PostAsync($"http://127.0.0.1:{_port}/translate", content, cts.Token).Result
+                End Using
+
+                sw.Stop()
+                RaiseEvent StatusChanged(Me, $"Translation engine warm — first inference took {sw.ElapsedMilliseconds}ms, subsequent requests will be fast")
+            Catch ex As Exception
+                Services.Infrastructure.AppLogger.Log($"[WARN] Translation warmup failed (non-fatal): {ex.Message}")
+            End Try
+        End Sub
+
         Public Async Function ReloadGlossaryAsync() As Task
             Try
                 Dim content As New StringContent("{}", Encoding.UTF8, "application/json")
@@ -200,7 +232,8 @@ Namespace Pipeline
             End Try
         End Function
 
-        Public Async Function TranslateAsync(text As String, sourceLang As String, targetLangs As List(Of String)) As Task(Of Dictionary(Of String, String))
+        Public Async Function TranslateAsync(text As String, sourceLang As String, targetLangs As List(Of String),
+                                              Optional noCache As Boolean = False) As Task(Of Dictionary(Of String, String))
             If Not _host.IsProcessRunning OrElse Not _modelLoaded OrElse targetLangs.Count = 0 Then
                 Return New Dictionary(Of String, String)()
             End If
@@ -213,10 +246,11 @@ Namespace Pipeline
                 Next
                 targetsJson.Append("]")
 
-                Dim json = $"{{""text"":{ProcessHelper.EscapeJson(text)},""source_lang"":""{sourceLang}"",""target_langs"":{targetsJson}}}"
+                Dim noCacheJson = If(noCache, ",""no_cache"":true", "")
+                Dim json = $"{{""text"":{ProcessHelper.EscapeJson(text)},""source_lang"":""{sourceLang}"",""target_langs"":{targetsJson}{noCacheJson}}}"
                 Dim content As New StringContent(json, Encoding.UTF8, "application/json")
 
-                Using cts As New CancellationTokenSource(TimeSpan.FromSeconds(12))
+                Using cts As New CancellationTokenSource(TimeSpan.FromSeconds(35))
                     Dim response = Await _httpClient.PostAsync($"http://127.0.0.1:{_port}/translate", content, cts.Token)
                     If response.IsSuccessStatusCode Then
                         Dim body = Await response.Content.ReadAsStringAsync()

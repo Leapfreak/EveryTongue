@@ -14,7 +14,6 @@ Partial Class FormMain
 
     ' ── Runtime state (not controls) ──────────────────────────────────
     Private _activeNavButton As ToolStripButton
-    Private _liveStartTime As DateTime ' used by liveElapsedTimer
     Private _formQr As FormQrCode
     Private _logPanelVisible As Boolean = False
     Private ReadOnly _unifiedLogBuffer As New System.Collections.Concurrent.ConcurrentQueue(Of (Time As DateTime, Source As String, Text As String, Color As Drawing.Color))
@@ -45,10 +44,8 @@ Partial Class FormMain
 
         ' ── Send labels to back (z-order fix) ────────────────────
         lblMode.SendToBack()
-        For Each grp As Control In {grpInput, grpLiveInput}
-            For Each child As Control In grp.Controls
-                If TypeOf child Is Label Then child.SendToBack()
-            Next
+        For Each child As Control In grpInput.Controls
+            If TypeOf child Is Label Then child.SendToBack()
         Next
 
         ' ── Set nav button images + colours (theme-aware) ────────
@@ -56,8 +53,6 @@ Partial Class FormMain
         GetNavThemeColors(inactiveBg, inactiveFg, activeBg)
 
         tsNavBar.BackColor = inactiveBg
-        btnNavLive.Image = RenderFontIcon(ChrW(&HE720), 28, inactiveFg)
-        btnNavLive.ForeColor = inactiveFg
         btnNavTranscribe.Image = RenderFontIcon(ChrW(&HE8D4), 28, inactiveFg)
         btnNavTranscribe.ForeColor = inactiveFg
         btnNavTranslate.Image = RenderFontIcon(ChrW(&HE774), 28, inactiveFg)
@@ -86,13 +81,9 @@ Partial Class FormMain
         AddHandler mnuToolsDownloadMgr.Click, Sub(s, e) OpenDownloadManager()
         AddHandler mnuToolsVerifyPaths.Click, Sub(s, e) VerifyAllPaths()
         AddHandler mnuToolsVerifyIntegrity.Click, Sub(s, e) VerifyFileIntegrity()
+        AddHandler mnuToolsBenchmark.Click, Sub(s, e) OpenTranslationBenchmark()
         AddHandler mnuToolsOptions.Click, Sub(s, e) ShowOptionsDialog("general")
 
-        AddHandler mnuSessionStart.Click, Sub(s, e)
-                                               SwitchWorkspace(tabPageLive, btnNavLive)
-                                               btnLiveStart.PerformClick()
-                                           End Sub
-        AddHandler mnuSessionStop.Click, Sub(s, e) btnLiveStop.PerformClick()
         AddHandler mnuSessionQR.Click, Sub(s, e) ShowQrCode()
         AddHandler mnuSessionCopyUrl.Click, Sub(s, e) _serverController?.CopyPhoneUrl()
 
@@ -106,16 +97,13 @@ Partial Class FormMain
         AddHandler mnuHelpQuickStart.Click, Sub(s, e) ShowLegacyTab(tabPageHelp)
         AddHandler mnuHelpShortcuts.Click, Sub(s, e)
                                                 MessageBox.Show(
-                                                    "Ctrl+1" & vbTab & "Live workspace" & vbCrLf &
-                                                    "Ctrl+2" & vbTab & "Transcribe workspace" & vbCrLf &
-                                                    "Ctrl+3" & vbTab & "Translate workspace" & vbCrLf &
-                                                    "Ctrl+4" & vbTab & "Bible workspace" & vbCrLf &
+                                                    "Ctrl+1" & vbTab & "Transcribe workspace" & vbCrLf &
+                                                    "Ctrl+2" & vbTab & "Translate workspace" & vbCrLf &
+                                                    "Ctrl+3" & vbTab & "Bible workspace" & vbCrLf &
                                                     "Ctrl+N" & vbTab & "New Session wizard" & vbCrLf &
                                                     "Ctrl+L" & vbTab & "Toggle Log Panel" & vbCrLf &
                                                     "F12" & vbTab & "Options" & vbCrLf &
                                                     "F1" & vbTab & "Help" & vbCrLf &
-                                                    "F5" & vbTab & "Start Live" & vbCrLf &
-                                                    "Shift+F5" & vbTab & "Stop Live" & vbCrLf &
                                                     "F11" & vbTab & "Full Screen",
                                                     "Keyboard Shortcuts",
                                                     MessageBoxButtons.OK, MessageBoxIcon.Information)
@@ -129,7 +117,6 @@ Partial Class FormMain
                                         End Sub
 
         ' ── Wire nav rail button handlers ────────────────────────
-        AddHandler btnNavLive.Click, Sub(s, e) SwitchWorkspace(tabPageLive, btnNavLive)
         AddHandler btnNavTranscribe.Click, Sub(s, e) SwitchWorkspace(tabPageJob, btnNavTranscribe)
         AddHandler btnNavTranslate.Click, Sub(s, e) SwitchWorkspace(tabPageTranslate, btnNavTranslate)
         AddHandler btnNavBible.Click, Sub(s, e)
@@ -161,10 +148,6 @@ Partial Class FormMain
         tslClients.LinkColor = tslClients.ForeColor
         AddHandler tslClients.Click, Sub(s, e) ShowConnectedClients()
         AddHandler tslLogToggle.Click, Sub(s, e) ToggleLogPanel()
-        AddHandler liveElapsedTimer.Tick, Sub(s, e)
-                                               Dim elapsed = DateTime.Now - _liveStartTime
-                                               tslElapsed.Text = elapsed.ToString("hh\:mm\:ss")
-                                           End Sub
 
         ' ── Wire log panel handlers ──────────────────────────────
         AddHandler cboLogFilter.SelectedIndexChanged, Sub(s, e)
@@ -198,7 +181,7 @@ Partial Class FormMain
             btnTransCopy, btnTransClear,
             btnTransOutCopy, btnTransOutClear,
             lblTransStatus,
-            _whisperLanguages,
+            _sttLanguages,
             AddressOf LangDisplayName,
             AddressOf LangCodeFromDisplay,
             AddressOf StartTranslationService,
@@ -213,8 +196,8 @@ Partial Class FormMain
         ' ── Keyboard shortcuts ─────────────────────────────────────
         AddHandler Me.KeyDown, AddressOf ShellKeyDown
 
-        ' ── Default to Live workspace ──────────────────────────────
-        SwitchWorkspace(tabPageLive, btnNavLive)
+        ' ── Default to Transcribe workspace ───────────────────────
+        SwitchWorkspace(tabPageJob, btnNavTranscribe)
 
         ' ── Portable mode detection ────────────────────────────────
         Dim flagPath = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "portable.flag")
@@ -226,10 +209,9 @@ Partial Class FormMain
     Private Sub ShellKeyDown(sender As Object, e As KeyEventArgs)
         If e.Control Then
             Select Case e.KeyCode
-                Case Keys.D1 : SwitchWorkspace(tabPageLive, btnNavLive) : e.Handled = True
-                Case Keys.D2 : SwitchWorkspace(tabPageJob, btnNavTranscribe) : e.Handled = True
-                Case Keys.D3 : SwitchWorkspace(tabPageTranslate, btnNavTranslate) : e.Handled = True
-                Case Keys.D4 : SwitchWorkspace(tabPageBibleWs, btnNavBible) : e.Handled = True
+                Case Keys.D1 : SwitchWorkspace(tabPageJob, btnNavTranscribe) : e.Handled = True
+                Case Keys.D2 : SwitchWorkspace(tabPageTranslate, btnNavTranslate) : e.Handled = True
+                Case Keys.D3 : SwitchWorkspace(tabPageBibleWs, btnNavBible) : e.Handled = True
             End Select
         End If
     End Sub
@@ -241,7 +223,6 @@ Partial Class FormMain
     ''' <summary>Maps nav button label back to its MDL2 icon glyph.</summary>
     Private Shared Function GetNavIcon(name As String) As String
         Select Case name
-            Case "btnNavLive" : Return ChrW(&HE720)
             Case "btnNavTranscribe" : Return ChrW(&HE8D4)
             Case "btnNavTranslate" : Return ChrW(&HE774)
             Case "btnNavBible" : Return ChrW(&HE736)
@@ -532,23 +513,22 @@ Partial Class FormMain
     ' ═══════════════════════════════════════════════════════════════
 
     Private Sub LaunchSessionWizard()
-        Dim devices As New List(Of String)
-        For Each item In cboLiveDevice.Items
-            Dim text = item.ToString()
-            If text <> "Detecting devices..." Then devices.Add(text)
-        Next
-
-        Using dlg As New FormSessionWizard(_config, devices.ToArray(), _whisperLanguages)
-            If dlg.ShowDialog(Me) = DialogResult.OK AndAlso dlg.StartSession Then
+        Using dlg As New FormSessionWizard(_config, Array.Empty(Of String)(), _sttLanguages)
+            If dlg.ShowDialog(Me) = DialogResult.OK Then
                 LoadConfigToUi()
-                SwitchWorkspace(tabPageLive, btnNavLive)
-                btnLiveStart.PerformClick()
             End If
         End Using
     End Sub
 
     Private Sub ShowOptionsDialog(Optional category As String = "general")
         _uiLocales = DiscoverUiLocales()
+
+        ' Snapshot translation settings before Options opens
+        Dim oldModelType = If(_config.TranslationModelType, "nllb")
+        Dim oldModelPath = If(_config.TranslationModelPath, "")
+        Dim oldDevice = If(_config.TranslationDevice, "cuda")
+        Dim oldEnabled = _config.TranslationEnabled
+
         Using dlg As New FormOptions(_config, _uiLocales)
             dlg.SelectCategory(category)
             If dlg.ShowDialog(Me) = DialogResult.OK AndAlso dlg.ConfigChanged Then
@@ -557,6 +537,24 @@ Partial Class FormMain
                 ApplyLocale()
                 ApplyTheme(_config.Theme)
                 If _config.StartWithWindows Then RegisterStartup() Else UnregisterStartup()
+
+                ' If translation backend/model/device changed, restart the sidecar
+                Dim newModelType = If(_config.TranslationModelType, "nllb")
+                Dim newModelPath = If(_config.TranslationModelPath, "")
+                Dim newDevice = If(_config.TranslationDevice, "cuda")
+                If _translationService IsNot Nothing AndAlso _translationService.IsRunning AndAlso
+                   (Not String.Equals(oldModelType, newModelType, StringComparison.OrdinalIgnoreCase) OrElse
+                    Not String.Equals(oldModelPath, newModelPath, StringComparison.OrdinalIgnoreCase) OrElse
+                    Not String.Equals(oldDevice, newDevice, StringComparison.OrdinalIgnoreCase)) Then
+                    WriteDebugLog($"[TRANSLATE] Backend changed ({oldModelType}→{newModelType}, {oldModelPath}→{newModelPath}), restarting sidecar")
+                    _translationService.Stop()
+                    _translationService = Nothing
+                    _translationStarting = False
+                    StartTranslationService()
+                ElseIf _config.TranslationEnabled AndAlso Not oldEnabled Then
+                    ' Translation was just enabled
+                    StartTranslationService()
+                End If
             End If
         End Using
     End Sub
@@ -642,10 +640,11 @@ Partial Class FormMain
 
                             ' Models loaded
                             writer.WriteLine("=== Models ===")
-                            writer.WriteLine($"  Whisper model: {_config.PathModel}")
-                            writer.WriteLine($"  Whisper model (audio): {_config.PathModelAudio}")
-                            writer.WriteLine($"  Faster-whisper model: {_config.PathFasterWhisperModel}")
-                            writer.WriteLine($"  NLLB model: {_config.TranslationModelPath}")
+                            writer.WriteLine($"  STT model (job): {_config.PathModel}")
+                            writer.WriteLine($"  STT model (audio): {_config.PathModelAudio}")
+                            writer.WriteLine($"  STT model (live): {_config.PathFasterWhisperModel}")
+                            writer.WriteLine($"  STT backend: {_config.SttBackend}")
+                            writer.WriteLine($"  Translation model: {_config.TranslationModelPath}")
                             writer.WriteLine($"  GPU enabled: {Not _config.NoGpu}")
                             writer.WriteLine($"  Flash attention: {_config.FlashAttn}")
                             writer.WriteLine()
@@ -771,6 +770,32 @@ Partial Class FormMain
         MessageBox.Show(sb.ToString(), title, MessageBoxButtons.OK, msgIcon)
     End Sub
 
+    Private Sub OpenTranslationBenchmark()
+        If _translationService Is Nothing OrElse Not _translationService.IsRunning Then
+            MessageBox.Show("The translation server must be running to use the benchmark.",
+                            "Pipeline Benchmark", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return
+        End If
+
+        ' Get services from Kestrel DI — benchmark routes through the real pipeline
+        Dim diServices = _serverController?.KestrelHost?.Services
+        Dim translationSvc = TryCast(diServices?.GetService(
+            GetType(Services.Interfaces.ITranslationService)), Services.Interfaces.ITranslationService)
+        If translationSvc Is Nothing Then
+            MessageBox.Show("Translation service not available.",
+                            "Pipeline Benchmark", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return
+        End If
+
+        Dim ttsSvc = TryCast(diServices?.GetService(
+            GetType(Services.Interfaces.ITtsService)), Services.Interfaces.ITtsService)
+        Dim livePort = If(_config?.LiveServerPort, 0)
+
+        Using frm As New FormTranslationBenchmark(translationSvc, ttsSvc, livePort, _config)
+            frm.ShowDialog(Me)
+        End Using
+    End Sub
+
     Private Sub SetThemeFromMenu(theme As Models.ThemeMode)
         _config.Theme = theme
         Models.ConfigManager.Save(_config)
@@ -813,22 +838,6 @@ Partial Class FormMain
         Dim svc = SubtitleSvc
         Dim clients = If(svc?.ConnectedClients, 0)
         tslClients.Text = String.Format(GetString("Shell_Clients"), clients)
-
-        If _liveController IsNot Nothing AndAlso _liveController.IsRunning Then
-            tslLiveStatus.Text = GetString("Shell_LiveRunning")
-            tslLiveStatus.ForeColor = Color.Green
-            If Not liveElapsedTimer.Enabled Then
-                _liveStartTime = DateTime.Now
-                liveElapsedTimer.Start()
-            End If
-        Else
-            tslLiveStatus.Text = GetString("Msg_Ready")
-            tslLiveStatus.ForeColor = Color.Gray
-            If liveElapsedTimer.Enabled Then
-                liveElapsedTimer.Stop()
-                tslElapsed.Text = ""
-            End If
-        End If
     End Sub
 
     ''' <summary>
@@ -910,7 +919,7 @@ Partial Class FormMain
     End Sub
 
     ''' <summary>
-    ''' Map 2-letter Whisper/ISO 639-1 codes to 3-letter ISO 639-3 codes for Bible matching.
+    ''' Map 2-letter ISO 639-1 codes to 3-letter ISO 639-3 codes for Bible matching.
     ''' </summary>
     Private Shared Function WhisperToIso3(code As String) As String
         If String.IsNullOrEmpty(code) Then Return code

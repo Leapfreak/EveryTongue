@@ -67,7 +67,7 @@ Namespace Models
 
         Public Property OutputLrc As Boolean = False
 
-        ' --- Whisper Parameters ---
+        ' --- STT Parameters ---
 
         Public Property Language As String = "auto"
 
@@ -141,7 +141,9 @@ Namespace Models
         Public Property SubtitleFontSize As Single = 14
         Public Property SubtitleFontBold As Boolean = True
 
-        ' --- Live Server (faster-whisper + VAD) ---
+        ' --- Live Server (STT + VAD) ---
+
+        Public Property SttBackend As String = "whisper-cpp-vulkan"
 
         Public Property LiveServerPort As Integer = 5091
         Public Property PathFasterWhisperModel As String = ".\faster-whisper-large-v3"
@@ -150,15 +152,29 @@ Namespace Models
         Public Property LiveMaxSegmentSec As Integer = 15
         Public Property LiveInterimIntervalMs As Integer = 1500
 
+        ''' <summary>Path to whisper-server.exe (Vulkan build) for whisper-cpp backends.</summary>
+        Public Property PathWhisperServer As String = ".\whisper-server.exe"
+
+        ''' <summary>Path to GGML model file for whisper-cpp backends.</summary>
+        Public Property PathWhisperCppModel As String = ".\ggml-large-v3-turbo.bin"
+
+        ''' <summary>Port for whisper-server.exe inference endpoint.</summary>
+        Public Property WhisperServerPort As Integer = 8178
+
+        ''' <summary>Path to Silero VAD GGML model for whisper-server built-in VAD.</summary>
+        Public Property PathSileroVadModel As String = ".\ggml-silero-v6.2.0.bin"
+
         ' --- Translation ---
 
         Public Property TranslationBackend As String = "nllb"
         Public Property TranslationEnabled As Boolean = True
         Public Property TranslationPort As Integer = 5090
         Public Property TranslationModelPath As String = ".\nllb-model"
+        Public Property TranslationModelType As String = "nllb"
         Public Property TranslationDevice As String = "cuda"
         Public Property TranslationUnloadMinutes As Integer = 10
-        Public Property TranslationGlossaryPath As String = ".\nllb-server\glossary.json"
+        Public Property TranslationGlossaryPath As String = ".\translate-server\glossary.json"
+        Public Property TranslationConcurrency As Integer = 3
 
         ' --- TTS ---
 
@@ -167,6 +183,7 @@ Namespace Models
         ''' Values: piper, mms-tts, edgetts. Empty = all (default fallback order).
         ''' </summary>
         Public Property TtsBackends As String = ""
+        Public Property TtsConcurrency As Integer = 3
 
         Public Property FirstRunComplete As Boolean = False
         Public Property StartWithWindows As Boolean = False
@@ -180,6 +197,7 @@ Namespace Models
         Public Property ShowBibleCopyright As Boolean = True
 
         Public Property MinimizeToTray As Boolean = True
+        Public Property StartMinimized As Boolean = True
 
         Public Property LogPanelHeight As Integer = 250
 

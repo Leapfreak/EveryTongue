@@ -17,7 +17,7 @@ Namespace Services.Tts
         Private ReadOnly _voicesDir As String
 
         ''' <summary>
-        ''' NLLB 3-letter prefix to Piper voice mapping.
+        ''' FLORES 3-letter prefix to Piper voice mapping.
         ''' Each entry: (PiperLang, VoiceName, Quality).
         ''' Model filename: {PiperLang}-{VoiceName}-{Quality}.onnx
         ''' </summary>
@@ -181,11 +181,11 @@ Namespace Services.Tts
         End Function
 
         ''' <summary>
-        ''' Returns the model filename for a given NLLB language prefix, or Nothing if unsupported.
+        ''' Returns the model filename for a given FLORES language prefix, or Nothing if unsupported.
         ''' </summary>
-        Friend Shared Function GetModelFileName(nllbPrefix As String) As String
+        Friend Shared Function GetModelFileName(floresPrefix As String) As String
             Dim voiceInfo As (PiperLang As String, VoiceName As String, Quality As String) = Nothing
-            If Not VoiceMap.TryGetValue(nllbPrefix, voiceInfo) Then Return Nothing
+            If Not VoiceMap.TryGetValue(floresPrefix, voiceInfo) Then Return Nothing
             Return GetModelFileNameFromVoice(voiceInfo)
         End Function
 
@@ -193,9 +193,9 @@ Namespace Services.Tts
         ''' Returns the HuggingFace base URL for a voice model (without extension).
         ''' Append .onnx or .onnx.json to get the actual download URLs.
         ''' </summary>
-        Friend Shared Function GetModelDownloadUrl(nllbPrefix As String) As String
+        Friend Shared Function GetModelDownloadUrl(floresPrefix As String) As String
             Dim voiceInfo As (PiperLang As String, VoiceName As String, Quality As String) = Nothing
-            If Not VoiceMap.TryGetValue(nllbPrefix, voiceInfo) Then Return Nothing
+            If Not VoiceMap.TryGetValue(floresPrefix, voiceInfo) Then Return Nothing
             Dim shortLang = voiceInfo.PiperLang.Substring(0, 2)
             Dim modelName = $"{voiceInfo.PiperLang}-{voiceInfo.VoiceName}-{voiceInfo.Quality}"
             Return $"https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/{shortLang}/{voiceInfo.PiperLang}/{voiceInfo.VoiceName}/{voiceInfo.Quality}/{modelName}"
