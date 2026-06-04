@@ -7,19 +7,19 @@
 \f0\fs36\b\cf2 Every Tongue \endash  User Guide\b0\cf0\fs20\par
 
 \fs24\b Overview\b0\fs20\par
-Every Tongue is a Windows desktop application that generates subtitle files from audio and video sources. It wraps the whisper.cpp speech-to-text engine for batch processing and faster-whisper with Silero VAD for real-time live transcription, with optional AI-powered translation to 200+ languages via NLLB-200.\par
+Every Tongue is a Windows desktop application that generates subtitle files from audio and video sources. It wraps the whisper.cpp speech-to-text engine for both batch processing and real-time live transcription (with Silero VAD for voice activity detection), with optional AI-powered translation to 200+ languages via NLLB-200.\par
 
 The application has six tabs: \b Live Translation\b0 , \b Subtitle Server\b0 , \b Main / Job\b0 , \b Paths & Tools\b0 , \b Settings\b0 , and \b Help\b0 .\par
 
 \fs24\b\cf2 Live Translation Tab\b0\cf0\fs20\par
-The Live Translation tab provides real-time speech-to-text transcription from your microphone or other audio input device. It uses faster-whisper with Silero VAD (Voice Activity Detection) to detect natural speech pauses and segment audio into complete utterances, producing cleaner and more accurate transcriptions than fixed-window chunking.\par
+The Live Translation tab provides real-time speech-to-text transcription from your microphone or other audio input device. It uses whisper.cpp with Silero VAD (Voice Activity Detection) to detect natural speech pauses and segment audio into complete utterances, producing cleaner and more accurate transcriptions than fixed-window chunking.\par
 
 \b Controls\b0\par
 \pard\fi-360\li720\sa100
 \bullet\tab\b Audio Device\b0  \endash  Select your audio input device. Click \b Refresh\b0  to re-scan if you connect a new device.\par
 \bullet\tab\b Input Language\b0  \endash  The language being spoken. Set to \b auto\b0  for automatic detection, or select a specific language for better accuracy. This can also be changed remotely from the phone admin panel while a session is running.\par
 \bullet\tab\b Filters...\b0  \endash  Opens the Filter Editor to manage hallucination phrases, glossary corrections, and profanity filters (see Filter Editor section below).\par
-\bullet\tab\b Start / Stop\b0  \endash  Begin or stop live transcription. On first use, the application downloads required dependencies (Python runtime, faster-whisper model, Python packages) if they are not already installed. The model stays loaded in memory between sessions for fast restart.\par
+\bullet\tab\b Start / Stop\b0  \endash  Begin or stop live transcription. On first use, the application downloads required dependencies (Python runtime, whisper-server, STT model, Python packages) if they are not already installed. The model stays loaded in memory between sessions for fast restart.\par
 
 \pard\sa200\sl276\slmult1
 \b Tuning Sliders\b0\par
@@ -179,7 +179,7 @@ Configure file paths to external tools and models:\par
 \bullet\tab\b ffprobe.exe\b0  \endash  Audio/video analysis tool (duration detection).\par
 \bullet\tab\b YouTube Model (.bin)\b0  \endash  The whisper model file used for YouTube -> Subtitles mode.\par
 \bullet\tab\b Audio File Model (.bin)\b0  \endash  The whisper model file used for Audio File -> Subtitles mode. Can be set to a different (e.g. smaller, faster) model.\par
-\bullet\tab\b faster-whisper model (folder)\b0  \endash  The faster-whisper model directory used by Live Translation (default: faster-whisper-large-v3).\par
+\bullet\tab\b STT model (file)\b0  \endash  The GGML model file used by Live Translation (default: ggml-large-v3-turbo.bin).\par
 \bullet\tab\b NLLB translation model (folder)\b0  \endash  The NLLB-200 translation model directory (default: nllb-model).\par
 \bullet\tab\b Default output root\b0  \endash  Base directory where timestamped output folders are created.\par
 \bullet\tab\b yt-dlp format string\b0  \endash  Download format preference for yt-dlp (default: best MP4 video + M4A audio).\par
@@ -201,8 +201,8 @@ On first launch, the application checks for required tools and dependencies. If 
 \pard\fi-360\li720\sa100
 \bullet\tab Core tools: whisper-cli, yt-dlp, ffmpeg, ffprobe, and the whisper model file.\par
 \bullet\tab Python runtime: A portable Python installation used by the live transcription and translation servers.\par
-\bullet\tab Python packages: Libraries required by faster-whisper and NLLB (installed via pip).\par
-\bullet\tab faster-whisper model: The speech recognition model for Live Translation (~3 GB).\par
+\bullet\tab Python packages: Libraries required by the live transcription pipeline and NLLB (installed via pip).\par
+\bullet\tab STT model: The speech recognition model for Live Translation (GGML format).\par
 \bullet\tab NLLB-200 model: The translation model (~2.6 GB), downloaded when translation is first set up.\par
 
 \pard\sa200\sl276\slmult1
@@ -255,7 +255,7 @@ A detailed pipeline debug log is written to the application directory as \f1 YYY
 \bullet\tab For best subtitle quality, use the \b ggml-large-v3\b0  model. For quick results on short audio, use \b ggml-tiny\b0  or \b ggml-base\b0 .\par
 \bullet\tab Use \b Resume\b0  to continue an interrupted job without re-downloading or re-processing completed chunks.\par
 \bullet\tab Set \b Output Language\b0  to \b en\b0  to translate foreign-language audio directly into English subtitles.\par
-\bullet\tab For Live Translation, a CUDA-capable GPU with at least 4 GB VRAM is recommended. The faster-whisper model uses ~1.5 GB and the NLLB translation model uses ~2.6 GB.\par
+\bullet\tab For Live Translation, a GPU is recommended. whisper.cpp supports CUDA (NVIDIA), Vulkan (all GPUs), and CPU fallback. The STT model uses ~1.5 GB VRAM and the NLLB translation model uses ~2.6 GB.\par
 \bullet\tab The web subtitle page works on any device with a browser on the same network. Share the URL shown in the Connection Info section.\par
 \bullet\tab To keep your phone screen on while viewing subtitles, use the Keep Screen On button on the web page (requires HTTPS).\par
 \bullet\tab Use the \b Tune\b0  button after a minute of transcription to get recommended slider values tailored to the current speaker.\par
@@ -278,9 +278,9 @@ The following tools are required and can be downloaded automatically from the Se
 The following are downloaded automatically on first use:\par
 \pard\fi-360\li720\sa100
 \bullet\tab\b Python (embedded)\b0  \endash  A portable Python runtime used by the live transcription and translation servers.\par
-\bullet\tab\b faster-whisper model\b0  \endash  The faster-whisper large-v3 speech recognition model (~3 GB).\par
+\bullet\tab\b STT model\b0  \endash  The whisper.cpp GGML speech recognition model (e.g. ggml-large-v3-turbo.bin).\par
 \bullet\tab\b NLLB-200 model\b0  \endash  The Meta NLLB-200 1.3B translation model (~2.6 GB).\par
-\bullet\tab\b Python packages\b0  \endash  faster-whisper, sounddevice, ctranslate2, sentencepiece, FastAPI, uvicorn, and other libraries.\par
+\bullet\tab\b Python packages\b0  \endash  silero-vad, sounddevice, torch, numpy, FastAPI, uvicorn, and other libraries.\par
 
 \pard\sa200\sl276\slmult1
 \par

@@ -1,4 +1,4 @@
-# EveryTongue — TODO (updated 2026-06-04)
+# EveryTongue — TODO (updated 2026-06-05)
 
 > **Architecture shift:** EveryTongue is evolving from a single-session desktop transcription tool into a **headless multi-room translation server**. The desktop app still has operator workspaces (Live, Transcribe, Translate, Bible), but the primary user interface is now the **phone web client**. Anyone with a phone can create rooms, manage conversations, and receive translations — no operator required. The desktop just runs the server and auto-starts engines at launch.
 
@@ -10,18 +10,17 @@ All 10 phases done. Kestrel in-process with DI, WebSocket hub, static files, TTS
 ### Code Quality — COMPLETE
 All 11 items done plus additional cleanup. TTS and Translation backend registries added for pluggable engine discovery. FormOptions is now the single source of truth for all settings.
 
-### Rooms — GOVERNANCE COMPLETE + POLISHED (see [#19](#19-rooms--multi-room-translation))
-Room model, lobby API, room QR codes, WebSocket routing, conversation rooms with bidirectional PTT audio, local translation, self-echo, language forcing, auto-start of Whisper and translation sidecar at app launch, host controls (end/lock/kick/PTT mode), host reconnection via token, display names, participant bar with kick UI, virtual members (shared device support with identity switching and multi-language transcript), text chat with translation, speaker colours, conference room targeting from desktop — all working. v1.7.2: WebSocket send serialization, dock padding fix, multi-line chat, on-demand translation, host claim protection, conference default public. v1.7.3: TTS works in rooms (server TTS via requestTts + browser voice with language matching), speaking/recording indicator (banner + pulsing PTT button), per-window sessionStorage isolation, room commit lang field matches text language (not source), sentence splitting for multi-line room translations, client-to-server debug logging (SLOG), End Room no longer double-confirms. All governance + polish items complete.
+### Rooms — GOVERNANCE COMPLETE + POLISHED (v1.7.0–v1.7.3)
+Multi-room translation with lobby, PTT audio, text chat, virtual members, host controls, TTS, speaker colours, conference room targeting. All governance + polish complete. See [#19](#19-rooms--multi-room-translation) for remaining items.
 
-### Conference Room Templates — COMPLETE (v1.7.4–1.7.5)
-Conference templates with hosting code protection, multi-pipeline architecture (each room gets its own ISttBackend on a unique port), template manager UI (browse model path, audio device dropdown), lobby two-step hosting flow, pipeline controls in host admin panel (speaker language, beam size, VAD silence, max segment, initial prompt). v1.7.4: Full implementation — model, API, pipeline integration, lobby, host controls, template manager, localization. v1.7.5: Fix double TTS playback (server-push + client-request both firing), room-scope TTS generation (FireTtsForCommit/NotifyTtsReady filter by targetRoomId), fix server crash on pipeline config change (BeginInvoke double try/catch), fix duplicate rooms in lobby, conference rooms stripped of conversation features (no PTT, no participant bar), stale room redirect to lobby, locale-safe exception filtering (SocketErrorCode enums).
+### Conference Room Templates — COMPLETE (v1.7.4–v1.7.5)
+Multi-pipeline conference templates with hosting codes, template manager UI, lobby hosting flow, room-scoped TTS.
+
+### VAD Pipeline — IMPLEMENTED (v1.8.0–v1.8.1)
+Frame-level Silero VAD with 4-tier commit system (soft/duration/hard/force), whisper-server inference serialization, stdout pipe deadlock fix. Stable across 45+ consecutive inferences. All old batch loop code removed (Phase 9 complete).
 
 ### Engine Genericization — COMPLETE (v1.7.5)
-- **Translation backend switching fix**: Options dialog now detects when the translation backend/model/device changes and restarts the sidecar automatically. Previously, switching from MADLAD to NLLB (or vice versa) in Options had no effect — the old model kept running because `StartTranslationService` returned "already running".
-- **NLLB 3.3B support**: Added NLLB-200 3.3B (float16) as a selectable translation engine. New entry in `TranslationBackendRegistry`, Download Manager integration (downloads from `entai2965/nllb-200-3.3B-ctranslate2-float16`), installs to `nllb-3.3b-model/`. Benchmarked: ~3–6% better quality than 1.3B across all pairs, 9GB VRAM, minimal latency increase.
-- **Translation dep checks genericized**: `TranslationService.CheckDependenciesInstalled()` and `DependencyManager.CheckTranslationDepsAsync()` now check the configured model path/type instead of hardcoding `nllb-model/`.
-- **STT genericized**: Removed all hardcoded "Whisper" terminology from user-facing UI. Labels now say "STT model (live/job/audio)", "STT Parameters", "STT Flags". All 8 locale files updated (en, es, fr, de, ca, pt, zh, ja). Added `AppConfig.SttBackend` property. All direct backend construction calls (5 sites) replaced with `SttBackendRegistry.CreateBackend(config.SttBackend)` factory method. Internal variables renamed `_whisperLanguages` → `_sttLanguages` across 6 files. New STT engines can now be added without touching any UI code.
-- **SemaphoreSlim fix**: Wrapped `sem.Release()` in benchmark runner's Finally block with `Try/Catch ObjectDisposedException` to prevent crash when cancellation disposes the semaphore before all tasks finish.
+Pluggable STT/Translation/TTS backends via registries. NLLB 3.3B support. Translation backend hot-switching. All UI genericized to "STT" terminology.
 
 ## User-Reported Issues & Tasks
 - [x] Implement stubs — most done (QR Code, Hardware Score, Diagnostics Export, File Integrity, Translate workspace). Remaining stubs: Session Wizard, Audio Level Monitor, Glossary Simple Mode, Event Profiles, Spec Sheet Generator, Portable Mode, Feedback prompt
@@ -29,13 +28,30 @@ Conference templates with hosting code protection, multi-pipeline architecture (
 - [ ] Audio routing: NDI or Direct Audio output
 
 ## Suggested Next Priorities
-3. Audio Level Monitor (#3) — operator feedback, prevents bad audio
-4. Setup Wizard expansion (#2) — integrates QR, audio monitor, hardware score
-5. Priority Queue Pipeline — STT/Translation/TTS queues with dynamic priority scoring for multi-room load
+1. Headless server / systray mode — see plan file `memoized-shimmying-elephant.md`
+2. Audio Level Monitor (#3) — operator feedback, prevents bad audio
+3. Setup Wizard expansion (#2) — integrates QR, audio monitor, hardware score
+4. Priority Queue Pipeline — STT/Translation/TTS queues with dynamic priority scoring for multi-room load
+
+## Immediate TODO (2026-06-05)
+- [ ] Verify the code actually uses the user's selected engine (not hardcoded to a specific backend)
+- [ ] Test whisper-cpp performance — should support more than 5 concurrent sessions
+- [ ] Check YouTube downloading and transcription still works end-to-end
+- [ ] Investigate which translation model is used in benchmarks (NLLB? MADLAD? specific size?)
+- [ ] Continue headless server / systray implementation
 
 ---
 
-## Robust VAD Pipeline — Silero VAD + Whisper.cpp Rewrite
+## Robust VAD Pipeline — Silero VAD + Whisper.cpp Rewrite — IMPLEMENTED (v1.8.0–v1.8.1)
+
+All 9 phases implemented and tested. Pipeline is stable across 45+ consecutive inferences with zero hangs or lost sentences.
+
+**Key deviations from original plan:**
+- **Frame size**: 512 samples (32ms) not 1536 (96ms) — Silero v5 only accepts 512 at 16kHz
+- **DURATION-COMMIT** (v1.8.1): New 4th commit type — fires at 8s continuous speech without a 400ms pause, prevents bulk sentence dumps. Uses SOFT-COMMIT type internally.
+- **Whisper-server pipe fix** (v1.8.1): stdout=DEVNULL to prevent Windows pipe buffer deadlock after ~14 inferences
+- **Inference serialization** (v1.8.1): `_whisper_lock` prevents concurrent Vulkan GPU calls that caused deadlocks
+- **Speech offset is immediate**: `is_speech` goes False immediately when prob < silence_threshold (state machine has time-based thresholds for commits, so no frame-count confirmation needed for offset)
 
 ### Goal
 Replace the current batch-VAD capture loop in `live-server/server.py` (`_capture_loop_whisper_cpp`) with a robust frame-level VAD pipeline that eliminates clipped speech, duplicated text, unreliable endpointing, and transcript corruption during long-running sessions.
@@ -74,15 +90,6 @@ This keeps the VAD pipeline testable in isolation and avoids circular imports.
 - **Never** use Whisper timestamps, punctuation, or transcript content to determine speech end.
 - **Single-writer rule**: only one thread writes to the utterance buffer (the VAD thread), eliminating cross-thread race conditions.
 
-### Current Problems (what this fixes)
-1. **Clipped first phonemes** — no pre-roll buffer; audio capture starts at the first VAD-detected frame.
-2. **Clipped endings** — buffer cut at exact speech boundary with no tail overlap.
-3. **Batch VAD re-scans entire buffer** every 500ms — O(n) growing cost, wasteful on long utterances.
-4. **Whisper punctuation used for endpointing** — lines 1079–1109 split on `.?!` from Whisper output, violating single-authority principle. This causes premature commits mid-sentence when Whisper hallucinates punctuation.
-5. **No hysteresis** — `get_speech_timestamps` uses a single threshold (0.4), causing rapid state toggling on borderline audio.
-6. **No segment model** — committed text is just concatenated strings with no metadata for debugging or downstream use.
-7. **Boundary overlap dedup limited to 4 words** — fragile exact-match comparison; Whisper can transcribe identical audio differently across runs.
-
 ### High-Level Pipeline
 
 ```
@@ -110,231 +117,18 @@ Transcription Worker Thread
 
 **Critical design choice**: The audio callback does NOT write to the utterance buffer. It only writes to the pre-roll ring buffer and enqueues frames to `vad_queue`. The VAD thread is the **sole writer** to the utterance buffer, eliminating the race condition where the callback and state machine compete over buffer ownership.
 
----
+### Commit Types
 
-### Phase 1: Audio Buffering Infrastructure
-
-**File**: `live-server/vad/buffers.py`
-
-#### 1a. Pre-roll Ring Buffer
-- Fixed-size circular buffer holding the last 400ms of audio (6400 samples at 16kHz).
-- Continuously filled by the sounddevice callback regardless of VAD state.
-- When transitioning IDLE→SPEAKING, the VAD thread snapshots the pre-roll contents into the utterance buffer.
-- Stored as float32 PCM at 16kHz (Whisper's expected format).
-- **Thread safety**: single writer (audio callback), single reader (VAD thread on transition). The read is a snapshot — even if the callback overwrites during read, the worst case is slightly stale pre-roll, which is acceptable (400ms window means ~1 frame of jitter).
-
-```python
-class PrerollBuffer:
-    """Fixed-size circular buffer for pre-roll audio."""
-    def __init__(self, duration_ms=400, sample_rate=16000):
-        self._size = int(duration_ms / 1000 * sample_rate)
-        self._buf = np.zeros(self._size, dtype=np.float32)
-        self._pos = 0           # write position (wraps)
-        self._filled = False    # True once buffer has wrapped at least once
-
-    def write(self, samples: np.ndarray):
-        """Append samples to the ring buffer (called from audio callback)."""
-        n = len(samples)
-        if n >= self._size:
-            # Frame larger than buffer — just keep the tail
-            self._buf[:] = samples[-self._size:]
-            self._pos = 0
-            self._filled = True
-            return
-        end = self._pos + n
-        if end <= self._size:
-            self._buf[self._pos:end] = samples
-        else:
-            first = self._size - self._pos
-            self._buf[self._pos:] = samples[:first]
-            self._buf[:n - first] = samples[first:]
-            self._filled = True
-        self._pos = end % self._size
-        if end >= self._size:
-            self._filled = True
-
-    def read(self) -> np.ndarray:
-        """Return the full pre-roll contents in chronological order (called from VAD thread)."""
-        if not self._filled:
-            return self._buf[:self._pos].copy()
-        return np.concatenate([self._buf[self._pos:], self._buf[:self._pos]]).copy()
-```
-
-#### 1b. Utterance Audio Buffer
-- Separate growable buffer, **only written to by the VAD thread**.
-- Initialized with pre-roll snapshot when entering SPEAKING.
-- Audio appended frame-by-frame by the VAD thread (not the audio callback).
-- On commit, the full audio is extracted. No tail audio is stored — the 500ms overlap is handled by including extra silence in the committed audio (the silence frames after last speech are already in the buffer before commit).
-
-```python
-class UtteranceBuffer:
-    """Growable buffer for the current utterance's audio. Single-writer (VAD thread only)."""
-    def __init__(self, sample_rate=16000):
-        self._chunks: list[np.ndarray] = []
-        self._sample_rate = sample_rate
-
-    def start(self, preroll: np.ndarray):
-        """Begin a new utterance with pre-roll audio."""
-        self._chunks = [preroll.copy()]
-
-    def append(self, samples: np.ndarray):
-        """Append a frame of audio (VAD thread only)."""
-        self._chunks.append(samples)  # no copy needed — single owner
-
-    def get_audio(self) -> np.ndarray:
-        """Return the full utterance audio."""
-        return np.concatenate(self._chunks) if self._chunks else np.array([], dtype=np.float32)
-
-    def duration_s(self) -> float:
-        return sum(len(c) for c in self._chunks) / self._sample_rate
-
-    def clear(self):
-        self._chunks.clear()
-```
-
-#### 1c. Sounddevice Callback — Minimal, No State Checks
-**File**: `live-server/vad/pipeline.py` — defined inside `VadPipeline.start()`
-
-- Current: callback appends to `audio_buffer` list under `buffer_lock`.
-- New: callback writes to the pre-roll ring buffer and enqueues the frame to `vad_queue`. **Nothing else**. No state checks, no conditional writes, no locks.
-
-```python
-def audio_callback(indata, frames, time_info, status):
-    if status:
-        logger.warning(f"Audio callback status: {status}")
-    samples = indata[:, 0].astype(np.float32)
-    preroll.write(samples)
-    try:
-        vad_queue.put_nowait(samples)
-    except queue.Full:
-        pass  # drop frame rather than block audio thread
-```
-
-**Why no utterance write here**: If the callback checks `state == SPEAKING` and writes to the utterance buffer, there's a race — the VAD thread could transition states between the check and the write. By having only the VAD thread write to the utterance buffer, we eliminate this entirely. The cost is one queue hop of latency (~96ms) which is negligible.
-
----
-
-### Phase 2: Frame-Level Silero VAD
-
-**File**: `live-server/vad/frame_vad.py`
-
-#### 2a. Silero Frame Size Constraint
-Silero VAD's per-frame `__call__` API accepts specific chunk sizes at 16kHz:
-- **512 samples** (32ms)
-- **1536 samples** (96ms)
-
-We use **1536 samples (96ms)** as both the sounddevice block size and the VAD frame size. This avoids splitting/accumulating frames and keeps the pipeline simple. The sounddevice stream is configured with `blocksize=1536`.
-
-#### 2b. Frame-Level VAD Runner
-
-```python
-class FrameVAD:
-    """Runs Silero VAD frame-by-frame with hysteresis."""
-    SILERO_FRAME_SAMPLES = 1536  # 96ms at 16kHz — required by Silero
-
-    def __init__(self, model, sample_rate=16000,
-                 speech_threshold=0.6, silence_threshold=0.4,
-                 speech_confirm_frames=2):
-        self._model = model
-        self._sr = sample_rate
-        self._speech_thresh = speech_threshold
-        self._silence_thresh = silence_threshold
-        self._confirm_frames = speech_confirm_frames  # ~192ms at 96ms/frame
-        self._consec_speech = 0
-        self._consec_silence = 0
-        self._is_speech = False
-
-    def process_frame(self, frame: np.ndarray) -> tuple[float, bool]:
-        """Process one 1536-sample audio frame. Returns (probability, is_speech).
-        Frame MUST be exactly 1536 samples (96ms at 16kHz) for Silero."""
-        assert len(frame) == self.SILERO_FRAME_SAMPLES, \
-            f"Silero requires {self.SILERO_FRAME_SAMPLES} samples, got {len(frame)}"
-        tensor = torch.from_numpy(frame)
-        prob = self._model(tensor, self._sr).item()
-
-        if prob >= self._speech_thresh:
-            self._consec_speech += 1
-            self._consec_silence = 0
-            if self._consec_speech >= self._confirm_frames:
-                self._is_speech = True
-        elif prob < self._silence_thresh:
-            self._consec_silence += 1
-            self._consec_speech = 0
-            # Don't clear is_speech here — state machine handles transition via silence duration
-        else:
-            # In hysteresis band — maintain current state, reset counters
-            self._consec_speech = 0
-            self._consec_silence = 0
-
-        return prob, self._is_speech
-
-    def reset(self):
-        """Reset state for new session."""
-        self._consec_speech = 0
-        self._consec_silence = 0
-        self._is_speech = False
-        self._model.reset_states()
-```
-
-#### 2c. Hysteresis Design
-- **Speech onset**: probability >= 0.6 for 2 consecutive frames (~192ms) before `is_speech` becomes True.
-- **Speech offset**: probability < 0.4 increments `consec_silence`, but `is_speech` stays True. The state machine uses wall-clock silence duration (not frame counts) to decide when to commit — this decouples VAD frame rate from endpointing timing.
-- **Hysteresis band** (0.4–0.6): maintain current `is_speech` state, prevents flickering.
-- Thresholds configurable via `/start` and `/config` endpoints.
-
-#### 2d. VAD Thread
-**File**: `live-server/vad/pipeline.py` — `VadPipeline._vad_thread()`
-
-- Dedicated thread reads frames from `vad_queue`.
-- Calls `FrameVAD.process_frame()` per frame.
-- **Writes the frame to the utterance buffer** (if SPEAKING) — this is the sole writer.
-- Feeds results to the state machine.
-
-```python
-def _vad_thread(vad: FrameVAD, state_machine: UtteranceStateMachine,
-                vad_queue: queue.Queue, stop_event: threading.Event):
-    """VAD processing thread — sole owner of utterance buffer writes."""
-    while not stop_event.is_set():
-        try:
-            frame = vad_queue.get(timeout=0.5)
-        except queue.Empty:
-            continue
-        prob, is_speech = vad.process_frame(frame)
-        state_machine.feed(prob, is_speech, frame)
-```
-
----
-
-### Phase 3: Utterance State Machine
-
-**File**: `live-server/vad/state_machine.py`
-
-#### 3a. States
-```
-IDLE ↔ SPEAKING
-```
-
-Only two states. COMMIT is not a state — it's an action that transitions SPEAKING→IDLE. This avoids a transient state that complicates reasoning.
-
-- **IDLE**: VAD monitoring. Pre-roll buffer filling. No utterance buffer active.
-- **SPEAKING**: Utterance buffer active. VAD thread appends every frame. Track `last_speech_time`.
-
-#### 3b. Transition Rules
-
-| From | To | Condition |
-|------|----|-----------|
-| IDLE | SPEAKING | `is_speech` becomes True (after `speech_confirm_frames` of prob >= 0.6) |
-| SPEAKING | SPEAKING | Silence exceeds `soft_commit_ms` (400ms) AND utterance > 1s AND has speech since last commit — **soft commit, stay SPEAKING** |
-| SPEAKING | IDLE | Silence exceeds `silence_commit_ms` (750ms default) since `last_speech_time` — **hard commit** |
-| SPEAKING | SPEAKING | Utterance duration exceeds `max_utterance_s` (25s default) — **force commit, seamless re-entry** |
-
-#### 3c. Three Commit Types
+*(Detailed phase-by-phase implementation specs removed. All 9 phases complete. See `live-server/vad/` source.)*
 
 | Type | Trigger | Pre-roll overlap? | Merger runs? | Next state |
 |------|---------|-------------------|-------------|------------|
 | SOFT-COMMIT | 400ms silence, mid-speech | No (pre-roll is silence) | No | SPEAKING |
+| DURATION-COMMIT | 8s continuous speech (no 400ms pause) | No (pre-roll is current speech) | No | SPEAKING |
 | COMMIT | 750ms silence, definitive pause | No (pre-roll is silence) | No | IDLE |
 | FORCE-COMMIT | 25s max duration hit | Yes (~400ms speech overlap) | Yes | SPEAKING |
+
+**DURATION-COMMIT** (added v1.8.1) prevents bulk sentence dumps when a speaker talks continuously for 8+ seconds without pausing 400ms. Without it, a 12-second continuous utterance would commit all at once, sending 3-4 sentences in a burst. With it, the utterance is split at 8s into a SOFT-COMMIT, keeping sentence delivery steady. Uses the SOFT-COMMIT type internally (same behavior: stay SPEAKING, start fresh buffer with pre-roll).
 
 **SOFT-COMMIT** is the key to low-latency sentence delivery. Speakers naturally pause 300–500ms between sentences. A 400ms soft threshold catches these pauses and commits the accumulated speech without waiting for the full 750ms hard threshold. The committed audio is sent to the transcription queue, and a fresh utterance buffer starts with a pre-roll snapshot. Since the pre-roll at a soft-commit point is silence (the speaker just paused for 400ms), there's no speech overlap — the boundary merger is not needed.
 
@@ -346,744 +140,6 @@ If silence continues past 750ms after a soft commit, the new buffer contains onl
 3. 800ms after "Second sentence.": hard commit → IDLE → Whisper transcribes → `commit: "Second sentence."`
 
 Each sentence committed individually with ~400ms + inference latency, instead of both waiting for the 800ms hard silence at the end.
-
-#### 3d. Force-Commit: Seamless Re-entry
-When force-committing (speaker still talking), the state machine does NOT go to IDLE and wait for VAD to re-detect speech. Instead:
-1. Commit current utterance audio to the transcription queue.
-2. Snapshot the current pre-roll as the start of a **new** utterance.
-3. Stay in SPEAKING state (or transition SPEAKING→IDLE→SPEAKING atomically).
-
-This eliminates the ~192ms confirmation gap where speech frames would be lost.
-
-```python
-def _force_commit(self):
-    """Force-commit without losing speech continuity."""
-    audio = self._utterance.get_audio()
-    self._utterance.clear()
-    self._commit_cb(audio, "FORCE-COMMIT")
-    # Immediately start new utterance with fresh pre-roll
-    self._utterance.start(self._preroll.read())
-    self._utterance_start_time = time.time()
-    self._last_interim_time = time.time()
-    # Stay in SPEAKING — don't transition to IDLE
-    logger.debug(f"[STATE] FORCE-COMMIT → SPEAKING (seamless re-entry)")
-```
-
-#### 3e. Implementation
-
-```python
-class State(enum.Enum):
-    IDLE = "idle"
-    SPEAKING = "speaking"
-
-class UtteranceStateMachine:
-    """Two-state machine driven by the VAD thread. Sole writer to utterance buffer."""
-    def __init__(self, preroll: PrerollBuffer, utterance: UtteranceBuffer,
-                 commit_callback,
-                 soft_commit_ms=400, silence_commit_ms=750,
-                 max_utterance_s=25,
-                 interim_queue=None, interim_interval_s=3.0):
-        self.state = State.IDLE
-        self._preroll = preroll
-        self._utterance = utterance
-        self._commit_cb = commit_callback       # (audio, commit_type) → None
-        self._interim_queue = interim_queue      # queue.Queue or None
-        self._soft_commit_s = soft_commit_ms / 1000.0
-        self._silence_commit_s = silence_commit_ms / 1000.0
-        self._max_utterance_s = max_utterance_s
-        self._interim_interval_s = interim_interval_s
-        self._last_speech_time = 0.0
-        self._utterance_start_time = 0.0
-        self._last_interim_time = 0.0
-        self._has_speech_since_commit = False    # tracks speech after soft commit
-
-    def feed(self, prob: float, is_speech: bool, frame: np.ndarray):
-        """Called from VAD thread for every audio frame."""
-        now = time.time()
-
-        if self.state == State.IDLE:
-            if is_speech:
-                # Transition IDLE → SPEAKING — grab pre-roll
-                self._utterance.start(self._preroll.read())
-                self._utterance.append(frame)
-                self._last_speech_time = now
-                self._utterance_start_time = now
-                self._last_interim_time = now
-                self._has_speech_since_commit = True
-                self.state = State.SPEAKING
-                logger.debug(f"[STATE] IDLE → SPEAKING (prob={prob:.2f})")
-
-        elif self.state == State.SPEAKING:
-            # VAD thread is the sole writer — always append
-            self._utterance.append(frame)
-
-            if is_speech:
-                self._last_speech_time = now
-                self._has_speech_since_commit = True
-
-            silence_duration = now - self._last_speech_time
-            utterance_duration = self._utterance.duration_s()
-
-            # Force commit on max duration — seamless re-entry
-            if utterance_duration >= self._max_utterance_s:
-                logger.debug(f"[STATE] FORCE-COMMIT ({utterance_duration:.1f}s)")
-                self._force_commit()
-                return
-
-            # Hard commit → IDLE (definitive pause)
-            if silence_duration >= self._silence_commit_s:
-                if self._has_speech_since_commit:
-                    logger.debug(
-                        f"[STATE] SPEAKING → IDLE "
-                        f"(silence={silence_duration:.2f}s, duration={utterance_duration:.1f}s)"
-                    )
-                    audio = self._utterance.get_audio()
-                    self._utterance.clear()
-                    self._commit_cb(audio, "COMMIT")
-                else:
-                    # No speech since last soft commit — just discard silence buffer
-                    logger.debug(f"[STATE] SPEAKING → IDLE (silence-only, discarded)")
-                    self._utterance.clear()
-                self.state = State.IDLE
-                self._has_speech_since_commit = False
-                return
-
-            # Soft commit — natural sentence pause (stay SPEAKING)
-            if (silence_duration >= self._soft_commit_s
-                    and self._has_speech_since_commit
-                    and utterance_duration >= 1.0):
-                logger.debug(
-                    f"[STATE] SOFT-COMMIT "
-                    f"(silence={silence_duration:.2f}s, duration={utterance_duration:.1f}s)"
-                )
-                audio = self._utterance.get_audio()
-                self._utterance.clear()
-                self._commit_cb(audio, "SOFT-COMMIT")
-                # Stay SPEAKING — start fresh with pre-roll
-                self._utterance.start(self._preroll.read())
-                self._utterance_start_time = now
-                self._last_interim_time = now
-                self._has_speech_since_commit = False
-                return
-
-            # Interim update — queue audio snapshot, don't block
-            if (self._interim_queue is not None
-                    and utterance_duration >= 2.0
-                    and (now - self._last_interim_time) >= self._interim_interval_s):
-                try:
-                    self._interim_queue.put_nowait(self._utterance.get_audio())
-                except queue.Full:
-                    pass  # skip interim rather than block VAD thread
-                self._last_interim_time = now
-
-    def _force_commit(self):
-        """Force-commit without losing speech continuity."""
-        audio = self._utterance.get_audio()
-        self._utterance.clear()
-        self._commit_cb(audio, "FORCE-COMMIT")
-        # Immediately start new utterance with fresh pre-roll
-        self._utterance.start(self._preroll.read())
-        self._utterance_start_time = time.time()
-        self._last_interim_time = time.time()
-        self._has_speech_since_commit = True  # speaker is still talking
-        # Stay in SPEAKING
-```
-
-#### 3f. Endpointing Rules (Strict)
-- **Single authority**: wall-clock silence duration since last speech frame. Period.
-- **Soft commit**: 400ms silence (configurable via `soft_commit_ms`). Commits audio, stays SPEAKING.
-- **Hard commit**: 750ms silence (configurable via `silence_commit_ms`). Commits audio, transitions to IDLE.
-- Do NOT combine with punctuation, transcript heuristics, or Whisper-derived silence.
-- Do NOT use `_find_sentence_boundary_segment()` or `_find_sentence_boundary_word()` for endpointing.
-- Those functions are **deleted**.
-
-#### 3g. Evaluation Order
-The silence checks are ordered: force-commit > hard commit > soft commit > interim. This ensures:
-- Force-commit always fires at max duration regardless of silence state
-- Hard commit (750ms) takes priority over soft commit (400ms) — if silence reaches 750ms, go directly to IDLE without a redundant soft commit first
-- Soft commit only fires in the 400–749ms window where the speaker paused briefly but might resume
-- Interims only fire when no commit is happening
-
----
-
-### Phase 4: Whisper Integration
-
-**Files**: `live-server/vad/merger.py` (sentence splitter), `live-server/vad/pipeline.py` (worker threads)
-
-#### 4a. Post-Commit Sentence Splitting
-
-The core insight: VAD determines **when to stop recording** (audio endpointing). Whisper determines **what was said** (transcription). After transcription, the text is split into sentences, and each sentence is broadcast as a separate `commit` event. This gives per-sentence UI updates without Whisper ever influencing audio boundaries.
-
-A speaker who says three sentences with only 300ms pauses between them produces one VAD utterance (750ms silence threshold not reached). Whisper transcribes the full audio and returns "First sentence. Second sentence. Third sentence." The sentence splitter emits three `commit` events in rapid succession.
-
-```python
-def _split_sentences(text: str) -> list[str]:
-    """Split transcribed text into sentences for per-sentence commit.
-    Only splits on strong sentence boundaries: '. ', '? ', '! ' followed by uppercase.
-    Does NOT split on abbreviations, ellipsis, or mid-sentence periods."""
-    if not text or not text.strip():
-        return []
-
-    # Match sentence-ending punctuation followed by space + uppercase letter
-    # This avoids splitting "Dr. Smith" or "U.S.A." or "3.14"
-    parts = re.split(r'(?<=[.!?])\s+(?=[A-Z])', text.strip())
-
-    # Filter empty strings and whitespace-only
-    return [p.strip() for p in parts if p.strip()]
-```
-
-**Why regex split and not Whisper segments**: Whisper segment boundaries don't correspond to sentence boundaries — a segment might contain half a sentence or two sentences. The text-level regex split is simple, robust, and language-aware enough for the major use cases (Latin-script languages with standard punctuation).
-
-**Non-Latin scripts**: For languages without uppercase (Chinese, Japanese, Arabic, etc.), the regex won't match and the full text is emitted as one commit. This is acceptable — sentence splitting is a best-effort enhancement, not a correctness requirement. Future improvement: add language-specific sentence splitters for CJK (split on `。`, `？`, `！`) and other scripts.
-
-#### 4b. Transcription Worker Thread
-- Reads committed utterances from `transcribe_queue`.
-- Runs Whisper inference with `initial_prompt` (glossary/context), hallucination check, boundary merge.
-- **Splits result into sentences** and broadcasts each as a separate `commit` event.
-- **Never blocks the VAD thread** — the commit callback just does `put_nowait`.
-
-```python
-def _transcription_worker(transcribe_queue: queue.Queue, stop_event: threading.Event,
-                          boundary_merger: BoundaryMerger, language, beam_size,
-                          initial_prompt, recent_langs, stats):
-    """Dedicated thread for Whisper inference on committed utterances."""
-    utterance_id = 0
-    while not stop_event.is_set():
-        try:
-            item = transcribe_queue.get(timeout=1.0)
-        except queue.Empty:
-            continue
-
-        audio, commit_type = item
-        utterance_id += 1
-        speech_dur = len(audio) / SAMPLE_RATE
-
-        t0 = time.time()
-        segments, info = _transcribe_whisper_cpp(
-            audio, language=language, beam_size=beam_size,
-            initial_prompt=initial_prompt,
-        )
-        inference_dur = time.time() - t0
-
-        if segments is None:
-            logger.debug(f"[WHISPER] utterance #{utterance_id}: inference error")
-            continue
-
-        detected_lang = info.language if info else ""
-        full_text = " ".join(seg.text.strip() for seg in segments if seg.text.strip())
-        if not full_text:
-            logger.debug(f"[WHISPER] utterance #{utterance_id}: empty after transcription")
-            continue
-
-        if _is_hallucination(segments, boundary_merger.last_commit_text, detected_lang, recent_langs):
-            logger.debug(f"[WHISPER] HALLUCINATION #{utterance_id}: {full_text}")
-            stats.record_hallucination()
-            continue
-
-        # Boundary merge (only for FORCE-COMMIT where audio overlap exists)
-        merged_text = boundary_merger.merge(full_text, commit_type)
-
-        # Split into sentences and broadcast each individually
-        sentences = _split_sentences(merged_text)
-        if not sentences:
-            sentences = [merged_text]  # fallback: emit as-is
-
-        for i, sentence in enumerate(sentences):
-            broadcast_event("commit", sentence, lang=detected_lang)
-            logger.debug(
-                f"[WHISPER] utterance #{utterance_id} "
-                f"sentence {i+1}/{len(sentences)}: \"{sentence}\""
-            )
-
-        logger.debug(
-            f"[WHISPER] utterance #{utterance_id}: {speech_dur:.1f}s audio → "
-            f"{inference_dur:.1f}s inference → {len(sentences)} sentence(s)"
-        )
-
-        # Record the FULL text (not individual sentences) for boundary merge context
-        boundary_merger.record_commit(merged_text)
-        stats.record_commit(commit_type.lower(), speech_dur, merged_text, detected_lang,
-                            sentence_count=len(sentences))
-        if detected_lang:
-            recent_langs.append(detected_lang)
-            if len(recent_langs) > 10:
-                recent_langs.pop(0)
-```
-
-#### 4c. Commit Callback — Non-Blocking
-The commit callback used by the state machine must never block the VAD thread:
-
-```python
-def on_commit(audio, commit_type):
-    try:
-        transcribe_queue.put_nowait((audio, commit_type))
-    except queue.Full:
-        logger.warning("[STATE] transcribe_queue full — dropping utterance")
-        stats.record_drop()
-```
-
-If the queue is full (Whisper is falling behind), we drop the utterance rather than stall VAD. This is a deliberate backpressure decision — losing one utterance is better than freezing speech detection for the entire session.
-
-#### 4d. Interim/Partial Transcript — Separate Thread
-Interim transcription must NOT run in the VAD thread (Whisper inference takes 1–5s, which would stall VAD processing for that entire duration).
-
-Instead, interims use a separate thread with its own queue:
-
-```python
-def _interim_worker(interim_queue: queue.Queue, stop_event: threading.Event,
-                    language, beam_size, initial_prompt):
-    """Dedicated thread for interim (provisional) transcription."""
-    while not stop_event.is_set():
-        try:
-            audio = interim_queue.get(timeout=1.0)
-        except queue.Empty:
-            continue
-        # Drain any stale entries — only process the latest
-        latest = audio
-        while not interim_queue.empty():
-            try:
-                latest = interim_queue.get_nowait()
-            except queue.Empty:
-                break
-
-        segments, info = _transcribe_whisper_cpp(
-            latest, language=language, beam_size=beam_size,
-            initial_prompt=initial_prompt,
-        )
-        if segments is None:
-            continue
-        text = " ".join(seg.text.strip() for seg in segments if seg.text.strip())
-        if text:
-            broadcast_event("update", text)
-            logger.debug(f"[WHISPER] INTERIM: \"{text}\"")
-```
-
-The interim worker **drains stale entries** before processing — if the speaker is talking fast and multiple interim requests pile up, only the latest one (with the most audio) is transcribed. This prevents the interim thread from falling behind.
-
-The state machine enqueues interim requests via `put_nowait` on the `interim_queue`, never blocking.
-
----
-
-### Phase 5: Segment Model & Boundary Merger
-
-**Files**: `live-server/vad/segment.py` (TranscriptSegment), `live-server/vad/merger.py` (BoundaryMerger)
-
-#### 5a. Transcript Segment
-
-```python
-@dataclasses.dataclass
-class TranscriptSegment:
-    utterance_id: int
-    start_time: float       # wall-clock seconds since session start
-    end_time: float
-    text: str
-    language: str
-    commit_type: str        # "SOFT-COMMIT" | "COMMIT" | "FORCE-COMMIT"
-    inference_duration_s: float
-    audio_duration_s: float
-```
-
-- Segments stored in an ordered list for the session.
-- Metadata retained for debug logging and future export.
-- NOT flattened into one giant transcript string.
-
-#### 5b. Boundary Merger — Commit-Type-Aware, Fuzzy Matching
-
-The merger is **only active for FORCE-COMMIT** utterances, where audio overlap actually exists (~400ms from pre-roll). For COMMIT and SOFT-COMMIT utterances (both silence-based), there is no audio overlap — the silence gap means the pre-roll of the next utterance is pure silence. Running the merger on these commits would risk stripping intentional spoken repetitions.
-
-The merger uses `SequenceMatcher` (already imported in server.py) for fuzzy matching, because Whisper can transcribe identical audio differently across runs (e.g., "the world" vs "the World").
-
-```python
-class BoundaryMerger:
-    """Deduplicates overlap between adjacent utterances at the boundary only.
-
-    ONLY active for FORCE-COMMIT utterances (where ~400ms audio overlap exists
-    from the pre-roll of the seamless re-entry). For normal COMMIT utterances
-    (silence-based), no audio overlap exists, so the merger is skipped entirely
-    to preserve intentional spoken repetitions like "thank you, thank you".
-
-    Uses fuzzy matching because Whisper can transcribe identical audio
-    differently across inference runs."""
-
-    # 400ms of audio at ~2.5 words/sec ≈ 1-2 words of actual overlap.
-    # Window of 3 gives margin for Whisper adding/removing filler words.
-    FORCE_COMMIT_MAX_WORDS = 3
-
-    def __init__(self, similarity_threshold=0.75):
-        self._sim_threshold = similarity_threshold
-        self.last_commit_text = ""
-
-    def merge(self, new_text: str, commit_type: str) -> str:
-        """Remove overlapping words from the start of new_text that
-        fuzzy-match the end of the previous commit.
-
-        Only runs for FORCE-COMMIT (audio overlap exists).
-        For COMMIT (silence-based, no overlap), returns new_text unchanged."""
-        if commit_type != "FORCE-COMMIT":
-            return new_text  # no audio overlap → no possible text overlap
-
-        if not self.last_commit_text or not new_text:
-            return new_text
-
-        prev_words = self.last_commit_text.split()
-        new_words = new_text.split()
-        if not prev_words or not new_words:
-            return new_text
-
-        # Tight window — only strip words proportional to actual audio overlap
-        search_n = min(self.FORCE_COMMIT_MAX_WORDS, len(prev_words), len(new_words))
-
-        for n in range(search_n, 0, -1):
-            prev_tail = " ".join(prev_words[-n:]).lower()
-            new_head = " ".join(new_words[:n]).lower()
-
-            # Strip punctuation for comparison
-            prev_clean = re.sub(r"[^\w\s]", "", prev_tail)
-            new_clean = re.sub(r"[^\w\s]", "", new_head)
-
-            ratio = SequenceMatcher(None, prev_clean, new_clean).ratio()
-            if ratio >= self._sim_threshold:
-                # For single-word overlap, require 4+ chars to avoid false matches
-                if n == 1 and len(prev_clean.strip()) < 4:
-                    continue
-                remaining = new_words[n:]
-                if not remaining:
-                    continue
-                stripped = " ".join(remaining)
-                logger.debug(
-                    f"[MERGE] FORCE-COMMIT: stripped {n} words (sim={ratio:.2f}): "
-                    f"{' '.join(new_words[:n])}"
-                )
-                return stripped
-
-        return new_text
-
-    def record_commit(self, text: str):
-        """Record committed text for next merge comparison."""
-        self.last_commit_text = text[-300:]  # keep last 300 chars for matching
-```
-
-#### 5c. Key Merge Rules
-- **Only runs for FORCE-COMMIT** — SOFT-COMMIT and COMMIT are both silence-based with no audio overlap, so the merger is skipped. This prevents stripping intentional spoken repetitions like "thank you, thank you" that happen to span a commit boundary.
-- Compare **only** the tail of previous utterance (last 3 words) with the head of current utterance (first 3 words).
-- **Never** perform global transcript deduplication.
-- Tight window of 3 words — proportional to the actual ~400ms audio overlap from pre-roll (~1–2 words at conversational pace). Not 8 or 10.
-- **Fuzzy matching** (SequenceMatcher ratio >= 0.75) handles Whisper transcription variance.
-- If a speaker intentionally repeats a phrase and it happens to span a force-commit boundary, the worst case is losing 1–2 words at the seam. This is an acceptable tradeoff given force-commits are rare (only at 25s+ of continuous speech).
-
-#### 5d. Why No Merger for Normal Commits
-
-Consider the scenario: Speaker says "Thank you. Thank you so much." with a 800ms pause after the first "Thank you."
-
-- VAD commits "Thank you." (silence-based, 800ms gap).
-- VAD commits "Thank you so much." (next utterance).
-
-Without the commit-type guard, the merger would see "Thank you" at the tail of commit 1 and "Thank you" at the head of commit 2, and strip it — producing "so much." instead of "Thank you so much." This would be **data loss of intentional speech**.
-
-With the guard, the merger skips normal commits entirely. Both sentences are preserved verbatim. The only place the merger runs is force-commits, where the 400ms pre-roll overlap is a known, bounded source of text duplication.
-
----
-
-### Phase 6: Wire It All Together
-
-**Files**: `live-server/vad/pipeline.py` (VadPipeline class), `live-server/server.py` (integration)
-
-#### 6a. VadPipeline Class
-**File**: `live-server/vad/pipeline.py`
-
-The pipeline orchestrator owns all queues, threads, and internal wiring. `server.py` only calls `start()` and `stop()`.
-
-```python
-class VadPipeline:
-    """Orchestrates the VAD capture pipeline: audio → VAD → Whisper → broadcast."""
-
-    def __init__(self, silero_model, config: VadConfig,
-                 transcribe_fn, broadcast_fn, hallucination_fn, stats):
-        """
-        Args:
-            silero_model: loaded Silero VAD model
-            config: VadConfig with all tuning parameters
-            transcribe_fn: (audio, language, beam_size, initial_prompt) → (segments, info)
-            broadcast_fn: (event_type, text, lang) → None
-            hallucination_fn: (segments, last_text, lang, recent_langs) → bool
-            stats: SessionStats object for telemetry
-        """
-        self._model = silero_model
-        self._config = config
-        self._transcribe_fn = transcribe_fn
-        self._broadcast_fn = broadcast_fn
-        self._hallucination_fn = hallucination_fn
-        self._stats = stats
-        self._stop_event = threading.Event()
-        self._threads = []
-
-    def start(self, stream):
-        """Start all pipeline threads and begin processing audio."""
-        ...  # creates PrerollBuffer, UtteranceBuffer, FrameVAD,
-             # UtteranceStateMachine, queues, worker threads
-
-    def stop(self):
-        """Signal all threads to stop and wait for them to finish."""
-        self._stop_event.set()
-        for t in self._threads:
-            t.join(timeout=5.0)
-
-    def update_config(self, **kwargs):
-        """Update tunable parameters at runtime (e.g. from /config endpoint)."""
-        ...
-```
-
-#### 6b. server.py Integration
-
-In `server.py`, the `/start` endpoint creates and starts the pipeline:
-
-```python
-from vad import VadPipeline, VadConfig
-
-_vad_pipeline: Optional[VadPipeline] = None
-
-def start_capture(cfg):
-    global _vad_pipeline
-    vad_config = VadConfig(
-        device_index=cfg["device_index"],
-        language=cfg.get("language", "auto"),
-        beam_size=cfg.get("beam_size", 5),
-        initial_prompt=cfg.get("initial_prompt", ""),
-        soft_commit_ms=cfg.get("soft_commit_ms", 400),
-        vad_silence_ms=cfg.get("vad_min_silence_ms", 750),
-        vad_max_segment_s=cfg.get("vad_max_segment_s", 25),
-        # ... remaining fields from cfg with defaults ...
-    )
-    _vad_pipeline = VadPipeline(
-        silero_model=_silero_vad_model,
-        config=vad_config,
-        transcribe_fn=_transcribe_whisper_cpp,
-        broadcast_fn=broadcast_event,
-        hallucination_fn=_is_hallucination,
-        stats=_session_stats,
-    )
-    _vad_pipeline.start(stream)
-```
-
-#### 6c. Thread Architecture
-```
-Main thread: starts capture, joins worker threads on stop_event
-    │
-    ├── sounddevice callback (OS audio thread)
-    │     → preroll.write(frame)
-    │     → vad_queue.put_nowait(frame)
-    │     (NEVER touches utterance buffer or state machine)
-    │
-    ├── VAD thread  ←── sole owner of utterance buffer + state machine
-    │     → reads vad_queue
-    │     → runs FrameVAD.process_frame(frame)
-    │     → state_machine.feed(prob, is_speech, frame)
-    │         ├── appends frame to utterance buffer (if SPEAKING)
-    │         ├── on commit: transcribe_queue.put_nowait(audio)
-    │         └── on interim: interim_queue.put_nowait(audio_snapshot)
-    │
-    ├── Transcription worker thread
-    │     → reads transcribe_queue
-    │     → _transcribe_whisper_cpp(audio)
-    │     → boundary_merger.merge(text)
-    │     → broadcast_event("commit", text)
-    │
-    └── Interim worker thread (optional)
-          → reads interim_queue (drains to latest)
-          → _transcribe_whisper_cpp(audio)
-          → broadcast_event("update", text)
-```
-
-**Thread count**: 4 threads total (audio callback is OS-managed). All communication is via queues — no shared mutable state, no locks.
-
-#### 6d. Sounddevice Stream Configuration
-```python
-stream = sd.InputStream(
-    samplerate=SAMPLE_RATE,
-    channels=1,
-    dtype="float32",
-    blocksize=FrameVAD.SILERO_FRAME_SAMPLES,  # 1536 samples = 96ms
-    device=device_index,
-    callback=audio_callback,
-)
-```
-
-The `blocksize=1536` ensures each callback delivers exactly one Silero-compatible frame. No accumulation or splitting needed.
-
----
-
-### Phase 7: Configuration & API Updates
-
-**Files**: `live-server/vad/__init__.py` (VadConfig dataclass), `live-server/server.py` (endpoint changes)
-
-#### 7a. New Config Parameters (via `/start` POST body and `/config` PATCH)
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `vad_speech_threshold` | 0.6 | Silero probability to confirm speech |
-| `vad_silence_threshold` | 0.4 | Silero probability to confirm silence |
-| `soft_commit_ms` | 400 | Silence duration (ms) to trigger soft commit (stay SPEAKING) |
-| `vad_silence_ms` | 750 | Silence duration (ms) to trigger hard commit (→ IDLE) |
-| `vad_max_segment_s` | 25 | Force-commit after this many seconds |
-| `vad_preroll_ms` | 400 | Pre-roll buffer duration |
-| `vad_speech_confirm_frames` | 2 | Consecutive speech frames to enter SPEAKING (~192ms) |
-| `merge_similarity_threshold` | 0.75 | SequenceMatcher ratio for fuzzy boundary match (force-commit only) |
-| `enable_interim` | true | Enable interim/partial transcript updates |
-| `interim_interval_s` | 3.0 | Seconds between interim updates while speaking |
-| `enable_sentence_split` | true | Split committed text into sentences (per-sentence commit events) |
-
-#### 7b. VadConfig Dataclass
-**File**: `live-server/vad/__init__.py`
-
-All parameters bundled into a single config object that `server.py` constructs from the `/start` POST body:
-
-```python
-@dataclasses.dataclass
-class VadConfig:
-    """Configuration for the VAD pipeline. Constructed by server.py from endpoint params."""
-    device_index: int = 0
-    language: str = "auto"
-    beam_size: int = 5
-    initial_prompt: str = ""
-    vad_speech_threshold: float = 0.6
-    vad_silence_threshold: float = 0.4
-    soft_commit_ms: int = 400
-    vad_silence_ms: int = 750
-    vad_max_segment_s: int = 25
-    vad_preroll_ms: int = 400
-    vad_speech_confirm_frames: int = 2
-    merge_similarity_threshold: float = 0.75
-    enable_interim: bool = True
-    interim_interval_s: float = 3.0
-    enable_sentence_split: bool = True
-```
-
-#### 7c. Backward Compatibility
-- Existing `vad_silence_ms` parameter (from AppConfig `LiveVadSilenceMs`) maps directly.
-- Existing `vad_max_segment_s` (from `LiveMaxSegmentSec`) maps directly.
-- `soft_commit_ms` is new — defaults to 400ms. Must be less than `vad_silence_ms` (validated on construction).
-- New parameters have sensible defaults — existing callers (LiveStreamRunner, ConversationAudioHandler) don't need changes.
-
----
-
-### Phase 8: Debug Logging & Telemetry
-
-**Files**: `live-server/vad/segment.py` (SessionStats extensions), all `vad/` modules (structured logging)
-
-#### 8a. Structured Logging
-All log lines use structured prefixes for easy filtering:
-
-| Event | Log Example |
-|-------|-------------|
-| State transition | `[STATE] IDLE → SPEAKING (prob=0.72, preroll=400ms)` |
-| VAD frame | `[VAD] prob=0.82 speech=True consec=3` (every 10th frame to avoid spam) |
-| Silence accumulating | `[STATE] silence=0.45s / 0.75s` (every 200ms while SPEAKING) |
-| Soft commit | `[STATE] SOFT-COMMIT (silence=0.42s, duration=2.8s) — stay SPEAKING` |
-| Normal commit | `[STATE] SPEAKING → IDLE (silence=0.78s, duration=3.2s)` |
-| Force commit | `[STATE] FORCE-COMMIT (25.1s) → SPEAKING (seamless)` |
-| Whisper inference | `[WHISPER] #4: 3.2s audio → 0.8s inference → "Hello world."` |
-| Boundary merge | `[MERGE] stripped 2 words (sim=0.88): "Hello world"` |
-| Hallucination | `[WHISPER] HALLUCINATION #2: "Thank you for watching"` |
-| Interim update | `[WHISPER] INTERIM: "The quick brown fox..."` |
-| Queue drop | `[STATE] transcribe_queue full — dropping utterance` |
-| Queue backlog | `[WHISPER] queue depth: 3 (transcribe), 0 (interim)` (every 10th commit) |
-
-#### 8b. SessionStats Updates
-Extend existing `SessionStats` class with new fields:
-- `total_utterances`: count of committed utterances
-- `soft_commit_count`: how many soft-commits (phrase pauses, 400ms silence)
-- `commit_count`: how many hard commits (750ms silence → IDLE)
-- `force_commit_count`: how many force-commits (max duration hit)
-- `avg_utterance_duration_s`: mean utterance length
-- `avg_silence_gap_s`: mean gap between utterances
-- `merge_strip_count`: how many times boundary merger stripped words (force-commits only)
-- `dropped_count`: utterances dropped due to full transcribe_queue
-- `total_sentences`: total sentence-level commits broadcast
-- `multi_sentence_utterances`: count of utterances that contained 2+ sentences
-- `preroll_ms`: configured pre-roll duration
-- `vad_speech_threshold`: configured threshold
-
----
-
-### Phase 9: Cleanup & Migration
-
-#### 9a. Code to Delete
-- `_capture_loop_faster_whisper()` — entire function. Faster-whisper is no longer used.
-- `_capture_loop_whisper_cpp()` — replaced by `_capture_loop_whisper_cpp_v2`.
-- `_capture_loop_whisper_cpp_no_vad()` — replaced by v2 (which has its own fallback behavior).
-- `_find_sentence_boundary_segment()` — no longer used (sentence splitting is post-commit text-level now).
-- `_find_sentence_boundary_word()` — same reason.
-- `_strip_boundary_overlap()` — replaced by `BoundaryMerger`.
-- Whisper-punctuation-based commit logic (lines 1079–1113 in current code).
-- Batch `get_speech_timestamps` call (line 1006).
-- `_cut_buffer_after()` and `_trim_buffer()` — replaced by UtteranceBuffer lifecycle.
-- `audio_buffer` list and `buffer_lock` — replaced by PrerollBuffer + UtteranceBuffer.
-- `from faster_whisper import WhisperModel` and all `_has_faster_whisper` checks.
-- `_backend == "faster-whisper"` branch in `capture_and_transcribe()`.
-- All faster-whisper model loading code (`model = WhisperModel(...)` etc.).
-
-#### 9b. Code to Keep
-- `_is_hallucination()` — still needed in transcription worker.
-- `_is_known_hallucination()` and `_load_hallucination_phrases()` — phrase blocklist.
-- `broadcast_event()` — unchanged SSE broadcast.
-- `SessionStats` — extended, not replaced.
-- `/transcribe` endpoint — one-shot transcription for conversation rooms (independent of capture loop).
-- `/devices`, `/health`, `/shutdown`, `/config`, `/stats` endpoints — unchanged.
-
-#### 9c. Code to Fix
-- **`_transcribe_whisper_cpp()`**: Add `initial_prompt` parameter. Pass it as the `prompt` field in the multipart POST to whisper-server.exe `/inference`. Currently this parameter is read from config (line 849) but never forwarded — glossary/context prompting is silently broken for whisper-cpp today.
-
-```python
-def _transcribe_whisper_cpp(audio_array: np.ndarray, language=None,
-                            beam_size=5, initial_prompt=""):
-    """Transcribe audio via whisper-server.exe /inference endpoint."""
-    ...
-    fields = {
-        "temperature": "0.0",
-        "temperature_inc": "0.2",
-        "response_format": "verbose_json",
-    }
-    if language:
-        fields["language"] = language
-    if initial_prompt:
-        fields["prompt"] = initial_prompt
-    ...
-```
-
-#### 9d. Feature Flag / Gradual Rollout
-- Add `--vad-v2` CLI flag to select pipeline version.
-- Default: `--vad-v2` ON (new pipeline). `--vad-v1` falls back to old loop.
-- After validation, remove v1 code entirely.
-
-#### 9e. .NET Faster-Whisper Removal
-Faster-whisper is no longer used anywhere in the software. Remove all references from the .NET codebase:
-
-| File | Action |
-|------|--------|
-| `Services/Stt/FasterWhisperBackend.vb` | **DELETE** entire file. |
-| `Services/Stt/SttBackendRegistry.vb` | Remove `"faster-whisper"` entry from `_backends` list. |
-| `Models/AppConfig.vb` | Remove `PathFasterWhisperModel` property. |
-| `Server/ServerOptions.vb` | Remove `WhisperModelPath` fallback branch that reads `PathFasterWhisperModel`. |
-| `Controllers/ServerController.vb` | Remove conditional that selects `PathFasterWhisperModel` vs `PathWhisperCppModel` based on `SttBackend` (lines 74–76). Always use `PathWhisperCppModel`. |
-| `Models/DependencyManager.vb` | Remove faster-whisper model download/check entries. |
-| `Forms/FormDownloadManager.vb` | Remove faster-whisper model from download list. |
-| `Forms/FormOptions.vb` | Remove faster-whisper model path control and any faster-whisper-specific UI. |
-| `Forms/FormOptions.Designer.vb` | Remove faster-whisper model path controls from Designer. |
-| `Pipeline/LiveStreamRunner.vb` | Remove any faster-whisper backend branching logic. |
-| `Services/Rooms/ConversationAudioHandler.vb` | Remove faster-whisper references if any. |
-| `Controllers/ConferenceController.vb` | Remove faster-whisper references if any. |
-| `Services/Models/SttModels.vb` | Remove faster-whisper-specific model definitions. |
-| `Services/Testing/SttComparisonRunner.vb` | Remove faster-whisper benchmark backend entry. |
-| `Forms/FormTranslationBenchmark.vb` | Remove faster-whisper from benchmark UI. |
-| `Forms/FormTranslationBenchmark.Designer.vb` | Remove faster-whisper benchmark controls. |
-| `Forms/FormMain.vb` | Remove any faster-whisper references. |
-| `Forms/FormMain.Shell.vb` | Remove any faster-whisper references. |
-| `Help/help.*.rtf` (8 files) | Update help docs to remove faster-whisper mentions. |
-| `locales/en.json` | Remove `"Opt_FasterWhisperPath"` key. |
-
-**Migration note**: Any user config JSON with `"SttBackend": "faster-whisper"` or `"PathFasterWhisperModel"` will silently fall back to defaults after removal (`SttBackend` defaults to `"whisper-cpp-vulkan"`). JSON deserialization ignores unknown properties, so the old keys won't cause errors.
-
----
 
 ### Files to Create
 
@@ -1103,9 +159,8 @@ Faster-whisper is no longer used anywhere in the software. Remove all references
 |------|--------|
 | `live-server/server.py` | Replace `_capture_loop_whisper_cpp()` call with `VadPipeline.start()`/`stop()`. Pass callbacks (`_transcribe_whisper_cpp`, `broadcast_event`, `_is_hallucination`). Update `/start` and `/config` endpoints with new VAD parameters. Fix `_transcribe_whisper_cpp()` to forward `initial_prompt`. Delete all faster-whisper code. |
 
-### .NET Faster-Whisper Removal (Phase 9e) — DONE
 
-All .NET faster-whisper references removed in commit `25b921d`. See Phase 9e above for details.
+.NET Faster-Whisper removal complete (commit `25b921d`).
 
 ### Files NOT to Modify
 
@@ -1117,26 +172,28 @@ All .NET faster-whisper references removed in commit `25b921d`. See Phase 9e abo
 | `wwwroot/js/app.js` | Web client consumes `update`/`commit` SSE events — protocol unchanged. |
 | `Models/AppConfig.vb` | Existing `LiveVadSilenceMs`, `LiveMaxSegmentSec` map to new params. New params use defaults server-side. |
 
-### Verification
+### Verification — PASSED (v1.8.1)
 
-1. **Build**: `pip install` in embedded Python still works (silero-vad, torch, sounddevice, numpy).
-2. **Startup**: `--vad-v2` flag activates new pipeline. Logs show `[STATE] IDLE` on start.
-3. **Short utterance**: Say "Hello" → pre-roll captures the "H", commit after ~750ms silence, 1 commit event = "Hello".
-4. **Soft commit (phrase pause)**: Say "First sentence." [450ms pause] "Second sentence." → soft-commit fires at 400ms for first sentence (stays SPEAKING), second sentence committed separately. Two commits, no latency waiting for 750ms.
-5. **Soft commit to hard commit**: Say "Hello world." [450ms pause, then stay silent] → soft-commit at 400ms, silence continues, but `_has_speech_since_commit` is False so hard commit at 750ms discards empty buffer (no duplicate). State → IDLE.
-6. **Multi-sentence continuous**: Say "First. Second. Third." with <400ms pauses between → 1 VAD utterance → Whisper transcribes all 3 → sentence splitter emits 3 separate `commit` events in rapid succession.
-7. **Long utterance**: Speak for 30s → force-commit at 25s with seamless re-entry, no gap, remainder continues as new utterance. Boundary merger strips ~1–2 duplicated words at the seam.
-8. **Rapid speech**: Quick back-and-forth with <400ms pauses → stays in SPEAKING, no soft commit, commits as one utterance (split into sentences).
-9. **Intentional repetition (same utterance)**: Say "Go go go" → preserved verbatim in transcript. Merger never touches intra-utterance text.
-10. **Intentional repetition (across commits)**: Say "Thank you." [800ms pause] "Thank you so much." → 2 separate commits, merger SKIPPED (normal commit, no audio overlap). Both "Thank you" preserved.
-11. **Force-commit overlap dedup**: Speak for 25s+ → force-commit boundary → merger strips 1–2 duplicated words from pre-roll overlap only.
-12. **Interim updates**: While speaking for 5s+, `update` events appear every 3s with provisional text.
-13. **Hallucination**: Silence with background noise → VAD stays IDLE, no phantom commits.
-14. **Session stability**: 30-minute continuous session → no memory leak, no buffer growth, no transcript corruption.
-15. **Backpressure**: Slow Whisper + fast speech → queue fills, oldest utterances dropped with log warning, VAD never stalls.
-16. **Frame size**: Verify sounddevice delivers exactly 1536-sample frames, Silero accepts them without error.
-17. **Non-Latin scripts**: Chinese/Japanese/Arabic text → sentence splitting has no effect (no uppercase boundary), full text emitted as single commit. No data loss.
-18. **Commit type stats**: After a mixed session, `/stats` endpoint returns `soft_commit_count`, `commit_count`, and `force_commit_count` with correct totals.
+Tested with "The Crow and the Pitcher" story read 3 times consecutively (23 utterances, 45 interims, 0 failures):
+
+1. [x] **Build**: Embedded Python loads silero-vad, torch, sounddevice, numpy successfully.
+2. [x] **Startup**: Pipeline auto-activates in whisper-cpp mode. Logs show `[PIPELINE] READY`.
+3. [x] **Short utterance**: "The Crow." → commit after ~800ms silence, 1 commit event.
+4. [x] **Soft commit (phrase pause)**: Sentence pairs separated by ~420ms pauses → soft-commit fires, stays SPEAKING.
+5. [x] **Soft commit to hard commit**: After last sentence + long silence → soft-commit, then IDLE (silence-only discarded).
+6. [x] **Multi-sentence continuous**: 2-sentence utterances → Whisper transcribes → sentence splitter emits 2 separate commits.
+7. [x] **Duration-commit**: 8s continuous speech without 400ms pause → DURATION-COMMIT fires, splits into 2 sentences, stays SPEAKING.
+8. [x] **Interim updates**: `update` events appear every ~1.5s during speech with provisional text.
+9. [x] **Session stability**: 3 consecutive readings (~2 minutes) → no hangs, no buffer growth, no transcript corruption.
+10. [x] **Whisper-server stability**: 45+ consecutive inferences with 0 timeouts (stdout=DEVNULL fix).
+11. [x] **Inference serialization**: `_whisper_lock` prevents concurrent requests, all inferences complete in 0.1-0.4s.
+12. [x] **Frame size**: sounddevice delivers exactly 512-sample frames, Silero v5 accepts them.
+13. [x] **Hallucination**: Silence between readings → VAD stays IDLE, no phantom commits.
+
+**Not yet tested:**
+- Force-commit (25s continuous speech) — not triggered in test sessions
+- Non-Latin scripts — needs multilingual testing
+- Backpressure (queue full) — would require artificially slow Whisper
 
 ---
 
@@ -1151,24 +208,9 @@ All .NET faster-whisper references removed in commit `25b921d`. See Phase 9e abo
   - **Build approach:** Extract all server logic into a shared `EveryTongue.Core` library (no WinForms references). The Windows desktop app references Core + WinForms. A new `EveryTongue.Server` console app references Core only — this is the cross-platform headless entry point. Both share the same Kestrel pipeline, DI container, and engine orchestrators.
 - Priority queue pipeline with dynamic priority scoring and backpressure/degradation
 - Mesh WiFi / mDNS service discovery for automatic server finding
-- ~~Room templates & presets~~ — DONE (v1.7.4–1.7.5). Conference templates with hosting codes, multi-pipeline, template manager UI, lobby hosting flow.
 - Session recording & per-room transcript export
-- ~~ISttBackend interface~~ — DONE (v1.7.3–1.7.5). Pluggable STT via `ISttBackend` + `SttBackendRegistry`. Factory method `SttBackendRegistry.CreateBackend(key)` used everywhere. UI fully genericized to "STT" terminology. Future engines (Vosk, Azure) just implement the interface and add one registry line.
 - Plugin auto-discovery from `plugins/` folder
 - Plugin Manager UI with model management
-- ~~Engine benchmark suite~~ — DONE (v1.7.5). Pipeline Benchmark form tests Translation, TTS, and STT stages with configurable concurrency/iterations. STT Engine Comparison benchmarks all available backends (CUDA/Vulkan/CPU) side-by-side with the same audio file, showing model load time, avg/min/max inference latency, speedup ratio, and transcribed text.
-- ~~**Cross-GPU STT (v1.8.0)**~~ — DONE. Strategy: CUDA → Vulkan → CPU. All components implemented:
-  - **Shared sidecar**: `live-server/server.py` extended with `--backend whisper-cpp` mode — starts `whisper-server.exe` as subprocess, translates `/transcribe` and live capture to whisper-server's `/inference` API.
-  - **whisper-server.exe**: Standalone C++ inference server (from whisper.cpp project). Keeps model in memory, serves `/inference` (multipart POST) and `/health`. Vulkan GPU acceleration by default, `-ng` flag for CPU-only.
-  - **Backend**: `WhisperCppBackend.vb` implements `ISttBackend` (thin adapter wrapping `LiveStreamRunner` with backend="whisper-cpp"). Single class handles both Vulkan and CPU modes via `useGpu` parameter.
-  - **Registry**: `"whisper-cpp-vulkan"` and `"whisper-cpp-cpu"` entries in `SttBackendRegistry` with `CreateBackend()` factory.
-  - **Auto-detection**: `HardwareScanner` detects CUDA (nvidia-smi) and Vulkan (vulkan-1.dll). `SuggestSttBackend()` returns best key. First-run auto-sets `AppConfig.SttBackend`.
-  - **Manual selection**: STT Engine combo on Options → Hardware panel. Re-scan auto-suggests best backend; user can override to any available engine.
-  - **Download Manager**: whisper-server.exe (Vulkan build) + GGML model (ggml-large-v3-turbo.bin) as downloadable dependencies.
-  - **Paths**: whisper-server.exe and GGML model path controls in Options → Tool Paths panel.
-  - **Benchmark**: STT Engine Comparison in Pipeline Benchmark form — tests each available backend with the same WAV file, shows side-by-side latency and speedup comparison.
-  - **Localization**: All new UI strings in 8 locale files (en, es, fr, de, ca, pt, zh, ja).
-  - **Speed**: Vulkan ~1.2-1.8x slower than CUDA. CPU ~3-6x slower. Both viable for single-stream conference use.
 
 ---
 
@@ -1190,7 +232,7 @@ Implementation plan for making Every Tongue field-deployable by a non-technical 
 | [6](#6-text-to-speech--server-side-engine) | Text-to-Speech — Server-Side Engine | Done | 4 |
 | [7](#7-portable-usb-deployment) | Portable USB Deployment | New | 5 |
 | [8](#8-crash-recovery--system-wide-resilience) | Crash Recovery — System-Wide | Improve | 2 |
-| [9](#9-multi-language-operator-ui--expand-coverage) | Multi-Language Operator UI | **Done** (core), Improve (add languages) | 2 |
+| [9](#9-multi-language-operator-ui--expand-coverage) | Multi-Language Operator UI | **Done** (core + downloadable packs), Improve (add more languages) | 2 |
 | [10](#10-session-recording--multi-format-export) | Session Recording & Export | Improve | 2 |
 | [11A](#11a-field-feedback-system) | Field Feedback System | New | 4 |
 | [11B](#11b-glossary-enrichment-pipeline) | Glossary Enrichment Pipeline | New | 4 |
@@ -1212,27 +254,6 @@ Implementation plan for making Every Tongue field-deployable by a non-technical 
 ## 1. QR Code Connection
 
 **Status:** Done. FormQrCode with QRCoder, accessible from session wizard and menu. Shows QR + URL text fallback.
-
-**Problem:** Phones currently connect by typing `https://<IP>:5081` manually. In a room of 50 people who don't speak the operator's language, this is a showstopper.
-
-**Implementation:**
-
-- Add NuGet package: `QRCoder` (pure .NET, no native dependencies, MIT license)
-- Generate QR code encoding the HTTPS URL: `https://{localIp}:{httpsPort}`
-- Display options:
-  - **Floating window:** A borderless, always-on-top Form showing the QR code at ~300x300px, draggable, closeable. Operator can position it on a projector screen or hold the laptop up
-  - **Button on Live tab:** "Show QR Code" next to the server status label
-  - **Printable:** Right-click QR window → "Copy to Clipboard" or "Save as Image" for printing handouts
-- Regenerate QR whenever the server restarts or IP changes (coordinated with network change detection in Feature #8b)
-- Below the QR code, show the URL as text fallback: `https://192.168.1.5:5081`
-- Add i18n string: `Btn_ShowQR` = "Show QR Code" across all supported locales
-
-**Files to modify:**
-- `EveryTongue.vbproj` — add QRCoder package
-- `FormMain.vb` — add button, QR generation logic, floating window
-- `Strings.*.resx` — add QR button label
-
-**Complexity:** Low. Mostly UI work around a simple library call.
 
 ---
 
@@ -1268,7 +289,7 @@ Add steps after the current two:
 **Files to modify:**
 - `FormMain.vb` — new wizard flow, event setup button
 - `AppConfig.vb` — EventProfile model, profiles list
-- `Strings.*.resx` — wizard step labels
+- `locales/*.json` — wizard step labels
 
 **Complexity:** Medium. Multi-step wizard UI with validation.
 
@@ -1307,7 +328,7 @@ Add steps after the current two:
 - `live-server/server.py` — add RMS computation in callback, add `/audio-level` endpoint
 - `FormMain.vb` — add level meter control, polling timer, warning labels
 - `FormMain.Designer.vb` — layout for meter on Live tab
-- `Strings.*.resx` — warning messages
+- `locales/*.json` — warning messages
 
 **Complexity:** Medium. The audio math is trivial; the UI polling and visual meter are the main work.
 
@@ -1315,110 +336,7 @@ Add steps after the current two:
 
 ## 4. Diagnostic Bundle / Remote Support
 
-**Status:** Done. All sub-features complete: (a) system info collector with HardwareScanner, (b) log bundling (last 30 days, compressed), (c) export button (File → Export Diagnostics with ZIP), (d) file integrity checksums with build-time manifest generation and runtime verification.
-
-**Problem:** A dev team supporting deployments across 36 countries needs to diagnose problems remotely. Currently requires back-and-forth asking operators to find and send log files.
-
-**Implementation:**
-
-### a) System Info Collector
-Gather into a single JSON object, using `HardwareScanner.vb` (shared with Feature #12) for hardware data:
-- App version, .NET version, OS version
-- Hardware profile from `HardwareScanner` — GPU, CPU, RAM, disk (same data as Feature #12, no duplication)
-- Hardware readiness score and tier classification (from Feature #12)
-- Audio devices: list from `/devices`
-- Models loaded: whisper model name/size, NLLB model path, whether GPU is being used
-- Server status: subtitle server running, ports, connected clients count
-- Server metrics snapshot (from Feature #15h) — current load, latencies, alert state
-- Config dump: sanitised AppConfig (exclude any paths with usernames if sensitive)
-- Python environment: Python version, pip package versions from both venvs
-
-### b) Log Bundler
-- Collect last 3 days of `*_pipeline-debug.log` and `*_translate-debug.log`
-- Include `live-server/server.py` stderr capture if available
-- Truncate each to last 500KB if larger
-
-### c) Export Button
-- Add "Export Diagnostics" button on Settings tab
-- Creates a ZIP file: `diagnostics_{hostname}_{datetime}.zip` containing:
-  - `system-info.json`
-  - Recent log files
-  - `glossary.json` (current glossary state)
-  - `config.json` (sanitised)
-- SaveFileDialog for the ZIP location
-- Operator emails the ZIP to the dev team
-
-### d) File Integrity Verification (Checksums)
-
-Critical files can get corrupted during USB transfers, incomplete downloads, or partial updates. A checksum system catches this before the operator wastes time troubleshooting mysterious failures.
-
-**Build-time: Generate manifest**
-- CI/CD (or `build-portable.ps1`) generates `checksums.json` at build time
-- Contains SHA256 hashes for every critical file:
-
-```json
-{
-  "generated": "2026-05-24T12:00:00Z",
-  "version": "1.3.2",
-  "files": {
-    "EveryTongue.exe": { "sha256": "a1b2c3...", "size": 152064 },
-    "EveryTongue.dll": { "sha256": "d4e5f6...", "size": 294912 },
-    "translate-server/server.py": { "sha256": "g7h8i9...", "size": 18432 },
-    "live-server/server.py": { "sha256": "j0k1l2...", "size": 24576 },
-    "translate-server/glossary.json": { "sha256": "m3n4o5...", "size": 4096 },
-    "live-server/hallucinations.json": { "sha256": "p6q7r8...", "size": 1024 }
-  },
-  "models": {
-    "nllb-model/model.bin": { "sha256": "s9t0u1...", "size": 2684354560 },
-    "whisper/ggml-medium.bin": { "sha256": "v2w3x4...", "size": 1533550592 }
-  }
-}
-```
-
-- Separate `files` (small, must match exactly) and `models` (large, hash on demand) sections
-- `checksums.json` ships alongside the app in every distribution (installer, app-only zip, portable USB)
-
-**Runtime: Integrity check**
-- **Quick check (app files):** Hash all files in the `files` section on startup or on demand — fast, < 1 second
-- **Full check (including models):** Hash model files too — slower (30-60s for multi-GB files), run on demand only
-- Compare actual SHA256 vs expected from manifest
-- Results:
-
-| Status | Meaning |
-|--------|---------|
-| **PASS** | Hash matches manifest |
-| **FAIL** | Hash mismatch — file is corrupted or has been modified |
-| **MISSING** | File not found on disk |
-| **UNTRACKED** | File exists but isn't in the manifest (not necessarily a problem) |
-| **NO MANIFEST** | `checksums.json` itself is missing — can't verify anything |
-
-**Integration points:**
-- **Diagnostics bundle:** Include `integrity-check.json` in the export ZIP with pass/fail per file. When a user reports issues, the dev team immediately sees if files are corrupted
-- **Settings tab:** "Verify Files" button — runs quick check, shows results with green/red indicators per file
-- **First-run / Event Setup:** Run quick check automatically. If any FAIL, warn: "Some files appear corrupted. Try re-downloading or re-copying from the original source."
-- **Portable USB:** Particularly important here — USB transfers are the most likely place for corruption. Run check automatically on first launch from a new location
-
-**Model file handling:**
-- Model files are too large to hash on every startup
-- Hash on demand only: "Verify Models" button (separate from quick check)
-- Cache the result: store `{hash, file_modified_date, file_size}` — only re-hash if modified date or size changes
-- If a model fails verification: "The NLLB model file appears corrupted. Delete it and re-download? [Yes / No]"
-
-### e) Optional: Health Beacon (Future)
-- If internet is available, POST a lightweight health ping (app version, uptime, error count) to a central endpoint
-- Opt-in only, disabled by default
-- Not essential for initial implementation
-
-**Files to modify:**
-- `FormMain.vb` — diagnostics export button, system info collection, verify buttons
-- New file: `Diagnostics.vb` — collector, ZIP creation, and checksum verification logic
-- New file (build-time): `generate-checksums.ps1` — script to create `checksums.json` during build/publish
-- CI workflow (`.github/workflows/`) — add checksum generation step to release pipeline
-- `Strings.*.resx` — button labels, status messages, integrity check results
-
-**Dependencies:** `System.IO.Compression`, `System.Security.Cryptography` (both built into .NET 8, no new packages needed)
-
-**Complexity:** Medium. Mostly data collection and file I/O. The checksum generation is trivial; the main work is the verification UI and integrating results into diagnostics, settings, and the setup wizard.
+**Status:** Done (a-d). System info collector (HardwareScanner), log bundling, export diagnostics ZIP, file integrity checksums with build-time manifest and runtime verification. Health beacon (e) is future/opt-in.
 
 ---
 
@@ -1459,7 +377,7 @@ Critical files can get corrupted during USB transfers, incomplete downloads, or 
 - `FormFilterEditor.vb` — simple mode toggle, import/export buttons
 - `translate-server/glossary.json` — no structural changes needed
 - New file: `glossary-packs/christian-theological.json`
-- `Strings.*.resx` — new UI labels
+- `locales/*.json` — new UI labels
 
 **Complexity:** Medium. The import/export is straightforward; the simplified UI is the main design challenge.
 
@@ -1467,72 +385,7 @@ Critical files can get corrupted during USB transfers, incomplete downloads, or 
 
 ## 6. Text-to-Speech — Server-Side Engine
 
-**Status:** Done on `feature/kestrel-migration` branch.
-
-**What's done:**
-- **(a) Server-Side TTS** — `TtsOrchestrator` implements `ITtsService`, selects best backend per language by priority. Three backends: `PiperBackend` (priority 1, local ONNX), `MmsTtsBackend` (priority 2, Python sidecar), `EdgeTtsBackend` (priority 3, cloud free, `--file` flag for safe text passing, system Python fallback). `SemaphoreSlim(3)` concurrency limiter on synthesis.
-- **TtsCache** — Ring-buffer cache in `%APPDATA%/EveryTongue/tts-cache/`, keyed by `{lang}_commit_{id}.mp3`, evicts oldest when 200 entries/lang exceeded. Hit/miss tracking.
-- **`/tts/cache/{file}` endpoint** — serves cached audio with path traversal validation.
-- **Fire-and-forget TTS pipeline** — `SubtitleService` generates TTS after each `BroadcastCommit`/`BroadcastCommitTranslated`, only for languages with connected clients. Sends `{"type":"tts","id":N,"url":"...","lang":"..."}` WebSocket message to matching clients.
-- **(c) Hybrid Approach** — "Server TTS" toggle in phone settings panel. Client uses server audio when toggled on OR when browser lacks a voice for the translation language. Falls back to `speechSynthesis` otherwise. FLORES-to-BCP47 voice detection map for 20 languages.
-- **Audio queue with skip-to-live** — sequential playback via reusable `<audio>` element. Floating "N behind — tap to skip" indicator when queue ≥ 2 items. No automatic dropping.
-- **Bible Verse TTS** — per-verse speaker button and "Read All" button on chapter/verse views. Browser-first; server fallback via `requestTts` WebSocket message with hash-based cache key.
-- **Local Audio Output (NAudio)** — `TtsAudioOutput` plays cached TTS to a configurable Windows audio output device (for PA/NDI via Virtual Audio Cable). `ServerOptions.TtsOutputDevice` / `TtsOutputVolume`. `/tts/devices` endpoint lists available devices.
-- i18n for all TTS UI strings in all 8 client languages.
-
-**Not done (future):**
-- **(b) Voice Model Management** — No Piper model download UI (Piper backend coded but no models shipped)
-- **(d) Earphone Mode** — No earphone prompt or auto-volume lowering
-- True NDI integration via SDK P/Invoke (Virtual Audio Cable approach works today)
-
-**What already exists (browser-side):**
-
-**What exists:**
-- `speechSynthesis` API in SubtitleServer.vb embedded JS (lines 1458-1505)
-- Voice dropdown populated from `synth.getVoices()`
-- Speed presets (0.7/1.0/1.3)
-- Speaks on each committed line
-- Saved to localStorage
-
-**What to improve:**
-
-### a) Server-Side TTS (Piper or Coqui)
-The browser Speech API is device-dependent — many Android phones have poor or missing voices for smaller European languages.
-
-- Add a Python TTS sidecar (similar pattern to translate-server and live-server)
-- Use **Piper TTS** (open source, offline, fast, supports 30+ languages, small models ~15-50MB each)
-- Endpoint: `POST /tts` with `{"text": "...", "language": "fra"}` → returns WAV/MP3 audio
-- Phone client requests audio from server instead of using local synthesis
-- Server generates audio once per language per committed line, cached and served as static files (see Appendix A, O4 for caching strategy)
-- Phones play audio via `<audio>` element or Web Audio API
-
-### b) Voice Model Management
-- Pre-download voice models for the event's target languages during Event Setup
-- Store in `.\tts-models\{language}\` alongside other model directories
-- Show download progress and estimated size
-- Allow offline pre-loading via USB (copy model folders)
-
-### c) Hybrid Approach
-- Default to browser Speech API (zero server load)
-- Offer "Server TTS" toggle for languages where browser voices are poor
-- Phone UI shows which mode is active
-
-### d) Earphone Mode
-- When TTS is active, show a prompt: "For best experience, use earphones"
-- Auto-lower volume between utterances to save battery
-- Queue management: if speaker talks fast, skip older utterances rather than falling behind
-
-**Files to modify:**
-- New directory: `tts-server/` with `server.py`, `requirements.txt`
-- `EveryTongue.vbproj` — embed tts-server files
-- New file: `TtsService.vb` — Python process lifecycle (follow TranslationService.vb pattern), auto-restart via watchdog (Feature #8)
-- Kestrel endpoints (Feature #15) — add `/tts/cache/{file}` static serving, `/api/tts-status` endpoint
-- `wwwroot/app.js` (after Feature #15f extraction) — audio playback, codec detection, server TTS toggle
-- `FormMain.vb` — TTS server management, model download UI
-
-**Dependencies:** piper-tts (Python package), voice model files
-
-**Complexity:** High. New sidecar service, audio streaming, model management. Biggest feature on this list.
+**Status:** Done. TtsOrchestrator with 3 backends (Piper, MMS-TTS, EdgeTTS), TtsCache ring-buffer, fire-and-forget pipeline, hybrid browser/server approach, Bible verse TTS, local NAudio output. Not done: Piper voice model download UI (b), earphone mode (d).
 
 ---
 
@@ -1637,7 +490,7 @@ The browser Speech API is device-dependent — many Android phones have poor or 
 - `wwwroot/app.js` (after Feature #15f extraction) — verify/improve WebSocket reconnection UX
 - `FormMain.vb` — watchdog timer (feeds into Feature #15h metrics), session state persistence
 - `ServerMetrics.vb` (Feature #15h) — watchdog health checks as metric data source
-- `Strings.*.resx` — status messages, reconnection labels
+- `locales/*.json` — status messages, reconnection labels
 
 **Complexity:** Medium-High. Each component needs its own recovery strategy, and they interact (e.g., restarting the live server should not lose the subtitle server's client connections).
 
@@ -1645,60 +498,35 @@ The browser Speech API is device-dependent — many Android phones have poor or 
 
 ## 9. Multi-Language Operator UI — Expand Coverage
 
-**Status:** Core localization complete (v1.6.0). Switched from `.resx`/ResourceManager to JSON-based `LanguagePackService` with 566 locale keys across 8 languages. Every user-facing string in the entire application now uses locale lookups. Testing of the full localization pass is incomplete — resume there next session.
+**Status:** Core localization complete (v1.6.0). JSON-based `LanguagePackService` with 566+ locale keys. Every user-facing string uses locale lookups. Language packs are downloadable on demand from GitHub CDN via Download Manager — the number of supported languages is unlimited and new ones can be added at any time.
 
 **What exists:**
-- `locales/*.json` — 8 locale files (en, es, fr, de, ca, pt, zh, ja), 566 keys each
+- `locales/*.json` — JSON locale files, one per language (en.json ships embedded; others downloaded on demand)
 - `LanguagePackService` singleton loads JSON at startup, with embedded en.json fallback
-- All forms localized: Options, Download Manager, Connected Clients, Session Wizard, QR Code
-- All controllers localized: Live, Translate, Transcribe, Bible, Server
-- Shell (status bar, menus, integrity check, export) and Program localized
-- Hardware scan ratings/recommendations accept LanguagePackService for localized output
-- Download Manager status logic refactored from text-based to state-based checks
+- All forms, controllers, shell, and Program localized via `GetString("key")`
 - Language packs downloadable from GitHub CDN via Download Manager
+- No hardcoded list of languages — locales are auto-discovered dynamically
 - Debug/log output intentionally remains in English
 
 **What to improve:**
 
-### a) Add Agape-Priority Languages
-New locale files needed (in priority order based on Agape's European footprint):
-
-| Language | Code | File |
-|----------|------|------|
-| Italian | it | Strings.it.resx |
-| Polish | pl | Strings.pl.resx |
-| Romanian | ro | Strings.ro.resx |
-| Dutch | nl | Strings.nl.resx |
-| Hungarian | hu | Strings.hu.resx |
-| Czech | cs | Strings.cs.resx |
-| Greek | el | Strings.el.resx |
-| Ukrainian | uk | Strings.uk.resx |
-| Russian | ru | Strings.ru.resx |
-| Croatian | hr | Strings.hr.resx |
+### a) Add More Language Packs
+Create new `locales/{code}.json` files and publish to GitHub. Priority languages for Agape's European footprint: Italian, Polish, Romanian, Dutch, Hungarian, Czech, Greek, Ukrainian, Russian, Croatian. Any volunteer can create a new language pack by translating the keys in `en.json`.
 
 ### b) Translation Workflow
-- Create a master spreadsheet (`translations.csv` or Google Sheet) with all string keys and translations
-- Script to generate `.resx` files from the spreadsheet: `build-translations.ps1`
-- Agape volunteers who speak each language can contribute translations via the spreadsheet
+- Create a master spreadsheet or tool for managing translations across all locale files
 - CI step to validate all keys are present in all locale files
+- Agape volunteers contribute translations; packs published to GitHub for download
 
-### c) Phone Client i18n Expansion
-- The embedded web client already has 8 languages (in SubtitleServer.vb JS)
-- Add the same new languages to the phone client's `i18n` object
-- Keep phone client and desktop app locale lists in sync
-
-### d) RTL Support (Future)
+### c) RTL Support (Future)
 - Not critical for European deployment, but Arabic (`ar`) would need RTL layout
 - Flag for future if Agape's Middle East/North Africa work needs it
 
 **Files to modify:**
-- New files: `Strings.it.resx`, `Strings.pl.resx`, etc. (10 new files)
-- `FormMain.vb` — expand `_uiLocales` array
-- `SubtitleServer.vb` — expand JS `i18n` object
-- New file: `build-translations.ps1` — spreadsheet-to-resx converter
-- `Strings.*.resx` — any new string keys from other features must be added to ALL locales
+- New files: `locales/{code}.json` for each new language
+- `locales/*.json` — any new string keys from features must be added to ALL existing locale files
 
-**Complexity:** Low-Medium per language (mostly translation work, not code). The tooling for sustainable translation management is the real investment.
+**Complexity:** Low per language (mostly translation work, not code).
 
 ---
 
@@ -1750,7 +578,7 @@ New locale files needed (in priority order based on Agape's European footprint):
 - `SubtitleServer.vb` — server-side translation storage, SRT generation endpoint
 - `SubtitleServer.vb` (JS) — phone client save button
 - `live-server/server.py` — optional audio recording to file
-- `Strings.*.resx` — export option labels
+- `locales/*.json` — export option labels
 
 **Complexity:** Medium. Multiple export formats, but each is straightforward. Audio recording adds the most complexity.
 
@@ -1877,7 +705,7 @@ All feedback stored as JSON for easy parsing and future aggregation:
 - `FormMain.vb` — post-session feedback prompt, session summary generation
 - New directory: `feedback/` — storage for session feedback and suggestions
 - New directory: `feedback/reports/` — auto-generated session reports
-- `Strings.*.resx` — feedback UI labels
+- `locales/*.json` — feedback UI labels
 
 **Dependencies:** None. All JSON file I/O and HTML generation using built-in .NET libraries.
 
@@ -1933,7 +761,7 @@ This avoids building any server infrastructure — it's a file-based workflow th
 **Files to modify:**
 - `FormFilterEditor.vb` — glossary suggestion review tab, approve/reject/edit workflow
 - New file: `review-tool.html` — standalone offline review page for distributed workflow
-- `Strings.*.resx` — review workflow labels
+- `locales/*.json` — review workflow labels
 
 **Dependencies:** Feature #11A (needs suggestion data to review). Feature #5 (glossary packs — extends the existing glossary editing UI).
 
@@ -2251,7 +1079,7 @@ The dev team updates `compatibility.json` based on this data each release. The f
 - New file: `compatibility.json` — curated known issues, tested devices, TTS guidance templates (ships with app, updated per release)
 - `SubtitleServer.vb` — handle device fingerprint WebSocket message, write to device log
 - New file: `feedback/device-log.json` — passive device logging (auto-created)
-- `Strings.*.resx` — compatibility warning messages, TTS guidance text
+- `locales/*.json` — compatibility warning messages, TTS guidance text
 
 **Dependencies:** None. All client-side JS detection + server-side JSON file I/O.
 
@@ -2259,154 +1087,10 @@ The dev team updates `compatibility.json` based on this data each release. The f
 
 ---
 
+
 ## 12. Hardware Readiness Score
 
-**Status:** Done. HardwareScanner detects GPU (nvidia-smi + WMI), CPU (cores + clock), RAM, disk, and OS. Weighted scoring (GPU 40%, CPU 25%, RAM 20%, Disk 10%, OS 5%) with green/amber/red traffic light. Options → Hardware panel shows score, component breakdown, and recommendations. Auto-scans on first visit. First-run flow: language picker → Options (Hardware) → Download Manager. Win 10/11 distinguished by build number.
-
-**Problem:** Someone in rural Poland installs the app on a 2015 ultrabook with integrated graphics. The app starts, everything looks fine, but transcription runs at 0.3x real-time and the translations lag 30 seconds behind the speaker. They conclude the software doesn't work. A hardware check on first run would have told them upfront: "This laptop isn't powerful enough for live transcription" — saving frustration and protecting the tool's reputation.
-
-**Implementation:**
-
-### a) Hardware Detection
-
-Collect on startup (cached, re-run on demand):
-
-| Component | Detection Method | Data Collected |
-|-----------|-----------------|----------------|
-| **GPU** | `nvidia-smi` CLI or WMI `Win32_VideoController` | Model name, VRAM (MB), CUDA capability, driver version |
-| **CPU** | WMI `Win32_Processor` | Model, core count, base clock speed, architecture |
-| **RAM** | WMI `Win32_ComputerSystem` | Total physical memory |
-| **Disk** | `DriveInfo` (.NET) | Free space on app drive |
-| **OS** | `Environment.OSVersion` | Windows version, 64-bit check |
-
-For GPU, try `nvidia-smi` first (gives CUDA version and precise VRAM). Fall back to WMI for non-NVIDIA or if `nvidia-smi` isn't in PATH. Detect AMD/Intel integrated graphics as "no CUDA" explicitly.
-
-### b) Scoring System — Score out of 100
-
-Each component scored independently, then weighted into an overall score:
-
-| Component | Weight | Scoring Criteria |
-|-----------|--------|-----------------|
-| **GPU** | 40% | NVIDIA + VRAM is the dominant factor for whisper/translation performance |
-| **CPU** | 25% | Matters for CPU-only fallback and general overhead |
-| **RAM** | 20% | Models need memory; too little causes swapping |
-| **Disk** | 10% | Models are large; need space for whisper + translation + TTS |
-| **OS** | 5% | 64-bit Windows 10+ required; older = 0 |
-
-**GPU scoring (0-100, weight 40%):**
-
-| VRAM | CUDA Compute | GPU Score |
-|------|-------------|-----------|
-| 8GB+ NVIDIA (RTX 3060+) | 7.0+ | 100 |
-| 6GB NVIDIA (RTX 2060, GTX 1660) | 6.1+ | 80 |
-| 4GB NVIDIA (GTX 1650, etc.) | 6.1+ | 55 |
-| 2GB NVIDIA or older CUDA | < 6.1 | 25 |
-| No NVIDIA (Intel/AMD integrated) | None | 10 |
-
-**CPU scoring (0-100, weight 25%):**
-
-| Cores | Clock | CPU Score |
-|-------|-------|-----------|
-| 8+ cores, 3.0GHz+ | Modern (12th gen+) | 100 |
-| 6+ cores, 2.5GHz+ | | 75 |
-| 4 cores, 2.0GHz+ | | 45 |
-| 2 cores or < 2.0GHz | | 15 |
-
-**RAM scoring (0-100, weight 20%):**
-
-| RAM | Score |
-|-----|-------|
-| 32GB+ | 100 |
-| 16GB | 85 |
-| 8GB | 50 |
-| < 8GB | 15 |
-
-**Disk scoring (0-100, weight 10%):**
-
-| Free Space | Score |
-|------------|-------|
-| 20GB+ | 100 |
-| 10-20GB | 70 |
-| 5-10GB | 40 |
-| < 5GB | 10 |
-
-**OS scoring (0-100, weight 5%):**
-
-| OS | Score |
-|----|-------|
-| Windows 10/11 64-bit | 100 |
-| Windows 10/11 32-bit | 20 |
-| Older Windows | 0 |
-
-**Overall = (GPU × 0.40) + (CPU × 0.25) + (RAM × 0.20) + (Disk × 0.10) + (OS × 0.05)**
-
-### c) Traffic Light System
-
-The overall score maps to a clear traffic light:
-
-| Score | Light | Verdict | Message |
-|-------|-------|---------|---------|
-| 75-100 | **GREEN** | Excellent | "This PC is well suited for live transcription and translation." |
-| 50-74 | **AMBER** | Adequate | "This PC can run transcription but performance may be limited. See recommendations below." |
-| 25-49 | **RED** | Poor | "This PC will struggle with live transcription. Consider using a more powerful laptop." |
-| 0-24 | **RED (dark)** | Not recommended | "This PC does not meet minimum requirements for usable live transcription." |
-
-### d) Actionable Recommendations
-
-Based on individual component scores, generate specific advice:
-
-- GPU < 50: "No NVIDIA GPU detected — transcription will run on CPU only, expect significant delays. For live use, an NVIDIA GPU with at least 4GB VRAM is strongly recommended."
-- GPU 50-70: "Your GPU has {X}GB VRAM — use the 'small' or 'base' whisper model instead of 'medium' for best real-time performance."
-- RAM < 50: "With {X}GB RAM, running transcription and translation simultaneously may cause slowdowns. Close other applications before starting."
-- Disk < 40: "Only {X}GB free disk space. You may not have room for all language models. Free up space or use an external drive."
-- CPU only (no GPU): "Without a GPU, consider using the 'tiny' or 'base' whisper model. Accuracy will be lower but speed will be usable."
-
-### e) UI Integration
-
-**Note:** This is the **server/laptop** score (out of 100). There is a separate **phone/device** suitability score (also out of 100) in Feature #11C section i. Different things, same visual language. The desktop app shows "Server Score: 78/100" for the laptop hardware. The phone client shows "Device Score: 85/100" for the phone's browser capabilities. Both use the green/amber/red traffic light system.
-
-**First-run wizard (Feature #2):**
-- Run hardware scan as the first wizard step, before anything else
-- Show the traffic light and score prominently
-- If RED: warn clearly but don't block — "You can still try, but expect limitations"
-- If GREEN: reassure and move on quickly
-
-**Settings tab:**
-- "Hardware Score" section showing:
-  - Overall score with traffic light indicator (coloured circle or icon)
-  - Component breakdown: GPU [80/100] CPU [65/100] RAM [85/100] etc.
-  - "Re-scan" button (for after hardware/driver changes)
-  - Recommendations panel
-
-**Diagnostics bundle (Feature #4):**
-- Include hardware score and component breakdown in the diagnostics export
-- When a user reports issues, the dev team immediately sees their hardware capability
-
-### f) Smart Defaults Based on Score
-
-Use the hardware score to auto-configure optimal settings:
-
-| Score Range | Auto-Configuration |
-|-------------|-------------------|
-| 75+ | Medium whisper model, translation enabled, all features on |
-| 50-74 | Small whisper model, translation enabled, warn about TTS overhead |
-| 25-49 | Base whisper model, suggest disabling translation (transcription only), longer interim intervals |
-| < 25 | Tiny whisper model, translation disabled by default, maximum interim interval |
-
-- Auto-configuration applied on first run; user can override in Settings
-- Show what was auto-configured and why: "Based on your hardware score (58/100), we've selected the 'small' whisper model for the best balance of speed and accuracy."
-
-**Files to modify:**
-- New file: `HardwareScanner.vb` — WMI queries, nvidia-smi parsing, scoring logic
-- `FormMain.vb` — hardware score display on Settings tab, first-run integration
-- `FormMain.Designer.vb` — score UI layout (traffic light, component bars, recommendations panel)
-- `AppConfig.vb` — cached hardware score, auto-configured model selections
-- `Diagnostics.vb` (Feature #4) — include hardware report in export
-- `Strings.*.resx` — score verdicts, recommendations, component labels
-
-**Dependencies:** `System.Management` (WMI, built into .NET on Windows). No external packages.
-
-**Complexity:** Medium. The WMI/nvidia-smi queries are straightforward. The scoring weights will need calibration against real hardware — initial values are estimates based on known whisper performance benchmarks, but should be validated with testing on a range of machines. The smart defaults integration touches model selection logic which needs careful testing.
+**Status:** Done. HardwareScanner detects GPU/CPU/RAM/disk/OS via WMI + nvidia-smi. Weighted scoring (GPU 40%, CPU 25%, RAM 20%, Disk 10%, OS 5%) with green/amber/red traffic light. Options → Hardware panel shows score, component breakdown, and recommendations. Auto-scans on first visit. Smart defaults based on score.
 
 ---
 
@@ -2517,7 +1201,7 @@ Spec sheet text must be translated into all supported UI languages. Key strings:
 - Tier names and descriptions
 - Component explanations ("GPU" → what it is in plain language)
 - Buying tips
-- All stored in `Strings.*.resx` alongside other UI strings
+- All stored in `locales/*.json` alongside other UI strings
 
 For languages not yet in the UI (e.g., before Feature #9 adds Polish/Romanian), generate in English with a note: "This document is not yet available in your language."
 
@@ -2526,7 +1210,7 @@ For languages not yet in the UI (e.g., before Feature #9 adds Polish/Romanian), 
 - New file: `SpecSheetGenerator.vb` — reads `specs.json` + locale, generates HTML output
 - `FormMain.vb` — "Generate Spec Sheet" button, integration with hardware score panel
 - `HardwareScanner.vb` (Feature #12) — tier classification based on `specs.json` thresholds
-- `Strings.*.resx` — spec sheet text, tier descriptions, buying tips
+- `locales/*.json` — spec sheet text, tier descriptions, buying tips
 - CI/release pipeline — checklist/reminder to update `specs.json`
 
 **Dependencies:** None. HTML generation using built-in .NET string/file operations.
@@ -2687,7 +1371,7 @@ For simplicity, apply the existing local glossary (Feature #5) as a post-process
 - `FormMain.vb` — backend selector UI, API key config, test button, usage display
 - `AppConfig.vb` — backend selection, encrypted API keys, usage counters, per-language overrides
 - `SubtitleServer.vb` — no changes needed (receives translated text from TranslationService regardless of backend)
-- `Strings.*.resx` — backend names, config labels, usage warnings
+- `locales/*.json` — backend names, config labels, usage warnings
 
 **Dependencies:** `System.Net.Http` (built into .NET 8). No external packages — all cloud APIs are simple REST endpoints.
 
@@ -2695,569 +1379,22 @@ For simplicity, apply the existing local glossary (Feature #5) as a post-process
 
 ---
 
+
 ## 15. Server Infrastructure Upgrade — Kestrel
 
-**Status:** **DONE** — Implemented on `feature/kestrel-migration` branch (13 commits). Kestrel replaces legacy SubtitleServer as the sole server. All sub-features (a-h) complete. Legacy `Pipeline/SubtitleServer.vb` is dead code.
-
-**What was built:**
-- `Server/KestrelHost.vb` — Kestrel hosted in-process on background thread, full DI container
-- `Server/EndpointRegistration.vb` — All Minimal API endpoints (health, config, control, Bible, audio, metrics, cert, nosleep)
-- `Server/ServerOptions.vb` — Config (ports, colors, BiblesDirectory, AllowRemote)
-- `Server/Middleware/` — ErrorHandlingMiddleware, RequestLoggingMiddleware
-- `Server/Hubs/SubtitleHub.vb` — WebSocket hub with backpressure
-- `Services/Subtitle/SubtitleService.vb` — ISubtitleService with broadcast, history, client management
-- `Services/Infrastructure/CertificateService.vb` — Self-signed cert (RSA 2048, SAN with local IPs)
-- `Services/Infrastructure/MetricsService.vb` — Thread-safe metrics collection
-- `wwwroot/` — Extracted static web client (index.html, css/app.css, js/app.js)
-- FormMain cutover: `SubtitleSvc` property resolves from DI, all broadcasts routed through Kestrel
-- Response compression: Brotli + Gzip (~63% reduction)
-- HTTP/2 support, proper WebSocket middleware, static file caching
-
-**Original problem description (kept for context):**
-
-Current implementation uses HttpListener (HTTP) + raw TcpListener with manual SslStream (HTTPS). Functional but not designed for scale.
-
-**Problem:** The existing SubtitleServer architecture works for 10-20 clients but has fundamental bottlenecks that prevent scaling to 100+ concurrent connections. As features grow (Bible queries, feedback endpoints, spec sheet serving, glossary suggestions, diagnostics API), the manual routing and request handling becomes increasingly fragile and hard to maintain. Every new endpoint must be duplicated across both HTTP and HTTPS code paths.
-
-### Current Architecture — What Breaks at Scale
-
-| Bottleneck | Impact |
-|-----------|--------|
-| Sequential WebSocket broadcast loop | 100 clients = 100 Task allocations per subtitle line, multiple times per second |
-| HTML page rebuilt from scratch on every request | ~150-200KB string allocation + encoding per connection, no caching |
-| HTTPS header parsing reads one byte at a time | Slow handshake under concurrent connections |
-| No response compression | 150KB HTML page × 100 clients = 15MB over Wi-Fi hotspot just for page loads |
-| Every route duplicated for HTTP and HTTPS paths | Maintenance burden, easy to miss routes on one path |
-| No static file caching | CSS, JS, images (if added) re-served from memory on each request |
-| Unbounded history queue | Multi-hour session = massive replay payload on reconnect |
-
-### Target Architecture — Kestrel
-
-Replace HttpListener + TcpListener with ASP.NET Core Kestrel, hosted in-process within the WinForms app. Kestrel is already part of the .NET 8 runtime — no new dependencies.
-
-**Implementation:**
-
-### a) Kestrel Host Inside WinForms
-
-- Create a `WebApplication` builder in a background thread at startup
-- Kestrel listens on the same ports (5080 HTTP, 5081 HTTPS)
-- Self-signed certificate loaded from existing AppData path — same cert, just configured via Kestrel options instead of manual SslStream
-- WinForms app remains the main process; Kestrel runs as a hosted service within it
-
-```
-FormMain (WinForms) ─── hosts ──→ WebApplication (Kestrel)
-                                    ├── /          (subtitle client HTML)
-                                    ├── /ws        (WebSocket endpoint)
-                                    ├── /api/...   (REST endpoints)
-                                    ├── /bible/... (Bible API — Feature #16)
-                                    └── static files (cached, compressed)
-```
-
-### b) Unified Routing
-
-All routes defined once, served over both HTTP and HTTPS automatically:
-
-```
-Current (duplicated):                    Target (unified):
-  HTTP path:  manual string matching       app.MapGet("/", ServeHtml)
-  HTTPS path: manual string matching       app.MapGet("/api/control", ControlHandler)
-  (must maintain both in sync)             app.UseWebSockets()
-                                           (one definition, both protocols)
-```
-
-New endpoints from other features slot in naturally:
-- `app.MapPost("/api/feedback", FeedbackHandler)` — Feature #11A
-- `app.MapPost("/api/glossary-suggestion", SuggestionHandler)` — Feature #11A
-- `app.MapGet("/api/diagnostics", DiagnosticsHandler)` — Feature #4
-- `app.MapGet("/api/hardware-score", HardwareHandler)` — Feature #12
-- `app.MapGet("/bible/{reference}", BibleHandler)` — Feature #16
-
-### c) Built-In Performance Features
-
-Kestrel provides out of the box:
-
-| Feature | Benefit |
-|---------|---------|
-| **Response compression** (gzip/brotli) | 150KB HTML → ~25KB compressed. 100 clients = 2.5MB instead of 15MB |
-| **Static file middleware** | Serve HTML/CSS/JS from memory cache, proper ETags, conditional GET |
-| **Connection pooling** | Efficient TCP connection reuse |
-| **HTTP/2 support** | Multiplexed connections, header compression |
-| **WebSocket middleware** | Standard upgrade handling, no manual byte parsing |
-| **Request pipeline** | Middleware chain for auth, logging, compression in correct order |
-| **Async everywhere** | True async I/O throughout, no thread-per-connection |
-| **Backpressure** | Built-in flow control for slow clients |
-
-### d) WebSocket Broadcast Improvements
-
-Replace the sequential client loop with a more efficient pattern:
-
-- **Pre-encode messages once:** JSON → bytes happens once, shared `ReadOnlyMemory<byte>` sent to all clients
-- **Parallel fan-out:** Use `Parallel.ForEachAsync` or channel-based pattern for broadcast
-- **Per-client send queue:** Instead of dropping messages when busy, queue up to N messages per client, drop oldest if full
-- **History cap:** Limit `_committedLines` to last 500 entries. Phones reconnecting after hours don't need the entire session
-
-### e) Migration Strategy
-
-This is a significant refactor but can be done incrementally:
-
-1. **Phase 1:** Stand up Kestrel alongside existing SubtitleServer, serving on different ports. Verify basic HTML + WebSocket works
-2. **Phase 2:** Migrate routes one by one from SubtitleServer to Kestrel controllers
-3. **Phase 3:** Remove HttpListener/TcpListener code entirely
-4. **Phase 4:** Add new endpoints (Bible, feedback, diagnostics) directly on Kestrel
-
-During migration, both servers can run simultaneously for testing. The phone client doesn't care which server it talks to — same WebSocket protocol, same JSON messages.
-
-### f) Extracting the HTML Client
-
-Currently the entire subtitle client (~800 lines of HTML/CSS/JS) is embedded as a VB.NET string literal in SubtitleServer.vb. This makes editing painful and prevents browser caching.
-
-With Kestrel's static file middleware:
-- Extract the client into separate files: `wwwroot/index.html`, `wwwroot/app.js`, `wwwroot/style.css`
-- Embed as .NET resources or ship as files alongside the exe
-- Browser caches JS/CSS — only fetches on version change
-- Much easier to develop and debug the web client
-- Can use proper JS tooling (linting, minification) if desired
-
-### g) HTTPS Simplification
-
-Current HTTPS is manual TcpListener → SslStream → parse HTTP headers byte by byte → route manually. With Kestrel:
-
-```vb
-webBuilder.ConfigureKestrel(Sub(opts)
-    opts.ListenAnyIP(5080)  ' HTTP
-    opts.ListenAnyIP(5081, Sub(listenOpts)
-        listenOpts.UseHttps(certPath, certPassword)  ' HTTPS
-    End Sub)
-End Sub)
-```
-
-Same self-signed cert, same ports, but all the SSL/TLS handling, HTTP parsing, and connection management is handled by battle-tested framework code.
-
-### h) Server Load Monitoring & Capacity Dashboard
-
-The operator needs to know when the system is approaching its limits — before subtitles start lagging, before audio stutters, before phones start dropping. A real-time health dashboard on the desktop app gives early warning.
-
-**Metrics to collect (sampled every 2 seconds):**
-
-| Metric | Source | What it tells you |
-|--------|--------|-------------------|
-| **Connected clients** | WebSocket client count | Are we at 20 or 95? |
-| **Clients by language** | ClientInfo dictionary | Which languages are active, load distribution |
-| **WebSocket send queue depth** | Per-client pending messages | Are clients keeping up? Rising queue = clients falling behind |
-| **Messages dropped (backpressure)** | Counter incremented on SendBusy skip | How many messages are being lost to slow clients |
-| **Broadcast latency** | Time to complete one full broadcast loop | At 20 clients: <5ms. At 100: should still be <50ms. If >200ms, clients are seeing stale text |
-| **HTTP request rate** | Kestrel request counter | Requests/sec — spikes on page load, Bible browsing |
-| **HTTP response time (p95)** | Kestrel middleware timing | Are API responses fast? >500ms means something is choking |
-| **Bytes out/sec** | Network counter | Actual bandwidth usage. Compare against Wi-Fi capacity |
-| **CPU usage** | `Process.GetCurrentProcess()` | Server process CPU — includes Kestrel, WebSocket handling, TTS generation |
-| **Memory usage** | `Process.WorkingSet64` | Memory pressure — leak detection over long sessions |
-| **GPU usage** | `nvidia-smi` query (if available) | Is whisper/translation saturating the GPU? |
-| **Transcription lag** | Time from audio capture to committed text | Is whisper keeping up with real-time speech? |
-| **Translation lag** | Time from committed text to translated text broadcast | Is the translation backend keeping up? |
-| **TTS generation time** | Time to generate audio clip | Is TTS keeping up? If generation > speech interval, audio falls behind |
-
-**Implementation:**
-
-```vb
-Public Class ServerMetrics
-    ' Gauges (current value)
-    Public Property ConnectedClients As Integer
-    Public Property ClientsByLanguage As Dictionary(Of String, Integer)
-    Public Property BytesOutPerSecond As Long
-    Public Property CpuPercent As Double
-    Public Property MemoryMB As Long
-    Public Property GpuPercent As Double
-    Public Property GpuMemoryMB As Long
-
-    ' Counters (cumulative, reset per session)
-    Public Property TotalMessagessent As Long
-    Public Property TotalMessagesDropped As Long
-    Public Property TotalHttpRequests As Long
-    Public Property TotalBytesOut As Long
-
-    ' Latencies (rolling average over last 30 seconds)
-    Public Property BroadcastLatencyMs As Double
-    Public Property HttpResponseP95Ms As Double
-    Public Property TranscriptionLagMs As Double
-    Public Property TranslationLagMs As Double
-    Public Property TtsGenerationMs As Double
-
-    ' Timestamps
-    Public Property SessionStarted As DateTime
-    Public Property LastUpdated As DateTime
-End Class
-```
-
-**Desktop UI — Status Bar + Detail Panel:**
-
-Compact status bar at the bottom of the main form (always visible during a session):
-
-```
-[Clients: 47] [CPU: 32%] [GPU: 68%] [Net: 0.8 Mbps] [Lag: 1.2s] [●●●○○]
-```
-
-The five dots are the overall health traffic light:
-- 5 green: all systems nominal
-- 4 green, 1 amber: one metric approaching limit
-- Mixed amber/red: specific problems, expand for details
-
-Click the status bar to expand a detail panel showing all metrics with live updating charts (simple bar/line graphs using GDI+ drawing — no external charting library needed):
-
-- Connection count over time (line graph)
-- Bandwidth usage over time (line graph)
-- Broadcast latency over time (line graph, with red threshold line)
-- CPU/GPU usage (bar gauges)
-- Per-language client breakdown (horizontal bars)
-- Messages dropped counter (should stay at 0 — if rising, highlight red)
-
-**Threshold-Based Alerts:**
-
-Define warning and critical thresholds:
-
-| Metric | Warning | Critical | Action |
-|--------|---------|----------|--------|
-| Connected clients | 75 | 95 | "Approaching connection limit — consider a second server" |
-| CPU usage | 70% | 90% | "High CPU — transcription may lag" |
-| GPU usage | 80% | 95% | "GPU saturated — consider smaller whisper model" |
-| Broadcast latency | 100ms | 500ms | "Subtitle delivery slowing — some phones may see delays" |
-| Messages dropped/min | 10 | 50 | "Messages being dropped — slow clients can't keep up" |
-| Transcription lag | 3s | 8s | "Transcription falling behind real-time speech" |
-| Translation lag | 2s | 5s | "Translations delayed — consider switching to cloud API" |
-| Memory usage | 2 GB | 3.5 GB | "High memory usage — long session may need restart" |
-| Bytes out/sec | 5 Mbps | 15 Mbps | "High bandwidth — check Wi-Fi capacity" |
-
-When a warning threshold is crossed:
-- Status bar dot turns amber for that category
-- Tooltip shows the specific issue
-- Log entry in pipeline debug log
-
-When critical threshold is crossed:
-- Status bar dot turns red
-- Pop-up notification (non-modal, auto-dismiss after 10 seconds): "GPU at 95% — transcription may fall behind"
-- Audible beep option (configurable — don't want it going off during a sermon)
-
-**Metrics API Endpoint:**
-
-Expose metrics via Kestrel for external monitoring or the phone admin panel:
-
-```
-GET /api/metrics → full metrics JSON (admin only)
-GET /api/health  → simple OK/WARN/CRITICAL status (public)
-```
-
-The phone admin panel (existing) can show a simplified version:
-- Traffic light indicator
-- Client count
-- "System healthy" / "System under load" / "System overloaded"
-
-**Metrics in Session Report (Feature #11A section c):**
-
-After each session, include in the auto-generated report:
-- Peak client count and when it occurred
-- Peak CPU/GPU usage
-- Total data transferred
-- Number of messages dropped (if any)
-- Any threshold alerts that fired, with timestamps
-- Session duration
-- Average and peak broadcast latency
-
-This gives the dev team performance data from real field deployments to tune thresholds and identify bottlenecks.
-
-**Metrics in Diagnostics Bundle (Feature #4):**
-
-Include a `metrics-snapshot.json` in the diagnostics ZIP:
-- Current values of all metrics
-- Last 5 minutes of metric history (sampled every 2 seconds = 150 data points)
-- Any active alerts
-- Allows the dev team to see system state at the moment the operator hit "Export Diagnostics"
-
-**Files to modify:**
-- `SubtitleServer.vb` — major refactor: replace HttpListener/TcpListener with Kestrel WebApplication host. Migrate all route handlers to Minimal API endpoints. Extract embedded HTML/JS/CSS to separate files
-- New directory: `wwwroot/` — extracted web client files (index.html, app.js, style.css)
-- New file: `ServerMetrics.vb` — metrics collection class, threshold definitions, alert logic
-- New file: `MetricsMiddleware.vb` — Kestrel middleware for request timing, byte counting
-- `FormMain.vb` — update server start/stop to use Kestrel host lifecycle, status bar with health indicators, expandable metrics detail panel
-- `FormMain.Designer.vb` — status bar layout, metrics panel controls
-- `EveryTongue.vbproj` — add `Microsoft.AspNetCore.App` framework reference (already in .NET 8 runtime, just needs the reference)
-- `AppConfig.vb` — server configuration (ports, cert path) compatible with Kestrel options, alert threshold overrides
-- `Diagnostics.vb` (Feature #4) — include metrics snapshot in diagnostics bundle
-- `Strings.*.resx` — alert messages, status bar labels, metrics panel labels
-
-**Dependencies:** `Microsoft.AspNetCore.App` framework reference (included in .NET 8 runtime — no additional download, already on every machine running the app).
-
-**Complexity:** High. This is the largest single refactor in the plan. SubtitleServer.vb is ~1870 lines with deeply intertwined HTTP handling, WebSocket management, and embedded HTML. However, the migration can be done incrementally (run both servers during transition), and the end result dramatically simplifies every subsequent feature that needs a server endpoint. The load monitoring adds moderate complexity on top (mostly sampling timers and GDI+ drawing for charts) but is essential for operating at scale. This is an investment that pays for itself across Features #1, #4, #11, #12, #13, #14, and #16.
+**Status:** Done. Kestrel replaces legacy SubtitleServer. KestrelHost.vb with DI, EndpointRegistration.vb with Minimal API, SubtitleHub.vb WebSocket hub, extracted web client (wwwroot/), response compression (Brotli + Gzip), HTTP/2, MetricsService, CertificateService. All sub-features (a-h) complete.
 
 ---
 
 ## 16. Bible Integration
 
-**Status:** Implemented. Sub-features (a)-(g) complete. (h) partially done.
-
-**What's done:**
-- **(a) Bible Data Source** — `Services/Bible/BibleService.vb` scans `Bibles/` for SQLite files (one per translation). Reads ISO language codes from DB `info` table. MyBible-compatible book numbering (10, 20, 30...). `RescanTranslations()` allows runtime refresh without restart.
-- **(b) Bible API Endpoints** — All working with `WriteAsJsonAsync()`: `/bible/translations?lang=`, `/bible/{id}/{book}/{chapter}`, `/bible/{id}/{book}/{chapter}/{verses}`, `/bible/search?q=&translation=&max=`, `/bible/parse?ref=`
-- **(c) Reference Parser** — BookAliases dictionary (English names/abbreviations), regex pattern matching for chapter:verse format. `DetectReferencesInText()` method coded.
-- **(d) Phone Client Bible Tab** — Full-screen Bible panel with: book grid (OT/NT sections), chapter grid, verse display, quick reference input ("John 3:16" + Go), full-text search (200 results), translation selector filtered by phone language, back navigation stack, i18n for all 8 languages. `refreshBibleDropdown()` updates dropdown on both WebViews without resetting navigation.
-- **(e) WebSocket Integration** — `SubtitleService.BroadcastCommit` calls `DetectReferencesInText()`, includes `refs` array in commit JSON. `CommittedEntry.BibleRefs` stores refs for history replay. Phone client renders detected references as tappable blue links that open the verse in the Bible panel.
-- **(f) Offline Bible Bundles** — Download Manager (`FormDownloadManager.vb`) fetches eBible.org catalog, downloads USFM Bibles, converts to SQLite via `UsfmConverter.vb` (USFMToolsSharp-based with workarounds for nested markers, descriptive titles, footnotes). Auto-loads cached catalog, parallel tool checking. Translation dropdown refreshes after download.
-
-**What's NOT done:**
-- **(h) Licensing agreements** — No licensing agreements for modern copyrighted translations (NIV, ESV, NLT, etc.). Currently uses public domain and freely redistributable translations from eBible.org.
-
-**Recently completed:**
-- **(g) Copyright display** — Copyright metadata stored in SQLite `info` table during USFM→SQLite conversion. `BibleService` reads `copyright` and `detailed_info` fields. Copyright footer displayed in both viewers: phone client (`appendCopyrightFooter()` in app.js) and desktop Bible tab (RichTextBox in `BibleController.DisplayVerses`). Toggleable via `AppConfig.ShowBibleCopyright` (default on) in Options → Advanced.
-
-**Original problem description (kept for context):**
-
-Not started. No Bible data, search, or verse lookup functionality exists in the application.
-
-**Problem:** Agape's work is centred on communicating the Bible across languages. When a speaker references a Bible verse, listeners need to see it in their own language — not a machine translation of the speaker's quote, but the actual published Bible text in their language. Machine-translating scripture produces approximations; serving the real text produces trust.
-
-Beyond verse display, having a searchable multilingual Bible on every listener's phone — accessible offline through the same local server — turns the transcription tool into a genuinely useful ministry companion.
-
-**Implementation:**
-
-### a) Bible Data Source
-
-Use freely available Bible translations in structured format:
-
-**Data format:** OSIS XML or USX (Unified Scripture XML) — standard Bible markup formats used by most digital Bible projects.
-
-**Sources for free/open translations:**
-- **eBible.org** — hundreds of translations in OSIS/USX format, many Creative Commons licensed
-- **Digital Bible Library (DBL)** — requires partnership agreement but has excellent coverage
-- **Crosswire** (SWORD modules) — large library, various open licenses
-
-**Storage:**
-- Pre-packaged SQLite database per language: `bibles/{lang}/bible.db`
-- Schema:
-
-```sql
-CREATE TABLE translations (
-    id TEXT PRIMARY KEY,         -- e.g., "ESV", "RVR1960", "LSG"
-    language TEXT NOT NULL,      -- FLORES/ISO code
-    name TEXT NOT NULL,          -- "English Standard Version"
-    license TEXT,                -- license info
-    copyright TEXT               -- attribution text
-);
-
-CREATE TABLE verses (
-    translation_id TEXT NOT NULL,
-    book TEXT NOT NULL,          -- "GEN", "MAT", "REV" (OSIS abbreviations)
-    chapter INTEGER NOT NULL,
-    verse INTEGER NOT NULL,
-    text TEXT NOT NULL,
-    PRIMARY KEY (translation_id, book, chapter, verse)
-);
-
-CREATE TABLE books (
-    abbrev TEXT PRIMARY KEY,     -- "GEN", "EXO", "MAT"
-    name_en TEXT NOT NULL,       -- "Genesis"
-    testament TEXT NOT NULL,     -- "OT" / "NT"
-    sort_order INTEGER NOT NULL
-);
-
--- Full-text search index
-CREATE VIRTUAL TABLE verses_fts USING fts5(text, content=verses, content_rowid=rowid);
-```
-
-- **Size estimate:** ~5MB per translation (compressed). 20 languages = ~100MB total
-- Pre-built databases shipped with the app or downloadable per language
-
-### b) Bible API Endpoints (on Kestrel — Feature #15)
-
-```
-GET  /bible/translations                    → list available translations
-GET  /bible/translations/{lang}             → translations available in a language
-GET  /bible/{translation}/books             → list of books
-GET  /bible/{translation}/{book}/{chapter}  → full chapter text
-GET  /bible/{translation}/{book}/{ch}/{vs}  → single verse
-GET  /bible/{translation}/{book}/{ch}/{vs1}-{vs2}  → verse range
-GET  /bible/search?q={query}&lang={lang}    → full-text search
-GET  /bible/reference?ref={ref}&lang={lang} → parse human reference ("John 3:16") → verse(s)
-```
-
-All endpoints return JSON:
-
-```json
-{
-  "reference": "John 3:16",
-  "translation": "LSG",
-  "language": "fra_Latn",
-  "verses": [
-    {
-      "book": "JHN",
-      "chapter": 3,
-      "verse": 16,
-      "text": "Car Dieu a tant aimé le monde qu'il a donné son Fils unique..."
-    }
-  ],
-  "copyright": "Public Domain"
-}
-```
-
-### c) Reference Parser
-
-Parse human-readable Bible references in multiple formats and languages:
-
-- English: "John 3:16", "Gen 1:1-3", "1 Cor 13:4-7", "Psalm 23"
-- Spanish: "Juan 3:16", "Gn 1:1-3"
-- French: "Jean 3:16"
-- Abbreviated: "Jn 3:16", "Gn 1:1", "Ps 23"
-- Ranges: "Matthew 5:3-12", "Romans 8:28-39"
-- Whole chapters: "Psalm 23" (no verse = full chapter)
-
-Implementation:
-- Book name alias table: `{"john": "JHN", "juan": "JHN", "jean": "JHN", "johannes": "JHN", ...}`
-- Regex pattern matching for chapter:verse[-verse] format
-- Fuzzy matching for misspelled book names
-
-### d) Phone Client — Bible Tab
-
-Add a Bible section to the phone web client (alongside the subtitle view):
-
-**Browse mode:**
-- Book list → Chapter list → Verse display
-- Translation selector (shows available translations for the client's chosen language)
-- Clean, readable typography — designed for reading scripture on a phone
-
-**Search mode:**
-- Text search box — full-text search across the selected translation
-- Results show verse reference + text with highlighted matches
-- Search in the client's language
-
-**Quick reference:**
-- Input box: type "John 3:16" → shows the verse immediately
-- Share button: copy verse text to clipboard
-
-**Integration with subtitles:**
-- When the speaker says a Bible reference and it appears in the transcript, auto-detect it and show a tappable link in the subtitle view
-- Tapping opens the verse in the Bible tab, in the listener's language
-- This is the killer feature: speaker says "turn to Romans 8:28" in Spanish, the French listener sees "Romains 8:28" as a link, taps it, and reads the actual French Bible text
-
-### e) Bible Reference Detection in Transcription
-
-Automatically detect Bible references in transcribed/translated text:
-
-- Pattern matching on the committed text for book names + chapter:verse patterns
-- When detected, enrich the WebSocket message with structured reference data:
-
-```json
-{
-  "type": "commit",
-  "text": "As it says in Romans 8:28, all things work together...",
-  "bible_refs": [
-    {"ref": "ROM.8.28", "display": "Romans 8:28", "start": 17, "end": 28}
-  ]
-}
-```
-
-- Phone client renders detected references as tappable links
-- Links fetch the verse from `/bible/reference` in the client's language
-- Graceful degradation: if the Bible translation isn't available for a language, just show the reference as plain text
-
-### f) Offline Bible Bundles — **Done**
-
-Download Manager (`FormDownloadManager.vb`) provides a GUI for browsing and downloading Bible translations from eBible.org:
-
-- Fetches and caches eBible.org translation catalog (CSV), auto-loads cached catalog on open
-- Filter by language, search by name
-- Downloads USFM files, converts to SQLite via `Services/Bible/UsfmConverter.vb` (USFMToolsSharp with pre-processing workarounds for nested `\+` markers, `\d` descriptive titles, and footnote stripping)
-- MyBible-compatible book numbering scheme (10, 20, 30... with gaps for deuterocanonical books)
-- Parallel tool checking for faster startup, single `pip show` call for dependency checking
-- Bible dropdown refreshes on both WebViews after download without resetting navigation
-- Each translation is a single SQLite file — easy to copy via USB between devices
-
-### g) Copyright and Licensing
-
-Bible translations have specific licensing requirements:
-
-- Store copyright/attribution per translation in the database
-- Display copyright notice when showing text from a copyrighted translation
-- Some translations require: display of copyright on every page, no modification of text, attribution
-- Public domain translations (KJV, LSG 1910, Reina-Valera 1909, etc.) have no restrictions
-- Modern translations (NIV, ESV, NLT) typically require licensing agreements for digital distribution
-- **Recommendation:** Start with public domain translations for each major European language, then pursue licensing for modern translations if Agape has existing agreements with publishers
-
-### h) Available Public Domain Translations (Starting Set)
-
-| Language | Translation | Year | Notes |
-|----------|------------|------|-------|
-| English | KJV (King James Version) | 1769 | Public domain worldwide |
-| Spanish | RVA (Reina-Valera Antigua) | 1909 | Public domain |
-| French | LSG (Louis Segond) | 1910 | Public domain |
-| Portuguese | ARA (Almeida Revisada) | 1959 | Public domain in many jurisdictions |
-| German | Luther 1912 | 1912 | Public domain |
-| Italian | Diodati | 1894 | Public domain |
-| Romanian | Cornilescu | 1924 | Public domain |
-| Dutch | SVV (Statenvertaling) | 1750 | Public domain |
-| Polish | BG (Biblia Gdańska) | 1881 | Public domain |
-| Russian | Synodal | 1876 | Public domain |
-| Czech | Kralická | 1613 | Public domain |
-| Hungarian | Károli | 1908 | Public domain |
-| Greek | Modern Greek NT | Various | Several public domain options |
-| Ukrainian | Ogienko | 1962 | Public domain |
-| Croatian | Šarić | 1942 | Check status per jurisdiction |
-
-This gives baseline coverage for the majority of Agape's European footprint using freely distributable texts.
-
-**Key files:**
-- `Bibles/` — SQLite database files (one per translation, e.g. `eng-kjv2006.db`)
-- `Services/Bible/BibleService.vb` — database access, translation scanning, search
-- `Services/Bible/UsfmConverter.vb` — USFM-to-SQLite converter (USFMToolsSharp)
-- `Services/Interfaces/IBibleService.vb` — interface with `RescanTranslations()`
-- `Server/EndpointRegistration.vb` — Bible API endpoints on Kestrel
-- `Forms/FormDownloadManager.vb` — eBible.org catalog browser and download UI
-- `wwwroot/index.html` / `wwwroot/js/app.js` — Bible panel UI, `refreshBibleDropdown()`
-- `Forms/FormMain.vb` — `OpenDownloadManager()` triggers rescan and dropdown refresh on both WebViews
-- `FormMain.vb` — Bible translation management UI (download, select available translations)
-- `AppConfig.vb` — selected Bible translations per language
-- `Strings.*.resx` — Bible UI labels, book names (if localised in desktop app)
-- `EveryTongue.vbproj` — add `Microsoft.Data.Sqlite` NuGet package
-
-**Dependencies:**
-- `Microsoft.Data.Sqlite` — lightweight SQLite access for .NET (NuGet package, ~1MB)
-- Bible source data from eBible.org or equivalent (build-time dependency for creating databases)
-
-**Complexity:** High. Multiple components: data pipeline (OSIS→SQLite), API layer, phone client UI, reference parser, transcript integration. However, each piece is independently useful — even just the Bible browse/search tab without transcript integration adds significant value. Build incrementally:
-1. First: SQLite database + API endpoints + phone browse UI
-2. Then: search functionality
-3. Then: reference detection in transcriptions
-4. Then: auto-linking in subtitle view
+**Status:** Done (a-g). BibleService with SQLite, Bible API endpoints, reference parser, phone client Bible panel (browse/search/quick-ref), WebSocket Bible reference detection, eBible.org download + USFM→SQLite conversion, copyright display. Not done: (h) licensing agreements for modern copyrighted translations.
 
 ---
 
 ## 17. Text Chat in Rooms
 
-**Status:** New
-
-**Problem:** Not everyone can or wants to speak aloud — noisy environments, speech impairments, privacy needs, or simply wanting to type quickly. Currently conversation rooms are audio-only (push-to-talk). Users should also be able to type a message that gets translated and delivered to room members, just like a spoken PTT message.
-
-**Implementation:**
-
-#### a) Chat input on phone client
-- Text input field in the room UI (below the PTT button)
-- User types a message, hits Send
-- Message sent to server via WebSocket as a text message (not audio)
-- Server translates the text to each room member's language using the same translation pipeline
-- Broadcast to room members as a commit, same as PTT results
-
-#### b) Server-side handling
-- New WebSocket message type: `{type: "chatMessage", text: "...", room: "..."}`
-- `ConversationAudioHandler` or a new handler receives the text
-- Skips STT (text is already text) — goes straight to translation
-- Broadcasts translated text to room members with speaker identity
-- Self-echo: sender sees their own message in the chat
-
-#### c) Mixed-mode conversation
-- PTT audio messages and typed messages interleave naturally in the same transcript view
-- Both show with speaker identity and language tag
-- Typed messages could have a subtle visual indicator (e.g. no audio icon) to distinguish from spoken ones
-
-**Files to modify:**
-- `wwwroot/js/app.js` — add text input UI in room mode, send chatMessage via WebSocket
-- `Server/Hubs/SubtitleHub.vb` — handle new chatMessage type
-- `Services/Rooms/ConversationAudioHandler.vb` — add text-only translate+broadcast path (skip STT/FFmpeg)
+**Status:** Done. Type-to-translate in conversation rooms, same translation pipeline as PTT audio. WebSocket chatMessage type, server-side translation + broadcast, mixed audio/text conversation.
 
 ---
 
@@ -3290,225 +1427,41 @@ This gives baseline coverage for the majority of Agape's European footprint usin
 **Files to modify:**
 - `Controllers/TranslateController.vb` — add dictation logic, mic capture, STT calls
 - `Forms/FormMain.Designer.vb` — add dictation button to Translate workspace UI
-- `Resources/Strings.resx` (+ all locales) — add dictation button label/tooltip strings
+- `locales/*.json` — add dictation button label/tooltip strings
 
 ---
 
+
 ## 19. Rooms — Multi-Room Translation
 
-**Status:** Room Governance complete. All core infrastructure + governance working.
-
-**Vision:** Transform EveryTongue from a single-session transcription tool into a building-wide, multi-room translation platform. One server, many rooms, every language, no internet required. The desktop app becomes a headless translation server — the phone web client is the primary UI.
-
-**What's done:**
-- Room data model (`Room`, `RoomManager`, `RoomConfig`, `RoomType`, `RoomVisibility`, `VirtualMember`)
-- REST API: create/list/join/close rooms, per-room QR codes, host claim, kick, lock, PTT mode, virtual members
-- WebSocket routing: clients subscribe to rooms, messages route per-room
-- Web client lobby with "Your Rooms" section (localStorage host token persistence)
-- Conversation rooms: bidirectional PTT audio via MediaRecorder + FFmpeg + Whisper
-- Translation pipeline: PTT -> FFmpeg -> Whisper -> translation sidecar -> broadcast to room members
-- Self-echo: speakers see their own text in the conversation
-- Language forcing: client's language setting passed to Whisper (no more wrong language detection)
-- Auto-start: Whisper and translation sidecar start at app launch, ready for first message
-- Room lifecycle: idle expiry, host-only close, private rooms hidden from lobby
-- Room isolation: room messages don't leak to desktop Live workspace or other rooms
-- Host controls: end room, lock room, kick participant, PTT mode toggle (hold/tap)
-- Host reconnection: auto-reclaim host via stored token when rejoining from "Your Rooms"
-- Display names: auto-assigned "GuestNNNN", broadcast via memberUpdated to all room members
-- Participant bar: static HTML element, room name + count, expandable with name chips, kick buttons via event delegation
-- Virtual members (shared device): host adds guests without phones, identity selector chips in PTT dock
-- Shared-device language switching: server sends all translations dict, client caches transcript and re-renders on identity switch
-- Text chat: type-to-translate in conversation rooms, same pipeline as PTT audio
-- Speaker colours: each speaker gets a consistent colour from a 12-colour palette
-- Language tags show source language (what was spoken), not translation target
-- Conference room targeting: desktop `TargetRoomId` property routes Live STT to a specific room
-- Toolbar embedded in status bar (no longer overlays participant bar)
+**Status:** Room Governance complete. All core infrastructure working. See Plan Status Summary for full feature list.
 
 ### Remaining
-
-#### e) Per-client TTS streams — DONE
-- Read Aloud works in rooms: `speak()` sends `requestTts` to server when Every Tongue Voices selected, uses browser voice otherwise
-- Server TTS (Piper/MMS-TTS) generates audio in the text's language via existing `requestTts` handler
-- Per-line speak button works with both server and browser TTS
-- Room commit `lang` field now reflects the actual text language (target lang for translated text, source for original) so TTS picks the correct voice
-- Per-window sessionStorage prevents two browser tabs from sharing voice/language settings
-
-#### f) Conversation room UI polish — DONE
-- [x] Active speaker indicator — recording banner ("Recording...") for self, "[Name] speaking..." banner for others, pulsing red PTT button animation
-- [x] Speaker names with colours in transcript
-- [x] End Room no longer double-confirms
-
 
 #### g) Desktop server dashboard
 - Simple overview on the desktop app: active rooms, total clients, resource usage
 - Conference room dropdown on Live workspace (server-side `TargetRoomId` ready, ComboBox UI not yet added)
 - No room creation/management from desktop — that's the phone's job
 
-**Files implemented:**
-- `Services/Rooms/RoomModels.vb` — Room, RoomConfig, RoomType, RoomVisibility, VirtualMember
-- `Services/Rooms/RoomManager.vb` — create, list, join, leave, close, idle cleanup, host claim, kick, lock, virtual members
-- `Services/Rooms/ConversationAudioHandler.vb` — PTT audio processing, text chat, FFmpeg, Whisper, translation with sentence splitting (reuses TranslateController.SplitIntoLines), shared-device multi-translation broadcast, per-client lang tag
-- `Services/Subtitle/ClientConnection.vb` — DisplayName, SpeakingAsVirtualMemberId
-- `Services/Interfaces/ISttBackend.vb` — pluggable STT engine interface
-- `Services/Models/SttModels.vb` — SttOutputEventArgs, SttConfig, AudioDeviceInfo
-- `Services/Stt/SttBackendRegistry.vb` — STT engine registry (mirrors TTS/Translation registries)
-- `Services/Stt/WhisperCppBackend.vb` — wraps LiveStreamRunner as ISttBackend (Vulkan + CPU modes)
-- `Server/EndpointRegistration.vb` — room REST API + governance endpoints
-- `Server/Hubs/SubtitleHub.vb` — room message handling (setDisplayName, speakAs, chatMessage), member broadcasts
-- `wwwroot/js/app.js` — PTT, text chat, host controls, participant bar, virtual members, identity switching, speaker colours, transcript cache
-- `wwwroot/js/lobby.js` — "Your Rooms" with localStorage, host token storage
-- `wwwroot/lobby.html` — "Your Rooms" section markup
-- `wwwroot/index.html` — participant bar, toolbar in status bar
-
-### Architecture
-
-```
-                    +---------------------------+
-                    |    Translation Server      |
-                    |    (headless PC / laptop)   |
-                    |                             |
-                    |  +--------+  +-----------+  |
-                    |  | Whisper |  | Translate |  |
-                    |  |  (STT)  |  | (sidecar) |  |
-                    |  +--------+  +-----------+  |
-                    |  +---------+  +----------+  |
-                    |  | Piper / |  |   Room    |  |
-                    |  | MMS-TTS |  |  Manager  |  |
-                    |  +---------+  +----------+  |
-                    |        |           |         |
-                    |     Kestrel WebSocket Hub    |
-                    +-------------|---------------+
-                                  |
-                          Local WiFi / Mesh
-                        /    |     |      \
-                    Phone  Phone  Phone  Phone
-                    (ar)   (sq)   (en)   (fr)
-                      |
-                  creates room,
-                  shows QR to others
-```
-
-### Room Types
-
-| Type | Description | Audio Flow | Example |
-|------|-------------|------------|---------|
-| **Conference** | One speaker, many listeners | Unidirectional: speaker mic -> server -> TTS/subtitles to all clients | Sunday service, group briefing, training session |
-| **Conversation** | Small group, everyone speaks | Bidirectional: each client captures + receives audio | Doctor-patient consultation, intake interview, small meeting |
-
-### Technical Decisions (resolved)
-
-- **Audio format:** WebM/Opus via MediaRecorder (smaller than PCM, server converts with FFmpeg)
-- **Whisper concurrency:** One shared instance with room-tagged queuing (GPU memory constraint)
-- **Interaction mode:** Push-to-talk (simpler, avoids cross-talk and echo cancellation)
-- **Room persistence:** Memory-only (lost on restart) — sufficient for v1
-- **Language forcing:** Client's FLORES language code converted to Whisper code, passed via `?lang=` param
-
-### Hardware Implications
-
-| Scenario | Rooms | Estimated GPU Load | Recommended |
-|----------|-------|--------------------|-------------|
-| Small church | 1 Conference | Low | Any NVIDIA GPU |
-| Aid centre, basic | 3-5 Conference | Medium | RTX 3060+ (8GB VRAM) |
-| Aid centre, full | 2 Conference + 5 Conversation | High | RTX 4070+ (12GB VRAM) |
-| Large campus | 10+ mixed rooms | Very high | Dedicated server with RTX 4090 or A4000 |
-
-Conversation rooms are the most expensive: a 5-person conversation = 5x Whisper load vs a 50-person conference = 1x Whisper load.
-
 ### Future: Priority Queue Pipeline
 
-When multiple rooms run concurrently, the server has three bottlenecks: Whisper (STT), translation sidecar, and TTS. Each gets a priority queue so the system degrades gracefully under load.
-
-```
-Audio in -> [STT Queue] -> Whisper -> [Translation Queue] -> Translate -> [TTS Queue] -> Piper/MMS -> Client
-```
-
-**Dynamic priority scoring** — the system observes interaction patterns and adapts:
-
-| Room type | Base priority | Reasoning |
-|---|---|---|
-| Conversation | High | Interactive — people waiting on each other |
-| Conference | Medium | One-way — listeners tolerate slight delay |
-
-| Signal | Effect |
-|---|---|
-| Fast turn-taking | Boost priority |
-| Just spoke (waiting for translation) | Spike priority temporarily |
-| Idle 30+ seconds | Drop to base |
-| Queue age too high | Promote to prevent starvation |
-
-**Backpressure/degradation** (applied automatically, lowest priority first):
-- Switch to smaller Whisper model (medium -> small -> base)
-- Increase segment batching (higher latency, fewer Whisper calls)
-- Skip TTS, fall back to subtitles only
-- Clients in degraded rooms see "high demand — reduced quality" indicator
+When multiple rooms run concurrently, STT/translation/TTS become bottlenecks. Each gets a priority queue with dynamic scoring (Conversation > Conference, fast turn-taking boosted, starvation prevention). Backpressure: switch to smaller model, increase batching, skip TTS, show "high demand" indicator.
 
 ### Future: Plugin Architecture
 
-**Goal:** Drop a DLL into `plugins/`, EveryTongue discovers it at startup, registers it alongside built-in engines. No source changes needed.
-
-**What exists today:**
-- `ITtsBackend` + `TtsBackendRegistry` — pluggable TTS (Piper, MMS-TTS, EdgeTTS)
-- `ITranslationBackend` + `TranslationBackendRegistry` — pluggable translation (Local, Cloud APIs)
-- `ISttBackend` + `SttBackendRegistry` — pluggable STT (`WhisperCppBackend` wraps `LiveStreamRunner`). Uses `ISttBackend` exclusively.
-
-**What's needed:**
-- Plugin auto-discovery: scan `plugins/` for DLLs implementing engine interfaces, register in DI
-- Plugin Manager UI: list/enable/disable plugins, model management (download/delete/activate), benchmark results
-- Benchmark suite: standardised speed/quality/latency/resource tests for STT, Translation, and TTS engines
+Auto-discovery from `plugins/` folder. Plugin Manager UI with model management. Benchmark suite for standardised engine testing. Existing registries (ISttBackend, ITranslationBackend, ITtsBackend) are the foundation.
 
 ---
 
 ## Implementation Order
 
-Recommended sequence based on impact, dependencies, and complexity. Designed for a solo developer with a 300-person church congregation as a live testing environment.
-
-### Phase 1 — Quick Wins (no server changes, high visibility)
-
-These features require zero new SubtitleServer endpoints. They deliver immediate, visible value to the congregation.
-
-1. **QR Code Connection (#1)** — biggest UX win, low effort. People can connect by pointing their phone camera at a code instead of typing an IP address
-2. **Hardware Readiness Score (#12)** — catches bad hardware immediately. Prevents wasted setup time on underpowered machines
-3. **Recommended Specifications Generator (#13)** — ties into hardware score. Answers "what laptop should we buy?"
-4. **Audio Level Monitor (#3)** — Python endpoint + VB.NET polling. Prevents the #1 failure mode (bad audio → garbage transcription)
-5. **Diagnostic Bundle (#4)** — uses HardwareScanner from #12. Enables remote support from day one
-
-### Phase 2 — Operator Experience (still no server changes)
-
-6. **Setup Wizard expansion (#2)** — integrates QR, audio monitor, hardware score from Phase 1. The wizard becomes a comprehensive pre-event checklist
-7. **Crash Recovery (#8)** — watchdog, session persistence, auto-restart. Reliability for unsupervised operation
-8. **Glossary Packs (#5)** — import/export, simplified editing UI. Christian terminology for Agape's context
-9. **Multi-Language UI expansion (#9)** — add 10 locale files for Agape's European footprint. Can run in parallel with other work (requires volunteer translators)
-10. **Session Export (#10)** — multi-format transcript output. Multiplies the value of each session
-
-### Phase 3 — Kestrel Migration (#15) ✅ DONE
-
-~~Do this AFTER 10 features are shipped and battle-tested.~~ Completed early on `feature/kestrel-migration` branch (12 commits).
-
-Delivered:
-- Unified routing (no HTTP/HTTPS duplication)
-- Response compression (Brotli + Gzip, ~63% reduction)
-- Static file caching with ETags
-- Extracted web client (`wwwroot/` — no more HTML-in-VB-strings)
-- Server load monitoring and capacity dashboard (section 15h)
-- DI container with all services (subtitle, Bible, translation, TTS, audio, metrics)
-
-### Phase 4 — Features that benefit from Kestrel
-
-These features either require new HTTP endpoints (easier on Kestrel) or benefit from the extracted web client.
-
-11. **Device Compatibility & Suitability Scoring (#11C)** — can partially ship pre-Kestrel via WebSocket + client-side checks. Full implementation benefits from Kestrel's static file serving for `compatibility.json`
-12. **Field Feedback System (#11A)** — POST endpoints for feedback/suggestions. Simple on Kestrel, duplicated work on old architecture
-13. **Glossary Enrichment Pipeline (#11B)** — depends on #11A for suggestion data. Desktop-side review UI
-14. **Pluggable Translation Backends (#14)** — pure VB.NET abstraction layer, no server needed. But pairs well with Kestrel for status/config API endpoints
-15. **Server-Side TTS (#6)** — Python sidecar + cached audio served via Kestrel static files. High value but high complexity
-16. **Bible Integration (#16)** ✅ — REST API with parameterized routes, phone client Bible tab with browse/search/quick-ref, tappable Bible reference links in subtitles
-
-### Phase 5 — Maximum Portability
-
-17. **Portable USB Deployment (#7)** — last, when the feature set is stable. Cross-cutting concern that touches path resolution everywhere. Bible databases, TTS voice models, and all other assets bundled for offline USB deployment
+Phase 1 (Quick Wins): #1 QR ✅, #12 Hardware ✅, #13 Spec Sheet, #3 Audio Monitor, #4 Diagnostics ✅
+Phase 2 (Operator Experience): #2 Setup Wizard, #8 Crash Recovery, #5 Glossary, #9 Localization, #10 Session Export
+Phase 3 (Kestrel): ✅ DONE
+Phase 4 (Kestrel-dependent): #11C Device Compat, #11A Feedback, #11B Glossary Enrichment, #14 Cloud Translation, #6 TTS ✅, #16 Bible ✅
+Phase 5 (Portability): #7 Portable USB
 
 ---
-
 ## Appendix A: Bandwidth Analysis & Optimization Strategy
 
 ### Raw Bandwidth Requirements (100 Concurrent Clients)
@@ -3894,7 +1847,7 @@ before anything else. This sets the UI language for the entire application.
 - "More languages..." expands to show all supported languages (auto-translated UI)
 - Selecting a language immediately applies it and proceeds to the main window
 - The choice is saved in config; can be changed later via View > Language or Options > General
-- If the selected language has no `.resx` yet, the editor auto-generates one via local translation on the spot
+- If the selected language has no locale JSON yet, the editor auto-generates one via local translation on the spot
 
 **Implementation:** `FormLanguagePicker.vb` — shown once on first run, before FormMain loads.
 
@@ -4494,24 +2447,15 @@ When running from USB (`portable.flag` detected):
 
 A two-tier localization system: an **in-app Localization Editor** for end users and
 translators, backed by local translation (NLLB/MADLAD) for auto-translation, plus a **CLI script** for developer
-batch operations. Both read/write the same `.resx` files and use the same
+batch operations. Both read/write the same `locales/*.json` files and use the same
 `auto`/`human` tracking mechanism.
 
 ### Tracking: auto vs human
 
-Each `.resx` `<data>` entry uses the `<comment>` element to track its source:
-
-```xml
-<!-- Auto-translated — will be overwritten on next auto-generate -->
-<data name="Btn_Start"><value>Iniciar</value><comment>auto</comment></data>
-
-<!-- Human-submitted — protected from auto-overwrite -->
-<data name="Btn_Stop"><value>Detener</value><comment>human</comment></data>
-```
+Each locale JSON entry can be tracked as auto-translated or human-verified:
 
 - `auto` — machine-translated via local translation, regenerated on demand
 - `human` — submitted by a native speaker, permanently locked from auto-overwrite
-- (missing comment) — treated as `auto` for legacy entries on first run
 
 ### In-App Localization Editor (Tools > Localization Editor)
 
@@ -4548,7 +2492,7 @@ This is the primary way translators interact with localizations.
 **Editor features:**
 
 - **Language selector** — dropdown of existing locales + "New Language" to create one from scratch
-- **New Language** — prompts for locale code and display name, creates a new `.resx` with all keys
+- **New Language** — prompts for locale code and display name, creates a new `locales/{code}.json` with all keys
   auto-translated via local translation in one pass
 - **DataGridView** — key, English source, current translation, status indicator
 - **Inline editing** — click a translation cell to edit; saving marks it `human`
@@ -4560,7 +2504,7 @@ This is the primary way translators interact with localizations.
 - **Export Template CSV** — for offline editing or sending to a volunteer
 - **Import Template CSV** — loads a completed CSV, marks imported entries `human`
 - **Reset Selected to Auto** — demotes selected rows back to `auto` (bad human translation)
-- **Save** — writes the `.resx` file and regenerates the `app.js` i18n block
+- **Save** — writes the locale JSON file
 
 **Local translation integration:**
 
@@ -4582,7 +2526,7 @@ any external API or internet connection.
 | `--import file.csv --lang es` | Import volunteer translations, mark as `human` |
 | `--reset-keys "X,Y" --lang es` | Demote specific keys back to `auto` |
 | `--status` | Summary table: per-language counts of human vs auto vs missing |
-| `--generate-js` | Regenerate `app.js` i18n block from all `.resx` files |
+| `--generate-js` | Regenerate `app.js` i18n block from all locale JSON files |
 
 ### Volunteer workflow
 
@@ -4601,7 +2545,7 @@ any external API or internet connection.
 
 ### New features / new keys
 
-When a developer adds a new key to `Strings.resx` (English master):
+When a developer adds a new key to `locales/en.json` (English master):
 - Opening the Localization Editor shows the key as 🔴 missing for all languages
 - Clicking **Auto-Fill Missing** translates it via local translation with `comment=auto`
 - Or the CLI `--auto` run does the same in batch
@@ -4611,7 +2555,7 @@ When a developer adds a new key to `Strings.resx` (English master):
 ### app.js i18n generation
 
 Both the in-app editor (on Save) and the CLI (`--generate-js`) regenerate the i18n
-object in `app.js` from the `.resx` files, using a key mapping. This eliminates
+object in `app.js` from the locale JSON files, using a key mapping. This eliminates
 separately maintained JS translations — one source of truth, zero drift.
 
 ---
@@ -4682,7 +2626,7 @@ This avoids layout shifts as features are added later.
 | **Portable Mode** | STUB | Detection logic placeholder |
 | **Feedback prompt** | STUB | Post-session dialog placeholder |
 | **Localization Editor** | Implemented | Tools menu, DataGridView editor, local translation auto-fill, CSV import/export |
-| **First-Run Language Picker** | Implemented | Flag grid, search, auto-generates .resx via local translation for new languages |
+| **First-Run Language Picker** | Implemented | Flag grid, search, locale JSON downloaded via Download Manager |
 
 ---
 
@@ -4703,7 +2647,7 @@ This avoids layout shifts as features are added later.
 - `LogPanel.vb` — unified log from current job log + server log
 - `BibleWorkspace.vb` — WebView2 hosting the existing web Bible UI
 - `TranslateWorkspace.vb` — STUB: language selectors + two text boxes + disabled Translate button
-- `FormLocalizationEditor.vb` — DataGridView editor for `.resx` files, local translation auto-fill, CSV import/export, auto/human tracking
+- `FormLocalizationEditor.vb` — DataGridView editor for locale JSON files, local translation auto-fill, CSV import/export, auto/human tracking
 - Move all event handlers from FormMain into the respective UserControls
 - FormMain becomes a thin shell that hosts UserControls and coordinates between them
 
