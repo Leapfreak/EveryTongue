@@ -35,14 +35,15 @@ except ImportError:
     WhisperModel = None
     _has_faster_whisper = False
 
-# Silero VAD — used by whisper-cpp path for speech detection
-# (faster-whisper bundles Silero VAD as ONNX; we reuse it standalone)
+# Silero VAD — standalone package for speech detection (whisper-cpp path)
 try:
-    from faster_whisper.vad import get_speech_timestamps as _fw_get_speech_timestamps, VadOptions as _FwVadOptions
+    import torch
+    from silero_vad import load_silero_vad, get_speech_timestamps as _silero_get_speech_timestamps
+    _silero_vad_model = load_silero_vad()
     _has_silero_vad = True
 except ImportError as _vad_err:
     _has_silero_vad = False
-    # Log at module level — will appear once on startup
+    _silero_vad_model = None
     import sys
     print(f"[LIVE] WARNING: Silero VAD import failed: {_vad_err}", file=sys.stderr)
 
@@ -911,14 +912,7 @@ def _capture_loop_whisper_cpp(stream, audio_buffer, buffer_lock, cfg):
         _capture_loop_whisper_cpp_no_vad(stream, audio_buffer, buffer_lock, cfg)
         return
 
-    logger.debug("CAPTURE-LOOP: Initializing Silero VAD options...")
-    vad_options = _FwVadOptions(
-        threshold=0.4,
-        min_speech_duration_ms=250,
-        min_silence_duration_ms=500,
-        speech_pad_ms=300,
-    )
-    logger.debug("CAPTURE-LOOP: Silero VAD ready, entering main loop")
+    logger.debug("CAPTURE-LOOP: Silero VAD model loaded, entering main loop")
 
     CHECK_INTERVAL_S = 0.5
     INTERIM_INTERVAL_S = 5.0  # less frequent interims to conserve whisper-server requests
@@ -1008,7 +1002,16 @@ def _capture_loop_whisper_cpp(stream, audio_buffer, buffer_lock, cfg):
 
             # Run Silero VAD on the full buffer
             try:
-                speech_timestamps = _fw_get_speech_timestamps(current_audio, vad_options)
+                audio_tensor = torch.from_numpy(current_audio)
+                speech_timestamps = _silero_get_speech_timestamps(
+                    audio_tensor,
+                    _silero_vad_model,
+                    sampling_rate=SAMPLE_RATE,
+                    threshold=0.4,
+                    min_speech_duration_ms=250,
+                    min_silence_duration_ms=500,
+                    speech_pad_ms=300,
+                )
             except Exception as e:
                 logger.error(f"VAD error: {e}")
                 continue

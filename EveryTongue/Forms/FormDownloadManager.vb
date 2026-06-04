@@ -147,7 +147,7 @@ Namespace Forms
                 Dim missingPkgs = _mgr.GetMissingPythonPackages()
                 If missingPkgs.Count = 0 Then
                     pkgItem.SubItems.Add(lp.GetString("DM_StatusInstalled"))
-                    pkgItem.SubItems.Add("ctranslate2, sentencepiece, fastapi, uvicorn, faster-whisper, sounddevice, edge-tts")
+                    pkgItem.SubItems.Add("ctranslate2, sentencepiece, fastapi, uvicorn, faster-whisper, silero-vad, sounddevice, edge-tts")
                     pkgItem.ForeColor = Drawing.Color.DarkGreen
                 Else
                     pkgItem.SubItems.Add(String.Format(lp.GetString("DM_PackagesMissing"), missingPkgs.Count))

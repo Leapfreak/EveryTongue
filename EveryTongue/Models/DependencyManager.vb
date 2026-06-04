@@ -106,7 +106,6 @@ Namespace Models
                 CheckWhisperServerAsync(),
                 CheckWhisperServerCudaAsync(),
                 CheckGgmlModelAsync(),
-                CheckSileroVadModelAsync(),
                 CheckNllbModelAsync(),
                 CheckNllb33bModelAsync(),
                 CheckPiperAsync()
@@ -442,7 +441,7 @@ Namespace Models
         ''' Empty list means all required packages are installed.
         ''' </summary>
         Public Function GetMissingPythonPackages() As List(Of String)
-            Dim packages = {"ctranslate2", "sentencepiece", "fastapi", "uvicorn", "faster-whisper", "sounddevice", "edge-tts"}
+            Dim packages = {"ctranslate2", "sentencepiece", "fastapi", "uvicorn", "faster-whisper", "silero-vad", "sounddevice", "edge-tts"}
             If Not File.Exists(PythonExePath()) Then
                 Return New List(Of String) From {"(Python not installed)"}
             End If
