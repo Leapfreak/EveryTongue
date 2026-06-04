@@ -1,6 +1,6 @@
 """Frame-level Silero VAD with hysteresis.
 
-Processes one 1536-sample audio frame at a time (96ms at 16kHz) and returns
+Processes one 512-sample audio frame at a time (32ms at 16kHz) and returns
 a speech probability and a boolean is_speech flag with hysteresis.
 """
 import logging
@@ -16,7 +16,7 @@ class FrameVAD:
 
     Hysteresis design:
     - Speech onset: probability >= speech_threshold for speech_confirm_frames
-      consecutive frames (~192ms at 96ms/frame) before is_speech becomes True.
+      consecutive frames (~64ms at 32ms/frame) before is_speech becomes True.
     - Speech offset: probability < silence_threshold sets is_speech to False
       immediately. The state machine has its own time-based thresholds (400ms /
       750ms) for commit decisions, so no frame-count confirmation is needed here.
@@ -24,7 +24,7 @@ class FrameVAD:
       is_speech state, prevents rapid toggling on borderline audio.
     """
 
-    SILERO_FRAME_SAMPLES = 1536  # 96ms at 16kHz -- required by Silero
+    SILERO_FRAME_SAMPLES = 512  # 32ms at 16kHz -- required by Silero v5
 
     def __init__(self, model, sample_rate=16000,
                  speech_threshold=0.6, silence_threshold=0.4,
@@ -39,9 +39,9 @@ class FrameVAD:
         self._is_speech = False
 
     def process_frame(self, frame):
-        """Process one 1536-sample audio frame. Returns (probability, is_speech).
+        """Process one 512-sample audio frame. Returns (probability, is_speech).
 
-        Frame MUST be exactly 1536 samples (96ms at 16kHz) for Silero.
+        Frame MUST be exactly 512 samples (32ms at 16kHz) for Silero v5.
         If the frame size is wrong, returns (0.0, current_is_speech) and logs a warning.
         """
         if len(frame) != self.SILERO_FRAME_SAMPLES:

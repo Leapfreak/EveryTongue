@@ -19,6 +19,11 @@ import time
 import urllib.request
 import wave
 
+# Ensure script directory is on sys.path (embedded Python's ._pth file excludes it)
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+if _script_dir not in sys.path:
+    sys.path.insert(0, _script_dir)
+
 import numpy as np
 import sounddevice as sd
 from difflib import SequenceMatcher
@@ -32,22 +37,28 @@ try:
     from silero_vad import load_silero_vad
     _silero_vad_model = load_silero_vad()
     _has_silero_vad = True
-except ImportError as _vad_err:
+except Exception as _vad_err:
     _has_silero_vad = False
     _silero_vad_model = None
     print(f"[LIVE] WARNING: Silero VAD import failed: {_vad_err}", file=sys.stderr)
+    sys.stderr.flush()
 
 # VAD pipeline — lazy-safe import (depends on torch via frame_vad.py)
+# Catch Exception (not just ImportError) because torch can raise OSError,
+# RuntimeError, etc. during import depending on CUDA/GPU state.
 try:
     from vad import VadPipeline, VadConfig
     from vad.segment import SessionStats
     _has_vad_pipeline = True
-except ImportError as _vad_pipe_err:
+except Exception as _vad_pipe_err:
     _has_vad_pipeline = False
     VadPipeline = None
     VadConfig = None
     SessionStats = None
+    import traceback as _tb
     print(f"[LIVE] WARNING: VAD pipeline import failed: {_vad_pipe_err}", file=sys.stderr)
+    print(_tb.format_exc(), file=sys.stderr)
+    sys.stderr.flush()
 
 # ---------------------------------------------------------------------------
 # Logging — stderr only, captured by PythonSidecarHost -> AppLogger
@@ -67,6 +78,12 @@ logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 
 
 app = FastAPI()
+
+# Log import status now that the logger is ready
+logger.debug(f"Silero VAD: {'loaded' if _has_silero_vad else 'NOT AVAILABLE'}")
+logger.debug(f"VAD pipeline: {'loaded' if _has_vad_pipeline else 'NOT AVAILABLE'}")
+if not _has_vad_pipeline:
+    logger.error(f"VAD pipeline import failed — /start will be blocked")
 
 # ---------------------------------------------------------------------------
 # Global state
