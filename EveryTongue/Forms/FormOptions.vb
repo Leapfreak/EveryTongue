@@ -67,7 +67,6 @@ Public Class FormOptions
         lblFfprobePath.Text = langPack.GetString("Opt_FfprobePath")
         lblSubtitleEditPath.Text = langPack.GetString("Opt_SubtitleEditPath")
         lblModelPathsHeader.Text = langPack.GetString("Opt_ModelPathsHeader")
-        lblFasterWhisperPath.Text = langPack.GetString("Opt_FasterWhisperPath")
         lblWhisperServerPath.Text = langPack.GetString("Opt_WhisperServerPath")
         lblGgmlModelPath.Text = langPack.GetString("Opt_GgmlModelPath")
         lblTransModelPath.Text = langPack.GetString("Opt_TransModelPath")
@@ -208,7 +207,6 @@ Public Class FormOptions
         AddHandler btnManageTemplates.Click, Sub(s, e) OpenTemplateManager()
 
         ' Browse buttons — folder pickers
-        AddHandler btnBrowseFasterWhisper.Click, Sub(s, e) BrowseFolder(txtFasterWhisper)
         AddHandler btnBrowseTransModel.Click, Sub(s, e) BrowseFolder(txtTransModel)
         AddHandler btnBrowseOutputRoot.Click, Sub(s, e) BrowseFolder(txtOutputRoot)
         AddHandler btnBrowseBibles.Click, Sub(s, e) BrowseFolder(txtBibles)
@@ -277,7 +275,6 @@ Public Class FormOptions
         txtYtdlp.Text = _config.PathYtdlp
         txtFfmpeg.Text = _config.PathFfmpeg
         txtFfprobe.Text = _config.PathFfprobe
-        txtFasterWhisper.Text = _config.PathFasterWhisperModel
         txtWhisperServer.Text = _config.PathWhisperServer
         txtGgmlModel.Text = _config.PathWhisperCppModel
         txtTransModel.Text = _config.TranslationModelPath
@@ -401,7 +398,6 @@ Public Class FormOptions
         _config.PathYtdlp = txtYtdlp.Text
         _config.PathFfmpeg = txtFfmpeg.Text
         _config.PathFfprobe = txtFfprobe.Text
-        _config.PathFasterWhisperModel = txtFasterWhisper.Text
         _config.PathWhisperServer = txtWhisperServer.Text
         _config.PathWhisperCppModel = txtGgmlModel.Text
         _config.TranslationModelPath = txtTransModel.Text

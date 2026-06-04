@@ -642,7 +642,7 @@ Partial Class FormMain
                             writer.WriteLine("=== Models ===")
                             writer.WriteLine($"  STT model (job): {_config.PathModel}")
                             writer.WriteLine($"  STT model (audio): {_config.PathModelAudio}")
-                            writer.WriteLine($"  STT model (live): {_config.PathFasterWhisperModel}")
+                            writer.WriteLine($"  STT model (live): {_config.PathWhisperCppModel}")
                             writer.WriteLine($"  STT backend: {_config.SttBackend}")
                             writer.WriteLine($"  Translation model: {_config.TranslationModelPath}")
                             writer.WriteLine($"  GPU enabled: {Not _config.NoGpu}")

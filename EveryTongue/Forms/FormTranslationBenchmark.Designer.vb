@@ -62,7 +62,6 @@ Partial Class FormTranslationBenchmark
         Me.btnSttBrowse = New Button()
         Me.lblSttIterations = New Label()
         Me.nudSttIterations = New NumericUpDown()
-        Me.chkSttFasterWhisper = New CheckBox()
         Me.chkSttCuda = New CheckBox()
         Me.chkSttVulkan = New CheckBox()
         Me.chkSttCpu = New CheckBox()
@@ -136,7 +135,6 @@ Partial Class FormTranslationBenchmark
         Me.tabStt.Controls.Add(Me.btnSttBrowse)
         Me.tabStt.Controls.Add(Me.lblSttIterations)
         Me.tabStt.Controls.Add(Me.nudSttIterations)
-        Me.tabStt.Controls.Add(Me.chkSttFasterWhisper)
         Me.tabStt.Controls.Add(Me.chkSttCuda)
         Me.tabStt.Controls.Add(Me.chkSttVulkan)
         Me.tabStt.Controls.Add(Me.chkSttCpu)
@@ -442,19 +440,11 @@ Partial Class FormTranslationBenchmark
         Me.nudSttIterations.Name = "nudSttIterations"
         Me.nudSttIterations.Size = New Size(60, 23)
 
-        ' chkSttFasterWhisper
-        Me.chkSttFasterWhisper.AutoSize = True
-        Me.chkSttFasterWhisper.Checked = True
-        Me.chkSttFasterWhisper.CheckState = CheckState.Checked
-        Me.chkSttFasterWhisper.Location = New Point(16, 114)
-        Me.chkSttFasterWhisper.Name = "chkSttFasterWhisper"
-        Me.chkSttFasterWhisper.Text = "Faster Whisper"
-
         ' chkSttCuda
         Me.chkSttCuda.AutoSize = True
         Me.chkSttCuda.Checked = True
         Me.chkSttCuda.CheckState = CheckState.Checked
-        Me.chkSttCuda.Location = New Point(150, 114)
+        Me.chkSttCuda.Location = New Point(16, 114)
         Me.chkSttCuda.Name = "chkSttCuda"
         Me.chkSttCuda.Text = "CUDA"
 
@@ -654,7 +644,6 @@ Partial Class FormTranslationBenchmark
     Friend WithEvents btnSttBrowse As Button
     Friend WithEvents lblSttIterations As Label
     Friend WithEvents nudSttIterations As NumericUpDown
-    Friend WithEvents chkSttFasterWhisper As CheckBox
     Friend WithEvents chkSttCuda As CheckBox
     Friend WithEvents chkSttVulkan As CheckBox
     Friend WithEvents chkSttCpu As CheckBox

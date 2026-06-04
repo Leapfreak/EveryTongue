@@ -10,7 +10,7 @@ Namespace Services.Testing
 
     ''' <summary>
     ''' Runs STT transcription on a test audio file using each available backend
-    ''' (Faster Whisper / whisper.cpp CUDA / whisper.cpp Vulkan / whisper.cpp CPU)
+    ''' (whisper.cpp CUDA / whisper.cpp Vulkan / whisper.cpp CPU)
     ''' and returns a side-by-side comparison of load time, inference latency, and output text.
     ''' </summary>
     Public Class SttComparisonRunner
@@ -25,8 +25,7 @@ Namespace Services.Testing
 
         ''' <summary>
         ''' Run the comparison benchmark. Tests each backend that has its dependencies available.
-        ''' whisper-server.exe is started/stopped for Vulkan and CPU tests.
-        ''' The live-server's /transcribe endpoint is used for Faster Whisper (if running).
+        ''' whisper-server.exe is managed per-test for CUDA, Vulkan, and CPU backends.
         ''' </summary>
         Public Async Function RunComparisonAsync(
             audioFilePath As String,
@@ -61,48 +60,13 @@ Namespace Services.Testing
             AppLogger.Log($"[STT-COMPARE] whisper-server-cuda path: {cudaServerPath} (exists={IO.File.Exists(cudaServerPath)})")
             AppLogger.Log($"[STT-COMPARE] GGML model path: {ggmlModelPath} (exists={IO.File.Exists(ggmlModelPath)})")
             AppLogger.Log($"[STT-COMPARE] hasWhisperServer={hasWhisperServer}, hasCudaServer={hasCudaServer}")
-            AppLogger.Log($"[STT-COMPARE] liveServerPort={liveServerPort}, config.SttBackend={config.SttBackend}")
+            AppLogger.Log($"[STT-COMPARE] config.SttBackend={config.SttBackend}")
             AppLogger.Log($"[STT-COMPARE] enabledEngines={If(enabledEngines Is Nothing, "(all)", String.Join(",", enabledEngines))}")
 
             ' Helper: check if an engine is enabled (Nothing = all enabled)
             Dim isEnabled = Function(key As String) enabledEngines Is Nothing OrElse enabledEngines.Contains(key)
 
-            ' 1) Faster Whisper (CUDA) — via live-server /transcribe endpoint
-            '    The Python live-server always runs faster-whisper regardless of the .NET SttBackend config.
-            '    We just need CUDA + a reachable live-server.
-            If Not isEnabled("faster-whisper") Then
-                AppLogger.Log($"[STT-COMPARE] FW skipped: deselected by user")
-            ElseIf hwInfo.HasCuda AndAlso liveServerPort > 0 Then
-                AppLogger.Log($"[STT-COMPARE] FW: HasCuda=True, probing live-server at port {liveServerPort}...")
-                RaiseProgress("Testing Faster Whisper (CUDA)...")
-                Dim fwResult = Await TestViaLiveServer(audioBytes, liveServerPort, iterations, token)
-                fwResult.BackendName = "Faster Whisper (CUDA)"
-                fwResult.BackendKey = "faster-whisper"
-                result.Backends.Add(fwResult)
-                If fwResult.Failed Then
-                    AppLogger.Log($"[STT-COMPARE] FW failed: {fwResult.ErrorMessage}")
-                Else
-                    AppLogger.Log($"[STT-COMPARE] FW done: avg={fwResult.AvgInferenceMs}ms, iterations={fwResult.Iterations}")
-                End If
-            ElseIf Not hwInfo.HasCuda Then
-                AppLogger.Log($"[STT-COMPARE] FW skipped: no CUDA")
-                result.Backends.Add(New BackendComparisonResult() With {
-                    .BackendName = "Faster Whisper (CUDA)",
-                    .BackendKey = "faster-whisper",
-                    .Skipped = True,
-                    .SkipReason = "No NVIDIA GPU (CUDA required)"})
-            Else
-                AppLogger.Log($"[STT-COMPARE] FW skipped: HasCuda={hwInfo.HasCuda} but liveServerPort={liveServerPort}")
-                result.Backends.Add(New BackendComparisonResult() With {
-                    .BackendName = "Faster Whisper (CUDA)",
-                    .BackendKey = "faster-whisper",
-                    .Skipped = True,
-                    .SkipReason = $"Live server port not set (port={liveServerPort})"})
-            End If
-
-            token.ThrowIfCancellationRequested()
-
-            ' 2) whisper.cpp (CUDA) — start whisper-server-cuda.exe (NVIDIA only)
+            ' 1) whisper.cpp (CUDA) — start whisper-server-cuda.exe (NVIDIA only)
             AppLogger.Log($"[STT-COMPARE] CUDA native check: hasCudaServer={hasCudaServer}, HasCuda={hwInfo.HasCuda}")
             If Not isEnabled("whisper-cpp-cuda") Then
                 AppLogger.Log($"[STT-COMPARE] CUDA native skipped: deselected by user")
@@ -208,86 +172,6 @@ Namespace Services.Testing
             End If
 
             RaiseProgress("Comparison complete.")
-            Return result
-        End Function
-
-        ''' <summary>Test via the running live-server's /transcribe endpoint.</summary>
-        Private Async Function TestViaLiveServer(
-            audioBytes As Byte(), port As Integer, iterations As Integer,
-            ct As CancellationToken
-        ) As Task(Of BackendComparisonResult)
-
-            Dim result As New BackendComparisonResult()
-            ' Scale timeout with audio size: ~1 min per 10MB, minimum 2 minutes
-            Dim timeoutSec = Math.Max(120, CInt(audioBytes.Length / 1024.0 / 1024.0 * 6))
-            AppLogger.Log($"[STT-COMPARE] ── TestViaLiveServer: port={port}, audioSize={audioBytes.Length}, timeout={timeoutSec}s")
-            Using client As New HttpClient() With {.Timeout = TimeSpan.FromSeconds(timeoutSec)}
-                ' Check health first
-                Try
-                    AppLogger.Log($"[STT-COMPARE]    Checking health at http://127.0.0.1:{port}/health...")
-                    Dim healthResp = Await client.GetAsync($"http://127.0.0.1:{port}/health", ct)
-                    AppLogger.Log($"[STT-COMPARE]    Health response: {CInt(healthResp.StatusCode)}")
-                    If Not healthResp.IsSuccessStatusCode Then
-                        result.Failed = True
-                        result.ErrorMessage = "Live server not responding"
-                        Return result
-                    End If
-                Catch ex As Exception
-                    AppLogger.Log($"[STT-COMPARE]    Health check failed: {ex.GetType().Name}: {ex.Message}")
-                    result.Failed = True
-                    result.ErrorMessage = $"Live server not reachable: {ex.Message}"
-                    Return result
-                End Try
-
-                Dim latencies As New List(Of Long)()
-                For i = 1 To iterations
-                    ct.ThrowIfCancellationRequested()
-                    RaiseProgress($"Faster Whisper (CUDA): inference {i}/{iterations}...")
-                    Dim sw = Stopwatch.StartNew()
-                    Try
-                        Dim content As New ByteArrayContent(audioBytes)
-                        content.Headers.ContentType = New Headers.MediaTypeHeaderValue("audio/wav")
-                        Dim resp = Await client.PostAsync(
-                            $"http://127.0.0.1:{port}/transcribe", content, ct)
-                        sw.Stop()
-
-                        If resp.IsSuccessStatusCode Then
-                            latencies.Add(sw.ElapsedMilliseconds)
-                            If String.IsNullOrEmpty(result.TranscribedText) Then
-                                Dim body = Await resp.Content.ReadAsStringAsync()
-                                Try
-                                    Using doc = JsonDocument.Parse(body)
-                                        result.TranscribedText = doc.RootElement.GetProperty("text").GetString()
-                                    End Using
-                                Catch
-                                    result.TranscribedText = body
-                                End Try
-                            End If
-                        Else
-                            latencies.Add(sw.ElapsedMilliseconds)
-                            If String.IsNullOrEmpty(result.ErrorMessage) Then
-                                result.ErrorMessage = $"HTTP {CInt(resp.StatusCode)}"
-                            End If
-                        End If
-                    Catch ex As OperationCanceledException
-                        Throw
-                    Catch ex As Exception
-                        sw.Stop()
-                        latencies.Add(sw.ElapsedMilliseconds)
-                        If String.IsNullOrEmpty(result.ErrorMessage) Then
-                            result.ErrorMessage = ex.Message
-                        End If
-                    End Try
-                Next
-
-                If latencies.Count > 0 Then
-                    result.AvgInferenceMs = CLng(latencies.Average())
-                    result.MinInferenceMs = latencies.Min()
-                    result.MaxInferenceMs = latencies.Max()
-                    result.Iterations = latencies.Count
-                End If
-            End Using
-
             Return result
         End Function
 

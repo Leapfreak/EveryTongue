@@ -3,7 +3,7 @@ Imports EveryTongue.Services.Models
 
 Namespace Services.Interfaces
     ''' <summary>
-    ''' A pluggable STT backend (Faster Whisper, Vosk, Azure Speech, etc.).
+    ''' A pluggable STT backend (whisper.cpp, Vosk, Azure Speech, etc.).
     ''' Each backend implements this interface. Instances are created per-session.
     ''' </summary>
     Public Interface ISttBackend

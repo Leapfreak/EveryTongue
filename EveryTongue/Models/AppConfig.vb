@@ -146,7 +146,7 @@ Namespace Models
         Public Property SttBackend As String = "whisper-cpp-vulkan"
 
         Public Property LiveServerPort As Integer = 5091
-        Public Property PathFasterWhisperModel As String = ".\faster-whisper-large-v3"
+
         Public Property LiveComputeType As String = "int8_float16"
         Public Property LiveVadSilenceMs As Integer = 800
         Public Property LiveMaxSegmentSec As Integer = 15

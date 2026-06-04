@@ -103,8 +103,7 @@ Namespace Controllers
             _nextConferencePort += 1
 
             Dim backendKey = If(template.SttBackendKey, _config.SttBackend)
-            Dim isWhisperCpp = backendKey IsNot Nothing AndAlso backendKey.StartsWith("whisper-cpp", StringComparison.OrdinalIgnoreCase)
-            Dim defaultModel = If(isWhisperCpp, _config.PathWhisperCppModel, _config.PathFasterWhisperModel)
+            Dim defaultModel = _config.PathWhisperCppModel
 
             Dim sttConfig As New SttConfig() With {
                 .DeviceIndex = If(template.AudioDeviceId >= 0, template.AudioDeviceId, 0),
@@ -220,9 +219,7 @@ Namespace Controllers
                 cfgLang = template.SourceLanguage
             End If
 
-            Dim restartBackendKey = If(template?.SttBackendKey, _config.SttBackend)
-            Dim restartIsWhisperCpp = restartBackendKey IsNot Nothing AndAlso restartBackendKey.StartsWith("whisper-cpp", StringComparison.OrdinalIgnoreCase)
-            Dim cfgModel As String = If(restartIsWhisperCpp, _config.PathWhisperCppModel, _config.PathFasterWhisperModel)
+            Dim cfgModel As String = _config.PathWhisperCppModel
             If hasTpl AndAlso Not String.IsNullOrEmpty(template.ModelPath) Then cfgModel = template.ModelPath
 
             Dim cfgBeam As Integer = _config.BeamSize

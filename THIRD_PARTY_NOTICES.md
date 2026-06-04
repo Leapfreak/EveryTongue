@@ -63,12 +63,6 @@ These pre-built binaries are included in the installer package.
 
 These Python packages are bundled as self-contained sidecar servers.
 
-### faster-whisper
-- **License:** MIT
-- **Copyright:** SYSTRAN
-- **URL:** https://github.com/SYSTRAN/faster-whisper
-- **Used for:** Live speech-to-text with voice activity detection
-
 ### CTranslate2
 - **License:** MIT
 - **Copyright:** OpenNMT
@@ -148,7 +142,7 @@ user on first use and are subject to their own license terms.
 - **License:** MIT
 - **Copyright:** Silero Team
 - **URL:** https://github.com/snakers4/silero-vad
-- **Used for:** Voice activity detection (bundled within faster-whisper)
+- **Used for:** Voice activity detection for live transcription
 
 ### NLLB-200 (1.3B, CTranslate2 quantised)
 - **License:** CC-BY-NC-4.0
@@ -223,7 +217,7 @@ These are used only during development and are not distributed with Every Tongue
 
 | License | Components | Compatible with GPL-3.0? |
 |---------|-----------|:------------------------:|
-| MIT | whisper.cpp, NAudio, faster-whisper, CTranslate2, FastAPI, Whisper model, Silero VAD, Piper | Yes |
+| MIT | whisper.cpp, NAudio, CTranslate2, FastAPI, Whisper model, Silero VAD, Piper | Yes |
 | Apache 2.0 | SentencePiece, Transformers | Yes |
 | BSD 3-Clause | Uvicorn, PyTorch, NumPy, sounddevice | Yes |
 | Unlicense | yt-dlp | Yes |

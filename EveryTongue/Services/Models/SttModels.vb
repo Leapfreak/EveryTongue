@@ -35,7 +35,7 @@ Namespace Services.Models
         Public Property TranslateToEnglish As Boolean = False
         Public Property ServerPort As Integer = 5100
 
-        ''' <summary>Backend key: "whisper-cpp-vulkan", "whisper-cpp-cuda", "whisper-cpp-cpu", "faster-whisper".</summary>
+        ''' <summary>Backend key: "whisper-cpp-vulkan", "whisper-cpp-cuda", "whisper-cpp-cpu".</summary>
         Public Property Backend As String = "whisper-cpp-vulkan"
 
         ''' <summary>Path to whisper-server.exe (whisper-cpp backends only).</summary>

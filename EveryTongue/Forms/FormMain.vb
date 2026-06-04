@@ -516,7 +516,7 @@ del ""%~f0""
                 Dim hwInfo = Services.Infrastructure.HardwareScanner.Scan()
                 Dim suggestedBackend = Services.Infrastructure.HardwareScanner.SuggestSttBackend(hwInfo)
                 WriteDebugLog($"[FIRSTRUN] Hardware: GPU={hwInfo.GpuName}, CUDA={hwInfo.HasCuda}, Vulkan={hwInfo.HasVulkan}, Suggested STT={suggestedBackend}")
-                If String.IsNullOrEmpty(_config.SttBackend) OrElse _config.SttBackend = "faster-whisper" OrElse _config.SttBackend = "whisper-cpp-vulkan" Then
+                If String.IsNullOrEmpty(_config.SttBackend) OrElse _config.SttBackend = "whisper-cpp-vulkan" Then
                     _config.SttBackend = suggestedBackend
                     WriteDebugLog($"[FIRSTRUN] Set SttBackend={suggestedBackend}")
                 End If

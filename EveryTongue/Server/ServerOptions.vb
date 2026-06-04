@@ -53,7 +53,7 @@ Namespace Server
         ''' <summary>Path to FFmpeg executable. Used by ConversationAudioHandler for audio conversion.</summary>
         Public Property FfmpegPath As String = ""
 
-        ''' <summary>Path to Whisper model (faster-whisper dir or whisper.cpp .bin). Used to auto-load model for conversation rooms.</summary>
+        ''' <summary>Path to Whisper model (.bin). Used to auto-load model for conversation rooms.</summary>
         Public Property WhisperModelPath As String = ""
 
         ''' <summary>Compute type for Whisper model (e.g. "int8_float16"). Used for auto-load.</summary>
@@ -68,7 +68,7 @@ Namespace Server
         ''' <summary>Port for whisper-server.exe HTTP API (default 8178).</summary>
         Public Property WhisperServerPort As Integer = 8178
 
-        ''' <summary>STT backend key (e.g. "whisper-cpp-vulkan", "whisper-cpp-cpu", "faster-whisper"). Set from AppConfig.</summary>
+        ''' <summary>STT backend key (e.g. "whisper-cpp-vulkan", "whisper-cpp-cpu"). Set from AppConfig.</summary>
         Public Property SttBackend As String = ""
 
         ''' <summary>Path to Silero VAD GGML model for whisper-server built-in VAD.</summary>

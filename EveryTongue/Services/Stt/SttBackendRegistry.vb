@@ -43,8 +43,6 @@ Namespace Services.Stt
                     Return New WhisperCppBackend(useGpu:=True)
                 Case "whisper-cpp-cpu"
                     Return New WhisperCppBackend(useGpu:=False)
-                Case "faster-whisper"
-                    Return New FasterWhisperBackend()
                 Case Else
                     Return New WhisperCppBackend(useGpu:=True)
             End Select

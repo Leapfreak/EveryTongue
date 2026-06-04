@@ -1,6 +1,6 @@
 # Every Tongue
 
-A Windows desktop application for speech-to-text transcription with real-time live captioning, multilingual translation, and phone subtitle display. Built on [whisper.cpp](https://github.com/ggerganov/whisper.cpp) for batch processing and [faster-whisper](https://github.com/SYSTRAN/faster-whisper) with Silero VAD for live transcription.
+A Windows desktop application for speech-to-text transcription with real-time live captioning, multilingual translation, and phone subtitle display. Built on [whisper.cpp](https://github.com/ggerganov/whisper.cpp) with Silero VAD for both batch processing and live transcription.
 
 ## Download
 
@@ -16,8 +16,8 @@ On first launch, the app will prompt you to download the required tools (whisper
 ## Features
 
 **Live Transcription**
-- Real-time speech-to-text using faster-whisper (large-v3) with Silero VAD for natural speech boundary detection
-- CUDA-accelerated inference with int8_float16 compute
+- Real-time speech-to-text using whisper.cpp with Silero VAD for natural speech boundary detection
+- GPU-accelerated inference via Vulkan (all GPUs) or CUDA (NVIDIA)
 - Intelligent commit system: VAD-commit on pauses, sentence-commit at boundaries, force-commit safety valve
 - Hallucination filtering with consecutive-skip buffer management
 - Adjustable VAD silence threshold and max segment duration (live tuning via sliders)
@@ -58,8 +58,7 @@ On first launch, the app will prompt you to download the required tools (whisper
 - NVIDIA GPU recommended for live transcription (CUDA acceleration)
 
 All other dependencies are downloaded automatically on first launch:
-- [whisper.cpp](https://github.com/ggerganov/whisper.cpp) (batch speech-to-text engine)
-- [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (live speech-to-text, bundled Python sidecar)
+- [whisper.cpp](https://github.com/ggerganov/whisper.cpp) (speech-to-text engine — batch and live)
 - [NLLB-200](https://huggingface.co/JustFrederik/nllb-200-1.3B-ct2-float16) (translation model, ~2.6GB)
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) (YouTube downloads)
 - [FFmpeg](https://ffmpeg.org/) (audio/video processing)
@@ -93,7 +92,6 @@ This application uses the following open-source projects:
 | Component | License | Purpose |
 |-----------|---------|---------|
 | [whisper.cpp](https://github.com/ggml-org/whisper.cpp) | MIT | Batch speech-to-text engine |
-| [faster-whisper](https://github.com/SYSTRAN/faster-whisper) | MIT | Live speech-to-text (via Python sidecar) |
 | [NLLB-200](https://huggingface.co/JustFrederik/nllb-200-1.3B-ct2-float16) | CC-BY-NC-4.0 | Multilingual translation (user-downloaded) |
 | [NAudio](https://github.com/naudio/NAudio) | MIT | Audio capture and playback |
 | [edge-tts](https://github.com/rany2/edge-tts) | GPL 3.0 | Text-to-speech synthesis |

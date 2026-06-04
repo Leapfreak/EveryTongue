@@ -73,7 +73,7 @@ Source: "{#WhisperBinDir}\whisper-cli.exe"; DestDir: "{app}\whisper"; Flags: ign
 Source: "{#WhisperBinDir}\*.dll"; DestDir: "{app}\whisper"; Flags: ignoreversion
 ; --- Translation server (NLLB/MADLAD) ---
 Source: "{#AppPublishDir}\translate-server\*"; DestDir: "{app}\translate-server"; Flags: ignoreversion
-; --- Live transcription server (faster-whisper + VAD) ---
+; --- Live transcription server (whisper.cpp + VAD) ---
 Source: "{#AppPublishDir}\live-server\*"; DestDir: "{app}\live-server"; Flags: ignoreversion
 ; Locale satellite assemblies
 Source: "{#AppPublishDir}\ca\*"; DestDir: "{app}\ca"; Flags: ignoreversion

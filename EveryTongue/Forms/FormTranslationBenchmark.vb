@@ -340,7 +340,6 @@ Public Class FormTranslationBenchmark
 
         ' Build set of enabled engines from checkboxes (before disabling UI)
         Dim enabled As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
-        If chkSttFasterWhisper.Checked Then enabled.Add("faster-whisper")
         If chkSttCuda.Checked Then enabled.Add("whisper-cpp-cuda")
         If chkSttVulkan.Checked Then enabled.Add("whisper-cpp-vulkan")
         If chkSttCpu.Checked Then enabled.Add("whisper-cpp-cpu")

@@ -123,7 +123,7 @@ Namespace Pipeline
             Return devices
         End Function
 
-        ''' <summary>Backend key for the sidecar (whisper-cpp-vulkan, whisper-cpp-cuda, whisper-cpp-cpu, or faster-whisper).</summary>
+        ''' <summary>Backend key for the sidecar (whisper-cpp-vulkan, whisper-cpp-cuda, whisper-cpp-cpu).</summary>
         Public Property Backend As String = "whisper-cpp-vulkan"
 
         ''' <summary>Path to whisper-server.exe (only used when Backend is whisper-cpp).</summary>
@@ -225,12 +225,7 @@ Namespace Pipeline
             Try
                 ' Resolve model path based on backend
                 Dim backendKey = If(Backend, "whisper-cpp-vulkan")
-                Dim modelPath As String
-                If backendKey.StartsWith("whisper-cpp", StringComparison.OrdinalIgnoreCase) Then
-                    modelPath = AppConfig.ResolvePath(config.PathWhisperCppModel)
-                Else
-                    modelPath = AppConfig.ResolvePath(config.PathFasterWhisperModel)
-                End If
+                Dim modelPath = AppConfig.ResolvePath(config.PathWhisperCppModel)
 
                 Dim jsonBody = $"{{""device_index"":{deviceIndex}," &
                     $"""language"":""{inputLanguage}""," &

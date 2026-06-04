@@ -43,7 +43,7 @@ Namespace Services.Rooms
         ''' <summary>Path to FFmpeg executable.</summary>
         Public Property FfmpegPath As String = ""
 
-        ''' <summary>Path to Whisper model (faster-whisper dir or whisper.cpp .bin).</summary>
+        ''' <summary>Path to Whisper model (.bin).</summary>
         Public Property WhisperModelPath As String = ""
 
         ''' <summary>Compute type for Whisper model.</summary>
@@ -58,7 +58,7 @@ Namespace Services.Rooms
         ''' <summary>Port for whisper-server.exe HTTP API.</summary>
         Public Property WhisperServerPort As Integer = 8178
 
-        ''' <summary>STT backend key (e.g. "whisper-cpp-vulkan", "whisper-cpp-cpu", "faster-whisper"). Set from AppConfig.</summary>
+        ''' <summary>STT backend key (e.g. "whisper-cpp-vulkan", "whisper-cpp-cpu"). Set from AppConfig.</summary>
         Public Property SttBackend As String = ""
 
         ''' <summary>Path to Silero VAD GGML model for whisper-server built-in VAD.</summary>

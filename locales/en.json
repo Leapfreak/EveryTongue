@@ -272,7 +272,6 @@
   "Opt_FfprobePath": "FFprobe:",
   "Opt_SubtitleEditPath": "SubtitleEdit:",
   "Opt_ModelPathsHeader": "Model Paths",
-  "Opt_FasterWhisperPath": "STT model (live):",
   "Opt_WhisperServerPath": "whisper-server:",
   "Opt_GgmlModelPath": "GGML model (Vulkan/CPU):",
   "Opt_TransModelPath": "Translation model:",

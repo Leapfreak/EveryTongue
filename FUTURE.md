@@ -111,7 +111,7 @@ Each step can run on the **Client** (phone), **Server** (local box), or **Cloud*
 At startup, the server detects what's available and assembles the best pipeline:
 
 ```
-NVIDIA GPU (CUDA)?            --> Use FasterWhisperBackend (best performance)
+NVIDIA GPU (CUDA)?            --> Use WhisperCppBackend + CUDA (best performance)
 Any GPU (Vulkan)?             --> Use WhisperCppBackend + Vulkan (AMD, Intel, older NVIDIA)
 No usable GPU?                --> Use WhisperCppBackend + CPU (smaller models recommended)
 Internet + cloud API key?     --> Use CloudSttBackend (future)
@@ -138,13 +138,13 @@ The Options dialog auto-populates engine dropdowns from the registries. Changing
 
 ## Cross-GPU Support — NEXT (v1.8.0)
 
-Currently STT (faster-whisper) requires NVIDIA CUDA. This is the single biggest hardware constraint. The strategy is simple: **CUDA → Vulkan → CPU**. No other backends needed — Vulkan covers every GPU from the last 10+ years across all three vendors.
+The STT strategy is simple: **CUDA → Vulkan → CPU**. No other backends needed — Vulkan covers every GPU from the last 10+ years across all three vendors.
 
 ### Speed Comparison (Whisper STT, updated 2026-06)
 
 | Backend | Relative Speed | GPU Coverage | Notes |
 |---------|---------------|-------------|-------|
-| CUDA (faster-whisper/CTranslate2) | **1.0x baseline** | NVIDIA only | INT8/FP16 quantization, most optimized |
+| CUDA (whisper.cpp) | **1.0x baseline** | NVIDIA only | Best performance on NVIDIA GPUs |
 | Vulkan (whisper.cpp 1.8+) | **~1.2-1.8x slower** | **All GPUs** (NVIDIA, AMD, Intel) | 10-12x faster than CPU on iGPUs. Mature as of 2026. |
 | CPU-only (whisper.cpp, AVX2) | ~3-6x slower | N/A | Fallback when no GPU at all |
 
@@ -163,7 +163,7 @@ DirectML (ONNX Runtime) is no longer in scope — Vulkan covers the same hardwar
 
 ```
 Startup hardware detection:
-  1. NVIDIA GPU with CUDA?     → Use faster-whisper (existing, best performance)
+  1. NVIDIA GPU with CUDA?     → Use whisper.cpp + CUDA (best performance)
   2. Any GPU with Vulkan?      → Use whisper.cpp + Vulkan (covers AMD, Intel, older NVIDIA)
   3. No usable GPU?            → Use whisper.cpp + CPU (AVX2, smaller models recommended)
 ```
@@ -172,11 +172,11 @@ Auto-detection at startup via `HardwareScanner`. The operator can override in Op
 
 ### Implementation Plan
 
-whisper.cpp ships as a single native executable (`whisper-cli.exe`) with prebuilt Vulkan support. The implementation wraps it in the same sidecar HTTP server pattern used by faster-whisper's `live-server/server.py`:
+whisper.cpp ships as a single native executable (`whisper-cli.exe`) with prebuilt Vulkan support. The implementation wraps it in a sidecar HTTP server pattern via `live-server/server.py`:
 
 1. **New Python sidecar: `whisper-cpp-server/server.py`** — FastAPI server that wraps `whisper-cli.exe`. Exposes the same HTTP + SSE API as `live-server/server.py` (`/health`, `/start`, `/stop`, `/stream`, `/config`, `/devices`, `/stats`, `/transcribe`, `/shutdown`). Uses subprocess to run whisper-cli for transcription, sounddevice for audio capture, Silero VAD for voice activity detection (same as live-server).
 
-2. **New VB.NET backend: `WhisperCppBackend.vb`** — implements `ISttBackend`. Thin adapter (like `FasterWhisperBackend`) that wraps a new `WhisperCppRunner` using `PythonSidecarHost` to manage the sidecar lifecycle. Communicates via the same HTTP+SSE protocol.
+2. **VB.NET backend: `WhisperCppBackend.vb`** — implements `ISttBackend`. Thin adapter that wraps `LiveStreamRunner` using `PythonSidecarHost` to manage the sidecar lifecycle. Communicates via HTTP+SSE protocol.
 
 3. **Registry entries** — two new entries in `SttBackendRegistry`:
    - `"whisper-cpp-vulkan"` → `WhisperCppBackend` (Vulkan GPU acceleration)
@@ -340,7 +340,7 @@ All variants share the same web client, same rooms, same lobby, same phone exper
 
 For charities that can't afford new equipment but can source donated/second-hand hardware:
 
-- **GTX 1060/1070** (~$50-80 used) — runs faster-whisper with `small` model comfortably. Single-stream real-time conference STT.
+- **GTX 1060/1070** (~$50-80 used) — runs whisper.cpp with `small` model comfortably. Single-stream real-time conference STT.
 - **GTX 1080/1080 Ti** (~$100-150 used) — runs `medium` or `large-v3` model. Multi-stream capable.
 - **Any modern laptop** (i5/Ryzen 5, 2020+) — runs whisper.cpp CPU with `base`/`small` model for single-stream conference use. Clean PA audio helps accuracy.
 - **Raspberry Pi 5** (~$80 new) — runs Lite mode (NLLB on CPU, phones do STT+TTS). Adequate for conversation rooms.
@@ -449,7 +449,7 @@ Strategy: **CUDA → Vulkan → CPU** fallback with manual override in Options.
 - `WhisperCppBackend.vb` — implements `ISttBackend`, delegates to `LiveStreamRunner` with `whisper-cpp-vulkan` or `whisper-cpp-cpu` backend key
 - `LiveStreamRunner` — extended to configure the shared sidecar for whisper.cpp backends
 - `HardwareScanner` — CUDA detection (nvidia-smi), Vulkan detection (vulkan-1.dll), `SuggestSttBackend()` auto-select
-- `SttBackendRegistry` — three entries: `faster-whisper`, `whisper-cpp-vulkan`, `whisper-cpp-cpu`
+- `SttBackendRegistry` — three entries: `whisper-cpp-cuda`, `whisper-cpp-vulkan`, `whisper-cpp-cpu`
 - `DependencyManager` — whisper-server.exe and GGML model dependency checks
 - `FormDownloadManager` — whisper.cpp tools category with whisper-server + GGML model downloads
 - `FormOptions` — path controls for whisper-server.exe and GGML model, STT Engine combo on Hardware panel (auto-suggests on rescan, user can override)

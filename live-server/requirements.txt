@@ -1,4 +1,3 @@
-faster-whisper
 silero-vad
 sounddevice
 sse-starlette

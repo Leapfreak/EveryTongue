@@ -56,9 +56,6 @@ Partial Class FormOptions
         Me.btnBrowseTransModel = New System.Windows.Forms.Button()
         Me.txtTransModel = New System.Windows.Forms.TextBox()
         Me.lblTransModelPath = New System.Windows.Forms.Label()
-        Me.btnBrowseFasterWhisper = New System.Windows.Forms.Button()
-        Me.txtFasterWhisper = New System.Windows.Forms.TextBox()
-        Me.lblFasterWhisperPath = New System.Windows.Forms.Label()
         Me.btnBrowseWhisperServer = New System.Windows.Forms.Button()
         Me.txtWhisperServer = New System.Windows.Forms.TextBox()
         Me.lblWhisperServerPath = New System.Windows.Forms.Label()
@@ -539,9 +536,6 @@ Partial Class FormOptions
         Me.pnlPaths.Controls.Add(Me.btnBrowseWhisperServer)
         Me.pnlPaths.Controls.Add(Me.txtWhisperServer)
         Me.pnlPaths.Controls.Add(Me.lblWhisperServerPath)
-        Me.pnlPaths.Controls.Add(Me.btnBrowseFasterWhisper)
-        Me.pnlPaths.Controls.Add(Me.txtFasterWhisper)
-        Me.pnlPaths.Controls.Add(Me.lblFasterWhisperPath)
         Me.pnlPaths.Controls.Add(Me.lblModelPathsSep)
         Me.pnlPaths.Controls.Add(Me.lblModelPathsHeader)
         Me.pnlPaths.Controls.Add(Me.btnBrowseSubtitleEdit)
@@ -747,34 +741,6 @@ Partial Class FormOptions
         Me.lblModelPathsSep.Name = "lblModelPathsSep"
         Me.lblModelPathsSep.Size = New System.Drawing.Size(520, 1)
         Me.lblModelPathsSep.TabIndex = 18
-        '
-        ' lblFasterWhisperPath
-        '
-        Me.lblFasterWhisperPath.AutoSize = True
-        Me.lblFasterWhisperPath.Location = New System.Drawing.Point(12, 332)
-        Me.lblFasterWhisperPath.Name = "lblFasterWhisperPath"
-        Me.lblFasterWhisperPath.Size = New System.Drawing.Size(126, 15)
-        Me.lblFasterWhisperPath.TabIndex = 19
-        Me.lblFasterWhisperPath.Text = "STT model (live):"
-        '
-        ' txtFasterWhisper
-        '
-        Me.txtFasterWhisper.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
-            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.txtFasterWhisper.Location = New System.Drawing.Point(12, 350)
-        Me.txtFasterWhisper.Name = "txtFasterWhisper"
-        Me.txtFasterWhisper.Size = New System.Drawing.Size(510, 23)
-        Me.txtFasterWhisper.TabIndex = 20
-        '
-        ' btnBrowseFasterWhisper
-        '
-        Me.btnBrowseFasterWhisper.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnBrowseFasterWhisper.Location = New System.Drawing.Point(528, 349)
-        Me.btnBrowseFasterWhisper.Name = "btnBrowseFasterWhisper"
-        Me.btnBrowseFasterWhisper.Size = New System.Drawing.Size(36, 25)
-        Me.btnBrowseFasterWhisper.TabIndex = 21
-        Me.btnBrowseFasterWhisper.Text = "..."
-        Me.btnBrowseFasterWhisper.UseVisualStyleBackColor = True
         '
         ' lblWhisperServerPath
         '
@@ -2923,9 +2889,6 @@ Partial Class FormOptions
     Friend WithEvents lblSubtitleEditPath As System.Windows.Forms.Label
     Friend WithEvents txtSubtitleEdit As System.Windows.Forms.TextBox
     Friend WithEvents btnBrowseSubtitleEdit As System.Windows.Forms.Button
-    Friend WithEvents lblFasterWhisperPath As System.Windows.Forms.Label
-    Friend WithEvents txtFasterWhisper As System.Windows.Forms.TextBox
-    Friend WithEvents btnBrowseFasterWhisper As System.Windows.Forms.Button
     Friend WithEvents lblWhisperServerPath As System.Windows.Forms.Label
     Friend WithEvents txtWhisperServer As System.Windows.Forms.TextBox
     Friend WithEvents btnBrowseWhisperServer As System.Windows.Forms.Button
