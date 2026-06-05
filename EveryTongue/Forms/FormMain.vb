@@ -938,7 +938,14 @@ del ""%~f0""
             If orchestrator IsNot Nothing Then
                 Dim sidecarBackend As New Services.Translation.SidecarTranslationBackend(_translationService)
                 orchestrator.RegisterBackend(sidecarBackend)
-                WriteDebugLog("[TRANSLATE] SidecarTranslationBackend registered with TranslationOrchestrator")
+
+                ' Apply the user's selected translation backend to the orchestrator
+                Dim configKey = If(_config.TranslationBackend, "nllb")
+                Dim entry = Services.Translation.TranslationBackendRegistry.GetAll().FirstOrDefault(
+                    Function(e) e.Key.Equals(configKey, StringComparison.OrdinalIgnoreCase))
+                Dim orchestratorName = If(entry?.BackendName, "Local")
+                orchestrator.SetActiveBackend(orchestratorName)
+                WriteDebugLog($"[TRANSLATE] SidecarTranslationBackend registered, active backend set to {orchestratorName} (config={configKey})")
             Else
                 WriteDebugLog("[TRANSLATE] Warning: TranslationOrchestrator not available to register SidecarTranslationBackend")
             End If

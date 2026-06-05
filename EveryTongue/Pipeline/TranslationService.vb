@@ -112,7 +112,7 @@ Namespace Pipeline
             Dim resolvedModelPath = Models.AppConfig.ResolvePath(modelPath)
             Dim serverScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "translate-server", "server.py")
 
-            Dim extraArgs = $"--model-path ""{resolvedModelPath}"" --device {device} --model-type nllb"
+            Dim extraArgs = $"--model-path ""{resolvedModelPath}"" --device {device} --model-type {modelType}"
 
             If Not String.IsNullOrEmpty(glossaryPath) Then
                 Dim resolvedGlossary = Models.AppConfig.ResolvePath(glossaryPath)

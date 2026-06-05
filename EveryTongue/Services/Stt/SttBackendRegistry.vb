@@ -11,41 +11,44 @@ Namespace Services.Stt
             Public Property Key As String
             Public Property DisplayName As String
             Public Property RequiresInternet As Boolean
+            ''' <summary>Whether this backend uses GPU acceleration.</summary>
+            Public Property UseGpu As Boolean
+            ''' <summary>Factory function that creates an ISttBackend instance for this entry.</summary>
+            Public Property Factory As Func(Of Interfaces.ISttBackend)
         End Class
 
         Private Shared ReadOnly _backends As New List(Of Entry) From {
-            New Entry With {.Key = "whisper-cpp-vulkan", .DisplayName = "whisper.cpp Vulkan (offline)", .RequiresInternet = False},
-            New Entry With {.Key = "whisper-cpp-cuda", .DisplayName = "whisper.cpp CUDA (offline)", .RequiresInternet = False},
-            New Entry With {.Key = "whisper-cpp-cpu", .DisplayName = "whisper.cpp CPU (offline)", .RequiresInternet = False}
+            New Entry With {.Key = "whisper-cpp-vulkan", .DisplayName = "whisper.cpp Vulkan (offline)", .RequiresInternet = False, .UseGpu = True, .Factory = Function() New WhisperCppBackend(useGpu:=True)},
+            New Entry With {.Key = "whisper-cpp-cuda", .DisplayName = "whisper.cpp CUDA (offline)", .RequiresInternet = False, .UseGpu = True, .Factory = Function() New WhisperCppBackend(useGpu:=True)},
+            New Entry With {.Key = "whisper-cpp-cpu", .DisplayName = "whisper.cpp CPU (offline)", .RequiresInternet = False, .UseGpu = False, .Factory = Function() New WhisperCppBackend(useGpu:=False)}
         }
 
         Public Shared Function GetAll() As IReadOnlyList(Of Entry)
             Return _backends
         End Function
 
-        Public Shared Sub Register(key As String, displayName As String, requiresInternet As Boolean)
-            If Not _backends.Any(Function(b) b.Key.Equals(key, StringComparison.OrdinalIgnoreCase)) Then
-                _backends.Add(New Entry With {
-                    .Key = key,
-                    .DisplayName = displayName,
-                    .RequiresInternet = requiresInternet
-                })
+        Public Shared Sub Register(entry As Entry)
+            If Not _backends.Any(Function(b) b.Key.Equals(entry.Key, StringComparison.OrdinalIgnoreCase)) Then
+                _backends.Add(entry)
             End If
         End Sub
 
         ''' <summary>
-        ''' Create an ISttBackend instance for the given key.
-        ''' Falls back to WhisperCppBackend (Vulkan) for unknown keys.
+        ''' Look up a registry entry by key. Returns Nothing if not found.
         ''' </summary>
-        Public Shared Function CreateBackend(Optional key As String = "whisper-cpp-vulkan") As Interfaces.ISttBackend
-            Select Case If(key, "whisper-cpp-vulkan").ToLowerInvariant()
-                Case "whisper-cpp-vulkan", "whisper-cpp-cuda"
-                    Return New WhisperCppBackend(useGpu:=True)
-                Case "whisper-cpp-cpu"
-                    Return New WhisperCppBackend(useGpu:=False)
-                Case Else
-                    Return New WhisperCppBackend(useGpu:=True)
-            End Select
+        Public Shared Function Find(key As String) As Entry
+            Return _backends.FirstOrDefault(
+                Function(e) e.Key.Equals(If(key, ""), StringComparison.OrdinalIgnoreCase))
+        End Function
+
+        ''' <summary>
+        ''' Create an ISttBackend instance for the given key.
+        ''' Falls back to the first registered backend for unknown keys.
+        ''' </summary>
+        Public Shared Function CreateBackend(Optional key As String = Nothing) As Interfaces.ISttBackend
+            Dim entry = Find(If(key, _backends(0).Key))
+            If entry Is Nothing Then entry = _backends(0)
+            Return entry.Factory.Invoke()
         End Function
 
     End Class

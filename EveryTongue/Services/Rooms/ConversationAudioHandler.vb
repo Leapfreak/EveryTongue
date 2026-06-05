@@ -250,7 +250,8 @@ Namespace Services.Rooms
                 If useWhisperCpp Then
                     Dim wsPath = If(WhisperServerPath, "")
                     Dim wsPort = WhisperServerPort
-                    Dim noGpuFlag = If(SttBackend.Equals("whisper-cpp-cpu", StringComparison.OrdinalIgnoreCase), " --no-gpu", "")
+                    Dim sttEntry = Stt.SttBackendRegistry.Find(SttBackend)
+                    Dim noGpuFlag = If(sttEntry IsNot Nothing AndAlso Not sttEntry.UseGpu, " --no-gpu", "")
                     Dim vadPath = If(SileroVadModelPath, "")
                     Dim vadFlag = If(Not String.IsNullOrEmpty(vadPath) AndAlso File.Exists(vadPath),
                         $" --vad-model-path ""{vadPath}""", "")
