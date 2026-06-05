@@ -28,17 +28,22 @@ Pluggable STT/Translation/TTS backends via registries. NLLB 3.3B support. Transl
 - [ ] Audio routing: NDI or Direct Audio output
 
 ## Suggested Next Priorities
-1. Headless server / systray mode — see plan file `memoized-shimmying-elephant.md`
-2. Audio Level Monitor (#3) — operator feedback, prevents bad audio
-3. Setup Wizard expansion (#2) — integrates QR, audio monitor, hardware score
-4. Priority Queue Pipeline — STT/Translation/TTS queues with dynamic priority scoring for multi-room load
+1. Audio Level Monitor — operator feedback, prevents bad audio
+2. Setup Wizard expansion — integrates QR, audio monitor, hardware score
+3. Priority Queue Pipeline — STT/Translation/TTS queues with dynamic priority scoring for multi-room load
+4. Cross-platform headless server (Linux/Docker) — see line 207+
 
-## Immediate TODO (2026-06-05)
-- [ ] Verify the code actually uses the user's selected engine (not hardcoded to a specific backend)
+## Immediate TODO (2026-06-06)
+- [x] Verify the code actually uses the user's selected engine (not hardcoded to a specific backend) — fixed in 957f462
 - [ ] Test whisper-cpp performance — should support more than 5 concurrent sessions
-- [ ] Check YouTube downloading and transcription still works end-to-end
-- [ ] Investigate which translation model is used in benchmarks (NLLB? MADLAD? specific size?)
-- [ ] Continue headless server / systray implementation
+- [x] Check YouTube downloading and transcription still works end-to-end
+- [x] Investigate which translation model is used in benchmarks — NLLB 3.3B on CUDA
+- [x] Fix whisper↔FLORES language code alignment (9 broken mappings, _byWhisper index)
+- [x] Friendly autocomplete language dropdowns on Transcribe tab
+- [x] Hide unused controls (language/model) in YouTube Audio Only / Full Video modes
+- [x] Filter Translate tab dropdowns to FLORES-supported languages only
+- [x] Fix Python sidecar log encoding (UTF-8)
+- [x] Headless server / systray — COMPLETE (NotifyIcon, minimize-to-tray, auto-start engines)
 
 ---
 

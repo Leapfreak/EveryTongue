@@ -235,6 +235,10 @@ Namespace Controllers
                     .RedirectStandardError = True
                 }
                 Dim p = Process.Start(psi)
+                ' Drain both pipes before WaitForExit to prevent pipe buffer deadlock
+                Dim stderrTask = p.StandardError.ReadToEndAsync()
+                p.StandardOutput.ReadToEnd()
+                stderrTask.Wait()
                 p.WaitForExit(5000)
                 If p.ExitCode = 0 Then Return
             Catch ex As Exception

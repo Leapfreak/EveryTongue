@@ -83,6 +83,10 @@ Namespace Pipeline
                         .CreateNoWindow = True
                     }
                     Using proc = Process.Start(psi)
+                        ' Drain both pipes before WaitForExit to prevent pipe buffer deadlock
+                        Dim stderrTask = proc.StandardError.ReadToEndAsync()
+                        proc.StandardOutput.ReadToEnd()
+                        stderrTask.Wait()
                         proc.WaitForExit(10000)
                         depsOk = (proc.ExitCode = 0)
                     End Using

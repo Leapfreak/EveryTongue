@@ -685,6 +685,8 @@ Namespace Services.Rooms
 
                 Using proc = Diagnostics.Process.Start(psi)
                     If proc Is Nothing Then Return Nothing
+                    ' Drain stderr BEFORE WaitForExit to prevent pipe buffer deadlock
+                    Dim stderr = proc.StandardError.ReadToEnd()
                     Dim exited = proc.WaitForExit(10000)
                     If Not exited Then
                         Try
@@ -694,7 +696,6 @@ Namespace Services.Rooms
                         Return Nothing
                     End If
                     If proc.ExitCode <> 0 Then
-                        Dim stderr = proc.StandardError.ReadToEnd()
                         _logger.LogWarning("FFmpeg conversion failed (exit={Code}): {Error}", proc.ExitCode, stderr)
                         Return Nothing
                     End If

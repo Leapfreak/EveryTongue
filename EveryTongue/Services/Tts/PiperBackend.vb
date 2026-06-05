@@ -104,6 +104,10 @@ Namespace Services.Tts
                     Await proc.StandardInput.WriteLineAsync(text)
                     proc.StandardInput.Close()
 
+                    ' Drain both pipes to prevent pipe buffer deadlock
+                    Dim stdoutTask = proc.StandardOutput.ReadToEndAsync()
+                    Dim stderrTask = proc.StandardError.ReadToEndAsync()
+
                     Using cts = CancellationTokenSource.CreateLinkedTokenSource(ct)
                         cts.CancelAfter(TimeSpan.FromSeconds(30))
                         Try

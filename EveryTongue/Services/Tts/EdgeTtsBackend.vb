@@ -58,6 +58,9 @@ Namespace Services.Tts
                 }
 
                 Using proc = Process.Start(psi)
+                    ' Drain both pipes to prevent pipe buffer deadlock
+                    Dim stdoutTask = proc.StandardOutput.ReadToEndAsync()
+                    Dim stderrTask = proc.StandardError.ReadToEndAsync()
                     Await proc.WaitForExitAsync(ct)
                     If proc.ExitCode = 0 AndAlso File.Exists(tempFile) Then
                         Dim audioBytes = Await File.ReadAllBytesAsync(tempFile, ct)

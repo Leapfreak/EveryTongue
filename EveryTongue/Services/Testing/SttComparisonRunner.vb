@@ -66,6 +66,10 @@ Namespace Services.Testing
             ' Helper: check if an engine is enabled (Nothing = all enabled)
             Dim isEnabled = Function(key As String) enabledEngines Is Nothing OrElse enabledEngines.Contains(key)
 
+            ' Start resource monitoring (CPU, RAM, GPU)
+            Dim monitor As New ResourceMonitor(500)
+            monitor.Start()
+
             ' 1) whisper.cpp (CUDA) — start whisper-server-cuda.exe (NVIDIA only)
             AppLogger.Log($"[STT-COMPARE] CUDA native check: hasCudaServer={hasCudaServer}, HasCuda={hwInfo.HasCuda}")
             If Not isEnabled("whisper-cpp-cuda") Then
@@ -171,6 +175,10 @@ Namespace Services.Testing
                 End If
             End If
 
+            ' Stop resource monitoring and attach report
+            result.Resources = monitor.Stop()
+            AppLogger.Log($"[STT-COMPARE] Resources: {result.Resources.ToSummaryText()}")
+
             RaiseProgress("Comparison complete.")
             Return result
         End Function
@@ -228,7 +236,14 @@ Namespace Services.Testing
                     Return result
                 End If
 
-                ' Log server stderr asynchronously so we can see GPU detection messages
+                ' Drain stdout AND stderr to prevent pipe buffer deadlock
+                Dim stdoutTask = Task.Run(Async Function()
+                    Try
+                        Do While Await proc.StandardOutput.ReadLineAsync() IsNot Nothing
+                        Loop
+                    Catch
+                    End Try
+                End Function)
                 Dim stderrTask = Task.Run(Async Function()
                     Try
                         Dim line As String
@@ -258,7 +273,10 @@ Namespace Services.Testing
                                 ready = True
                                 Exit For
                             End If
-                        Catch ex As Exception When TypeOf ex IsNot OperationCanceledException
+                        Catch ex As OperationCanceledException When ct.IsCancellationRequested
+                            Throw ' Real user cancellation
+                        Catch
+                            ' HttpClient timeout or connection refused — retry
                         End Try
                         Await Task.Delay(500, ct)
                     Next
@@ -398,6 +416,7 @@ Namespace Services.Testing
 
     Public Class SttComparisonResult
         Public Property Backends As New List(Of BackendComparisonResult)()
+        Public Property Resources As ResourceReport
     End Class
 
     Public Class BackendComparisonResult

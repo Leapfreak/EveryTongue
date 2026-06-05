@@ -458,7 +458,10 @@ Namespace Models
                 }
                 Dim output As String
                 Using proc = Diagnostics.Process.Start(psi)
+                    ' Drain stderr async to prevent pipe buffer deadlock
+                    Dim stderrTask = proc.StandardError.ReadToEndAsync()
                     output = proc.StandardOutput.ReadToEnd()
+                    stderrTask.Wait()
                     proc.WaitForExit(15000)
                 End Using
 

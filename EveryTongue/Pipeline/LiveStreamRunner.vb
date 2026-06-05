@@ -99,7 +99,10 @@ Namespace Pipeline
                     }
 
                     Using proc = Process.Start(psi)
+                        ' Drain stderr async to prevent pipe buffer deadlock
+                        Dim stderrTask = proc.StandardError.ReadToEndAsync()
                         Dim output = proc.StandardOutput.ReadToEnd()
+                        stderrTask.Wait()
                         proc.WaitForExit(10000)
                         If proc.ExitCode = 0 AndAlso Not String.IsNullOrWhiteSpace(output) Then
                             Using doc = JsonDocument.Parse(output.Trim())

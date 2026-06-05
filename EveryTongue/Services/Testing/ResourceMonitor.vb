@@ -1,4 +1,5 @@
 Imports System.Diagnostics
+Imports System.Text
 Imports System.Threading
 
 Namespace Services.Testing
@@ -13,6 +14,8 @@ Namespace Services.Testing
         Private _timer As Timer
         Private _process As Process
         Private ReadOnly _intervalMs As Integer
+        Private _lastCpuTime As TimeSpan
+        Private _lastCpuTimestamp As DateTime
 
         Public Sub New(Optional intervalMs As Integer = 500)
             _intervalMs = intervalMs
@@ -21,6 +24,9 @@ Namespace Services.Testing
         Public Sub Start()
             _samples.Clear()
             _process = Process.GetCurrentProcess()
+            _process.Refresh()
+            _lastCpuTime = _process.TotalProcessorTime
+            _lastCpuTimestamp = DateTime.UtcNow
             TakeSample() ' immediate first sample
             _timer = New Timer(Sub(state) TakeSample(), Nothing, _intervalMs, _intervalMs)
         End Sub
@@ -35,8 +41,23 @@ Namespace Services.Testing
         Private Sub TakeSample()
             Try
                 _process?.Refresh()
+                Dim now = DateTime.UtcNow
+                Dim currentCpuTime = If(_process IsNot Nothing, _process.TotalProcessorTime, TimeSpan.Zero)
+
+                ' CPU usage: delta CPU time / delta wall time / processor count
+                Dim cpuPercent = 0.0
+                Dim elapsed = (now - _lastCpuTimestamp).TotalMilliseconds
+                If elapsed > 0 AndAlso _process IsNot Nothing Then
+                    Dim cpuDelta = (currentCpuTime - _lastCpuTime).TotalMilliseconds
+                    cpuPercent = cpuDelta / elapsed / Environment.ProcessorCount * 100.0
+                    cpuPercent = Math.Min(100.0, Math.Max(0.0, cpuPercent))
+                End If
+                _lastCpuTime = currentCpuTime
+                _lastCpuTimestamp = now
+
                 Dim sample As New ResourceSample() With {
-                    .Timestamp = DateTime.UtcNow,
+                    .Timestamp = now,
+                    .CpuPercent = CInt(Math.Round(cpuPercent)),
                     .ProcessMemoryMB = If(_process IsNot Nothing,
                         CInt(_process.WorkingSet64 \ (1024L * 1024L)), 0),
                     .PrivateMemoryMB = If(_process IsNot Nothing,
@@ -91,6 +112,11 @@ Namespace Services.Testing
                 If _samples.Count = 0 Then Return report
                 report.SampleCount = _samples.Count
 
+                ' CPU utilisation
+                report.CpuMinPercent = _samples.Min(Function(s) s.CpuPercent)
+                report.CpuMaxPercent = _samples.Max(Function(s) s.CpuPercent)
+                report.CpuAvgPercent = CInt(_samples.Average(Function(s) CDbl(s.CpuPercent)))
+
                 ' Process memory
                 report.ProcessMemoryMinMB = _samples.Min(Function(s) s.ProcessMemoryMB)
                 report.ProcessMemoryMaxMB = _samples.Max(Function(s) s.ProcessMemoryMB)
@@ -121,6 +147,10 @@ Namespace Services.Testing
 
                 ' Warning flags
                 report.Warnings = New List(Of String)()
+                If report.CpuMaxPercent >= 95 Then
+                    report.Warnings.Add($"CPU saturated: peaked at {report.CpuMaxPercent}%")
+                End If
+
                 If report.GpuMemoryPeakPercent >= 95 Then
                     report.Warnings.Add($"VRAM critically full: {report.GpuMemoryMaxMB}/{report.GpuMemoryTotalMB} MB ({report.GpuMemoryPeakPercent}%)")
                 ElseIf report.GpuMemoryPeakPercent >= 85 Then
@@ -147,6 +177,7 @@ Namespace Services.Testing
 
     Public Class ResourceSample
         Public Property Timestamp As DateTime
+        Public Property CpuPercent As Integer
         Public Property ProcessMemoryMB As Integer
         Public Property PrivateMemoryMB As Integer
         Public Property GpuUtilPercent As Integer
@@ -158,6 +189,11 @@ Namespace Services.Testing
     Public Class ResourceReport
         Public Property SampleCount As Integer
         Public Property HasGpu As Boolean
+
+        ' CPU utilisation
+        Public Property CpuMinPercent As Integer
+        Public Property CpuMaxPercent As Integer
+        Public Property CpuAvgPercent As Integer
 
         ' Process memory
         Public Property ProcessMemoryMinMB As Integer
@@ -180,12 +216,19 @@ Namespace Services.Testing
         Public Property GpuTempMinC As Integer
         Public Property GpuTempMaxC As Integer
 
+        ' Model / engine identification (set by caller before display/export)
+        Public Property ModelInfo As String = ""
+
         ' Pressure warnings
         Public Property Warnings As New List(Of String)()
 
         Public Function ToSummaryText() As String
-            Dim sb As New Text.StringBuilder()
-            sb.Append($"RAM: {ProcessMemoryAvgMB} MB avg, {ProcessMemoryMaxMB} MB peak")
+            Dim sb As New StringBuilder()
+            If Not String.IsNullOrEmpty(ModelInfo) Then
+                sb.AppendLine($"Model: {ModelInfo}")
+            End If
+            sb.Append($"CPU: {CpuAvgPercent}% avg, {CpuMaxPercent}% peak")
+            sb.Append($"  |  RAM: {ProcessMemoryAvgMB} MB avg, {ProcessMemoryMaxMB} MB peak")
 
             If HasGpu Then
                 sb.Append($"  |  GPU: {GpuUtilAvgPercent}% avg, {GpuUtilMaxPercent}% peak")
@@ -196,6 +239,38 @@ Namespace Services.Testing
                 End If
             End If
 
+            Return sb.ToString()
+        End Function
+
+        ''' <summary>
+        ''' Generates the resource utilisation section for CSV exports.
+        ''' </summary>
+        Public Function ToCsvSection() As String
+            If SampleCount = 0 Then Return ""
+            Dim sb As New StringBuilder()
+            If Not String.IsNullOrEmpty(ModelInfo) Then
+                sb.AppendLine($"# Model: {ModelInfo}")
+            End If
+            sb.AppendLine("# Resource Utilisation")
+            sb.AppendLine("metric,min,avg,max,unit")
+            sb.AppendLine($"cpu,{CpuMinPercent},{CpuAvgPercent},{CpuMaxPercent},%")
+            sb.AppendLine($"process_memory,{ProcessMemoryMinMB},{ProcessMemoryAvgMB},{ProcessMemoryMaxMB},MB")
+            If HasGpu Then
+                sb.AppendLine($"gpu_util,{GpuUtilMinPercent},{GpuUtilAvgPercent},{GpuUtilMaxPercent},%")
+                sb.AppendLine($"gpu_memory,{GpuMemoryMinMB},{GpuMemoryAvgMB},{GpuMemoryMaxMB},MB")
+                sb.AppendLine($"gpu_memory_total,{GpuMemoryTotalMB},{GpuMemoryTotalMB},{GpuMemoryTotalMB},MB")
+                sb.AppendLine($"gpu_memory_peak_percent,,,{GpuMemoryPeakPercent},%")
+                If GpuTempMaxC > 0 Then
+                    sb.AppendLine($"gpu_temp,{GpuTempMinC},,{GpuTempMaxC},C")
+                End If
+            End If
+            If Warnings.Count > 0 Then
+                sb.AppendLine()
+                sb.AppendLine("# Warnings")
+                For Each w In Warnings
+                    sb.AppendLine(w)
+                Next
+            End If
             Return sb.ToString()
         End Function
     End Class

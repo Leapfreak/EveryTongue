@@ -789,9 +789,13 @@ Partial Class FormMain
 
         Dim ttsSvc = TryCast(diServices?.GetService(
             GetType(Services.Interfaces.ITtsService)), Services.Interfaces.ITtsService)
+        Dim ttsBackends = If(diServices IsNot Nothing,
+            Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.
+                GetServices(Of Services.Interfaces.ITtsBackend)(diServices),
+            Enumerable.Empty(Of Services.Interfaces.ITtsBackend)())
         Dim livePort = If(_config?.LiveServerPort, 0)
 
-        Using frm As New FormTranslationBenchmark(translationSvc, ttsSvc, livePort, _config)
+        Using frm As New FormTranslationBenchmark(translationSvc, ttsSvc, livePort, _config, ttsBackends)
             frm.ShowDialog(Me)
         End Using
     End Sub
