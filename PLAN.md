@@ -33,11 +33,10 @@ Full benchmarking form with 6 test types across 4 tabs: Translation Pipeline, Tr
 ## Suggested Next Priorities
 1. Audio Level Monitor — operator feedback, prevents bad audio
 2. Setup Wizard expansion — integrates QR, audio monitor, hardware score
-3. Priority Queue Pipeline — STT/Translation/TTS queues with dynamic priority scoring for multi-room load
-4. Cross-platform headless server (Linux/Docker) — see line 207+
+3. Cross-platform headless server (Linux/Docker)
 
 ## Immediate TODO (2026-06-06)
-- [ ] Test whisper-cpp performance — should support more than 5 concurrent sessions
+- [ ] Glossary system update — expand Catalan theological terms, simplified editing UI (#5)
 - [ ] Audio Level Monitor — operator feedback, prevents bad audio (#3)
 - [ ] Rooms desktop dashboard — active rooms overview (#19g)
 
@@ -58,7 +57,6 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
   - **macOS** — Metal backend for whisper.cpp is fast (~1.2–1.5x vs CUDA, near real-time on M-series). Apple Silicon Macs are increasingly common in churches/organisations.
   - **Docker** — package headless server + all sidecars (translation, Piper, whisper.cpp) as a single Docker image. One `docker run` and it's serving rooms. GPU passthrough via `--gpus all` (NVIDIA) or `--device /dev/dri` (AMD/Intel). This is the ideal deployment for technical users and cloud hosting.
   - **Build approach:** Extract all server logic into a shared `EveryTongue.Core` library (no WinForms references). The Windows desktop app references Core + WinForms. A new `EveryTongue.Server` console app references Core only — this is the cross-platform headless entry point. Both share the same Kestrel pipeline, DI container, and engine orchestrators.
-- Priority queue pipeline with dynamic priority scoring and backpressure/degradation
 - Mesh WiFi / mDNS service discovery for automatic server finding
 - Session recording & per-room transcript export
 - Plugin auto-discovery from `plugins/` folder
@@ -1149,9 +1147,9 @@ For languages not yet in the UI (e.g., before Feature #9 adds Polish/Romanian), 
 - Conference room dropdown on Live workspace (server-side `TargetRoomId` ready, ComboBox UI not yet added)
 - No room creation/management from desktop — that's the phone's job
 
-### Future: Priority Queue Pipeline
+### Done: Priority Queue Pipeline
 
-When multiple rooms run concurrently, STT/translation/TTS become bottlenecks. Each gets a priority queue with dynamic scoring (Conversation > Conference, fast turn-taking boosted, starvation prevention). Backpressure: switch to smaller model, increase batching, skip TTS, show "high demand" indicator.
+`PriorityWorkQueue(Of TResult)` in `Services/Scheduling/` — bounded concurrency, starvation prevention (age-based priority promotion), cancellation, metrics. Used by `TranslationOrchestrator` and `TtsOrchestrator`.
 
 ### Future: Plugin Architecture
 
