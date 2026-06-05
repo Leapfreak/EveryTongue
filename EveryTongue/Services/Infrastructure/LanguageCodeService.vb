@@ -18,6 +18,7 @@ Namespace Services.Infrastructure
         ' Reverse indexes for fast lookup
         Private ReadOnly _byIso1 As New Dictionary(Of String, LangEntry)(StringComparer.OrdinalIgnoreCase)
         Private ReadOnly _byIso3 As New Dictionary(Of String, LangEntry)(StringComparer.OrdinalIgnoreCase)
+        Private ReadOnly _byWhisper As New Dictionary(Of String, LangEntry)(StringComparer.OrdinalIgnoreCase)
 
         Private Class LangEntry
             Public Property Flores As String
@@ -57,6 +58,7 @@ Namespace Services.Infrastructure
                         _byFlores(entry.Flores) = entry
                         If Not String.IsNullOrEmpty(entry.Iso1) Then _byIso1(entry.Iso1) = entry
                         If Not String.IsNullOrEmpty(entry.Iso3) Then _byIso3(entry.Iso3) = entry
+                        If Not String.IsNullOrEmpty(entry.Whisper) Then _byWhisper(entry.Whisper) = entry
                     Next
                 End Using
                 AppLogger.Log($"[LanguageCodeService] Loaded {_byFlores.Count} languages")
@@ -86,10 +88,13 @@ Namespace Services.Infrastructure
 
         ' ── Conversion methods ──
 
-        ''' <summary>Whisper code (ISO 639-1, e.g. "es") -> FLORES code (e.g. "spa_Latn")</summary>
+        ''' <summary>Whisper code (e.g. "es", "no", "jw") -> FLORES code (e.g. "spa_Latn")</summary>
         Public Function WhisperToFlores(whisperCode As String) As String
             If String.IsNullOrEmpty(whisperCode) Then Return ""
             Dim entry As LangEntry = Nothing
+            ' Try whisper-specific code first (handles non-standard codes like "no", "jw")
+            If _byWhisper.TryGetValue(whisperCode, entry) Then Return entry.Flores
+            ' Fall back to ISO 639-1
             If _byIso1.TryGetValue(whisperCode, entry) Then Return entry.Flores
             Return ""
         End Function
@@ -155,13 +160,15 @@ Namespace Services.Infrastructure
             Return ""
         End Function
 
-        ''' <summary>Any code format -> FLORES code. Tries FLORES, then ISO 639-1, then ISO 639-3.</summary>
+        ''' <summary>Any code format -> FLORES code. Tries FLORES, then whisper, then ISO 639-1, then ISO 639-3.</summary>
         Public Function ToFlores(anyCode As String) As String
             If String.IsNullOrEmpty(anyCode) Then Return ""
             ' Already FLORES?
             If _byFlores.ContainsKey(anyCode) Then Return anyCode
-            ' ISO 639-1?
+            ' Whisper-specific code? (e.g. "no" -> Norwegian, "jw" -> Javanese)
             Dim entry As LangEntry = Nothing
+            If _byWhisper.TryGetValue(anyCode, entry) Then Return entry.Flores
+            ' ISO 639-1?
             If _byIso1.TryGetValue(anyCode, entry) Then Return entry.Flores
             ' ISO 639-3?
             If _byIso3.TryGetValue(anyCode, entry) Then Return entry.Flores
@@ -200,7 +207,12 @@ Namespace Services.Infrastructure
         ''' <summary>Returns whisper->FLORES dictionary for compatibility with existing code.</summary>
         Public Function GetWhisperToFloresMap() As Dictionary(Of String, String)
             Dim map As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
+            ' Include ISO 639-1 codes
             For Each kvp In _byIso1
+                map(kvp.Key) = kvp.Value.Flores
+            Next
+            ' Include whisper-specific codes (overrides iso1 where they differ, e.g. "no" vs "nb")
+            For Each kvp In _byWhisper
                 map(kvp.Key) = kvp.Value.Flores
             Next
             Return map

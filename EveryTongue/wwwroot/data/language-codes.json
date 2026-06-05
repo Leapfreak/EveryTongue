@@ -169,6 +169,13 @@
     "name": "Bosnian",
     "native": "Bosanski"
   },
+  "bre_Latn": {
+    "iso3": "bre",
+    "iso1": "br",
+    "whisper": "br",
+    "name": "Breton",
+    "native": "Brezhoneg"
+  },
   "bug_Latn": {
     "iso3": "bug",
     "name": "Buginese",
@@ -429,6 +436,14 @@
     "name": "Gujarati",
     "native": "ગુજરાતી"
   },
+  "hat_Latn": {
+    "iso3": "hat",
+    "iso1": "ht",
+    "whisper": "ht",
+    "google": "ht",
+    "name": "Haitian Creole",
+    "native": "Kreyòl ayisyen"
+  },
   "hau_Latn": {
     "iso3": "hau",
     "iso1": "ha",
@@ -532,7 +547,7 @@
   "jav_Latn": {
     "iso3": "jav",
     "iso1": "jv",
-    "whisper": "jv",
+    "whisper": "jw",
     "deepl": "JV",
     "google": "jv",
     "azure": "jv",
@@ -684,6 +699,14 @@
     "name": "Lao",
     "native": "ລາວ"
   },
+  "lat_Latn": {
+    "iso3": "lat",
+    "iso1": "la",
+    "whisper": "la",
+    "google": "la",
+    "name": "Latin",
+    "native": "Latina"
+  },
   "lij_Latn": {
     "iso3": "lij",
     "name": "Ligurian",
@@ -811,11 +834,6 @@
   },
   "mni_Beng": {
     "iso3": "mni",
-    "iso1": "bn",
-    "whisper": "bn",
-    "deepl": "BN",
-    "google": "bn",
-    "azure": "bn",
     "name": "Manipuri",
     "native": "মৈতৈলোন্"
   },
@@ -867,7 +885,7 @@
   "nob_Latn": {
     "iso3": "nob",
     "iso1": "nb",
-    "whisper": "nb",
+    "whisper": "no",
     "deepl": "NB",
     "google": "nb",
     "azure": "nb",
@@ -936,8 +954,20 @@
   },
   "pbt_Arab": {
     "iso3": "pbt",
+    "iso1": "ps",
+    "whisper": "ps",
+    "google": "ps",
+    "azure": "ps",
     "name": "Pashto",
     "native": "پښتو"
+  },
+  "plt_Latn": {
+    "iso3": "mlg",
+    "iso1": "mg",
+    "whisper": "mg",
+    "google": "mg",
+    "name": "Malagasy",
+    "native": "Malagasy"
   },
   "pes_Arab": {
     "iso3": "pes",
@@ -1043,6 +1073,14 @@
     "iso3": "shn",
     "name": "Shan",
     "native": "လိၵ်ႈတႆး"
+  },
+  "sin_Sinh": {
+    "iso3": "sin",
+    "iso1": "si",
+    "whisper": "si",
+    "google": "si",
+    "name": "Sinhala",
+    "native": "සිංහල"
   },
   "slk_Latn": {
     "iso3": "slk",
@@ -1394,6 +1432,13 @@
     "name": "Yoruba",
     "native": "Yorùbá"
   },
+  "yue_Hant": {
+    "iso3": "yue",
+    "whisper": "yue",
+    "google": "yue",
+    "name": "Cantonese",
+    "native": "粵語"
+  },
   "zho_Hans": {
     "iso3": "zho",
     "iso1": "zh",
@@ -1406,11 +1451,9 @@
   },
   "zho_Hant": {
     "iso3": "zho",
-    "iso1": "zh",
-    "whisper": "zh",
     "deepl": "ZH",
-    "google": "zh",
-    "azure": "zh",
+    "google": "zh-TW",
+    "azure": "zh-Hant",
     "name": "Chinese (Traditional)",
     "native": "繁體中文"
   },

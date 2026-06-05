@@ -1,5 +1,5 @@
 {
-  "Btn_BrowseAudio": "Browse Audio...",
+  "Btn_BrowseAudio": "Browse...",
   "Btn_BrowseFile": "Browse...",
   "Btn_BrowseOutput": "Browse...",
   "Btn_Cancel": "Cancel",
@@ -69,7 +69,7 @@
   "Grp_Progress": "Progress",
   "Grp_ServerInfo": "Connection Info",
   "Grp_ServerSettings": "Server Settings",
-  "Lbl_AudioFile": "Audio file:",
+  "Lbl_AudioFile": "Audio/Video file:",
   "Lbl_EndTime": "End time (HH:MM:SS):",
   "Lbl_InputLanguage": "Input Language:",
   "Lbl_Mode": "Mode:",

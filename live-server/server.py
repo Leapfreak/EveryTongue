@@ -121,7 +121,7 @@ _whisper_server_process = None  # type: subprocess.Popen or None
 # Normalized segment class (bridges whisper-server JSON and internal pipeline)
 # ---------------------------------------------------------------------------
 class WordInfo:
-    """Word-level timestamp matching faster-whisper's Word interface."""
+    """Word-level timestamp from whisper-server DTW tokens."""
     __slots__ = ('word', 'start', 'end', 'probability')
     def __init__(self, word="", start=0.0, end=0.0, probability=0.0):
         self.word = word
@@ -130,7 +130,7 @@ class WordInfo:
         self.probability = probability
 
 class SegmentInfo:
-    """Segment with attributes matching faster-whisper's Segment interface."""
+    """Transcription segment from whisper-server."""
     __slots__ = ('start', 'end', 'text', 'no_speech_prob', 'avg_logprob', 'words')
     def __init__(self, start=0.0, end=0.0, text="", no_speech_prob=0.0, avg_logprob=0.0, words=None):
         self.start = start
@@ -141,7 +141,7 @@ class SegmentInfo:
         self.words = words or []
 
 class TranscribeInfo:
-    """Transcription metadata matching faster-whisper's TranscriptionInfo."""
+    """Transcription metadata from whisper-server."""
     __slots__ = ('language',)
     def __init__(self, language=""):
         self.language = language
@@ -225,13 +225,6 @@ def _stop_whisper_server():
             except Exception:
                 pass
     _whisper_server_process = None
-
-
-def _restart_whisper_server():
-    """Restart whisper-server to work around handle leak (ggml-org/whisper.cpp#3358)."""
-    if _whisper_server_path and model_path_global and _whisper_server_port:
-        logger.debug("WHISPER-SERVER RESTART (handle leak workaround)")
-        _start_whisper_server(_whisper_server_path, model_path_global, _whisper_server_port, _no_gpu)
 
 
 def _post_multipart(url: str, fields: dict, files: dict, timeout: int = 30):

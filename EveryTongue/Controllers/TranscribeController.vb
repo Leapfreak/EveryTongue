@@ -28,6 +28,9 @@ Namespace Controllers
         Private ReadOnly _lnkPreviewSrt As LinkLabel
         Private ReadOnly _lblStepStatus As Label
         Private ReadOnly _lblUrl As Label
+        Private ReadOnly _lblInputLanguage As Label
+        Private ReadOnly _lblOutputLanguage As Label
+        Private ReadOnly _lblModel As Label
         Private ReadOnly _lblStartTime As Label
         Private ReadOnly _lblEndTime As Label
         Private ReadOnly _lblStartColon1 As Label
@@ -54,6 +57,8 @@ Namespace Controllers
         Private ReadOnly _getString As Func(Of String, String)
         Private ReadOnly _log As Action(Of String)
         Private ReadOnly _sttLanguages As String()
+        Private ReadOnly _langDisplayName As Func(Of String, String)
+        Private ReadOnly _langCodeFromDisplay As Func(Of String, String)
 
         ' State
         Private _isRunning As Boolean = False
@@ -75,6 +80,7 @@ Namespace Controllers
                        btnOpenOutput As Button, btnOpenSubtitleEdit As Button,
                        lnkPreviewSrt As LinkLabel,
                        lblStepStatus As Label, lblUrl As Label,
+                       lblInputLanguage As Label, lblOutputLanguage As Label, lblModel As Label,
                        lblStartTime As Label, lblEndTime As Label,
                        lblStartColon1 As Label, lblStartColon2 As Label,
                        lblEndColon1 As Label, lblEndColon2 As Label,
@@ -84,6 +90,8 @@ Namespace Controllers
                        grpOutputFormats As GroupBox,
                        tabMain As TabControl, tabPageJob As TabPage,
                        sttLanguages As String(),
+                       langDisplayName As Func(Of String, String),
+                       langCodeFromDisplay As Func(Of String, String),
                        saveUiToConfig As Action,
                        showLogPanel As Action,
                        appendLog As Action(Of String, String, Drawing.Color),
@@ -106,6 +114,9 @@ Namespace Controllers
             _lnkPreviewSrt = lnkPreviewSrt
             _lblStepStatus = lblStepStatus
             _lblUrl = lblUrl
+            _lblInputLanguage = lblInputLanguage
+            _lblOutputLanguage = lblOutputLanguage
+            _lblModel = lblModel
             _lblStartTime = lblStartTime
             _lblEndTime = lblEndTime
             _lblStartColon1 = lblStartColon1
@@ -124,6 +135,8 @@ Namespace Controllers
             _tabMain = tabMain
             _tabPageJob = tabPageJob
             _sttLanguages = sttLanguages
+            _langDisplayName = langDisplayName
+            _langCodeFromDisplay = langCodeFromDisplay
             _saveUiToConfig = saveUiToConfig
             _showLogPanel = showLogPanel
             _appendLog = appendLog
@@ -143,6 +156,23 @@ Namespace Controllers
             AddHandler _btnOpenSubtitleEdit.Click, Sub(s, e) OpenSubtitleEdit()
             AddHandler _lnkPreviewSrt.LinkClicked, Sub(s, e) PreviewSrt()
             AddHandler _cboModel.SelectedIndexChanged, Sub(s, e) OnModelChanged()
+            ' Snap language combos back to a valid item if user types something not in list
+            For Each cbo In {_cboInputLanguage, _cboOutputLanguage}
+                Dim c = cbo ' capture for closure
+                AddHandler c.Validating, Sub(s, e)
+                                              If c.SelectedIndex < 0 AndAlso c.Items.Count > 0 Then
+                                                  ' Try to find a match for what was typed
+                                                  Dim typed = c.Text.Trim()
+                                                  For i = 0 To c.Items.Count - 1
+                                                      If c.Items(i).ToString().StartsWith(typed, StringComparison.OrdinalIgnoreCase) Then
+                                                          c.SelectedIndex = i
+                                                          Return
+                                                      End If
+                                                  Next
+                                                  c.SelectedIndex = 0
+                                              End If
+                                          End Sub
+            Next
             For Each tb In {_txtStartHH, _txtStartMM, _txtStartSS, _txtEndHH, _txtEndMM, _txtEndSS}
                 AddHandler tb.KeyPress, Sub(s, e)
                                             If Not Char.IsDigit(e.KeyChar) AndAlso Not Char.IsControl(e.KeyChar) Then
@@ -156,8 +186,16 @@ Namespace Controllers
             _cboInputLanguage.Items.Clear()
             _cboOutputLanguage.Items.Clear()
             For Each lang In _sttLanguages
-                _cboInputLanguage.Items.Add(lang)
-                _cboOutputLanguage.Items.Add(lang)
+                Dim display = _langDisplayName(lang)
+                _cboInputLanguage.Items.Add(display)
+                _cboOutputLanguage.Items.Add(display)
+            Next
+
+            ' Enable autocomplete typing
+            For Each cbo In {_cboInputLanguage, _cboOutputLanguage}
+                cbo.DropDownStyle = ComboBoxStyle.DropDown
+                cbo.AutoCompleteMode = AutoCompleteMode.SuggestAppend
+                cbo.AutoCompleteSource = AutoCompleteSource.ListItems
             Next
         End Sub
 
@@ -205,6 +243,15 @@ Namespace Controllers
 
             Dim hasSubtitles = (_cboMode.SelectedIndex = 0 OrElse _cboMode.SelectedIndex = 3)
             _grpOutputFormats.Visible = hasSubtitles
+
+            ' Language and model only matter for modes that transcribe (0=Audio File, 3=YouTube→Subtitles)
+            Dim hasTranscription = hasSubtitles
+            _lblInputLanguage.Visible = hasTranscription
+            _cboInputLanguage.Visible = hasTranscription
+            _lblOutputLanguage.Visible = hasTranscription
+            _cboOutputLanguage.Visible = hasTranscription
+            _lblModel.Visible = hasTranscription
+            _cboModel.Visible = hasTranscription
 
             _lblUrl.Text = If(isAudioFile, _getString("Lbl_AudioFile"), _getString("Lbl_Url"))
             _btnBrowseFile.Text = If(isAudioFile, _getString("Btn_BrowseAudio"), _getString("Btn_BrowseFile"))
@@ -381,7 +428,7 @@ Namespace Controllers
         Private Sub BrowseFile()
             Using dlg As New OpenFileDialog()
                 If _cboMode.SelectedIndex = 0 Then
-                    dlg.Filter = "Audio files|*.wav;*.mp3;*.ogg;*.flac;*.m4a;*.wma;*.aac;*.opus|All files|*.*"
+                    dlg.Filter = "Audio/Video files|*.wav;*.mp3;*.ogg;*.flac;*.m4a;*.wma;*.aac;*.opus;*.webm;*.mp4;*.mkv;*.avi;*.mov;*.wmv|All files|*.*"
                     Dim resolvedRoot = AppConfig.ResolvePath(_config.PathOutputRoot)
                     If Not String.IsNullOrWhiteSpace(resolvedRoot) AndAlso Directory.Exists(resolvedRoot) Then
                         dlg.InitialDirectory = resolvedRoot

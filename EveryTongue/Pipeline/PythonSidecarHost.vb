@@ -100,6 +100,10 @@ Namespace Pipeline
                     .StandardErrorEncoding = Encoding.UTF8
                 }
 
+                ' Ensure Python writes UTF-8 to stdout/stderr (Windows defaults to cp1252)
+                psi.Environment("PYTHONIOENCODING") = "utf-8"
+                psi.Environment("PYTHONLEGACYWINDOWSSTDIO") = "0"
+
                 If AddWhisperToPath Then
                     Dim whisperDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "whisper")
                     If Directory.Exists(whisperDir) Then

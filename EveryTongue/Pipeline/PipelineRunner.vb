@@ -1,5 +1,8 @@
 Imports System.Diagnostics
 Imports System.IO
+Imports System.Net.Http
+Imports System.Text
+Imports System.Text.Json
 Imports System.Threading
 Imports EveryTongue.Models
 
@@ -36,7 +39,7 @@ Namespace Pipeline
 
         Public Async Function RunAsync(url As String, startTime As String, endTime As String,
                                         outputDir As String, Optional resumeMode As Boolean = False) As Task
-            _stepCount = 8 ' Steps 0-7
+            _stepCount = If(NeedsTranslation(), 9, 8) ' Steps 0-7 (or 0-8 with translation)
             ' Step 0: Validate
             Report(0, "Validating inputs...")
             Log("=== Step 0: Validating inputs ===")
@@ -186,6 +189,13 @@ Namespace Pipeline
             Dim entryCount = SrtMerger.Merge(srtPaths, chunkStarts, TimeToSec(startTime), mergedPath)
             Log($"Merged {entryCount} subtitle entries.", LogLevel.Success)
 
+            ' Step 8: Translate subtitles (if output language differs)
+            If NeedsTranslation() Then
+                _ct.ThrowIfCancellationRequested()
+                Report(8, "Translating subtitles...")
+                Await TranslateSubtitlesAsync(mergedPath, "Step 8")
+            End If
+
             ' Clean up chunks if configured
             If Not _config.KeepChunkFiles Then
                 For i = 0 To chunkPaths.Count - 1
@@ -208,7 +218,7 @@ Namespace Pipeline
                 End Try
             End If
 
-            Report(7, "Done!")
+            Report(If(NeedsTranslation(), 8, 7), "Done!")
             Log("=================================================", LogLevel.Success)
             Log($"Done! {entryCount} subtitles saved to: {mergedPath}", LogLevel.Success)
             Log("Open preview.mp4 in VLC - subtitles load automatically", LogLevel.Success)
@@ -386,7 +396,7 @@ Namespace Pipeline
         End Function
 
         Public Async Function RunAudioFileAsync(inputFile As String, outputDir As String) As Task
-            _stepCount = 6 ' Steps 0-5
+            _stepCount = If(NeedsTranslation(), 7, 6) ' Steps 0-5 (or 0-6 with translation)
             ' Step 0: Validate
             Report(0, "Validating inputs...")
             Log("=== Step 0: Validating inputs (Audio File mode) ===")
@@ -497,6 +507,13 @@ Namespace Pipeline
             Dim entryCount = SrtMerger.Merge(srtPaths, chunkStarts, 0, mergedPath)
             Log($"Merged {entryCount} subtitle entries.", LogLevel.Success)
 
+            ' Step 6: Translate subtitles (if output language differs)
+            If NeedsTranslation() Then
+                _ct.ThrowIfCancellationRequested()
+                Report(6, "Translating subtitles...")
+                Await TranslateSubtitlesAsync(mergedPath, "Step 6")
+            End If
+
             ' Clean up chunks if configured
             If Not _config.KeepChunkFiles Then
                 For i = 0 To chunkPaths.Count - 1
@@ -510,7 +527,7 @@ Namespace Pipeline
                 Log("Chunk files cleaned up.")
             End If
 
-            Report(5, "Done!")
+            Report(If(NeedsTranslation(), 6, 5), "Done!")
             Log("=================================================", LogLevel.Success)
             Log($"Done! {entryCount} subtitles saved to: {mergedPath}", LogLevel.Success)
             Log("=================================================", LogLevel.Success)
@@ -711,6 +728,107 @@ Namespace Pipeline
                 Throw New PipelineException("Err_ToolNotFound", $"Model file not found: {AppConfig.ResolvePath(_config.PathModel)}")
             End If
         End Sub
+
+        ''' <summary>
+        ''' Translate an SRT file through the translation sidecar.
+        ''' Reads entries, translates each text line, writes back in-place.
+        ''' </summary>
+        Private Async Function TranslateSubtitlesAsync(srtPath As String, stepLabel As String) As Task
+            ' "auto" isn't a real language code — default to English since whisper
+            ' outputs source-language text (and English is the most common case).
+            Dim whisperLang = If(_config.Language, "en")
+            If whisperLang.Equals("auto", StringComparison.OrdinalIgnoreCase) Then whisperLang = "en"
+            Dim srcLang = TranslationService.WhisperToFloresLang(whisperLang)
+            Dim tgtLang = TranslationService.WhisperToFloresLang(_config.OutputLanguage)
+            Dim port = _config.TranslationPort
+
+            Log($"=== {stepLabel}: Translating subtitles ({srcLang} -> {tgtLang}) ===")
+
+            ' Check translation sidecar is reachable
+            Using probe As New HttpClient() With {.Timeout = TimeSpan.FromSeconds(5)}
+                Try
+                    Dim resp = Await probe.GetAsync($"http://127.0.0.1:{port}/health", _ct)
+                    If Not resp.IsSuccessStatusCode Then
+                        Log("Translation server not available — subtitles will not be translated.", LogLevel.Err)
+                        Return
+                    End If
+                Catch ex As Exception
+                    Log("Translation server not running — subtitles will not be translated. Start translation from Options or ensure it auto-starts.", LogLevel.Err)
+                    Return
+                End Try
+            End Using
+
+            Dim lines = File.ReadAllLines(srtPath, Encoding.UTF8)
+            Dim entries = SrtMerger.ParseSrt(lines)
+            If entries.Count = 0 Then
+                Log("No subtitle entries to translate.", LogLevel.Err)
+                Return
+            End If
+
+            Using client As New HttpClient() With {.Timeout = TimeSpan.FromSeconds(30)}
+                Dim translated = 0
+                For Each entry In entries
+                    _ct.ThrowIfCancellationRequested()
+                    Try
+                        Dim reqBody As New With {
+                            .text = entry.Text,
+                            .source_lang = srcLang,
+                            .target_langs = New String() {tgtLang},
+                            .no_cache = False
+                        }
+                        Dim json = JsonSerializer.Serialize(reqBody)
+                        Dim content As New StringContent(json, Encoding.UTF8, "application/json")
+                        Dim resp = Await client.PostAsync($"http://127.0.0.1:{port}/translate", content, _ct)
+
+                        If resp.IsSuccessStatusCode Then
+                            Dim body = Await resp.Content.ReadAsStringAsync()
+                            Using doc = JsonDocument.Parse(body)
+                                Dim translations As JsonElement
+                                If doc.RootElement.TryGetProperty("translations", translations) Then
+                                    Dim translatedText As JsonElement
+                                    If translations.TryGetProperty(tgtLang, translatedText) Then
+                                        entry.Text = translatedText.GetString()
+                                        translated += 1
+                                    End If
+                                End If
+                            End Using
+                        Else
+                            Log($"  Translation failed for entry {entry.Index}: HTTP {CInt(resp.StatusCode)}", LogLevel.Err)
+                        End If
+                    Catch ex As OperationCanceledException
+                        Throw
+                    Catch ex As Exception
+                        Log($"  Translation failed for entry {entry.Index}: {ex.Message}", LogLevel.Err)
+                    End Try
+
+                    If translated Mod 10 = 0 Then
+                        Report(_stepCount - 1, $"Translating... ({translated}/{entries.Count})", translated, entries.Count)
+                    End If
+                Next
+
+                ' Write translated SRT back
+                Using writer As New StreamWriter(srtPath, False, New UTF8Encoding(True))
+                    For Each entry In entries
+                        writer.WriteLine(entry.Index)
+                        writer.WriteLine($"{SrtMerger.SecToSrt(entry.StartSec)} --> {SrtMerger.SecToSrt(entry.EndSec)}")
+                        writer.WriteLine(entry.Text)
+                        writer.WriteLine()
+                    Next
+                End Using
+
+                Log($"Translated {translated}/{entries.Count} subtitle entries.", LogLevel.Success)
+            End Using
+        End Function
+
+        ''' <summary>True if the pipeline should translate subtitles after transcription.</summary>
+        Private Function NeedsTranslation() As Boolean
+            Dim outLang = If(_config.OutputLanguage, "")
+            Dim inLang = If(_config.Language, "auto")
+            ' whisper handles translate-to-English via -tr flag; we handle everything else
+            Return outLang.Length > 0 AndAlso
+                   Not outLang.Equals(inLang, StringComparison.OrdinalIgnoreCase) AndAlso
+                   Not outLang.Equals("en", StringComparison.OrdinalIgnoreCase)
+        End Function
 
         Private Shared Function TimeToSec(t As String) As Double
             If String.IsNullOrWhiteSpace(t) Then Return 0

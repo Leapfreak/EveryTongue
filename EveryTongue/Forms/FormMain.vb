@@ -162,10 +162,13 @@ Public Class FormMain
             txtUrl, txtOutputDir, btnStart, btnResume, btnCancel,
             btnBrowseFile, btnBrowseOutput, btnOpenOutput, btnOpenSubtitleEdit,
             lnkPreviewSrt, lblStepStatus, lblUrl,
+            lblInputLanguage, lblOutputLanguage, lblModel,
             lblStartTime, lblEndTime, lblStartColon1, lblStartColon2, lblEndColon1, lblEndColon2,
             txtStartHH, txtStartMM, txtStartSS, txtEndHH, txtEndMM, txtEndSS,
             pbOverall, pbChunk, grpOutputFormats, tabMain, tabPageJob,
             _sttLanguages,
+            AddressOf LangDisplayName,
+            AddressOf LangCodeFromDisplay,
             AddressOf SaveUiToConfig,
             AddressOf ShowLogPanel,
             Sub(source, msg, clr) AppendUnifiedLog(source, msg, clr),
@@ -660,12 +663,12 @@ del ""%~f0""
         _config.OutputCsv = chkCsv.Checked
         _config.OutputLrc = chkLrc.Checked
 
-        ' Language (sync both dropdowns)
+        ' Language (sync both dropdowns — extract code from display name)
         If cboInputLanguage.SelectedItem IsNot Nothing Then
-            _config.Language = cboInputLanguage.SelectedItem.ToString()
+            _config.Language = LangCodeFromDisplay(cboInputLanguage.SelectedItem.ToString())
         End If
         If cboOutputLanguage.SelectedItem IsNot Nothing Then
-            _config.OutputLanguage = cboOutputLanguage.SelectedItem.ToString()
+            _config.OutputLanguage = LangCodeFromDisplay(cboOutputLanguage.SelectedItem.ToString())
         End If
         WriteDebugLog($"[CONFIG] SaveUiToConfig: Language={_config.Language}, OutputLanguage={_config.OutputLanguage}")
 
@@ -689,8 +692,21 @@ del ""%~f0""
     End Sub
 
     Private Sub SelectComboItem(cbo As ComboBox, value As String)
+        If String.IsNullOrEmpty(value) Then
+            If cbo.Items.Count > 0 Then cbo.SelectedIndex = 0
+            Return
+        End If
+        ' Try exact match first (handles display names stored directly)
         For i = 0 To cbo.Items.Count - 1
             If cbo.Items(i).ToString().Equals(value, StringComparison.OrdinalIgnoreCase) Then
+                cbo.SelectedIndex = i
+                Return
+            End If
+        Next
+        ' Try matching by code suffix, e.g. "English (en)" contains "(en)"
+        Dim suffix = $"({value})"
+        For i = 0 To cbo.Items.Count - 1
+            If cbo.Items(i).ToString().EndsWith(suffix, StringComparison.OrdinalIgnoreCase) Then
                 cbo.SelectedIndex = i
                 Return
             End If

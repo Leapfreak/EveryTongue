@@ -109,8 +109,13 @@ Namespace Controllers
         End Sub
 
         Public Sub PopulateLanguageDropdowns()
+            ' Only show languages that have FLORES mappings (i.e. the translation
+            ' engine can actually handle them). Codes like "no", "si", "jw" have
+            ' no FLORES equivalent and produce garbage if selected.
+            Dim floresMap = Pipeline.TranslationService.GetLangMap()
             For Each lang In _sttLanguages
                 If lang = "auto" Then Continue For
+                If Not floresMap.ContainsKey(lang) Then Continue For
                 Dim display = _langDisplayName(lang)
                 _cboSource.Items.Add(display)
                 _cboTarget.Items.Add(display)

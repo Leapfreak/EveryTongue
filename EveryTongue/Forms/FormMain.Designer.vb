@@ -631,7 +631,7 @@ Partial Class FormMain
         ' cboMode
         ' 
         cboMode.DropDownStyle = ComboBoxStyle.DropDownList
-        cboMode.Items.AddRange(New Object() {"Audio File -> Subtitles", "YouTube -> Audio Only", "YouTube -> Full Video", "YouTube -> Subtitles"})
+        cboMode.Items.AddRange(New Object() {"Audio/Video File -> Subtitles", "YouTube -> Audio Only", "YouTube -> Full Video", "YouTube -> Subtitles"})
         cboMode.Location = New Point(12, 22)
         cboMode.Name = "cboMode"
         cboMode.Size = New Size(200, 23)
@@ -708,10 +708,12 @@ Partial Class FormMain
         ' 
         ' cboInputLanguage
         ' 
-        cboInputLanguage.DropDownStyle = ComboBoxStyle.DropDownList
+        cboInputLanguage.DropDownStyle = ComboBoxStyle.DropDown
+        cboInputLanguage.AutoCompleteMode = AutoCompleteMode.SuggestAppend
+        cboInputLanguage.AutoCompleteSource = AutoCompleteSource.ListItems
         cboInputLanguage.Location = New Point(10, 86)
         cboInputLanguage.Name = "cboInputLanguage"
-        cboInputLanguage.Size = New Size(150, 23)
+        cboInputLanguage.Size = New Size(190, 23)
         cboInputLanguage.TabIndex = 4
         ' 
         ' lblOutputLanguage
@@ -725,10 +727,12 @@ Partial Class FormMain
         ' 
         ' cboOutputLanguage
         ' 
-        cboOutputLanguage.DropDownStyle = ComboBoxStyle.DropDownList
+        cboOutputLanguage.DropDownStyle = ComboBoxStyle.DropDown
+        cboOutputLanguage.AutoCompleteMode = AutoCompleteMode.SuggestAppend
+        cboOutputLanguage.AutoCompleteSource = AutoCompleteSource.ListItems
         cboOutputLanguage.Location = New Point(250, 86)
         cboOutputLanguage.Name = "cboOutputLanguage"
-        cboOutputLanguage.Size = New Size(150, 23)
+        cboOutputLanguage.Size = New Size(190, 23)
         cboOutputLanguage.TabIndex = 6
         ' 
         ' lblModel
