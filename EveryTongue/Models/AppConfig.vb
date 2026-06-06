@@ -196,7 +196,7 @@ Namespace Models
 
         Public Property FirstRunComplete As Boolean = False
         Public Property StartWithWindows As Boolean = False
-        Public Property AllowFirewall As Boolean = False
+        Public Property AllowFirewall As Boolean = True
 
         Public Property AdminPin As String = "1234"
 
