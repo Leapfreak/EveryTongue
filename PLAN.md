@@ -1,4 +1,4 @@
-# EveryTongue — TODO (updated 2026-06-07)
+# EveryTongue — TODO (updated 2026-06-07, v1.8.4)
 
 > **Architecture shift:** EveryTongue is evolving from a single-session desktop transcription tool into a **headless multi-room translation server**. The desktop app still has operator workspaces (Live, Transcribe, Translate, Bible), but the primary user interface is now the **phone web client**. Anyone with a phone can create rooms, manage conversations, and receive translations — no operator required. The desktop just runs the server and auto-starts engines at launch.
 
@@ -28,6 +28,9 @@ Full benchmarking form with 6 test types across 4 tabs: Translation Pipeline, Tr
 ### Filter Editor — COMPLETE (v1.8.2)
 Unified 3-tab filter editor (Hallucinations, Profanity, Glossary) with shared language selector. Glossary restructured to per-source-language dict format. CheckedListBox enable/disable for all items. Friendly language names throughout via LanguageCodeService. FormLanguageChooser searchable picker. ComboBox column for target languages. Filter hit logging at info level. Menu: Tools > Filter Editor.
 
+### Log Workspace & Resilience — COMPLETE (v1.8.4)
+Log nav button for full-screen Log workspace with bottom toolbar (copy/clear/search). Whisper-server recovery in ConversationAudioHandler: detects whisper subprocess death via `whisper_server_running` health field, auto-reloads model via `/load-model`. Bible panel click-outside fix for detached DOM nodes.
+
 ## User-Reported Issues & Tasks
 - [x] Implement stubs — most done (QR Code, Hardware Score, Diagnostics Export, File Integrity, Translate workspace). Remaining stubs: Session Wizard, Audio Level Monitor, Event Profiles, Spec Sheet Generator, Portable Mode, Feedback prompt
 - [x] Connected Clients dialog — popup form showing all connected phones with model, OS, browser, language, TTS, connection time
@@ -40,6 +43,7 @@ Unified 3-tab filter editor (Hallucinations, Profanity, Glossary) with shared la
 
 ## Immediate TODO (2026-06-07)
 - [x] Filter Editor overhaul — shared language combo, per-language glossary, checkboxes, friendly names, filter hit logging (#5)
+- [x] Log workspace — full-screen Log with nav button, bottom toolbar, whisper-server recovery (v1.8.4)
 - [ ] Audio Level Monitor — operator feedback, prevents bad audio (#3)
 - [ ] Rooms desktop dashboard — active rooms overview (#19g)
 
