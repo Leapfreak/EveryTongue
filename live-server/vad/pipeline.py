@@ -369,8 +369,8 @@ class VadPipeline:
                     segments, self._merger.last_commit_text,
                     detected_lang, self._recent_langs
                 ):
-                    logger.debug(
-                        f"[WHISPER] HALLUCINATION #{utterance_id}: \"{full_text}\""
+                    logger.info(
+                        f"[HALLUCINATION] #{utterance_id} blocked: \"{full_text}\""
                     )
                     self._stats.record_hallucination()
                     continue

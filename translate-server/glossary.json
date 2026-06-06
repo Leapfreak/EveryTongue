@@ -1,178 +1,234 @@
-[
-  {
-    "comment": "Spanish/Catalan 'culto' = church service, not 'cult'",
-    "trigger": "culto",
-    "source_langs": ["spa_Latn", "cat_Latn"],
-    "fixes": {
-      "eng_Latn": {"cult": "service", "cults": "services"},
-      "fra_Latn": {"culte": "culte religieux"},
-      "deu_Latn": {"Kult": "Gottesdienst"},
-      "por_Latn": {"culto": "culto religioso"}
+{
+  "cat_Latn": [
+    {
+      "trigger": "culto",
+      "comment": "Spanish/Catalan 'culto' = church service, not 'cult'",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"cult": "service", "cults": "services"},
+        "fra_Latn": {"culte": "culte religieux"},
+        "deu_Latn": {"Kult": "Gottesdienst"},
+        "por_Latn": {"culto": "culto religioso"}
+      }
+    },
+    {
+      "trigger": "cultos",
+      "comment": "'cultos' plural form",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"cults": "services", "cult": "service"}
+      }
+    },
+    {
+      "trigger": "furiar",
+      "comment": "'furiar-se' = to become furious (NLLB translates vulgarly)",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"pissed off": "furious", "pissed": "furious"}
+      }
+    },
+    {
+      "trigger": "rumieu",
+      "comment": "'rumieu' (ponder/reflect) mistranslated as 'rum'",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"rum": "reflect on it"}
+      }
+    },
+    {
+      "trigger": "processos",
+      "comment": "'processos' in context = processes, not lawsuits",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"lawsuits": "processes", "lawsuit": "process"}
+      }
+    },
+    {
+      "trigger": "Gr\u00e0cies",
+      "comment": "NLLB doubles 'Gràcies' into '- Thank you. - Thank you.'",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"- Thank you. - Thank you.": "Thank you.", "- Thank you. - Thank you": "Thank you"}
+      }
+    },
+    {
+      "trigger": "Am\u00e9n",
+      "comment": "'Amén' = Amen (NLLB translates as 'It's all right' or 'Así sea')",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"It's all right": "Amen", "So be it": "Amen"},
+        "spa_Latn": {"As\u00ed sea": "Amén"}
+      }
+    },
+    {
+      "trigger": "fidelitat",
+      "comment": "'fidelitat' = faithfulness (not 'fidelity' which has romantic/audio connotations)",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"Fidelity": "Faithfulness", "fidelity": "faithfulness"}
+      }
+    },
+    {
+      "trigger": "nen",
+      "comment": "'nens/nenes' = children (NLLB mistranslates as 'nans')",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"nans": "children", "Nans": "Children", "nan": "child", "Nan": "Child"}
+      }
+    },
+    {
+      "trigger": "Senyor",
+      "comment": "'Senyor' in biblical context = Lord, not Mr",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"Mr": "the Lord", "Mr.": "the Lord", "Sir": "the Lord"}
+      }
+    },
+    {
+      "trigger": "llua",
+      "comment": "'lluar/lluem' = to praise/worship (NLLB mistranslates as 'fight')",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"fight": "worship", "Fight": "Worship", "fighting": "worshipping"}
+      }
+    },
+    {
+      "trigger": "lluan\u00e7a",
+      "comment": "'lluança' = praise (NLLB mistranslates as 'prayers' or 'sword')",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"prayers": "praise", "Prayers": "Praise", "sword": "praise", "Sword": "Praise"}
+      }
     }
-  },
-  {
-    "comment": "'cultos' plural form",
-    "trigger": "cultos",
-    "source_langs": ["spa_Latn", "cat_Latn"],
-    "fixes": {
-      "eng_Latn": {"cults": "services", "cult": "service"}
+  ],
+  "spa_Latn": [
+    {
+      "trigger": "culto",
+      "comment": "Spanish/Catalan 'culto' = church service, not 'cult'",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"cult": "service", "cults": "services"},
+        "fra_Latn": {"culte": "culte religieux"},
+        "deu_Latn": {"Kult": "Gottesdienst"},
+        "por_Latn": {"culto": "culto religioso"}
+      }
+    },
+    {
+      "trigger": "cultos",
+      "comment": "'cultos' plural form",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"cults": "services", "cult": "service"}
+      }
+    },
+    {
+      "trigger": "alabanza",
+      "comment": "'alabanza' = praise/worship (not just 'praise')",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"praise": "worship"}
+      }
+    },
+    {
+      "trigger": "predicaci",
+      "comment": "'predicacion' / 'predicar' = sermon/preaching, not 'predication'",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"predication": "sermon", "predications": "sermons"}
+      }
+    },
+    {
+      "trigger": "hermano",
+      "comment": "'hermano/hermana' in church = brother/sister (fellow believer)",
+      "enabled": true,
+      "fixes": {}
+    },
+    {
+      "trigger": "congregaci",
+      "comment": "'congregacion' = congregation, ensure consistent",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"assembly": "congregation"}
+      }
+    },
+    {
+      "trigger": "oraci",
+      "comment": "'oracion' = prayer",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"oration": "prayer", "orations": "prayers"}
+      }
+    },
+    {
+      "trigger": "Esp\u00edritu Santo",
+      "comment": "'Espiritu Santo' = Holy Spirit, not 'Holy Ghost' or other variants",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"Holy Ghost": "Holy Spirit"}
+      }
+    },
+    {
+      "trigger": "bautis",
+      "comment": "'bautismo' = baptism (ensure correct in all targets)",
+      "enabled": true,
+      "fixes": {}
+    },
+    {
+      "trigger": "iglesia",
+      "comment": "'iglesia' = church",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"Church": "church"}
+      }
+    },
+    {
+      "trigger": "pecado",
+      "comment": "'pecado' = sin (not 'fish' from 'pescado' confusion)",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"fish": "sin"}
+      }
+    },
+    {
+      "trigger": "diezmo",
+      "comment": "'diezmo' = tithe",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"tenth": "tithe", "tenths": "tithes"}
+      }
+    },
+    {
+      "trigger": "furiar",
+      "comment": "'furiar-se' = to become furious (NLLB translates vulgarly)",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"pissed off": "furious", "pissed": "furious"}
+      }
+    },
+    {
+      "trigger": "ofrenda",
+      "comment": "'ofrenda' = offering (church collection)",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"gift": "offering", "gifts": "offerings"}
+      }
+    },
+    {
+      "trigger": "Am\u00e9n",
+      "comment": "'Amén' = Amen (NLLB translates as 'It's all right' or 'Así sea')",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"It's all right": "Amen", "So be it": "Amen"},
+        "spa_Latn": {"As\u00ed sea": "Amén"}
+      }
+    },
+    {
+      "trigger": "Se\u00f1or",
+      "comment": "'Señor' in biblical context = Lord, not Mr",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"Mr": "the Lord", "Mr.": "the Lord", "Sir": "the Lord"}
+      }
     }
-  },
-  {
-    "comment": "'alabanza' = praise/worship (not just 'praise')",
-    "trigger": "alabanza",
-    "source_langs": ["spa_Latn"],
-    "fixes": {
-      "eng_Latn": {"praise": "worship"}
-    }
-  },
-  {
-    "comment": "'predicacion' / 'predicar' = sermon/preaching, not 'predication'",
-    "trigger": "predicaci",
-    "source_langs": ["spa_Latn"],
-    "fixes": {
-      "eng_Latn": {"predication": "sermon", "predications": "sermons"}
-    }
-  },
-  {
-    "comment": "'hermano/hermana' in church = brother/sister (fellow believer)",
-    "trigger": "hermano",
-    "source_langs": ["spa_Latn"],
-    "fixes": {}
-  },
-  {
-    "comment": "'congregacion' = congregation, ensure consistent",
-    "trigger": "congregaci",
-    "source_langs": ["spa_Latn"],
-    "fixes": {
-      "eng_Latn": {"assembly": "congregation"}
-    }
-  },
-  {
-    "comment": "'oracion' = prayer",
-    "trigger": "oraci",
-    "source_langs": ["spa_Latn"],
-    "fixes": {
-      "eng_Latn": {"oration": "prayer", "orations": "prayers"}
-    }
-  },
-  {
-    "comment": "'Espiritu Santo' = Holy Spirit, not 'Holy Ghost' or other variants",
-    "trigger": "Esp\u00edritu Santo",
-    "source_langs": ["spa_Latn"],
-    "fixes": {
-      "eng_Latn": {"Holy Ghost": "Holy Spirit"}
-    }
-  },
-  {
-    "comment": "'bautismo' = baptism (ensure correct in all targets)",
-    "trigger": "bautis",
-    "source_langs": ["spa_Latn"],
-    "fixes": {}
-  },
-  {
-    "comment": "'iglesia' = church",
-    "trigger": "iglesia",
-    "source_langs": ["spa_Latn"],
-    "fixes": {
-      "eng_Latn": {"Church": "church"}
-    }
-  },
-  {
-    "comment": "'pecado' = sin (not 'fish' from 'pescado' confusion)",
-    "trigger": "pecado",
-    "source_langs": ["spa_Latn"],
-    "fixes": {
-      "eng_Latn": {"fish": "sin"}
-    }
-  },
-  {
-    "comment": "'diezmo' = tithe",
-    "trigger": "diezmo",
-    "source_langs": ["spa_Latn"],
-    "fixes": {
-      "eng_Latn": {"tenth": "tithe", "tenths": "tithes"}
-    }
-  },
-  {
-    "comment": "'furiar-se' = to become furious (NLLB translates vulgarly)",
-    "trigger": "furiar",
-    "source_langs": ["cat_Latn", "spa_Latn"],
-    "fixes": {
-      "eng_Latn": {"pissed off": "furious", "pissed": "furious"}
-    }
-  },
-  {
-    "comment": "'ofrenda' = offering (church collection)",
-    "trigger": "ofrenda",
-    "source_langs": ["spa_Latn"],
-    "fixes": {
-      "eng_Latn": {"gift": "offering", "gifts": "offerings"}
-    }
-  },
-  {
-    "comment": "'rumieu' (ponder/reflect) mistranslated as 'rum'",
-    "trigger": "rumieu",
-    "source_langs": ["cat_Latn"],
-    "fixes": {
-      "eng_Latn": {"rum": "reflect on it"}
-    }
-  },
-  {
-    "comment": "'processos' in context = processes, not lawsuits",
-    "trigger": "processos",
-    "source_langs": ["cat_Latn"],
-    "fixes": {
-      "eng_Latn": {"lawsuits": "processes", "lawsuit": "process"}
-    }
-  },
-  {
-    "comment": "NLLB doubles 'Gràcies' into '- Thank you. - Thank you.'",
-    "trigger": "Gr\u00e0cies",
-    "source_langs": ["cat_Latn"],
-    "fixes": {
-      "eng_Latn": {"- Thank you. - Thank you.": "Thank you.", "- Thank you. - Thank you": "Thank you"}
-    }
-  },
-  {
-    "comment": "'Amén' = Amen (NLLB translates as 'It's all right' or 'Así sea')",
-    "trigger": "Am\u00e9n",
-    "source_langs": ["cat_Latn", "spa_Latn"],
-    "fixes": {
-      "eng_Latn": {"It's all right": "Amen", "So be it": "Amen"},
-      "spa_Latn": {"As\u00ed sea": "Amén"}
-    }
-  },
-  {
-    "comment": "'fidelitat' = faithfulness (not 'fidelity' which has romantic/audio connotations)",
-    "trigger": "fidelitat",
-    "source_langs": ["cat_Latn"],
-    "fixes": {
-      "eng_Latn": {"Fidelity": "Faithfulness", "fidelity": "faithfulness"}
-    }
-  },
-  {
-    "comment": "'nens/nenes' = children (NLLB mistranslates as 'nans')",
-    "trigger": "nen",
-    "source_langs": ["cat_Latn"],
-    "fixes": {
-      "eng_Latn": {"nans": "children", "Nans": "Children", "nan": "child", "Nan": "Child"}
-    }
-  },
-  {
-    "comment": "'Senyor' in biblical context = Lord, not Mr",
-    "trigger": "Senyor",
-    "source_langs": ["cat_Latn"],
-    "fixes": {
-      "eng_Latn": {"Mr": "the Lord", "Mr.": "the Lord", "Sir": "the Lord"}
-    }
-  },
-  {
-    "comment": "'Señor' in biblical context = Lord, not Mr",
-    "trigger": "Se\u00f1or",
-    "source_langs": ["spa_Latn"],
-    "fixes": {
-      "eng_Latn": {"Mr": "the Lord", "Mr.": "the Lord", "Sir": "the Lord"}
-    }
-  }
-]
+  ]
+}

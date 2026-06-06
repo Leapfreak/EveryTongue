@@ -298,7 +298,7 @@ Partial Class FormMain
         ' 
         mnuToolsGlossary.Name = "mnuToolsGlossary"
         mnuToolsGlossary.Size = New Size(184, 22)
-        mnuToolsGlossary.Text = "Glossary Editor..."
+        mnuToolsGlossary.Text = "Filter Editor..."
         ' 
         ' mnuToolsLocalization
         ' 

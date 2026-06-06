@@ -87,15 +87,29 @@ _profanity_patterns: dict[str, re.Pattern] = {}
 
 
 def _load_profanity():
-    """Load profanity word lists from profanity.json. Returns count of languages loaded."""
+    """Load profanity word lists from profanity.json. Returns count of languages loaded.
+    Supports both legacy format (plain string arrays) and new format
+    (objects with "word" and "enabled" fields). Disabled items are skipped.
+    """
     global _profanity_patterns
     try:
         with open(_profanity_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         patterns = {}
-        for lang, words in data.items():
-            pattern = r"\b(" + "|".join(re.escape(w) for w in words) + r")\b"
-            patterns[lang] = re.compile(pattern, re.IGNORECASE)
+        for lang, items in data.items():
+            words = []
+            for item in items:
+                if isinstance(item, str):
+                    # Legacy format: plain string (always enabled)
+                    words.append(item)
+                elif isinstance(item, dict):
+                    # New format: {"word": "...", "enabled": true/false}
+                    if item.get("enabled", True):
+                        words.append(item.get("word", ""))
+            words = [w for w in words if w]  # filter empty
+            if words:
+                pattern = r"\b(" + "|".join(re.escape(w) for w in words) + r")\b"
+                patterns[lang] = re.compile(pattern, re.IGNORECASE)
         _profanity_patterns = patterns
         logger.info("Profanity filter loaded: %s", ", ".join(f"{k} ({len(v)} words)" for k, v in data.items()))
         return len(patterns)
@@ -125,52 +139,58 @@ def _filter_profanity(text: str, target_lang: str) -> str:
 # ---------------------------------------------------------------------------
 class Glossary:
     """
-    Each entry has:
+    Glossary keyed by source language (FLORES code).
+    Each source language maps to a list of entries with:
       - trigger: substring to look for in the source text (case-insensitive)
-      - source_langs: list of NLLB source language codes this applies to
       - fixes: {target_lang: {wrong_word: right_word, ...}}
 
-    When source text contains the trigger (for the given source lang),
-    the fixes are applied as whole-word replacements on the translation output.
+    Format: {"eng_Latn": [{"trigger": "...", "fixes": {...}}, ...], ...}
     """
 
     def __init__(self):
-        self.entries: list[dict] = []
+        self.data: dict[str, list[dict]] = {}
 
     def load(self, path: str) -> int:
-        """Load glossary from JSON file. Returns number of entries loaded."""
+        """Load glossary from JSON file. Returns number of entries loaded.
+        Entries with "enabled": false are skipped.
+        """
         try:
             with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            self.entries = [e for e in data if "trigger" in e]
-            logger.info("Glossary loaded: %d entries from %s", len(self.entries), path)
-            return len(self.entries)
+                raw = json.load(f)
+
+            self.data = {}
+            total = 0
+            for lang, entries in raw.items():
+                filtered = [e for e in entries if "trigger" in e and e.get("enabled", True)]
+                if filtered:
+                    self.data[lang] = filtered
+                    total += len(filtered)
+
+            logger.info("Glossary loaded: %d entries across %d languages from %s",
+                        total, len(self.data), path)
+            return total
         except FileNotFoundError:
             logger.info("No glossary file at %s", path)
-            self.entries = []
+            self.data = {}
             return 0
         except Exception as e:
             logger.warning("Failed to load glossary from %s: %s", path, e)
-            self.entries = []
+            self.data = {}
             return 0
 
     def apply(self, source_text: str, source_lang: str,
               target_lang: str, translated: str) -> str:
         """Apply glossary fixes to a translated string."""
-        if not self.entries:
+        entries = self.data.get(source_lang, [])
+        if not entries:
             return translated
 
         source_lower = source_text.lower()
         result = translated
 
-        for entry in self.entries:
+        for entry in entries:
             trigger = entry.get("trigger", "")
             if not trigger:
-                continue
-
-            # Check if source language matches
-            source_langs = entry.get("source_langs", [])
-            if source_langs and source_lang not in source_langs:
                 continue
 
             # Check if trigger is in source text
@@ -297,10 +317,10 @@ def _translate_to_targets(text: str, source_lang: str, target_langs: list[str], 
             translated = _translate_single(text, source_lang, tl, no_cache=no_cache)
             after_glossary = glossary.apply(text, source_lang, tl, translated)
             if after_glossary != translated:
-                _debug_logger.debug("[GLOSSARY] %s: %r -> %r", tl, translated, after_glossary)
+                logger.info("[GLOSSARY] %s: %r -> %r", tl, translated, after_glossary)
             filtered = _filter_profanity(after_glossary, tl)
             if filtered != after_glossary:
-                _debug_logger.debug("[PROFANITY] %s: %r -> %r", tl, after_glossary, filtered)
+                logger.info("[PROFANITY] %s: %r -> %r", tl, after_glossary, filtered)
             _debug_logger.debug("[FINAL] %s: %r", tl, filtered)
             results[tl] = filtered
         except Exception as e:
@@ -310,7 +330,13 @@ def _translate_to_targets(text: str, source_lang: str, target_langs: list[str], 
                 if translator is not None:
                     try:
                         translated = _translate_single(text, source_lang, tl, no_cache=no_cache)
-                        results[tl] = _filter_profanity(glossary.apply(text, source_lang, tl, translated), tl)
+                        after_glossary = glossary.apply(text, source_lang, tl, translated)
+                        if after_glossary != translated:
+                            logger.info("[GLOSSARY] %s: %r -> %r", tl, translated, after_glossary)
+                        filtered = _filter_profanity(after_glossary, tl)
+                        if filtered != after_glossary:
+                            logger.info("[PROFANITY] %s: %r -> %r", tl, after_glossary, filtered)
+                        results[tl] = filtered
                         continue
                     except Exception as e2:
                         logger.warning("Translation to %s failed after CPU reload: %s", tl, e2)

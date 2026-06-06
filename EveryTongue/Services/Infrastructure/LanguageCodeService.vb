@@ -227,6 +227,34 @@ Namespace Services.Infrastructure
         End Function
 
         ''' <summary>
+        ''' Resolves any code format (FLORES, ISO 639-1, ISO 639-3, whisper) to a display name.
+        ''' Returns the code itself if not found.
+        ''' </summary>
+        Public Function GetDisplayNameForCode(code As String) As String
+            If String.IsNullOrEmpty(code) Then Return ""
+            Dim entry As LangEntry = Nothing
+            If _byFlores.TryGetValue(code, entry) Then Return If(entry.Name, code)
+            If _byIso1.TryGetValue(code, entry) Then Return If(entry.Name, code)
+            If _byIso3.TryGetValue(code, entry) Then Return If(entry.Name, code)
+            If _byWhisper.TryGetValue(code, entry) Then Return If(entry.Name, code)
+            Return code
+        End Function
+
+        ''' <summary>
+        ''' Returns all languages sorted by display name.
+        ''' Each item includes FLORES code, ISO 639-1 code, English name, and native name.
+        ''' </summary>
+        Public Function GetAllLanguagesSorted() As List(Of (Flores As String, Iso1 As String, Name As String, Native As String))
+            Dim result As New List(Of (String, String, String, String))()
+            For Each kvp In _byFlores
+                Dim e = kvp.Value
+                result.Add((e.Flores, If(e.Iso1, ""), If(e.Name, ""), If(e.Native, "")))
+            Next
+            result.Sort(Function(a, b) String.Compare(a.Item3, b.Item3, StringComparison.OrdinalIgnoreCase))
+            Return result
+        End Function
+
+        ''' <summary>
         ''' Returns all languages as a list of (FloresCode, NativeName, EnglishName, Iso1Code)
         ''' for serving to web clients. Only includes entries that have an ISO 639-1 code.
         ''' </summary>

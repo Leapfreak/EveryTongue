@@ -2,6 +2,7 @@ Imports System.IO
 Imports System.Net.Http
 Imports System.Text
 Imports System.Text.Json
+Imports EveryTongue.Services.Infrastructure
 
 Partial Public Class FormFilterEditor
 
@@ -9,21 +10,33 @@ Partial Public Class FormFilterEditor
     Private ReadOnly _livePort As Integer
     Private ReadOnly _transPort As Integer
     Private ReadOnly _httpClient As New HttpClient() With {.Timeout = TimeSpan.FromSeconds(5)}
+    Private ReadOnly _lcService As LanguageCodeService = LanguageCodeService.Instance
+
     ' File paths
     Private ReadOnly _hallucinationsPath As String
     Private ReadOnly _glossaryPath As String
     Private ReadOnly _profanityPath As String
 
-    ' Data
-    Private _halData As New Dictionary(Of String, List(Of String))()
-    Private _profData As New Dictionary(Of String, List(Of String))()
-    Private _glossaryData As New List(Of GlossaryEntry)()
+    ' Data — all keyed by FLORES code as canonical key
+    Private _halData As New Dictionary(Of String, List(Of FilterItem))()     ' FLORES -> phrases
+    Private _profData As New Dictionary(Of String, List(Of FilterItem))()    ' FLORES -> words
+    Private _glosData As New Dictionary(Of String, List(Of GlossaryEntry))() ' FLORES -> entries
     Private _selectedGlosIdx As Integer = -1
     Private _suppressGlosEvents As Boolean = False
     Private _dirty As Boolean = False
 
+    ' Unified language combo: displayName -> FLORES code
+    Private ReadOnly _langMap As New Dictionary(Of String, String)()
+
+    ' Code conversion caches (built once from LanguageCodeService)
+    Private ReadOnly _iso1ToFlores As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
+    Private ReadOnly _floresToIso1 As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
+
+    ' All language display names for the target lang combo column
+    Private ReadOnly _allLangDisplayNames As New List(Of String)()
+
     Private Function S(key As String) As String
-        Return Services.Infrastructure.LanguagePackService.Instance.GetString(key)
+        Return LanguagePackService.Instance.GetString(key)
     End Function
 
     Public Sub New(baseDir As String, livePort As Integer, transPort As Integer)
@@ -36,38 +49,59 @@ Partial Public Class FormFilterEditor
         _profanityPath = Path.Combine(baseDir, "translate-server", "profanity.json")
 
         InitializeComponent()
+        Me.Icon = Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath)
+        BuildCodeMappings()
+        PopulateTargetLangCombo()
         ApplyLocalization()
         WireUpEvents()
+        _suppressGlosEvents = True
         LoadAllData()
+        _suppressGlosEvents = False
+        _dirty = False
+    End Sub
+
+    Private Sub BuildCodeMappings()
+        Dim allLangs = _lcService.GetAllLanguagesSorted()
+        For Each lang In allLangs
+            If Not String.IsNullOrEmpty(lang.Iso1) Then
+                _iso1ToFlores(lang.Iso1) = lang.Flores
+            End If
+            _floresToIso1(lang.Flores) = If(lang.Iso1, "")
+        Next
+    End Sub
+
+    Private Sub PopulateTargetLangCombo()
+        _allLangDisplayNames.Clear()
+        Dim allLangs = _lcService.GetAllLanguagesSorted()
+        For Each lang In allLangs
+            _allLangDisplayNames.Add(lang.Name)
+        Next
+        colTargetLang.Items.AddRange(_allLangDisplayNames.ToArray())
     End Sub
 
     Private Sub ApplyLocalization()
         Me.Text = S("FE_Title")
+        lblLang.Text = S("FE_Language")
+        btnAddLang.Text = S("FE_AddLanguage")
         tabHal.Text = S("FE_Tab_Hallucinations")
         tabProf.Text = S("FE_Tab_Profanity")
         tabGlos.Text = S("FE_Tab_Glossary")
 
         lblHalDesc.Text = S("FE_Desc_Hallucinations")
-        lblHalLang.Text = S("FE_Language")
-        btnHalAddLang.Text = S("FE_AddLanguage")
         btnHalAdd.Text = S("FE_Add")
         btnHalRemove.Text = S("FE_RemoveSelected")
         btnHalSave.Text = S("FE_SaveReload")
         lblProfDesc.Text = S("FE_Desc_Profanity")
-        lblProfLang.Text = S("FE_Language")
-        btnProfAddLang.Text = S("FE_AddLanguage")
         btnProfAdd.Text = S("FE_Add")
         btnProfRemove.Text = S("FE_RemoveSelected")
         btnProfSave.Text = S("FE_SaveReload")
         lblGlosDesc.Text = S("FE_Desc_Glossary")
         colTrigger.HeaderText = S("FE_ColTrigger")
-        colSourceLangs.HeaderText = S("FE_ColSourceLangs")
         colComment.HeaderText = S("FE_ColComment")
         btnGlosAdd.Text = S("FE_AddEntry")
         btnGlosRemove.Text = S("FE_RemoveEntry")
         grpDetail.Text = S("FE_SelectedEntry")
         lblTrigger.Text = S("FE_Trigger")
-        lblSrcLangs.Text = S("FE_SourceLangs")
         lblComment.Text = S("FE_Comment")
         lblFixes.Text = S("FE_Fixes")
         colTargetLang.HeaderText = S("FE_ColTargetLang")
@@ -79,12 +113,33 @@ Partial Public Class FormFilterEditor
     End Sub
 
     Private Sub WireUpEvents()
+        AddHandler cboLang.SelectedIndexChanged, AddressOf LangChanged
         AddHandler dgvGlossary.SelectionChanged, AddressOf GlossarySelectionChanged
+        AddHandler dgvGlossary.CellContentClick, AddressOf GlossaryEnabledClicked
         AddHandler txtGlosTrigger.TextChanged, AddressOf GlossaryDetailChanged
-        AddHandler txtGlosSourceLangs.TextChanged, AddressOf GlossaryDetailChanged
         AddHandler txtGlosComment.TextChanged, AddressOf GlossaryDetailChanged
         AddHandler dgvFixes.CellEndEdit, AddressOf FixCellEdited
+        AddHandler clbHalPhrases.ItemCheck, AddressOf HalItemChecked
+        AddHandler clbProfWords.ItemCheck, AddressOf ProfItemChecked
     End Sub
+
+    Private Function GetLangDisplayName(code As String) As String
+        Dim name = _lcService.GetDisplayNameForCode(code)
+        If String.IsNullOrEmpty(name) OrElse name = code Then Return code
+        Return name
+    End Function
+
+    Private Function Iso1ToFlores(iso1 As String) As String
+        Dim flores As String = Nothing
+        If _iso1ToFlores.TryGetValue(iso1, flores) Then Return flores
+        Return iso1 ' fallback
+    End Function
+
+    Private Function FloresToIso1(flores As String) As String
+        Dim iso1 As String = Nothing
+        If _floresToIso1.TryGetValue(flores, iso1) AndAlso Not String.IsNullOrEmpty(iso1) Then Return iso1
+        Return flores ' fallback
+    End Function
 
     ' =========================================================================
     ' Data Loading
@@ -93,6 +148,7 @@ Partial Public Class FormFilterEditor
         LoadHallucinations()
         LoadProfanity()
         LoadGlossary()
+        BuildLanguageCombo()
     End Sub
 
     Private Sub LoadHallucinations()
@@ -102,25 +158,29 @@ Partial Public Class FormFilterEditor
                 Dim json = File.ReadAllText(_hallucinationsPath, Encoding.UTF8)
                 Using doc = JsonDocument.Parse(json)
                     For Each prop In doc.RootElement.EnumerateObject()
-                        Dim items As New List(Of String)()
+                        Dim items As New List(Of FilterItem)()
                         For Each item In prop.Value.EnumerateArray()
-                            items.Add(item.GetString())
+                            If item.ValueKind = JsonValueKind.String Then
+                                items.Add(New FilterItem With {.Text = item.GetString(), .Enabled = True})
+                            ElseIf item.ValueKind = JsonValueKind.Object Then
+                                Dim text = ""
+                                Dim enabled = True
+                                Dim textProp As JsonElement
+                                Dim enabledProp As JsonElement
+                                If item.TryGetProperty("text", textProp) Then text = textProp.GetString()
+                                If item.TryGetProperty("enabled", enabledProp) Then enabled = enabledProp.GetBoolean()
+                                items.Add(New FilterItem With {.Text = text, .Enabled = enabled})
+                            End If
                         Next
-                        _halData(prop.Name) = items
+                        ' Convert ISO 639-1 key to FLORES for unified storage
+                        Dim floresKey = Iso1ToFlores(prop.Name)
+                        _halData(floresKey) = items
                     Next
                 End Using
             End If
         Catch ex As Exception
             MessageBox.Show($"Failed to load hallucinations.json: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End Try
-
-        cboHalLang.Items.Clear()
-        For Each lang In _halData.Keys.OrderBy(Function(k) k)
-            cboHalLang.Items.Add(lang)
-        Next
-        If cboHalLang.Items.Count > 0 Then cboHalLang.SelectedIndex = 0
-        AddHandler cboHalLang.SelectedIndexChanged, AddressOf HalLangChanged
-        HalLangChanged(Nothing, Nothing)
     End Sub
 
     Private Sub LoadProfanity()
@@ -130,9 +190,19 @@ Partial Public Class FormFilterEditor
                 Dim json = File.ReadAllText(_profanityPath, Encoding.UTF8)
                 Using doc = JsonDocument.Parse(json)
                     For Each prop In doc.RootElement.EnumerateObject()
-                        Dim items As New List(Of String)()
+                        Dim items As New List(Of FilterItem)()
                         For Each item In prop.Value.EnumerateArray()
-                            items.Add(item.GetString())
+                            If item.ValueKind = JsonValueKind.String Then
+                                items.Add(New FilterItem With {.Text = item.GetString(), .Enabled = True})
+                            ElseIf item.ValueKind = JsonValueKind.Object Then
+                                Dim text = ""
+                                Dim enabled = True
+                                Dim wordProp As JsonElement
+                                Dim enabledProp As JsonElement
+                                If item.TryGetProperty("word", wordProp) Then text = wordProp.GetString()
+                                If item.TryGetProperty("enabled", enabledProp) Then enabled = enabledProp.GetBoolean()
+                                items.Add(New FilterItem With {.Text = text, .Enabled = enabled})
+                            End If
                         Next
                         _profData(prop.Name) = items
                     Next
@@ -141,214 +211,288 @@ Partial Public Class FormFilterEditor
         Catch ex As Exception
             MessageBox.Show($"Failed to load profanity.json: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End Try
-
-        cboProfLang.Items.Clear()
-        For Each lang In _profData.Keys.OrderBy(Function(k) k)
-            cboProfLang.Items.Add(lang)
-        Next
-        If cboProfLang.Items.Count > 0 Then cboProfLang.SelectedIndex = 0
-        AddHandler cboProfLang.SelectedIndexChanged, AddressOf ProfLangChanged
-        ProfLangChanged(Nothing, Nothing)
     End Sub
 
     Private Sub LoadGlossary()
-        _glossaryData.Clear()
+        _glosData.Clear()
         Try
             If File.Exists(_glossaryPath) Then
                 Dim json = File.ReadAllText(_glossaryPath, Encoding.UTF8)
                 Using doc = JsonDocument.Parse(json)
-                    For Each elem In doc.RootElement.EnumerateArray()
-                        Dim entry As New GlossaryEntry()
-                        If elem.TryGetProperty("trigger", entry._triggerElem) Then entry.Trigger = entry._triggerElem.GetString()
-                        If elem.TryGetProperty("comment", entry._commentElem) Then entry.Comment = entry._commentElem.GetString()
-                        If elem.TryGetProperty("source_langs", entry._srcElem) Then
-                            For Each sl In entry._srcElem.EnumerateArray()
-                                entry.SourceLangs.Add(sl.GetString())
-                            Next
-                        End If
-                        If elem.TryGetProperty("fixes", entry._fixesElem) Then
-                            For Each tl In entry._fixesElem.EnumerateObject()
-                                For Each fixItem In tl.Value.EnumerateObject()
-                                    entry.Fixes.Add(New GlossaryFix() With {
-                                        .TargetLang = tl.Name,
-                                        .Wrong = fixItem.Name,
-                                        .Right = fixItem.Value.GetString()
-                                    })
-                                Next
-                            Next
-                        End If
-                        _glossaryData.Add(entry)
+                    For Each prop In doc.RootElement.EnumerateObject()
+                        Dim entries As New List(Of GlossaryEntry)()
+                        For Each elem In prop.Value.EnumerateArray()
+                            entries.Add(ParseGlossaryEntry(elem))
+                        Next
+                        _glosData(prop.Name) = entries
                     Next
                 End Using
             End If
         Catch ex As Exception
             MessageBox.Show($"Failed to load glossary.json: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End Try
+    End Sub
 
-        RefreshGlossaryGrid()
+    Private Function ParseGlossaryEntry(elem As JsonElement) As GlossaryEntry
+        Dim entry As New GlossaryEntry()
+        Dim trigProp As JsonElement
+        Dim commentProp As JsonElement
+        Dim enabledProp As JsonElement
+        Dim fixesProp As JsonElement
+
+        If elem.TryGetProperty("trigger", trigProp) Then entry.Trigger = trigProp.GetString()
+        If elem.TryGetProperty("comment", commentProp) Then entry.Comment = commentProp.GetString()
+        If elem.TryGetProperty("enabled", enabledProp) Then entry.Enabled = enabledProp.GetBoolean()
+
+        If elem.TryGetProperty("fixes", fixesProp) Then
+            For Each tl In fixesProp.EnumerateObject()
+                For Each fixItem In tl.Value.EnumerateObject()
+                    entry.Fixes.Add(New GlossaryFix() With {
+                        .TargetLang = tl.Name,
+                        .Wrong = fixItem.Name,
+                        .Right = fixItem.Value.GetString()
+                    })
+                Next
+            Next
+        End If
+
+        Return entry
+    End Function
+
+    ' =========================================================================
+    ' Shared language combo
+    ' =========================================================================
+    Private Sub BuildLanguageCombo()
+        Dim allCodes As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        For Each k In _halData.Keys : allCodes.Add(k) : Next
+        For Each k In _profData.Keys : allCodes.Add(k) : Next
+        For Each k In _glosData.Keys : allCodes.Add(k) : Next
+
+        _langMap.Clear()
+        cboLang.Items.Clear()
+        For Each code In allCodes.OrderBy(Function(c) GetLangDisplayName(c))
+            Dim displayName = GetLangDisplayName(code)
+            _langMap(displayName) = code
+            cboLang.Items.Add(displayName)
+        Next
+        If cboLang.Items.Count > 0 Then cboLang.SelectedIndex = 0
+        LangChanged(Nothing, Nothing)
+    End Sub
+
+    Private Function GetSelectedFloresCode() As String
+        Dim displayName = TryCast(cboLang.SelectedItem, String)
+        If displayName IsNot Nothing AndAlso _langMap.ContainsKey(displayName) Then
+            Return _langMap(displayName)
+        End If
+        Return Nothing
+    End Function
+
+    Private Sub LangChanged(sender As Object, e As EventArgs)
+        Dim flores = GetSelectedFloresCode()
+        If flores Is Nothing Then Return
+        RefreshHalTab(flores)
+        RefreshProfTab(flores)
+        RefreshGlosTab(flores)
+    End Sub
+
+    Private Sub btnAddLang_Click(sender As Object, e As EventArgs) Handles btnAddLang.Click
+        ' Use FLORES codes for the unified picker
+        Dim existingFloresCodes As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        For Each kvp In _langMap
+            existingFloresCodes.Add(kvp.Value)
+        Next
+
+        Using picker As New FormLanguageChooser("flores", existingFloresCodes)
+            If picker.ShowDialog(Me) <> DialogResult.OK Then Return
+            Dim code = picker.SelectedCode
+            If String.IsNullOrEmpty(code) Then Return
+
+            Dim displayName = GetLangDisplayName(code)
+            If _langMap.ContainsKey(displayName) Then
+                ' Already exists — select it
+                cboLang.SelectedItem = displayName
+                Return
+            End If
+
+            _langMap(displayName) = code
+            cboLang.Items.Add(displayName)
+            cboLang.SelectedItem = displayName
+            _dirty = True
+        End Using
     End Sub
 
     ' =========================================================================
-    ' Hallucinations events
+    ' Hallucinations tab
     ' =========================================================================
-    Private Sub HalLangChanged(sender As Object, e As EventArgs)
-        lstHalPhrases.Items.Clear()
-        Dim lang = TryCast(cboHalLang.SelectedItem, String)
-        If lang IsNot Nothing AndAlso _halData.ContainsKey(lang) Then
-            For Each phrase In _halData(lang)
-                lstHalPhrases.Items.Add(phrase)
+    Private Sub RefreshHalTab(flores As String)
+        clbHalPhrases.Items.Clear()
+        If _halData.ContainsKey(flores) Then
+            For Each item In _halData(flores)
+                clbHalPhrases.Items.Add(item.Text, item.Enabled)
             Next
+        End If
+    End Sub
+
+    Private Sub HalItemChecked(sender As Object, e As ItemCheckEventArgs)
+        Dim flores = GetSelectedFloresCode()
+        If flores Is Nothing OrElse Not _halData.ContainsKey(flores) Then Return
+        If e.Index >= 0 AndAlso e.Index < _halData(flores).Count Then
+            _halData(flores)(e.Index).Enabled = (e.NewValue = CheckState.Checked)
+            _dirty = True
         End If
     End Sub
 
     Private Sub btnHalAdd_Click(sender As Object, e As EventArgs) Handles btnHalAdd.Click
         Dim phrase = txtHalPhrase.Text.Trim()
         If String.IsNullOrEmpty(phrase) Then Return
-        Dim lang = TryCast(cboHalLang.SelectedItem, String)
-        If lang Is Nothing Then Return
+        Dim flores = GetSelectedFloresCode()
+        If flores Is Nothing Then Return
 
-        If Not _halData.ContainsKey(lang) Then _halData(lang) = New List(Of String)()
-        If Not _halData(lang).Contains(phrase) Then
-            _halData(lang).Add(phrase)
-            lstHalPhrases.Items.Add(phrase)
+        If Not _halData.ContainsKey(flores) Then _halData(flores) = New List(Of FilterItem)()
+        If Not _halData(flores).Any(Function(x) x.Text = phrase) Then
+            _halData(flores).Add(New FilterItem With {.Text = phrase, .Enabled = True})
+            clbHalPhrases.Items.Add(phrase, True)
             txtHalPhrase.Clear()
             _dirty = True
         End If
     End Sub
 
     Private Sub btnHalRemove_Click(sender As Object, e As EventArgs) Handles btnHalRemove.Click
-        Dim idx = lstHalPhrases.SelectedIndex
+        Dim idx = clbHalPhrases.SelectedIndex
         If idx < 0 Then Return
-        Dim lang = TryCast(cboHalLang.SelectedItem, String)
-        If lang Is Nothing Then Return
+        Dim flores = GetSelectedFloresCode()
+        If flores Is Nothing Then Return
 
-        _halData(lang).RemoveAt(idx)
-        lstHalPhrases.Items.RemoveAt(idx)
-        _dirty = True
-    End Sub
-
-    Private Sub btnHalAddLang_Click(sender As Object, e As EventArgs) Handles btnHalAddLang.Click
-        Dim lang = InputBox(S("FE_PromptLangCode"), S("FE_AddLanguage"))
-        If String.IsNullOrWhiteSpace(lang) Then Return
-        lang = lang.Trim().ToLower()
-        If _halData.ContainsKey(lang) Then
-            cboHalLang.SelectedItem = lang
-            Return
-        End If
-        _halData(lang) = New List(Of String)()
-        cboHalLang.Items.Add(lang)
-        cboHalLang.SelectedItem = lang
+        _halData(flores).RemoveAt(idx)
+        clbHalPhrases.Items.RemoveAt(idx)
         _dirty = True
     End Sub
 
     ' =========================================================================
-    ' Profanity events
+    ' Profanity tab
     ' =========================================================================
-    Private Sub ProfLangChanged(sender As Object, e As EventArgs)
-        lstProfWords.Items.Clear()
-        Dim lang = TryCast(cboProfLang.SelectedItem, String)
-        If lang IsNot Nothing AndAlso _profData.ContainsKey(lang) Then
-            For Each word In _profData(lang)
-                lstProfWords.Items.Add(word)
+    Private Sub RefreshProfTab(flores As String)
+        clbProfWords.Items.Clear()
+        If _profData.ContainsKey(flores) Then
+            For Each item In _profData(flores)
+                clbProfWords.Items.Add(item.Text, item.Enabled)
             Next
+        End If
+    End Sub
+
+    Private Sub ProfItemChecked(sender As Object, e As ItemCheckEventArgs)
+        Dim flores = GetSelectedFloresCode()
+        If flores Is Nothing OrElse Not _profData.ContainsKey(flores) Then Return
+        If e.Index >= 0 AndAlso e.Index < _profData(flores).Count Then
+            _profData(flores)(e.Index).Enabled = (e.NewValue = CheckState.Checked)
+            _dirty = True
         End If
     End Sub
 
     Private Sub btnProfAdd_Click(sender As Object, e As EventArgs) Handles btnProfAdd.Click
         Dim word = txtProfWord.Text.Trim()
         If String.IsNullOrEmpty(word) Then Return
-        Dim lang = TryCast(cboProfLang.SelectedItem, String)
-        If lang Is Nothing Then Return
+        Dim flores = GetSelectedFloresCode()
+        If flores Is Nothing Then Return
 
-        If Not _profData.ContainsKey(lang) Then _profData(lang) = New List(Of String)()
-        If Not _profData(lang).Contains(word) Then
-            _profData(lang).Add(word)
-            lstProfWords.Items.Add(word)
+        If Not _profData.ContainsKey(flores) Then _profData(flores) = New List(Of FilterItem)()
+        If Not _profData(flores).Any(Function(x) x.Text = word) Then
+            _profData(flores).Add(New FilterItem With {.Text = word, .Enabled = True})
+            clbProfWords.Items.Add(word, True)
             txtProfWord.Clear()
             _dirty = True
         End If
     End Sub
 
     Private Sub btnProfRemove_Click(sender As Object, e As EventArgs) Handles btnProfRemove.Click
-        Dim idx = lstProfWords.SelectedIndex
+        Dim idx = clbProfWords.SelectedIndex
         If idx < 0 Then Return
-        Dim lang = TryCast(cboProfLang.SelectedItem, String)
-        If lang Is Nothing Then Return
+        Dim flores = GetSelectedFloresCode()
+        If flores Is Nothing Then Return
 
-        _profData(lang).RemoveAt(idx)
-        lstProfWords.Items.RemoveAt(idx)
-        _dirty = True
-    End Sub
-
-    Private Sub btnProfAddLang_Click(sender As Object, e As EventArgs) Handles btnProfAddLang.Click
-        Dim lang = InputBox(S("FE_PromptFloresCode"), S("FE_AddLanguage"))
-        If String.IsNullOrWhiteSpace(lang) Then Return
-        lang = lang.Trim()
-        If _profData.ContainsKey(lang) Then
-            cboProfLang.SelectedItem = lang
-            Return
-        End If
-        _profData(lang) = New List(Of String)()
-        cboProfLang.Items.Add(lang)
-        cboProfLang.SelectedItem = lang
+        _profData(flores).RemoveAt(idx)
+        clbProfWords.Items.RemoveAt(idx)
         _dirty = True
     End Sub
 
     ' =========================================================================
-    ' Glossary events
+    ' Glossary tab
     ' =========================================================================
-    Private Sub RefreshGlossaryGrid()
+    Private Sub RefreshGlosTab(flores As String)
+        _suppressGlosEvents = True
+        _selectedGlosIdx = -1
+        txtGlosTrigger.Clear()
+        txtGlosComment.Clear()
+        dgvFixes.Rows.Clear()
+
         dgvGlossary.Rows.Clear()
-        For Each entry In _glossaryData
-            dgvGlossary.Rows.Add(entry.Trigger, String.Join(", ", entry.SourceLangs), entry.Comment)
-        Next
+        If _glosData.ContainsKey(flores) Then
+            For Each entry In _glosData(flores)
+                dgvGlossary.Rows.Add(entry.Enabled, entry.Trigger, entry.Comment)
+            Next
+        End If
+        _suppressGlosEvents = False
+    End Sub
+
+    Private Sub GlossaryEnabledClicked(sender As Object, e As DataGridViewCellEventArgs)
+        If e.ColumnIndex <> dgvGlossary.Columns("colGlosEnabled").Index Then Return
+        If e.RowIndex < 0 Then Return
+        Dim flores = GetSelectedFloresCode()
+        If flores Is Nothing OrElse Not _glosData.ContainsKey(flores) Then Return
+        If e.RowIndex >= _glosData(flores).Count Then Return
+
+        Dim currentVal = CBool(If(dgvGlossary.Rows(e.RowIndex).Cells("colGlosEnabled").Value, True))
+        _glosData(flores)(e.RowIndex).Enabled = Not currentVal
+        _dirty = True
     End Sub
 
     Private Sub GlossarySelectionChanged(sender As Object, e As EventArgs)
         If _suppressGlosEvents Then Return
         SaveCurrentGlossaryDetail()
 
+        Dim flores = GetSelectedFloresCode()
+        If flores Is Nothing OrElse Not _glosData.ContainsKey(flores) Then Return
+
         If dgvGlossary.SelectedRows.Count = 0 Then
             _selectedGlosIdx = -1
             txtGlosTrigger.Clear()
             txtGlosComment.Clear()
-            txtGlosSourceLangs.Clear()
             dgvFixes.Rows.Clear()
             Return
         End If
 
         _selectedGlosIdx = dgvGlossary.SelectedRows(0).Index
-        If _selectedGlosIdx < 0 OrElse _selectedGlosIdx >= _glossaryData.Count Then Return
+        If _selectedGlosIdx < 0 OrElse _selectedGlosIdx >= _glosData(flores).Count Then Return
 
-        Dim entry = _glossaryData(_selectedGlosIdx)
+        Dim entry = _glosData(flores)(_selectedGlosIdx)
         _suppressGlosEvents = True
         txtGlosTrigger.Text = entry.Trigger
         txtGlosComment.Text = entry.Comment
-        txtGlosSourceLangs.Text = String.Join(", ", entry.SourceLangs)
 
         dgvFixes.Rows.Clear()
         dgvFixes.ReadOnly = False
         For Each fixItem In entry.Fixes
-            dgvFixes.Rows.Add(fixItem.TargetLang, fixItem.Wrong, fixItem.Right)
+            dgvFixes.Rows.Add(GetLangDisplayName(fixItem.TargetLang), fixItem.Wrong, fixItem.Right)
         Next
         _suppressGlosEvents = False
     End Sub
 
     Private Sub GlossaryDetailChanged(sender As Object, e As EventArgs)
-        If _suppressGlosEvents OrElse _selectedGlosIdx < 0 OrElse _selectedGlosIdx >= _glossaryData.Count Then Return
+        If _suppressGlosEvents OrElse _selectedGlosIdx < 0 Then Return
         _dirty = True
     End Sub
 
     Private Sub SaveCurrentGlossaryDetail()
-        If _selectedGlosIdx < 0 OrElse _selectedGlosIdx >= _glossaryData.Count Then Return
+        If _selectedGlosIdx < 0 Then Return
+        Dim flores = GetSelectedFloresCode()
+        If flores Is Nothing OrElse Not _glosData.ContainsKey(flores) Then Return
+        If _selectedGlosIdx >= _glosData(flores).Count Then Return
 
-        Dim entry = _glossaryData(_selectedGlosIdx)
+        Dim entry = _glosData(flores)(_selectedGlosIdx)
         entry.Trigger = txtGlosTrigger.Text.Trim()
         entry.Comment = txtGlosComment.Text.Trim()
-        entry.SourceLangs = txtGlosSourceLangs.Text.Split({","c}, StringSplitOptions.RemoveEmptyEntries).
-            Select(Function(s) s.Trim()).Where(Function(s) s.Length > 0).ToList()
 
-        ' Save fixes from grid
+        ' Save fixes from grid — convert display names back to FLORES codes
         entry.Fixes.Clear()
         For Each row As DataGridViewRow In dgvFixes.Rows
             Dim tl = TryCast(row.Cells("colTargetLang").Value, String)
@@ -356,7 +500,7 @@ Partial Public Class FormFilterEditor
             Dim right = TryCast(row.Cells("colRight").Value, String)
             If Not String.IsNullOrWhiteSpace(tl) AndAlso Not String.IsNullOrWhiteSpace(wrong) Then
                 entry.Fixes.Add(New GlossaryFix() With {
-                    .TargetLang = tl.Trim(),
+                    .TargetLang = DisplayNameToFlores(tl.Trim()),
                     .Wrong = wrong.Trim(),
                     .Right = If(right, "").Trim()
                 })
@@ -366,41 +510,66 @@ Partial Public Class FormFilterEditor
         ' Update the main grid row
         If _selectedGlosIdx < dgvGlossary.Rows.Count Then
             dgvGlossary.Rows(_selectedGlosIdx).Cells("colTrigger").Value = entry.Trigger
-            dgvGlossary.Rows(_selectedGlosIdx).Cells("colSourceLangs").Value = String.Join(", ", entry.SourceLangs)
             dgvGlossary.Rows(_selectedGlosIdx).Cells("colComment").Value = entry.Comment
         End If
     End Sub
 
+    Private Function DisplayNameToFlores(input As String) As String
+        If String.IsNullOrEmpty(input) Then Return ""
+
+        ' Check if it's already a valid code
+        Dim existing = _lcService.GetDisplayNameForCode(input)
+        If existing <> input Then Return input
+
+        ' Search by display name
+        Dim allLangs = _lcService.GetAllLanguagesSorted()
+        For Each lang In allLangs
+            If String.Equals(lang.Name, input, StringComparison.OrdinalIgnoreCase) OrElse
+               String.Equals(lang.Native, input, StringComparison.OrdinalIgnoreCase) Then
+                Return lang.Flores
+            End If
+        Next
+
+        Return input
+    End Function
+
     Private Sub FixCellEdited(sender As Object, e As DataGridViewCellEventArgs)
+        If _suppressGlosEvents Then Return
         _dirty = True
     End Sub
 
     Private Sub btnGlosAdd_Click(sender As Object, e As EventArgs) Handles btnGlosAdd.Click
-        Dim entry As New GlossaryEntry() With {.Trigger = "new_trigger", .Comment = ""}
-        _glossaryData.Add(entry)
-        dgvGlossary.Rows.Add(entry.Trigger, "", "")
+        Dim flores = GetSelectedFloresCode()
+        If flores Is Nothing Then Return
+
+        If Not _glosData.ContainsKey(flores) Then _glosData(flores) = New List(Of GlossaryEntry)()
+        Dim entry As New GlossaryEntry() With {.Trigger = "new_trigger", .Comment = "", .Enabled = True}
+        _glosData(flores).Add(entry)
+        dgvGlossary.Rows.Add(True, entry.Trigger, "")
         dgvGlossary.ClearSelection()
         dgvGlossary.Rows(dgvGlossary.Rows.Count - 1).Selected = True
         _dirty = True
     End Sub
 
     Private Sub btnGlosRemove_Click(sender As Object, e As EventArgs) Handles btnGlosRemove.Click
-        If _selectedGlosIdx < 0 OrElse _selectedGlosIdx >= _glossaryData.Count Then Return
-        _glossaryData.RemoveAt(_selectedGlosIdx)
+        Dim flores = GetSelectedFloresCode()
+        If flores Is Nothing OrElse Not _glosData.ContainsKey(flores) Then Return
+        If _selectedGlosIdx < 0 OrElse _selectedGlosIdx >= _glosData(flores).Count Then Return
+
+        _glosData(flores).RemoveAt(_selectedGlosIdx)
         _suppressGlosEvents = True
         dgvGlossary.Rows.RemoveAt(_selectedGlosIdx)
         _suppressGlosEvents = False
         _selectedGlosIdx = -1
         txtGlosTrigger.Clear()
         txtGlosComment.Clear()
-        txtGlosSourceLangs.Clear()
         dgvFixes.Rows.Clear()
         _dirty = True
     End Sub
 
     Private Sub btnFixAdd_Click(sender As Object, e As EventArgs) Handles btnFixAdd.Click
         If _selectedGlosIdx < 0 Then Return
-        dgvFixes.Rows.Add("eng_Latn", "", "")
+        dgvFixes.Rows.Add(GetLangDisplayName("eng_Latn"), "", "")
         _dirty = True
     End Sub
 
@@ -425,9 +594,7 @@ Partial Public Class FormFilterEditor
             Return
         End Try
 
-        ' Reload on servers (fire-and-forget, don't block on errors)
         ReloadServersAsync()
-
         _dirty = False
         MessageBox.Show(S("FE_Saved"), S("FE_Title"), MessageBoxButtons.OK, MessageBoxIcon.Information)
     End Sub
@@ -437,9 +604,15 @@ Partial Public Class FormFilterEditor
             Using writer As New Utf8JsonWriter(ms, New JsonWriterOptions() With {.Indented = True})
                 writer.WriteStartObject()
                 For Each kvp In _halData.OrderBy(Function(k) k.Key)
-                    writer.WriteStartArray(kvp.Key)
-                    For Each phrase In kvp.Value
-                        writer.WriteStringValue(phrase)
+                    If kvp.Value.Count = 0 Then Continue For
+                    ' Convert FLORES key back to ISO 639-1 for hallucinations.json
+                    Dim iso1Key = FloresToIso1(kvp.Key)
+                    writer.WriteStartArray(iso1Key)
+                    For Each item In kvp.Value
+                        writer.WriteStartObject()
+                        writer.WriteString("text", item.Text)
+                        writer.WriteBoolean("enabled", item.Enabled)
+                        writer.WriteEndObject()
                     Next
                     writer.WriteEndArray()
                 Next
@@ -454,9 +627,13 @@ Partial Public Class FormFilterEditor
             Using writer As New Utf8JsonWriter(ms, New JsonWriterOptions() With {.Indented = True})
                 writer.WriteStartObject()
                 For Each kvp In _profData.OrderBy(Function(k) k.Key)
+                    If kvp.Value.Count = 0 Then Continue For
                     writer.WriteStartArray(kvp.Key)
-                    For Each word In kvp.Value
-                        writer.WriteStringValue(word)
+                    For Each item In kvp.Value
+                        writer.WriteStartObject()
+                        writer.WriteString("word", item.Text)
+                        writer.WriteBoolean("enabled", item.Enabled)
+                        writer.WriteEndObject()
                     Next
                     writer.WriteEndArray()
                 Next
@@ -469,33 +646,33 @@ Partial Public Class FormFilterEditor
     Private Sub SaveGlossary()
         Using ms As New MemoryStream()
             Using writer As New Utf8JsonWriter(ms, New JsonWriterOptions() With {.Indented = True, .Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping})
-                writer.WriteStartArray()
-                For Each entry In _glossaryData
-                    writer.WriteStartObject()
-                    writer.WriteString("comment", entry.Comment)
-                    writer.WriteString("trigger", entry.Trigger)
+                writer.WriteStartObject()
+                For Each kvp In _glosData.OrderBy(Function(k) k.Key)
+                    If kvp.Value.Count = 0 Then Continue For
+                    writer.WriteStartArray(kvp.Key)
+                    For Each entry In kvp.Value
+                        writer.WriteStartObject()
+                        writer.WriteString("trigger", entry.Trigger)
+                        writer.WriteString("comment", entry.Comment)
+                        writer.WriteBoolean("enabled", entry.Enabled)
 
-                    writer.WriteStartArray("source_langs")
-                    For Each sl In entry.SourceLangs
-                        writer.WriteStringValue(sl)
-                    Next
-                    writer.WriteEndArray()
-
-                    ' Group fixes by target language
-                    writer.WriteStartObject("fixes")
-                    Dim grouped = entry.Fixes.GroupBy(Function(f) f.TargetLang)
-                    For Each grp In grouped
-                        writer.WriteStartObject(grp.Key)
-                        For Each fixItem In grp
-                            writer.WriteString(fixItem.Wrong, fixItem.Right)
+                        ' Group fixes by target language
+                        writer.WriteStartObject("fixes")
+                        Dim grouped = entry.Fixes.GroupBy(Function(f) f.TargetLang)
+                        For Each grp In grouped
+                            writer.WriteStartObject(grp.Key)
+                            For Each fixItem In grp
+                                writer.WriteString(fixItem.Wrong, fixItem.Right)
+                            Next
+                            writer.WriteEndObject()
                         Next
                         writer.WriteEndObject()
-                    Next
-                    writer.WriteEndObject()
 
-                    writer.WriteEndObject()
+                        writer.WriteEndObject()
+                    Next
+                    writer.WriteEndArray()
                 Next
-                writer.WriteEndArray()
+                writer.WriteEndObject()
             End Using
             File.WriteAllBytes(_glossaryPath, ms.ToArray())
         End Using
@@ -530,17 +707,17 @@ Partial Public Class FormFilterEditor
     ' =========================================================================
     ' Data classes
     ' =========================================================================
+
+    Private Class FilterItem
+        Public Property Text As String = ""
+        Public Property Enabled As Boolean = True
+    End Class
+
     Private Class GlossaryEntry
         Public Property Trigger As String = ""
         Public Property Comment As String = ""
-        Public Property SourceLangs As New List(Of String)()
+        Public Property Enabled As Boolean = True
         Public Property Fixes As New List(Of GlossaryFix)()
-
-        ' Temp fields used during parsing only
-        Friend _triggerElem As JsonElement
-        Friend _commentElem As JsonElement
-        Friend _srcElem As JsonElement
-        Friend _fixesElem As JsonElement
     End Class
 
     Private Class GlossaryFix

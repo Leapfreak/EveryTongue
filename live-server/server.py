@@ -405,8 +405,8 @@ def _is_hallucination(segments, last_commit_text: str = "", detected_lang: str =
         dominant_lang = max(set(recent_langs), key=recent_langs.count)
         if detected_lang != dominant_lang and _is_script_mismatch(detected_lang, dominant_lang):
             if avg_no_speech > 0.3 or avg_logprob < -0.2:
-                logger.debug(f"  LANG MISMATCH: '{detected_lang}' vs dominant '{dominant_lang}' "
-                             f"(no_speech={avg_no_speech:.2f}, logprob={avg_logprob:.2f})")
+                logger.info(f"[HALLUCINATION] lang mismatch: '{detected_lang}' vs dominant '{dominant_lang}' "
+                            f"(no_speech={avg_no_speech:.2f}, logprob={avg_logprob:.2f})")
                 return True
 
     # Known hallucination phrases
@@ -422,7 +422,7 @@ def _is_hallucination(segments, last_commit_text: str = "", detected_lang: str =
         second_half = " ".join(words[mid:])
         half_ratio = SequenceMatcher(None, first_half, second_half).ratio()
         if half_ratio > 0.9:
-            logger.debug(f"  SELF-REPETITION detected: halves {half_ratio:.0%} similar")
+            logger.info(f"[HALLUCINATION] self-repetition: halves {half_ratio:.0%} similar")
             return True
 
     # Repetition of previous commit
@@ -433,12 +433,12 @@ def _is_hallucination(segments, last_commit_text: str = "", detected_lang: str =
         norm_prev = re.sub(r"^\d+\s*", "", norm_prev)
         if len(norm_prev) <= 20:
             if norm_new == norm_prev:
-                logger.debug("  REPETITION detected (exact short match)")
+                logger.info("[HALLUCINATION] repetition of previous commit (exact short match)")
                 return True
         else:
             ratio = SequenceMatcher(None, norm_new, norm_prev).ratio()
             if ratio > 0.85:
-                logger.debug(f"  REPETITION detected (similarity={ratio:.0%}, {total_speech_dur:.1f}s)")
+                logger.info(f"[HALLUCINATION] repetition of previous commit (similarity={ratio:.0%}, {total_speech_dur:.1f}s)")
                 return True
 
     return False
@@ -451,7 +451,10 @@ _hallucination_phrases = []  # list of str
 
 
 def _load_hallucination_phrases():
-    """Load known hallucination phrases from hallucinations.json."""
+    """Load known hallucination phrases from hallucinations.json.
+    Supports both legacy format (plain string arrays) and new format
+    (objects with "text" and "enabled" fields). Disabled items are skipped.
+    """
     global _hallucination_phrases
     json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hallucinations.json")
     try:
@@ -460,7 +463,13 @@ def _load_hallucination_phrases():
         phrases = []
         for lang_phrases in data.values():
             for p in lang_phrases:
-                phrases.append(p.lower())
+                if isinstance(p, str):
+                    # Legacy format: plain string (always enabled)
+                    phrases.append(p.lower())
+                elif isinstance(p, dict):
+                    # New format: {"text": "...", "enabled": true/false}
+                    if p.get("enabled", True):
+                        phrases.append(p.get("text", "").lower())
         _hallucination_phrases = phrases
         logger.debug(f"Loaded {len(phrases)} hallucination phrases from {json_path}")
     except FileNotFoundError:
@@ -482,7 +491,7 @@ def _is_known_hallucination(text: str) -> bool:
             continue
         ratio = SequenceMatcher(None, cleaned, phrase_clean).ratio()
         if ratio > 0.8:
-            logger.debug(f"  KNOWN HALLUCINATION ({ratio:.0%} match): '{text}' ~ '{phrase}'")
+            logger.info(f"[HALLUCINATION] known phrase ({ratio:.0%} match): '{text}' ~ '{phrase}'")
             return True
     return False
 
@@ -752,7 +761,7 @@ async def transcribe_audio(request: Request):
             return {"status": "ok", "text": "", "lang": detected}
 
         if _is_hallucination(segments):
-            logger.debug(f"TRANSCRIBE-API: hallucination skipped: {text}")
+            logger.info(f"[HALLUCINATION] transcribe-API blocked: {text}")
             return {"status": "ok", "text": "", "lang": detected}
 
         logger.debug(f"TRANSCRIBE-API [{detected}]: {text}")
