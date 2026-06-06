@@ -25,6 +25,9 @@ Namespace Services.Subtitle
         Private _commitCounter As Integer = 0
         Private _currentLine As String = ""
 
+        ' Chains TTS tasks per (room, lang) so notifications go out in commit order
+        Private ReadOnly _ttsChains As New ConcurrentDictionary(Of String, Task)()
+
         ' ── Events ──
 
         Public Event StatusChanged As EventHandler(Of String) Implements ISubtitleService.StatusChanged
@@ -629,25 +632,7 @@ Namespace Services.Subtitle
             If translations IsNot Nothing Then
                 For Each kvp In translations
                     If clientLangs.Contains(kvp.Key) Then
-                        Dim ttsLang = kvp.Key
-                        Dim ttsText = kvp.Value
-                        Dim ttsCommitId = commitId
-                        Dim roomId = targetRoomId
-                        Dim ttsPriority = If(String.IsNullOrEmpty(roomId),
-                            Scheduling.TranslationPriority.Live,
-                            Scheduling.TranslationPriority.Room)
-                        Task.Run(Async Function()
-                                     Try
-                                         Dim url = Await TtsService.SynthesiseAsync(
-                                             ttsText, ttsLang, ttsCommitId, CancellationToken.None, ttsPriority)
-                                         If url IsNot Nothing Then
-                                             NotifyTtsReady(ttsCommitId, ttsLang, url, roomId)
-                                         End If
-                                     Catch ex As Exception
-                                         _logger.LogDebug(ex, "TTS generation failed for {Lang} commit {Id}",
-                                                         ttsLang, ttsCommitId)
-                                     End Try
-                                 End Function)
+                        ChainTtsTask(kvp.Key, kvp.Value, commitId, targetRoomId)
                     End If
                 Next
             End If
@@ -655,26 +640,41 @@ Namespace Services.Subtitle
             ' Also generate for source-language clients (no translation needed)
             If Not String.IsNullOrEmpty(sourceLang) AndAlso
                (clientLangs.Count = 0 OrElse hasSourceLangClients) Then
-                Dim srcText = originalText
-                Dim srcLang = sourceLang
-                Dim srcCommitId = commitId
-                Dim roomId = targetRoomId
-                Dim srcPriority = If(String.IsNullOrEmpty(roomId),
-                    Scheduling.TranslationPriority.Live,
-                    Scheduling.TranslationPriority.Room)
-                Task.Run(Async Function()
-                             Try
-                                 Dim url = Await TtsService.SynthesiseAsync(
-                                     srcText, srcLang, srcCommitId, CancellationToken.None, srcPriority)
-                                 If url IsNot Nothing Then
-                                     NotifyTtsReady(srcCommitId, srcLang, url, roomId)
-                                 End If
-                             Catch ex As Exception
-                                 _logger.LogDebug(ex, "TTS generation failed for source {Lang} commit {Id}",
-                                                 srcLang, srcCommitId)
-                             End Try
-                         End Function)
+                ChainTtsTask(sourceLang, originalText, commitId, targetRoomId)
             End If
+        End Sub
+
+        ''' <summary>
+        ''' Chains a TTS task so that notifications for the same (room, lang) pair
+        ''' are sent in commit order, preventing out-of-order audio playback.
+        ''' </summary>
+        Private Sub ChainTtsTask(lang As String, text As String, commitId As Integer,
+                                  Optional roomId As String = Nothing)
+            Dim chainKey = $"{If(roomId, "desktop")}__{lang}"
+            Dim priority = If(String.IsNullOrEmpty(roomId),
+                Scheduling.TranslationPriority.Live,
+                Scheduling.TranslationPriority.Room)
+
+            ' Capture the previous task in the chain for this (room, lang) pair
+            Dim previous As Task = Nothing
+            _ttsChains.TryGetValue(chainKey, previous)
+            If previous Is Nothing Then previous = Task.CompletedTask
+
+            Dim newTask = Task.Run(Async Function()
+                                       ' Wait for the previous TTS for this room+lang to finish notifying
+                                       Try : Await previous : Catch : End Try
+                                       Try
+                                           Dim url = Await TtsService.SynthesiseAsync(
+                                               text, lang, commitId, CancellationToken.None, priority)
+                                           If url IsNot Nothing Then
+                                               NotifyTtsReady(commitId, lang, url, roomId)
+                                           End If
+                                       Catch ex As Exception
+                                           _logger.LogDebug(ex, "TTS generation failed for {Lang} commit {Id}",
+                                                           lang, commitId)
+                                       End Try
+                                   End Function)
+            _ttsChains(chainKey) = newTask
         End Sub
 
         ''' <summary>

@@ -1945,7 +1945,7 @@ function toggleHostPanel(){
   if(panel){panel.remove();return}
   panel=document.createElement('div');
   panel.id='hostPanel';
-  panel.style.cssText='position:fixed;top:50px;right:8px;background:#1e1e3a;border:1px solid #444;border-radius:10px;padding:16px;z-index:200;min-width:200px;box-shadow:0 4px 20px rgba(0,0,0,0.6)';
+  panel.style.cssText='position:fixed;top:50px;right:8px;background:#1e1e3a;border:1px solid #444;border-radius:10px;padding:16px;z-index:200;width:220px;max-height:calc(100vh - 70px);overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,0.6)';
   var roomMatch=location.search.match(/[?&]room=([^&]+)/);
   var roomId=roomMatch?roomMatch[1]:'';
   var hostHtml=
@@ -1968,7 +1968,7 @@ function toggleHostPanel(){
     var pipeHtml='<div style="border-top:1px solid #444;margin-top:12px;padding-top:12px">'+
       '<div style="color:#aaa;font-size:12px;font-weight:600;margin-bottom:8px">Pipeline</div>'+
       '<label style="color:#888;font-size:11px">Speaker Language</label>'+
-      '<select id="hcPipeLang" style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:13px;margin-bottom:8px">'+
+      '<select id="hcPipeLang" style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:13px;margin-bottom:8px;box-sizing:border-box">'+
       '<option value="auto">Auto Detect</option>'+
       '<option value="ca">Catalan</option><option value="es">Spanish</option><option value="en">English</option>'+
       '<option value="fr">French</option><option value="de">German</option><option value="it">Italian</option>'+
@@ -1976,14 +1976,14 @@ function toggleHostPanel(){
       '<option value="zh">Chinese</option><option value="ja">Japanese</option><option value="ko">Korean</option>'+
       '<option value="ar">Arabic</option></select>'+
       '<label style="color:#888;font-size:11px">Max Segment: <span id="hcMaxSegVal">15</span>s</label>'+
-      '<input type="range" id="hcMaxSeg" min="5" max="60" value="15" style="width:100%;margin-bottom:8px">'+
+      '<input type="range" id="hcMaxSeg" min="5" max="60" value="15" style="width:100%;margin-bottom:8px;box-sizing:border-box">'+
       '<label style="color:#888;font-size:11px">VAD Silence: <span id="hcVadVal">800</span>ms</label>'+
-      '<input type="range" id="hcVad" min="200" max="2000" step="100" value="800" style="width:100%;margin-bottom:8px">'+
+      '<input type="range" id="hcVad" min="200" max="2000" step="100" value="800" style="width:100%;margin-bottom:8px;box-sizing:border-box">'+
       '<label style="color:#888;font-size:11px">Beam Size</label>'+
-      '<select id="hcBeam" style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:13px;margin-bottom:8px">'+
+      '<select id="hcBeam" style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:13px;margin-bottom:8px;box-sizing:border-box">'+
       '<option value="1">1</option><option value="3">3</option><option value="5">5</option><option value="7" selected>7</option></select>'+
       '<label style="color:#888;font-size:11px">Initial Prompt</label>'+
-      '<input type="text" id="hcPrompt" placeholder="Vocabulary hints" style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:13px;margin-bottom:8px">'+
+      '<input type="text" id="hcPrompt" placeholder="Vocabulary hints" style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:13px;margin-bottom:8px;box-sizing:border-box">'+
       '<button id="hcPipeApply" style="width:100%;padding:8px;border:none;border-radius:8px;background:#7c9cf7;color:#1a1a2e;font-size:13px;font-weight:600;cursor:pointer">Apply</button>'+
       '<div id="hcPipeStatus" style="color:#888;font-size:11px;margin-top:4px;text-align:center"></div>'+
       '</div>';

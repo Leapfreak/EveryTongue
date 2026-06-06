@@ -21,6 +21,16 @@ Namespace Services.Tts
                     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                     "EveryTongue", "tts-cache"))
             _maxEntriesPerLang = maxEntriesPerLang
+
+            ' Clear stale cache from previous sessions — commit IDs reset on each
+            ' server start, so old files would serve wrong audio for new commits.
+            If Directory.Exists(_cacheDir) Then
+                Try
+                    For Each f In Directory.GetFiles(_cacheDir)
+                        Try : File.Delete(f) : Catch : End Try
+                    Next
+                Catch : End Try
+            End If
             Directory.CreateDirectory(_cacheDir)
         End Sub
 
