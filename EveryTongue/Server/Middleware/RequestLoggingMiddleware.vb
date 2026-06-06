@@ -14,7 +14,8 @@ Namespace Server.Middleware
         ' Paths that are polled frequently — log at Debug, not Info
         Private Shared ReadOnly QuietPaths As String() = {
             "/api/health",
-            "/api/config"
+            "/api/config",
+            "/api/rooms"
         }
 
         Public Sub New([next] As RequestDelegate, logger As ILogger(Of RequestLoggingMiddleware))

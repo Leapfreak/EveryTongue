@@ -62,6 +62,7 @@ Partial Class FormMain
         mnuHelpUpdates = New ToolStripMenuItem()
         mnuHelpAbout = New ToolStripMenuItem()
         tsNavBar = New ToolStrip()
+        btnNavLog = New ToolStripButton()
         btnNavTranscribe = New ToolStripButton()
         btnNavTranslate = New ToolStripButton()
         btnNavBible = New ToolStripButton()
@@ -498,13 +499,24 @@ Partial Class FormMain
         tsNavBar.Dock = DockStyle.Top
         tsNavBar.GripStyle = ToolStripGripStyle.Hidden
         tsNavBar.ImageScalingSize = New Size(28, 28)
-        tsNavBar.Items.AddRange(New ToolStripItem() {btnNavTranscribe, btnNavTranslate, btnNavBible})
+        tsNavBar.Items.AddRange(New ToolStripItem() {btnNavLog, btnNavTranscribe, btnNavTranslate, btnNavBible})
         tsNavBar.Location = New Point(0, 0)
         tsNavBar.Name = "tsNavBar"
         tsNavBar.Padding = New Padding(4, 2, 4, 2)
         tsNavBar.RenderMode = ToolStripRenderMode.ManagerRenderMode
         tsNavBar.Size = New Size(880, 40)
         tsNavBar.TabIndex = 1
+        '
+        ' btnNavLog
+        '
+        btnNavLog.AutoSize = True
+        btnNavLog.ForeColor = Color.FromArgb(CByte(60), CByte(60), CByte(60))
+        btnNavLog.ImageScaling = ToolStripItemImageScaling.None
+        btnNavLog.Margin = New Padding(0, 0, 2, 0)
+        btnNavLog.Name = "btnNavLog"
+        btnNavLog.Padding = New Padding(8, 2, 8, 2)
+        btnNavLog.Text = "Log"
+        btnNavLog.TextImageRelation = TextImageRelation.ImageBeforeText
         '
         ' btnNavTranscribe
         '
@@ -1461,11 +1473,23 @@ Partial Class FormMain
         pnlLogPanel.Size = New Size(880, 180)
         pnlLogPanel.TabIndex = 3
         pnlLogPanel.Visible = False
-        ' 
+        '
+        ' pnlLogToolbar
+        '
+        pnlLogToolbar.Controls.Add(lblLogTitle)
+        pnlLogToolbar.Controls.Add(cboLogFilter)
+        pnlLogToolbar.Controls.Add(btnLogClear)
+        pnlLogToolbar.Controls.Add(btnLogCopy)
+        pnlLogToolbar.Controls.Add(txtLogSearch)
+        pnlLogToolbar.Controls.Add(btnLogSearchNext)
+        pnlLogToolbar.Location = New Point(0, 0)
+        pnlLogToolbar.Name = "pnlLogToolbar"
+        pnlLogToolbar.Size = New Size(880, 28)
+        pnlLogToolbar.TabIndex = 1
+        '
         ' rtbUnifiedLog
-        ' 
+        '
         rtbUnifiedLog.BackColor = Color.FromArgb(CByte(30), CByte(30), CByte(30))
-        rtbUnifiedLog.Dock = DockStyle.Fill
         rtbUnifiedLog.Font = New Font("Consolas", 9.5F)
         rtbUnifiedLog.ForeColor = Color.FromArgb(CByte(200), CByte(200), CByte(200))
         rtbUnifiedLog.Location = New Point(0, 28)
@@ -1476,20 +1500,6 @@ Partial Class FormMain
         rtbUnifiedLog.TabIndex = 0
         rtbUnifiedLog.Text = ""
         rtbUnifiedLog.WordWrap = False
-        ' 
-        ' pnlLogToolbar
-        ' 
-        pnlLogToolbar.Controls.Add(lblLogTitle)
-        pnlLogToolbar.Controls.Add(cboLogFilter)
-        pnlLogToolbar.Controls.Add(btnLogClear)
-        pnlLogToolbar.Controls.Add(btnLogCopy)
-        pnlLogToolbar.Controls.Add(txtLogSearch)
-        pnlLogToolbar.Controls.Add(btnLogSearchNext)
-        pnlLogToolbar.Dock = DockStyle.Top
-        pnlLogToolbar.Location = New Point(0, 0)
-        pnlLogToolbar.Name = "pnlLogToolbar"
-        pnlLogToolbar.Size = New Size(880, 28)
-        pnlLogToolbar.TabIndex = 1
         ' 
         ' lblLogTitle
         ' 
@@ -1747,6 +1757,7 @@ Partial Class FormMain
 
     ' Shell: Nav rail
     Friend WithEvents tsNavBar As ToolStrip
+    Friend WithEvents btnNavLog As ToolStripButton
     Friend WithEvents btnNavTranscribe As ToolStripButton
     Friend WithEvents btnNavTranslate As ToolStripButton
     Friend WithEvents btnNavBible As ToolStripButton

@@ -53,6 +53,8 @@ Partial Class FormMain
         GetNavThemeColors(inactiveBg, inactiveFg, activeBg)
 
         tsNavBar.BackColor = inactiveBg
+        btnNavLog.Image = RenderFontIcon(ChrW(&HE7BA), 28, inactiveFg)
+        btnNavLog.ForeColor = inactiveFg
         btnNavTranscribe.Image = RenderFontIcon(ChrW(&HE8D4), 28, inactiveFg)
         btnNavTranscribe.ForeColor = inactiveFg
         btnNavTranslate.Image = RenderFontIcon(ChrW(&HE774), 28, inactiveFg)
@@ -97,6 +99,7 @@ Partial Class FormMain
         AddHandler mnuHelpQuickStart.Click, Sub(s, e) ShowLegacyTab(tabPageHelp)
         AddHandler mnuHelpShortcuts.Click, Sub(s, e)
                                                 MessageBox.Show(
+                                                    "Ctrl+0" & vbTab & "Log workspace" & vbCrLf &
                                                     "Ctrl+1" & vbTab & "Transcribe workspace" & vbCrLf &
                                                     "Ctrl+2" & vbTab & "Translate workspace" & vbCrLf &
                                                     "Ctrl+3" & vbTab & "Bible workspace" & vbCrLf &
@@ -117,6 +120,7 @@ Partial Class FormMain
                                         End Sub
 
         ' ── Wire nav rail button handlers ────────────────────────
+        AddHandler btnNavLog.Click, Sub(s, e) SwitchWorkspace(Nothing, btnNavLog)
         AddHandler btnNavTranscribe.Click, Sub(s, e) SwitchWorkspace(tabPageJob, btnNavTranscribe)
         AddHandler btnNavTranslate.Click, Sub(s, e) SwitchWorkspace(tabPageTranslate, btnNavTranslate)
         AddHandler btnNavBible.Click, Sub(s, e)
@@ -193,11 +197,39 @@ Partial Class FormMain
                                               ctxTransInputSelectAll, ctxTransOutputCopy, ctxTransOutputSelectAll)
         _translateController.PopulateLanguageDropdowns()
 
+        ' ── Keep log panel full-height on Log workspace when form resizes ──
+        AddHandler pnlContent.Resize, Sub(s, e)
+                                           If _activeNavButton Is btnNavLog Then
+                                               pnlLogPanel.Height = pnlContent.ClientSize.Height
+                                           End If
+                                       End Sub
+
+        ' ── Position toolbar and rtb inside log panel (no docking) ──
+        Dim layoutLogPanel = Sub()
+                                  Dim w = pnlLogPanel.ClientSize.Width
+                                  Dim h = pnlLogPanel.ClientSize.Height
+                                  If w > 0 AndAlso h > 0 Then
+                                      Dim tbH = 30
+                                      rtbUnifiedLog.SetBounds(0, 38, w, h - tbH - 38)
+                                      pnlLogToolbar.SetBounds(0, h - tbH, w, tbH)
+                                      pnlLogToolbar.BringToFront()
+                                  End If
+                              End Sub
+        AddHandler pnlLogPanel.Resize, Sub(s, e) layoutLogPanel()
+
+        ' ── Force layout once form is fully shown ──
+        AddHandler Me.Shown, Sub(s, e)
+                                  If _activeNavButton Is btnNavLog Then
+                                      pnlLogPanel.Height = pnlContent.ClientSize.Height
+                                  End If
+                                  layoutLogPanel()
+                              End Sub
+
         ' ── Keyboard shortcuts ─────────────────────────────────────
         AddHandler Me.KeyDown, AddressOf ShellKeyDown
 
-        ' ── Default to Transcribe workspace ───────────────────────
-        SwitchWorkspace(tabPageJob, btnNavTranscribe)
+        ' ── Default to Log workspace ──────────────────────────────
+        SwitchWorkspace(Nothing, btnNavLog)
 
         ' ── Portable mode detection ────────────────────────────────
         Dim flagPath = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "portable.flag")
@@ -209,6 +241,7 @@ Partial Class FormMain
     Private Sub ShellKeyDown(sender As Object, e As KeyEventArgs)
         If e.Control Then
             Select Case e.KeyCode
+                Case Keys.D0 : SwitchWorkspace(Nothing, btnNavLog) : e.Handled = True
                 Case Keys.D1 : SwitchWorkspace(tabPageJob, btnNavTranscribe) : e.Handled = True
                 Case Keys.D2 : SwitchWorkspace(tabPageTranslate, btnNavTranslate) : e.Handled = True
                 Case Keys.D3 : SwitchWorkspace(tabPageBibleWs, btnNavBible) : e.Handled = True
@@ -223,6 +256,7 @@ Partial Class FormMain
     ''' <summary>Maps nav button label back to its MDL2 icon glyph.</summary>
     Private Shared Function GetNavIcon(name As String) As String
         Select Case name
+            Case "btnNavLog" : Return ChrW(&HE7BA)
             Case "btnNavTranscribe" : Return ChrW(&HE8D4)
             Case "btnNavTranslate" : Return ChrW(&HE774)
             Case "btnNavBible" : Return ChrW(&HE736)
@@ -270,6 +304,8 @@ Partial Class FormMain
     ' ═══════════════════════════════════════════════════════════════
 
     Private Sub ToggleLogPanel()
+        ' If on Log workspace, clicking the log link is a no-op
+        If _activeNavButton Is btnNavLog Then Return
         _logPanelVisible = Not _logPanelVisible
         ApplyLogPanelState()
     End Sub
@@ -281,8 +317,12 @@ Partial Class FormMain
     End Sub
 
     Private Sub ApplyLogPanelState()
-        pnlLogPanel.Visible = _logPanelVisible
-        splitterLog.Visible = _logPanelVisible
+        ' Don't touch panel visibility when Log workspace is active —
+        ' SwitchWorkspace manages it directly
+        If _activeNavButton IsNot btnNavLog Then
+            pnlLogPanel.Visible = _logPanelVisible
+            splitterLog.Visible = _logPanelVisible
+        End If
         mnuViewLogPanel.Checked = _logPanelVisible
         If _logPanelVisible Then
             mnuViewLogPanel.Text = GetString("Menu_ViewHideLogPanel")
@@ -474,8 +514,21 @@ Partial Class FormMain
     End Sub
 
     Private Sub SwitchWorkspace(tabPage As TabPage, navButton As ToolStripButton)
-        If tabMain.SelectedTab IsNot tabPage Then
-            tabMain.SelectedTab = tabPage
+        If navButton Is btnNavLog Then
+            ' Log workspace — show log panel full-size
+            tabMain.Visible = False
+            splitterLog.Visible = False
+            pnlLogPanel.Height = pnlContent.ClientSize.Height
+            pnlLogPanel.Visible = True
+        Else
+            ' Normal workspace — log panel is a sub-panel
+            If _config.LogPanelHeight > 50 Then pnlLogPanel.Height = _config.LogPanelHeight
+            pnlLogPanel.Visible = _logPanelVisible
+            splitterLog.Visible = _logPanelVisible
+            tabMain.Visible = True
+            If tabMain.SelectedTab IsNot tabPage Then
+                tabMain.SelectedTab = tabPage
+            End If
         End If
 
         Dim inactiveBg, inactiveFg, activeBg As Color

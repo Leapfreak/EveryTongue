@@ -787,6 +787,7 @@ del ""%~f0""
             mnuHelpAbout.Text = GetString("Menu_HelpAbout")
 
             ' Nav rail buttons
+            btnNavLog.Text = GetString("Nav_Log")
             btnNavTranscribe.Text = GetString("Nav_Transcribe")
             btnNavTranslate.Text = GetString("Nav_Translate")
             btnNavBible.Text = GetString("Nav_Bible")

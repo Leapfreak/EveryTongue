@@ -169,6 +169,10 @@ Namespace Services.Rooms
                 If Not response.IsSuccessStatusCode Then
                     Dim body = Await response.Content.ReadAsStringAsync(ct).ConfigureAwait(False)
                     _logger.LogWarning("Transcribe API returned {Status}: {Body}", response.StatusCode, body)
+                    ' Reset so next PTT attempt will restart the server
+                    If response.StatusCode = Net.HttpStatusCode.ServiceUnavailable Then
+                        _serverEnsured = False
+                    End If
                     Return
                 End If
 
@@ -214,8 +218,10 @@ Namespace Services.Rooms
         Public Async Function EnsureLiveServerAsync(ct As CancellationToken) As Task(Of Boolean)
             ' Fast path: already confirmed running
             If _serverEnsured Then
+                _logger.LogDebug("EnsureLiveServerAsync: fast path (_serverEnsured=True)")
                 Return True
             End If
+            _logger.LogInformation("EnsureLiveServerAsync: _serverEnsured=False, checking server...")
 
             Await _ensureLock.WaitAsync(ct).ConfigureAwait(False)
             Try
@@ -227,6 +233,19 @@ Namespace Services.Rooms
                     _logger.LogInformation("Live server already running on port {Port}", LiveServerPort)
                     _serverEnsured = True
                     Return True
+                End If
+
+                ' Live-server may be up but whisper-server subprocess died — try reloading model
+                Dim liveServerUp = Await CheckServerUpAsync(ct).ConfigureAwait(False)
+                If liveServerUp Then
+                    _logger.LogInformation("Live server is up but whisper-server is down — reloading model...")
+                    Dim reloaded = Await LoadModelAsync(ct).ConfigureAwait(False)
+                    If reloaded Then
+                        _logger.LogInformation("Whisper model reloaded successfully")
+                        _serverEnsured = True
+                        Return True
+                    End If
+                    _logger.LogWarning("Model reload failed — will restart entire live server")
                 End If
 
                 ' Server not running — start it ourselves
@@ -310,15 +329,15 @@ Namespace Services.Rooms
             Try
                 Dim response = Await _httpClient.GetAsync($"http://127.0.0.1:{LiveServerPort}/health", ct).ConfigureAwait(False)
                 If Not response.IsSuccessStatusCode Then Return False
-                ' Check if model is loaded
+                ' Check if whisper-server subprocess is running
                 Dim json = Await response.Content.ReadAsStringAsync(ct).ConfigureAwait(False)
                 Using doc = JsonDocument.Parse(json)
-                    Dim modelLoaded As JsonElement = Nothing
-                    If doc.RootElement.TryGetProperty("model_loaded", modelLoaded) Then
-                        Return modelLoaded.GetBoolean()
+                    Dim wsRunning As JsonElement = Nothing
+                    If doc.RootElement.TryGetProperty("whisper_server_running", wsRunning) Then
+                        Return wsRunning.GetBoolean()
                     End If
                 End Using
-                ' Server is up (no model_loaded field = legacy server, assume ready)
+                ' Server is up (no whisper_server_running field = legacy server, assume ready)
                 Return True
             Catch
                 Return False
