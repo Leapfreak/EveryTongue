@@ -75,14 +75,8 @@ Source: "{#WhisperBinDir}\*.dll"; DestDir: "{app}\whisper"; Flags: ignoreversion
 Source: "{#AppPublishDir}\translate-server\*"; DestDir: "{app}\translate-server"; Flags: ignoreversion
 ; --- Live transcription server (whisper.cpp + VAD) ---
 Source: "{#AppPublishDir}\live-server\*"; DestDir: "{app}\live-server"; Flags: ignoreversion
-; Locale satellite assemblies
-Source: "{#AppPublishDir}\ca\*"; DestDir: "{app}\ca"; Flags: ignoreversion
-Source: "{#AppPublishDir}\de\*"; DestDir: "{app}\de"; Flags: ignoreversion
-Source: "{#AppPublishDir}\es\*"; DestDir: "{app}\es"; Flags: ignoreversion
-Source: "{#AppPublishDir}\fr\*"; DestDir: "{app}\fr"; Flags: ignoreversion
-Source: "{#AppPublishDir}\ja\*"; DestDir: "{app}\ja"; Flags: ignoreversion
-Source: "{#AppPublishDir}\pt\*"; DestDir: "{app}\pt"; Flags: ignoreversion
-Source: "{#AppPublishDir}\zh-Hans\*"; DestDir: "{app}\zh-Hans"; Flags: ignoreversion
+; Locales are JSON-based (locales/*.json), bundled inside wwwroot or downloaded at runtime.
+; No .NET satellite assemblies needed.
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
