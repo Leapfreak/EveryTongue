@@ -113,10 +113,11 @@ Namespace Services.Testing
                             End If
                         Catch ex As OperationCanceledException When token.IsCancellationRequested
                             Throw
-                        Catch
+                        Catch ex As Exception
                             sw.Stop()
                             latencies.Add(sw.ElapsedMilliseconds)
                             errors += 1
+                            Services.Infrastructure.AppLogger.Log($"[TTS-BENCHMARK] Synthesis error: {ex.Message}")
                         End Try
                     Next
 

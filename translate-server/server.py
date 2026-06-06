@@ -38,6 +38,15 @@ _debug_stderr.setLevel(logging.DEBUG)
 _debug_stderr.setFormatter(logging.Formatter("[TRANSLATE] %(message)s"))
 _debug_logger.addHandler(_debug_stderr)
 
+
+def _apply_log_level(level_name: str):
+    """Set stderr handler levels from config: minimal/normal/verbose."""
+    level_map = {"minimal": logging.WARNING, "normal": logging.INFO, "verbose": logging.DEBUG}
+    level = level_map.get(level_name.lower(), logging.INFO)
+    _stderr_handler.setLevel(level)
+    _debug_stderr.setLevel(level)
+
+
 app = FastAPI()
 
 # ---------------------------------------------------------------------------
@@ -460,13 +469,17 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--model-type", type=str, default="nllb",
                         help="Model architecture (kept for backward compatibility)")
+    parser.add_argument("--log-level", type=str, default="normal",
+                        choices=["minimal", "normal", "verbose"],
+                        help="Log verbosity: minimal (errors only), normal (default), verbose (all debug)")
     parser.add_argument("--glossary", type=str, default="",
                         help="Path to glossary.json for post-translation fixes")
     args = parser.parse_args()
 
     model_path_global = args.model_path
     _debug_stderr.setFormatter(logging.Formatter("[NLLB] %(message)s"))
-    _debug_logger.debug("Translation server started")
+    _apply_log_level(args.log_level)
+    _debug_logger.info("Translation server started")
 
     # Load glossary: explicit path, or default next to server.py
     glossary_path_global = args.glossary

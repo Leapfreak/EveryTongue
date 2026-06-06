@@ -39,6 +39,10 @@ Namespace Services.Rooms
         Public Property Type As RoomType = RoomType.Conference
         Public Property Visibility As RoomVisibility = RoomVisibility.Public
         Public Property SourceLang As String = "auto"
+        Public Property MaxSegmentSec As Integer = 15
+        Public Property VadSilenceMs As Integer = 800
+        Public Property BeamSize As Integer = 7
+        Public Property InitialPrompt As String = ""
         Public Property TemplateId As String = ""
         Public Property CreatedAt As DateTime = DateTime.Now
         Public Property IsActive As Boolean = True

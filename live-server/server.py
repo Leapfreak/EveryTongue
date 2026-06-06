@@ -63,13 +63,21 @@ except Exception as _vad_pipe_err:
 # ---------------------------------------------------------------------------
 # Logging — stderr only, captured by PythonSidecarHost -> AppLogger
 # ---------------------------------------------------------------------------
+# Log level is set from --log-level arg (see _apply_log_level below).
+# Default is INFO (Normal). Verbose=DEBUG, Minimal=WARNING.
 logger = logging.getLogger("live-server")
 logger.setLevel(logging.DEBUG)
 logger.propagate = False
 _stderr_handler = logging.StreamHandler()
-_stderr_handler.setLevel(logging.DEBUG)
+_stderr_handler.setLevel(logging.INFO)
 _stderr_handler.setFormatter(logging.Formatter("[LIVE] %(message)s"))
 logger.addHandler(_stderr_handler)
+
+
+def _apply_log_level(level_name: str):
+    """Set stderr handler level from config: minimal/normal/verbose."""
+    level_map = {"minimal": logging.WARNING, "normal": logging.INFO, "verbose": logging.DEBUG}
+    _stderr_handler.setLevel(level_map.get(level_name.lower(), logging.INFO))
 
 # Suppress noisy loggers
 logging.basicConfig(level=logging.WARNING)
@@ -201,7 +209,7 @@ def _start_whisper_server(server_path: str, model_path: str, port: int, no_gpu: 
             req = urllib.request.Request(f"http://127.0.0.1:{port}/health")
             with urllib.request.urlopen(req, timeout=1) as resp:
                 if resp.status == 200:
-                    logger.debug(f"WHISPER-SERVER READY on port {port} (took ~{i * 0.5:.0f}s)")
+                    logger.info(f"WHISPER-SERVER READY on port {port} (took ~{i * 0.5:.0f}s)")
                     return
         except Exception:
             pass
@@ -839,6 +847,9 @@ if __name__ == "__main__":
                         help="Port for whisper-server.exe (default: 8178)")
     parser.add_argument("--no-gpu", action="store_true",
                         help="Disable GPU (CPU-only mode for whisper-cpp)")
+    parser.add_argument("--log-level", type=str, default="normal",
+                        choices=["minimal", "normal", "verbose"],
+                        help="Log verbosity: minimal (errors only), normal (default), verbose (all debug)")
     parser.add_argument("--vad-model-path", type=str, default="",
                         help="(ignored, kept for backward compatibility)")
     args = parser.parse_args()
@@ -846,8 +857,9 @@ if __name__ == "__main__":
     _whisper_server_path = args.whisper_server_path
     _whisper_server_port = args.whisper_server_port
     _no_gpu = args.no_gpu
+    _apply_log_level(args.log_level)
 
-    logger.debug("Running in whisper-cpp mode with VAD pipeline")
+    logger.info("Running in whisper-cpp mode with VAD pipeline")
 
     _load_hallucination_phrases()
 

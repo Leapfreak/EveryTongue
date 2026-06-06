@@ -184,6 +184,9 @@ Namespace Pipeline
                     If NoGpu Then extraArgs &= " --no-gpu"
                 End If
 
+                Dim logLevel = Models.ConfigManager.Load().LogLevel.ToString().ToLowerInvariant()
+                extraArgs &= $" --log-level {logLevel}"
+
                 _host.Start(serverScript, extraArgs)
             End If
 

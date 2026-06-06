@@ -1,6 +1,31 @@
 {
   "cat_Latn": [
     {
+      "trigger": "holocaust",
+      "comment": "'holocaust/holocausto' in biblical context = burnt offering, not the Holocaust",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"holocaust": "burnt offering", "Holocaust": "Burnt offering", "holocausts": "burnt offerings"}
+      }
+    },
+    {
+      "trigger": "culte",
+      "comment": "'culte' = church service, not 'cult'",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"cult": "service", "Cult": "Service"}
+      }
+    },
+    {
+      "trigger": "elies",
+      "comment": "'Elies' = Elijah (NLLB mistranslates as 'Alias')",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"Alias": "Elijah", "alias": "Elijah"},
+        "spa_Latn": {"Alias": "Elías", "alias": "Elías"}
+      }
+    },
+    {
       "trigger": "culto",
       "comment": "Spanish/Catalan 'culto' = church service, not 'cult'",
       "enabled": true,
@@ -102,6 +127,14 @@
     }
   ],
   "spa_Latn": [
+    {
+      "trigger": "holocausto",
+      "comment": "'holocausto' in biblical context = burnt offering, not the Holocaust",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"holocaust": "burnt offering", "Holocaust": "Burnt offering", "holocausts": "burnt offerings"}
+      }
+    },
     {
       "trigger": "culto",
       "comment": "Spanish/Catalan 'culto' = church service, not 'cult'",

@@ -390,7 +390,7 @@ class VadPipeline:
 
                 for i, sentence in enumerate(sentences):
                     self._broadcast_fn("commit", sentence, lang=detected_lang)
-                    logger.debug(
+                    logger.info(
                         f"[WHISPER] utterance #{utterance_id} "
                         f"sentence {i+1}/{len(sentences)}: \"{sentence}\""
                     )

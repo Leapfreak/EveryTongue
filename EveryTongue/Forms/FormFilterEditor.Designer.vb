@@ -36,15 +36,12 @@ Partial Class FormFilterEditor
         btnProfRemove = New Button()
         btnProfSave = New Button()
         tabGlos = New TabPage()
-        dgvGlossary = New DataGridView()
-        colGlosEnabled = New DataGridViewCheckBoxColumn()
-        colTrigger = New DataGridViewTextBoxColumn()
-        colComment = New DataGridViewTextBoxColumn()
+        lblGlosDesc = New Label()
+        clbGlosEntries = New CheckedListBox()
+        txtGlosNewTrigger = New TextBox()
         btnGlosAdd = New Button()
         btnGlosRemove = New Button()
         grpDetail = New GroupBox()
-        lblTrigger = New Label()
-        txtGlosTrigger = New TextBox()
         lblComment = New Label()
         txtGlosComment = New TextBox()
         lblFixes = New Label()
@@ -55,12 +52,10 @@ Partial Class FormFilterEditor
         btnFixAdd = New Button()
         btnFixRemove = New Button()
         btnGlosSave = New Button()
-        lblGlosDesc = New Label()
         TabControl1.SuspendLayout()
         tabHal.SuspendLayout()
         tabProf.SuspendLayout()
         tabGlos.SuspendLayout()
-        CType(dgvGlossary, ComponentModel.ISupportInitialize).BeginInit()
         grpDetail.SuspendLayout()
         CType(dgvFixes, ComponentModel.ISupportInitialize).BeginInit()
         SuspendLayout()
@@ -255,12 +250,13 @@ Partial Class FormFilterEditor
         '
         ' tabGlos
         '
-        tabGlos.Controls.Add(dgvGlossary)
+        tabGlos.Controls.Add(lblGlosDesc)
+        tabGlos.Controls.Add(clbGlosEntries)
+        tabGlos.Controls.Add(txtGlosNewTrigger)
         tabGlos.Controls.Add(btnGlosAdd)
         tabGlos.Controls.Add(btnGlosRemove)
         tabGlos.Controls.Add(grpDetail)
         tabGlos.Controls.Add(btnGlosSave)
-        tabGlos.Controls.Add(lblGlosDesc)
         tabGlos.Location = New Point(4, 24)
         tabGlos.Name = "tabGlos"
         tabGlos.Padding = New Padding(8)
@@ -269,120 +265,93 @@ Partial Class FormFilterEditor
         tabGlos.Text = "Glossary"
         tabGlos.UseVisualStyleBackColor = True
         '
-        ' dgvGlossary
+        ' lblGlosDesc
         '
-        dgvGlossary.AllowUserToAddRows = False
-        dgvGlossary.AllowUserToDeleteRows = False
-        dgvGlossary.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        dgvGlossary.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
-        dgvGlossary.Columns.AddRange(New DataGridViewColumn() {colGlosEnabled, colTrigger, colComment})
-        dgvGlossary.Location = New Point(8, 28)
-        dgvGlossary.MultiSelect = False
-        dgvGlossary.Name = "dgvGlossary"
-        dgvGlossary.RowHeadersVisible = False
-        dgvGlossary.ScrollBars = ScrollBars.Vertical
-        dgvGlossary.SelectionMode = DataGridViewSelectionMode.FullRowSelect
-        dgvGlossary.Size = New Size(710, 130)
-        dgvGlossary.TabIndex = 1
+        lblGlosDesc.AutoSize = True
+        lblGlosDesc.Location = New Point(8, 8)
+        lblGlosDesc.MaximumSize = New Size(700, 0)
+        lblGlosDesc.Name = "lblGlosDesc"
+        lblGlosDesc.Size = New Size(152, 15)
+        lblGlosDesc.TabIndex = 0
+        lblGlosDesc.Text = "Translation glossary entries:"
         '
-        ' colGlosEnabled
+        ' clbGlosEntries — CheckedListBox (same pattern as Hal/Prof tabs)
         '
-        colGlosEnabled.FillWeight = 8F
-        colGlosEnabled.HeaderText = ""
-        colGlosEnabled.Name = "colGlosEnabled"
-        colGlosEnabled.Width = 30
+        clbGlosEntries.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
+        clbGlosEntries.CheckOnClick = True
+        clbGlosEntries.Font = New Font("Consolas", 10F)
+        clbGlosEntries.FormattingEnabled = True
+        clbGlosEntries.Location = New Point(8, 28)
+        clbGlosEntries.Name = "clbGlosEntries"
+        clbGlosEntries.Size = New Size(710, 148)
+        clbGlosEntries.TabIndex = 1
         '
-        ' colTrigger
+        ' txtGlosNewTrigger
         '
-        colTrigger.FillWeight = 30F
-        colTrigger.HeaderText = "Trigger"
-        colTrigger.Name = "colTrigger"
-        colTrigger.ReadOnly = True
-        '
-        ' colComment
-        '
-        colComment.FillWeight = 62F
-        colComment.HeaderText = "Comment"
-        colComment.Name = "colComment"
-        colComment.ReadOnly = True
+        txtGlosNewTrigger.Anchor = AnchorStyles.Left Or AnchorStyles.Right
+        txtGlosNewTrigger.Location = New Point(8, 180)
+        txtGlosNewTrigger.Name = "txtGlosNewTrigger"
+        txtGlosNewTrigger.Size = New Size(400, 23)
+        txtGlosNewTrigger.TabIndex = 2
         '
         ' btnGlosAdd
         '
-        btnGlosAdd.Location = New Point(8, 164)
+        btnGlosAdd.Location = New Point(416, 179)
         btnGlosAdd.Name = "btnGlosAdd"
-        btnGlosAdd.Size = New Size(90, 25)
-        btnGlosAdd.TabIndex = 2
-        btnGlosAdd.Text = "Add Entry"
+        btnGlosAdd.Size = New Size(60, 25)
+        btnGlosAdd.TabIndex = 3
+        btnGlosAdd.Text = "Add"
         btnGlosAdd.UseVisualStyleBackColor = True
         '
         ' btnGlosRemove
         '
-        btnGlosRemove.Location = New Point(105, 164)
+        btnGlosRemove.Location = New Point(484, 179)
         btnGlosRemove.Name = "btnGlosRemove"
-        btnGlosRemove.Size = New Size(100, 25)
-        btnGlosRemove.TabIndex = 3
-        btnGlosRemove.Text = "Remove Entry"
+        btnGlosRemove.Size = New Size(110, 25)
+        btnGlosRemove.TabIndex = 4
+        btnGlosRemove.Text = "Remove Selected"
         btnGlosRemove.UseVisualStyleBackColor = True
         '
-        ' grpDetail — Trigger | Comment | Fixes
+        ' grpDetail — Comment + Fixes for selected entry
         '
         grpDetail.Anchor = AnchorStyles.Top Or AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
-        grpDetail.Controls.Add(lblTrigger)
-        grpDetail.Controls.Add(txtGlosTrigger)
         grpDetail.Controls.Add(lblComment)
         grpDetail.Controls.Add(txtGlosComment)
         grpDetail.Controls.Add(lblFixes)
         grpDetail.Controls.Add(dgvFixes)
         grpDetail.Controls.Add(btnFixAdd)
         grpDetail.Controls.Add(btnFixRemove)
-        grpDetail.Location = New Point(8, 195)
+        grpDetail.Location = New Point(8, 210)
         grpDetail.Name = "grpDetail"
-        grpDetail.Size = New Size(710, 262)
-        grpDetail.TabIndex = 4
+        grpDetail.Size = New Size(710, 248)
+        grpDetail.TabIndex = 5
         grpDetail.TabStop = False
         grpDetail.Text = "Selected Entry"
-        '
-        ' lblTrigger
-        '
-        lblTrigger.AutoSize = True
-        lblTrigger.Location = New Point(10, 22)
-        lblTrigger.Name = "lblTrigger"
-        lblTrigger.Size = New Size(47, 15)
-        lblTrigger.TabIndex = 0
-        lblTrigger.Text = "Trigger:"
-        '
-        ' txtGlosTrigger
-        '
-        txtGlosTrigger.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        txtGlosTrigger.Location = New Point(100, 19)
-        txtGlosTrigger.Name = "txtGlosTrigger"
-        txtGlosTrigger.Size = New Size(600, 23)
-        txtGlosTrigger.TabIndex = 1
         '
         ' lblComment
         '
         lblComment.AutoSize = True
-        lblComment.Location = New Point(10, 50)
+        lblComment.Location = New Point(10, 22)
         lblComment.Name = "lblComment"
         lblComment.Size = New Size(64, 15)
-        lblComment.TabIndex = 2
+        lblComment.TabIndex = 0
         lblComment.Text = "Comment:"
         '
         ' txtGlosComment
         '
         txtGlosComment.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        txtGlosComment.Location = New Point(100, 47)
+        txtGlosComment.Location = New Point(80, 19)
         txtGlosComment.Name = "txtGlosComment"
-        txtGlosComment.Size = New Size(600, 23)
-        txtGlosComment.TabIndex = 3
+        txtGlosComment.Size = New Size(620, 23)
+        txtGlosComment.TabIndex = 1
         '
         ' lblFixes
         '
         lblFixes.AutoSize = True
-        lblFixes.Location = New Point(10, 78)
+        lblFixes.Location = New Point(10, 50)
         lblFixes.Name = "lblFixes"
         lblFixes.Size = New Size(35, 15)
-        lblFixes.TabIndex = 4
+        lblFixes.TabIndex = 2
         lblFixes.Text = "Fixes:"
         '
         ' dgvFixes
@@ -392,14 +361,14 @@ Partial Class FormFilterEditor
         dgvFixes.Anchor = AnchorStyles.Top Or AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
         dgvFixes.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
         dgvFixes.Columns.AddRange(New DataGridViewColumn() {colTargetLang, colWrong, colRight})
-        dgvFixes.Location = New Point(10, 96)
+        dgvFixes.Location = New Point(10, 68)
         dgvFixes.MultiSelect = False
         dgvFixes.Name = "dgvFixes"
         dgvFixes.RowHeadersVisible = False
         dgvFixes.ScrollBars = ScrollBars.Vertical
         dgvFixes.SelectionMode = DataGridViewSelectionMode.FullRowSelect
-        dgvFixes.Size = New Size(590, 154)
-        dgvFixes.TabIndex = 5
+        dgvFixes.Size = New Size(590, 168)
+        dgvFixes.TabIndex = 3
         '
         ' colTargetLang — ComboBox column with language display names
         '
@@ -423,20 +392,20 @@ Partial Class FormFilterEditor
         ' btnFixAdd
         '
         btnFixAdd.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        btnFixAdd.Location = New Point(610, 96)
+        btnFixAdd.Location = New Point(610, 68)
         btnFixAdd.Name = "btnFixAdd"
         btnFixAdd.Size = New Size(90, 25)
-        btnFixAdd.TabIndex = 6
+        btnFixAdd.TabIndex = 4
         btnFixAdd.Text = "Add Fix"
         btnFixAdd.UseVisualStyleBackColor = True
         '
         ' btnFixRemove
         '
         btnFixRemove.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        btnFixRemove.Location = New Point(610, 126)
+        btnFixRemove.Location = New Point(610, 98)
         btnFixRemove.Name = "btnFixRemove"
         btnFixRemove.Size = New Size(90, 25)
-        btnFixRemove.TabIndex = 7
+        btnFixRemove.TabIndex = 5
         btnFixRemove.Text = "Remove Fix"
         btnFixRemove.UseVisualStyleBackColor = True
         '
@@ -446,18 +415,9 @@ Partial Class FormFilterEditor
         btnGlosSave.Location = New Point(601, 463)
         btnGlosSave.Name = "btnGlosSave"
         btnGlosSave.Size = New Size(122, 25)
-        btnGlosSave.TabIndex = 5
+        btnGlosSave.TabIndex = 6
         btnGlosSave.Text = "Save && Reload"
         btnGlosSave.UseVisualStyleBackColor = True
-        '
-        ' lblGlosDesc
-        '
-        lblGlosDesc.AutoSize = True
-        lblGlosDesc.Location = New Point(8, 8)
-        lblGlosDesc.Name = "lblGlosDesc"
-        lblGlosDesc.Size = New Size(152, 15)
-        lblGlosDesc.TabIndex = 0
-        lblGlosDesc.Text = "Translation glossary entries:"
         '
         ' FormFilterEditor
         '
@@ -479,7 +439,6 @@ Partial Class FormFilterEditor
         tabProf.PerformLayout()
         tabGlos.ResumeLayout(False)
         tabGlos.PerformLayout()
-        CType(dgvGlossary, ComponentModel.ISupportInitialize).EndInit()
         grpDetail.ResumeLayout(False)
         grpDetail.PerformLayout()
         CType(dgvFixes, ComponentModel.ISupportInitialize).EndInit()
@@ -515,15 +474,11 @@ Partial Class FormFilterEditor
 
     ' Glossary tab
     Friend WithEvents lblGlosDesc As System.Windows.Forms.Label
-    Friend WithEvents dgvGlossary As System.Windows.Forms.DataGridView
-    Friend WithEvents colGlosEnabled As System.Windows.Forms.DataGridViewCheckBoxColumn
-    Friend WithEvents colTrigger As System.Windows.Forms.DataGridViewTextBoxColumn
-    Friend WithEvents colComment As System.Windows.Forms.DataGridViewTextBoxColumn
+    Friend WithEvents clbGlosEntries As System.Windows.Forms.CheckedListBox
+    Friend WithEvents txtGlosNewTrigger As System.Windows.Forms.TextBox
     Friend WithEvents btnGlosAdd As System.Windows.Forms.Button
     Friend WithEvents btnGlosRemove As System.Windows.Forms.Button
     Friend WithEvents grpDetail As System.Windows.Forms.GroupBox
-    Friend WithEvents lblTrigger As System.Windows.Forms.Label
-    Friend WithEvents txtGlosTrigger As System.Windows.Forms.TextBox
     Friend WithEvents lblComment As System.Windows.Forms.Label
     Friend WithEvents txtGlosComment As System.Windows.Forms.TextBox
     Friend WithEvents lblFixes As System.Windows.Forms.Label

@@ -229,8 +229,10 @@ function initRoomShareButton(){
 }
 function toggleRoomQr(){
   var overlay=document.getElementById('roomQrOverlay');
-  _roomQrVisible=!_roomQrVisible;
-  overlay.style.display=_roomQrVisible?'flex':'none';
+  if(_roomQrVisible){_roomQrVisible=false;overlay.style.display='none';return}
+  closeAllPanels();
+  _roomQrVisible=true;
+  overlay.style.display='flex';
 }
 initRoomShareButton();
 
@@ -307,9 +309,9 @@ populateVoices();
 if(synth.onvoiceschanged!==undefined)synth.onvoiceschanged=populateVoices;
 
 /* ── Panel toggle ── */
-function closeAllPanels(){panel.style.display='none';adminPanel.style.display='none';if(adminPollTimer){clearInterval(adminPollTimer);adminPollTimer=null}}
+function closeAllPanels(){panel.style.display='none';adminPanel.style.display='none';if(adminPollTimer){clearInterval(adminPollTimer);adminPollTimer=null}var hp=document.getElementById('hostPanel');if(hp)hp.remove();biblePanel.classList.remove('open');var qr=document.getElementById('roomQrOverlay');if(qr){qr.style.display='none';_roomQrVisible=false}}
 function togglePanel(){if(panel.style.display==='block'){panel.style.display='none'}else{closeAllPanels();panel.style.display='block'}}
-document.addEventListener('click',function(e){if(!panel.contains(e.target)&&!adminPanel.contains(e.target)&&!document.getElementById('toolbar').contains(e.target)){closeAllPanels()}})
+document.addEventListener('click',function(e){var hp=document.getElementById('hostPanel');var toolbar=document.getElementById('toolbar');var qr=document.getElementById('roomQrOverlay');if(!panel.contains(e.target)&&!adminPanel.contains(e.target)&&(!hp||!hp.contains(e.target))&&!toolbar.contains(e.target)&&!biblePanel.contains(e.target)&&(!qr||!qr.contains(e.target))){closeAllPanels()}})
 
 function toggleSpeak(){
   speakEnabled=!speakEnabled;
@@ -446,7 +448,7 @@ function saveTranscript(){
     var ln=els[i].textContent;if(ln)text+=ln+'\n';
   }
   if(!text){return}
-  var blob=new Blob([text],{type:'text/plain;charset=utf-8'});
+  var blob=new Blob(['\uFEFF'+text],{type:'text/plain;charset=utf-8'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');
   a.href=url;
@@ -715,6 +717,7 @@ function verifyAdminPin(){
   fetch('/api/admin/verify?pin='+encodeURIComponent(pin)).then(function(r){return r.json()}).then(function(d){
     if(d.ok){
       sessionStorage.setItem('isAdmin','true');
+      sessionStorage.setItem('adminPin',pin);
       isAdmin=true;
       msg.style.color='#4f4';msg.textContent=t('adminOk');
       document.getElementById('btnAdmin').style.display='';
@@ -764,7 +767,7 @@ btnWake.title=t('keepScreen');
 
 function setWakeActive(on){
   wakeActive=on;
-  if(on){btnWake.classList.add('active')}else{btnWake.classList.remove('active')}
+  if(on){btnWake.classList.add('active');ssSet('wakeActive','1')}else{btnWake.classList.remove('active');ssRemove('wakeActive')}
 }
 
 async function acquireWakeLock(){
@@ -812,6 +815,9 @@ function showCertSetup(){
 document.addEventListener('visibilitychange',function(){
   if(document.visibilityState==='visible'&&wakeActive&&!wakeLockObj)acquireWakeLock();
 });
+
+/* Restore wake lock from previous page (survives Home → lobby → back) */
+if(ss('wakeActive')==='1')acquireWakeLock();
 
 /* ── Admin remote control ── */
 var adminPanel=document.getElementById('adminPanel');
@@ -1458,6 +1464,10 @@ var pttRecorder=null;
 var pttChunks=[];
 var pttRoomType='';
 var roomSourceLang='auto';
+var roomMaxSegSec=15;
+var roomVadMs=800;
+var roomBeamSize=7;
+var roomPrompt='';
 
 function initPushToTalk(){
   var roomMatch=location.search.match(/[?&]room=([^&]+)/);
@@ -1486,6 +1496,10 @@ function initPushToTalk(){
         pttRoomType=room.type||'';
         pttMode=room.pttMode||'hold';
         roomSourceLang=room.sourceLang||'auto';
+        roomMaxSegSec=room.maxSegmentSec||15;
+        roomVadMs=room.vadSilenceMs||800;
+        roomBeamSize=room.beamSize||7;
+        roomPrompt=room.initialPrompt||'';
         if(room.isHost){isHost=true;showHostControls()}
         /* Conversation: everyone gets PTT. Conference: no mic (audio from desktop). */
         if(pttRoomType==='conversation'){
@@ -1698,7 +1712,7 @@ function showRoomError(msg){
   el.style.display='block';
 }
 
-/* Auto-reclaim host via stored token */
+/* Auto-reclaim host via stored token, or fall back to admin PIN */
 function tryClaimHost(){
   var roomMatch=location.search.match(/[?&]room=([^&]+)/);
   if(!roomMatch||!myClientId)return;
@@ -1707,7 +1721,9 @@ function tryClaimHost(){
     var myRooms=JSON.parse(localStorage.getItem('myRooms')||'[]');
     var mine=null;
     for(var i=0;i<myRooms.length;i++){if(myRooms[i].id===roomId){mine=myRooms[i];break}}
-    if(!mine||!mine.hostToken)return;
+    var token=(mine&&mine.hostToken)?mine.hostToken:'';
+    var pin=sessionStorage.getItem('adminPin')||'';
+    if(!token&&!pin)return;
     var xhr=new XMLHttpRequest();
     xhr.open('POST','/api/rooms/'+encodeURIComponent(roomId)+'/claim-host',true);
     xhr.setRequestHeader('Content-Type','application/json');
@@ -1719,7 +1735,10 @@ function tryClaimHost(){
         }catch(e){}
       }
     };
-    xhr.send(JSON.stringify({hostToken:mine.hostToken,clientId:myClientId}));
+    var body={clientId:myClientId};
+    if(token)body.hostToken=token;
+    if(pin)body.pin=pin;
+    xhr.send(JSON.stringify(body));
   }catch(e){LOG('tryClaimHost error: '+e)}
 }
 
@@ -1943,9 +1962,10 @@ function showHostControls(){
 function toggleHostPanel(){
   var panel=document.getElementById('hostPanel');
   if(panel){panel.remove();return}
+  closeAllPanels();
   panel=document.createElement('div');
   panel.id='hostPanel';
-  panel.style.cssText='position:fixed;top:50px;right:8px;background:#1e1e3a;border:1px solid #444;border-radius:10px;padding:16px;z-index:200;width:220px;max-height:calc(100vh - 70px);overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,0.6)';
+  panel.style.cssText='position:fixed;top:50px;right:8px;background:#1e1e3a;border:1px solid #444;border-radius:10px;padding:16px;z-index:200;width:260px;max-height:calc(100vh - 70px);overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,0.6)';
   var roomMatch=location.search.match(/[?&]room=([^&]+)/);
   var roomId=roomMatch?roomMatch[1]:'';
   var hostHtml=
@@ -1982,8 +2002,6 @@ function toggleHostPanel(){
       '<label style="color:#888;font-size:11px">Beam Size</label>'+
       '<select id="hcBeam" style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:13px;margin-bottom:8px;box-sizing:border-box">'+
       '<option value="1">1</option><option value="3">3</option><option value="5">5</option><option value="7" selected>7</option></select>'+
-      '<label style="color:#888;font-size:11px">Initial Prompt</label>'+
-      '<input type="text" id="hcPrompt" placeholder="Vocabulary hints" style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:13px;margin-bottom:8px;box-sizing:border-box">'+
       '<button id="hcPipeApply" style="width:100%;padding:8px;border:none;border-radius:8px;background:#7c9cf7;color:#1a1a2e;font-size:13px;font-weight:600;cursor:pointer">Apply</button>'+
       '<div id="hcPipeStatus" style="color:#888;font-size:11px;margin-top:4px;text-align:center"></div>'+
       '</div>';
@@ -1992,9 +2010,15 @@ function toggleHostPanel(){
 
   document.body.appendChild(panel);
 
-  /* Pre-select pipeline language from template */
+  /* Pre-select pipeline values from room state */
   var pipeLang=document.getElementById('hcPipeLang');
   if(pipeLang&&roomSourceLang){pipeLang.value=roomSourceLang}
+  var hcMs=document.getElementById('hcMaxSeg');
+  if(hcMs){hcMs.value=roomMaxSegSec;var msv=document.getElementById('hcMaxSegVal');if(msv)msv.textContent=roomMaxSegSec}
+  var hcVd=document.getElementById('hcVad');
+  if(hcVd){hcVd.value=roomVadMs;var vdv=document.getElementById('hcVadVal');if(vdv)vdv.textContent=roomVadMs}
+  var hcBm=document.getElementById('hcBeam');
+  if(hcBm){hcBm.value=roomBeamSize}
 
   document.getElementById('hcEndRoom').addEventListener('click',function(){
     var xhr=new XMLHttpRequest();
@@ -2069,8 +2093,6 @@ function toggleHostPanel(){
       if(vd)params.vadSilenceMs=parseInt(vd.value,10);
       var bm=document.getElementById('hcBeam');
       if(bm)params.beamSize=parseInt(bm.value,10);
-      var pr=document.getElementById('hcPrompt');
-      if(pr&&pr.value.trim())params.initialPrompt=pr.value.trim();
       var st=document.getElementById('hcPipeStatus');
       if(st)st.textContent='Applying...';
       var xhr=new XMLHttpRequest();
@@ -2079,7 +2101,7 @@ function toggleHostPanel(){
       xhr.onload=function(){
         try{
           var res=JSON.parse(xhr.responseText);
-          if(res.ok){if(st)st.textContent='Applied ('+res.changed+' params)';st.style.color='#4f4'}
+          if(res.ok){if(st)st.textContent='Applied ('+res.changed+' params)';st.style.color='#4f4';if(params.language)roomSourceLang=params.language;if(params.maxSegmentSec)roomMaxSegSec=params.maxSegmentSec;if(params.vadSilenceMs)roomVadMs=params.vadSilenceMs;if(params.beamSize)roomBeamSize=params.beamSize}
           else{if(st){st.textContent=res.error||'Failed';st.style.color='#f44'}}
         }catch(e){if(st){st.textContent='Error';st.style.color='#f44'}}
       };

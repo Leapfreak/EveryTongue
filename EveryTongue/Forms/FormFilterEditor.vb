@@ -96,12 +96,9 @@ Partial Public Class FormFilterEditor
         btnProfRemove.Text = S("FE_RemoveSelected")
         btnProfSave.Text = S("FE_SaveReload")
         lblGlosDesc.Text = S("FE_Desc_Glossary")
-        colTrigger.HeaderText = S("FE_ColTrigger")
-        colComment.HeaderText = S("FE_ColComment")
-        btnGlosAdd.Text = S("FE_AddEntry")
-        btnGlosRemove.Text = S("FE_RemoveEntry")
+        btnGlosAdd.Text = S("FE_Add")
+        btnGlosRemove.Text = S("FE_RemoveSelected")
         grpDetail.Text = S("FE_SelectedEntry")
-        lblTrigger.Text = S("FE_Trigger")
         lblComment.Text = S("FE_Comment")
         lblFixes.Text = S("FE_Fixes")
         colTargetLang.HeaderText = S("FE_ColTargetLang")
@@ -114,9 +111,8 @@ Partial Public Class FormFilterEditor
 
     Private Sub WireUpEvents()
         AddHandler cboLang.SelectedIndexChanged, AddressOf LangChanged
-        AddHandler dgvGlossary.SelectionChanged, AddressOf GlossarySelectionChanged
-        AddHandler dgvGlossary.CellContentClick, AddressOf GlossaryEnabledClicked
-        AddHandler txtGlosTrigger.TextChanged, AddressOf GlossaryDetailChanged
+        AddHandler clbGlosEntries.SelectedIndexChanged, AddressOf GlosSelectionChanged
+        AddHandler clbGlosEntries.ItemCheck, AddressOf GlosItemChecked
         AddHandler txtGlosComment.TextChanged, AddressOf GlossaryDetailChanged
         AddHandler dgvFixes.CellEndEdit, AddressOf FixCellEdited
         AddHandler clbHalPhrases.ItemCheck, AddressOf HalItemChecked
@@ -327,6 +323,8 @@ Partial Public Class FormFilterEditor
     Private Sub RefreshHalTab(flores As String)
         clbHalPhrases.Items.Clear()
         If _halData.ContainsKey(flores) Then
+            ' Sort data in-place so display index = data index
+            _halData(flores).Sort(Function(a, b) String.Compare(a.Text, b.Text, StringComparison.OrdinalIgnoreCase))
             For Each item In _halData(flores)
                 clbHalPhrases.Items.Add(item.Text, item.Enabled)
             Next
@@ -349,12 +347,14 @@ Partial Public Class FormFilterEditor
         If flores Is Nothing Then Return
 
         If Not _halData.ContainsKey(flores) Then _halData(flores) = New List(Of FilterItem)()
-        If Not _halData(flores).Any(Function(x) x.Text = phrase) Then
-            _halData(flores).Add(New FilterItem With {.Text = phrase, .Enabled = True})
-            clbHalPhrases.Items.Add(phrase, True)
-            txtHalPhrase.Clear()
-            _dirty = True
+        If _halData(flores).Any(Function(x) String.Equals(x.Text, phrase, StringComparison.OrdinalIgnoreCase)) Then
+            MessageBox.Show(S("FE_DuplicateEntry"), S("FE_Title"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return
         End If
+        _halData(flores).Add(New FilterItem With {.Text = phrase, .Enabled = True})
+        RefreshHalTab(flores)
+        txtHalPhrase.Clear()
+        _dirty = True
     End Sub
 
     Private Sub btnHalRemove_Click(sender As Object, e As EventArgs) Handles btnHalRemove.Click
@@ -374,6 +374,8 @@ Partial Public Class FormFilterEditor
     Private Sub RefreshProfTab(flores As String)
         clbProfWords.Items.Clear()
         If _profData.ContainsKey(flores) Then
+            ' Sort data in-place so display index = data index
+            _profData(flores).Sort(Function(a, b) String.Compare(a.Text, b.Text, StringComparison.OrdinalIgnoreCase))
             For Each item In _profData(flores)
                 clbProfWords.Items.Add(item.Text, item.Enabled)
             Next
@@ -396,12 +398,14 @@ Partial Public Class FormFilterEditor
         If flores Is Nothing Then Return
 
         If Not _profData.ContainsKey(flores) Then _profData(flores) = New List(Of FilterItem)()
-        If Not _profData(flores).Any(Function(x) x.Text = word) Then
-            _profData(flores).Add(New FilterItem With {.Text = word, .Enabled = True})
-            clbProfWords.Items.Add(word, True)
-            txtProfWord.Clear()
-            _dirty = True
+        If _profData(flores).Any(Function(x) String.Equals(x.Text, word, StringComparison.OrdinalIgnoreCase)) Then
+            MessageBox.Show(S("FE_DuplicateEntry"), S("FE_Title"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return
         End If
+        _profData(flores).Add(New FilterItem With {.Text = word, .Enabled = True})
+        RefreshProfTab(flores)
+        txtProfWord.Clear()
+        _dirty = True
     End Sub
 
     Private Sub btnProfRemove_Click(sender As Object, e As EventArgs) Handles btnProfRemove.Click
@@ -421,52 +425,52 @@ Partial Public Class FormFilterEditor
     Private Sub RefreshGlosTab(flores As String)
         _suppressGlosEvents = True
         _selectedGlosIdx = -1
-        txtGlosTrigger.Clear()
         txtGlosComment.Clear()
         dgvFixes.Rows.Clear()
+        grpDetail.Enabled = False
 
-        dgvGlossary.Rows.Clear()
+        clbGlosEntries.Items.Clear()
         If _glosData.ContainsKey(flores) Then
+            ' Sort data in-place so display index = data index
+            _glosData(flores).Sort(Function(a, b) String.Compare(a.Trigger, b.Trigger, StringComparison.OrdinalIgnoreCase))
             For Each entry In _glosData(flores)
-                dgvGlossary.Rows.Add(entry.Enabled, entry.Trigger, entry.Comment)
+                clbGlosEntries.Items.Add(entry.Trigger, entry.Enabled)
             Next
         End If
         _suppressGlosEvents = False
     End Sub
 
-    Private Sub GlossaryEnabledClicked(sender As Object, e As DataGridViewCellEventArgs)
-        If e.ColumnIndex <> dgvGlossary.Columns("colGlosEnabled").Index Then Return
-        If e.RowIndex < 0 Then Return
+    Private Sub GlosItemChecked(sender As Object, e As ItemCheckEventArgs)
+        If _suppressGlosEvents Then Return
         Dim flores = GetSelectedFloresCode()
         If flores Is Nothing OrElse Not _glosData.ContainsKey(flores) Then Return
-        If e.RowIndex >= _glosData(flores).Count Then Return
-
-        Dim currentVal = CBool(If(dgvGlossary.Rows(e.RowIndex).Cells("colGlosEnabled").Value, True))
-        _glosData(flores)(e.RowIndex).Enabled = Not currentVal
-        _dirty = True
+        If e.Index >= 0 AndAlso e.Index < _glosData(flores).Count Then
+            _glosData(flores)(e.Index).Enabled = (e.NewValue = CheckState.Checked)
+            _dirty = True
+        End If
     End Sub
 
-    Private Sub GlossarySelectionChanged(sender As Object, e As EventArgs)
+    Private Sub GlosSelectionChanged(sender As Object, e As EventArgs)
         If _suppressGlosEvents Then Return
         SaveCurrentGlossaryDetail()
 
         Dim flores = GetSelectedFloresCode()
         If flores Is Nothing OrElse Not _glosData.ContainsKey(flores) Then Return
 
-        If dgvGlossary.SelectedRows.Count = 0 Then
+        Dim idx = clbGlosEntries.SelectedIndex
+        If idx < 0 OrElse idx >= _glosData(flores).Count Then
             _selectedGlosIdx = -1
-            txtGlosTrigger.Clear()
             txtGlosComment.Clear()
             dgvFixes.Rows.Clear()
+            grpDetail.Enabled = False
             Return
         End If
 
-        _selectedGlosIdx = dgvGlossary.SelectedRows(0).Index
-        If _selectedGlosIdx < 0 OrElse _selectedGlosIdx >= _glosData(flores).Count Then Return
-
-        Dim entry = _glosData(flores)(_selectedGlosIdx)
+        _selectedGlosIdx = idx
+        Dim entry = _glosData(flores)(idx)
         _suppressGlosEvents = True
-        txtGlosTrigger.Text = entry.Trigger
+        grpDetail.Enabled = True
+        grpDetail.Text = $"{S("FE_SelectedEntry")}: {entry.Trigger}"
         txtGlosComment.Text = entry.Comment
 
         dgvFixes.Rows.Clear()
@@ -489,7 +493,6 @@ Partial Public Class FormFilterEditor
         If _selectedGlosIdx >= _glosData(flores).Count Then Return
 
         Dim entry = _glosData(flores)(_selectedGlosIdx)
-        entry.Trigger = txtGlosTrigger.Text.Trim()
         entry.Comment = txtGlosComment.Text.Trim()
 
         ' Save fixes from grid — convert display names back to FLORES codes
@@ -506,12 +509,6 @@ Partial Public Class FormFilterEditor
                 })
             End If
         Next
-
-        ' Update the main grid row
-        If _selectedGlosIdx < dgvGlossary.Rows.Count Then
-            dgvGlossary.Rows(_selectedGlosIdx).Cells("colTrigger").Value = entry.Trigger
-            dgvGlossary.Rows(_selectedGlosIdx).Cells("colComment").Value = entry.Comment
-        End If
     End Sub
 
     Private Function DisplayNameToFlores(input As String) As String
@@ -539,31 +536,49 @@ Partial Public Class FormFilterEditor
     End Sub
 
     Private Sub btnGlosAdd_Click(sender As Object, e As EventArgs) Handles btnGlosAdd.Click
+        Dim trigger = txtGlosNewTrigger.Text.Trim()
+        If String.IsNullOrEmpty(trigger) Then Return
         Dim flores = GetSelectedFloresCode()
         If flores Is Nothing Then Return
 
         If Not _glosData.ContainsKey(flores) Then _glosData(flores) = New List(Of GlossaryEntry)()
-        Dim entry As New GlossaryEntry() With {.Trigger = "new_trigger", .Comment = "", .Enabled = True}
+        If _glosData(flores).Any(Function(x) String.Equals(x.Trigger, trigger, StringComparison.OrdinalIgnoreCase)) Then
+            MessageBox.Show(S("FE_DuplicateEntry"), S("FE_Title"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return
+        End If
+
+        SaveCurrentGlossaryDetail()
+        Dim entry As New GlossaryEntry() With {.Trigger = trigger, .Comment = "", .Enabled = True}
         _glosData(flores).Add(entry)
-        dgvGlossary.Rows.Add(True, entry.Trigger, "")
-        dgvGlossary.ClearSelection()
-        dgvGlossary.Rows(dgvGlossary.Rows.Count - 1).Selected = True
+        RefreshGlosTab(flores)
+
+        ' Select the newly added entry
+        For i = 0 To clbGlosEntries.Items.Count - 1
+            If String.Equals(TryCast(clbGlosEntries.Items(i), String), trigger, StringComparison.OrdinalIgnoreCase) Then
+                clbGlosEntries.SelectedIndex = i
+                Exit For
+            End If
+        Next
+        txtGlosNewTrigger.Clear()
         _dirty = True
     End Sub
 
     Private Sub btnGlosRemove_Click(sender As Object, e As EventArgs) Handles btnGlosRemove.Click
+        Dim idx = clbGlosEntries.SelectedIndex
+        If idx < 0 Then Return
         Dim flores = GetSelectedFloresCode()
         If flores Is Nothing OrElse Not _glosData.ContainsKey(flores) Then Return
-        If _selectedGlosIdx < 0 OrElse _selectedGlosIdx >= _glosData(flores).Count Then Return
+        If idx >= _glosData(flores).Count Then Return
 
-        _glosData(flores).RemoveAt(_selectedGlosIdx)
         _suppressGlosEvents = True
-        dgvGlossary.Rows.RemoveAt(_selectedGlosIdx)
-        _suppressGlosEvents = False
+        _glosData(flores).RemoveAt(idx)
+        clbGlosEntries.Items.RemoveAt(idx)
         _selectedGlosIdx = -1
-        txtGlosTrigger.Clear()
         txtGlosComment.Clear()
         dgvFixes.Rows.Clear()
+        grpDetail.Enabled = False
+        grpDetail.Text = S("FE_SelectedEntry")
+        _suppressGlosEvents = False
         _dirty = True
     End Sub
 
@@ -585,6 +600,13 @@ Partial Public Class FormFilterEditor
     Private Sub btnSave_Click(sender As Object, e As EventArgs) Handles btnHalSave.Click, btnProfSave.Click, btnGlosSave.Click
         SaveCurrentGlossaryDetail()
 
+        ' Check for duplicates before saving
+        Dim dupes = FindDuplicates()
+        If dupes IsNot Nothing Then
+            MessageBox.Show(dupes, S("FE_Title"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            Return
+        End If
+
         Try
             SaveHallucinations()
             SaveProfanity()
@@ -598,6 +620,34 @@ Partial Public Class FormFilterEditor
         _dirty = False
         MessageBox.Show(S("FE_Saved"), S("FE_Title"), MessageBoxButtons.OK, MessageBoxIcon.Information)
     End Sub
+
+    Private Function FindDuplicates() As String
+        For Each kvp In _halData
+            Dim seen As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+            For Each item In kvp.Value
+                If Not String.IsNullOrWhiteSpace(item.Text) AndAlso Not seen.Add(item.Text) Then
+                    Return $"{S("FE_DuplicateEntry")} ({GetLangDisplayName(kvp.Key)}: ""{item.Text}"")"
+                End If
+            Next
+        Next
+        For Each kvp In _profData
+            Dim seen As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+            For Each item In kvp.Value
+                If Not String.IsNullOrWhiteSpace(item.Text) AndAlso Not seen.Add(item.Text) Then
+                    Return $"{S("FE_DuplicateEntry")} ({GetLangDisplayName(kvp.Key)}: ""{item.Text}"")"
+                End If
+            Next
+        Next
+        For Each kvp In _glosData
+            Dim seen As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+            For Each entry In kvp.Value
+                If Not String.IsNullOrWhiteSpace(entry.Trigger) AndAlso Not seen.Add(entry.Trigger) Then
+                    Return $"{S("FE_DuplicateEntry")} ({GetLangDisplayName(kvp.Key)}: ""{entry.Trigger}"")"
+                End If
+            Next
+        Next
+        Return Nothing
+    End Function
 
     Private Sub SaveHallucinations()
         Using ms As New MemoryStream()

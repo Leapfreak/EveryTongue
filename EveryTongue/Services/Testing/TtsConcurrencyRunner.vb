@@ -138,10 +138,11 @@ Namespace Services.Testing
                             End If
                         Catch ex As OperationCanceledException When ct.IsCancellationRequested
                             Throw
-                        Catch
+                        Catch ex As Exception
                             sw.Stop()
                             allLatencies.Add(sw.ElapsedMilliseconds)
                             Interlocked.Increment(errorCount)
+                            Services.Infrastructure.AppLogger.Log($"[TTS-CONCURRENCY] Synthesis error: {ex.Message}")
                         End Try
                     End Function))
                 Next

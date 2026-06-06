@@ -125,6 +125,9 @@ Namespace Pipeline
                 End If
             End If
 
+            Dim logLevel = Models.ConfigManager.Load().LogLevel.ToString().ToLowerInvariant()
+            extraArgs &= $" --log-level {logLevel}"
+
             _host.Start(serverScript, extraArgs)
 
             ' Wait for health check in background
@@ -237,7 +240,8 @@ Namespace Pipeline
         End Function
 
         Public Async Function TranslateAsync(text As String, sourceLang As String, targetLangs As List(Of String),
-                                              Optional noCache As Boolean = False) As Task(Of Dictionary(Of String, String))
+                                              Optional noCache As Boolean = False,
+                                              Optional timeoutSeconds As Integer = 35) As Task(Of Dictionary(Of String, String))
             If Not _host.IsProcessRunning OrElse Not _modelLoaded OrElse targetLangs.Count = 0 Then
                 Return New Dictionary(Of String, String)()
             End If
@@ -254,7 +258,7 @@ Namespace Pipeline
                 Dim json = $"{{""text"":{ProcessHelper.EscapeJson(text)},""source_lang"":""{sourceLang}"",""target_langs"":{targetsJson}{noCacheJson}}}"
                 Dim content As New StringContent(json, Encoding.UTF8, "application/json")
 
-                Using cts As New CancellationTokenSource(TimeSpan.FromSeconds(35))
+                Using cts As New CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds))
                     Dim response = Await _httpClient.PostAsync($"http://127.0.0.1:{_port}/translate", content, cts.Token)
                     If response.IsSuccessStatusCode Then
                         Dim body = Await response.Content.ReadAsStringAsync()

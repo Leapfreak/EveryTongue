@@ -53,6 +53,7 @@ Public Class FormOptions
         lblAppearanceHeader.Text = langPack.GetString("Opt_AppearanceHeader")
         lblUiLang.Text = langPack.GetString("Opt_UiLanguage")
         lblTheme.Text = langPack.GetString("Opt_Theme")
+        lblLogLevel.Text = langPack.GetString("Opt_LogLevel")
         lblStartupHeader.Text = langPack.GetString("Opt_StartupHeader")
         chkStartWindows.Text = langPack.GetString("Opt_StartWithWindows")
         chkStartMinimized.Text = langPack.GetString("Opt_StartMinimized")
@@ -266,6 +267,7 @@ Public Class FormOptions
             End If
         Next
         SelectItem(cboTheme, _config.Theme.ToString())
+        SelectItem(cboLogLevel, _config.LogLevel.ToString())
         chkStartWindows.Checked = _config.StartWithWindows
         chkStartMinimized.Checked = _config.StartMinimized
         chkMinimizeToTray.Checked = _config.MinimizeToTray
@@ -386,6 +388,12 @@ Public Class FormOptions
             Dim parsed As Models.ThemeMode
             If [Enum].TryParse(cboTheme.SelectedItem.ToString(), True, parsed) Then
                 _config.Theme = parsed
+            End If
+        End If
+        If cboLogLevel.SelectedItem IsNot Nothing Then
+            Dim parsed As Models.LogVerbosity
+            If [Enum].TryParse(cboLogLevel.SelectedItem.ToString(), True, parsed) Then
+                _config.LogLevel = parsed
             End If
         End If
         _config.StartWithWindows = chkStartWindows.Checked

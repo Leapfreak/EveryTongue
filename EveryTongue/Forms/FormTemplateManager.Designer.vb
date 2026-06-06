@@ -42,8 +42,6 @@ Partial Class FormTemplateManager
         Me.nudMaxSegment = New System.Windows.Forms.NumericUpDown()
         Me.lblVadSilence = New System.Windows.Forms.Label()
         Me.nudVadSilence = New System.Windows.Forms.NumericUpDown()
-        Me.lblInitialPrompt = New System.Windows.Forms.Label()
-        Me.txtInitialPrompt = New System.Windows.Forms.TextBox()
         Me.lblVisibility = New System.Windows.Forms.Label()
         Me.cboVisibility = New System.Windows.Forms.ComboBox()
         Me.lblAudioDevice = New System.Windows.Forms.Label()
@@ -142,8 +140,6 @@ Partial Class FormTemplateManager
         Me.grpDetail.Controls.Add(Me.lblAudioDevice)
         Me.grpDetail.Controls.Add(Me.cboVisibility)
         Me.grpDetail.Controls.Add(Me.lblVisibility)
-        Me.grpDetail.Controls.Add(Me.txtInitialPrompt)
-        Me.grpDetail.Controls.Add(Me.lblInitialPrompt)
         Me.grpDetail.Controls.Add(Me.nudVadSilence)
         Me.grpDetail.Controls.Add(Me.lblVadSilence)
         Me.grpDetail.Controls.Add(Me.nudMaxSegment)
@@ -162,7 +158,7 @@ Partial Class FormTemplateManager
         Me.grpDetail.Controls.Add(Me.lblName)
         Me.grpDetail.Location = New System.Drawing.Point(12, 180)
         Me.grpDetail.Name = "grpDetail"
-        Me.grpDetail.Size = New System.Drawing.Size(556, 310)
+        Me.grpDetail.Size = New System.Drawing.Size(556, 282)
         Me.grpDetail.TabIndex = 5
         Me.grpDetail.TabStop = False
         Me.grpDetail.Text = "Template Details"
@@ -309,22 +305,6 @@ Partial Class FormTemplateManager
         Me.nudVadSilence.TabIndex = 15
         Me.nudVadSilence.Value = New Decimal(New Integer() {800, 0, 0, 0})
         '
-        ' lblInitialPrompt
-        '
-        Me.lblInitialPrompt.AutoSize = True
-        Me.lblInitialPrompt.Location = New System.Drawing.Point(12, 164)
-        Me.lblInitialPrompt.Name = "lblInitialPrompt"
-        Me.lblInitialPrompt.Size = New System.Drawing.Size(81, 15)
-        Me.lblInitialPrompt.TabIndex = 16
-        Me.lblInitialPrompt.Text = "Initial Prompt"
-        '
-        ' txtInitialPrompt
-        '
-        Me.txtInitialPrompt.Location = New System.Drawing.Point(130, 161)
-        Me.txtInitialPrompt.Name = "txtInitialPrompt"
-        Me.txtInitialPrompt.Size = New System.Drawing.Size(400, 23)
-        Me.txtInitialPrompt.TabIndex = 17
-        '
         ' lblVisibility
         '
         Me.lblVisibility.AutoSize = True
@@ -346,7 +326,7 @@ Partial Class FormTemplateManager
         ' lblAudioDevice
         '
         Me.lblAudioDevice.AutoSize = True
-        Me.lblAudioDevice.Location = New System.Drawing.Point(12, 192)
+        Me.lblAudioDevice.Location = New System.Drawing.Point(12, 164)
         Me.lblAudioDevice.Name = "lblAudioDevice"
         Me.lblAudioDevice.Size = New System.Drawing.Size(79, 15)
         Me.lblAudioDevice.TabIndex = 20
@@ -355,14 +335,14 @@ Partial Class FormTemplateManager
         ' cboAudioDevice
         '
         Me.cboAudioDevice.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
-        Me.cboAudioDevice.Location = New System.Drawing.Point(130, 189)
+        Me.cboAudioDevice.Location = New System.Drawing.Point(130, 161)
         Me.cboAudioDevice.Name = "cboAudioDevice"
         Me.cboAudioDevice.Size = New System.Drawing.Size(330, 23)
         Me.cboAudioDevice.TabIndex = 21
         '
         ' btnRefreshDevices
         '
-        Me.btnRefreshDevices.Location = New System.Drawing.Point(466, 188)
+        Me.btnRefreshDevices.Location = New System.Drawing.Point(466, 160)
         Me.btnRefreshDevices.Name = "btnRefreshDevices"
         Me.btnRefreshDevices.Size = New System.Drawing.Size(64, 25)
         Me.btnRefreshDevices.TabIndex = 26
@@ -372,7 +352,7 @@ Partial Class FormTemplateManager
         ' lblModelPath
         '
         Me.lblModelPath.AutoSize = True
-        Me.lblModelPath.Location = New System.Drawing.Point(12, 220)
+        Me.lblModelPath.Location = New System.Drawing.Point(12, 192)
         Me.lblModelPath.Name = "lblModelPath"
         Me.lblModelPath.Size = New System.Drawing.Size(69, 15)
         Me.lblModelPath.TabIndex = 22
@@ -381,14 +361,14 @@ Partial Class FormTemplateManager
         ' cboModel
         '
         Me.cboModel.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
-        Me.cboModel.Location = New System.Drawing.Point(130, 217)
+        Me.cboModel.Location = New System.Drawing.Point(130, 189)
         Me.cboModel.Name = "cboModel"
         Me.cboModel.Size = New System.Drawing.Size(400, 23)
         Me.cboModel.TabIndex = 23
         '
         ' btnSave
         '
-        Me.btnSave.Location = New System.Drawing.Point(350, 260)
+        Me.btnSave.Location = New System.Drawing.Point(350, 232)
         Me.btnSave.Name = "btnSave"
         Me.btnSave.Size = New System.Drawing.Size(90, 30)
         Me.btnSave.TabIndex = 24
@@ -397,7 +377,7 @@ Partial Class FormTemplateManager
         '
         ' btnCancelEdit
         '
-        Me.btnCancelEdit.Location = New System.Drawing.Point(446, 260)
+        Me.btnCancelEdit.Location = New System.Drawing.Point(446, 232)
         Me.btnCancelEdit.Name = "btnCancelEdit"
         Me.btnCancelEdit.Size = New System.Drawing.Size(90, 30)
         Me.btnCancelEdit.TabIndex = 25
@@ -457,8 +437,6 @@ Partial Class FormTemplateManager
     Friend WithEvents nudMaxSegment As System.Windows.Forms.NumericUpDown
     Friend WithEvents lblVadSilence As System.Windows.Forms.Label
     Friend WithEvents nudVadSilence As System.Windows.Forms.NumericUpDown
-    Friend WithEvents lblInitialPrompt As System.Windows.Forms.Label
-    Friend WithEvents txtInitialPrompt As System.Windows.Forms.TextBox
     Friend WithEvents lblVisibility As System.Windows.Forms.Label
     Friend WithEvents cboVisibility As System.Windows.Forms.ComboBox
     Friend WithEvents lblAudioDevice As System.Windows.Forms.Label

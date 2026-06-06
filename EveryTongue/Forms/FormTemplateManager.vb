@@ -35,7 +35,6 @@ Public Class FormTemplateManager
         lblBeamSize.Text = lp.GetString("Tmpl_BeamSize")
         lblMaxSegment.Text = lp.GetString("Tmpl_MaxSegment")
         lblVadSilence.Text = lp.GetString("Tmpl_VadSilence")
-        lblInitialPrompt.Text = lp.GetString("Tmpl_InitialPrompt")
         lblVisibility.Text = lp.GetString("Tmpl_Visibility")
         lblAudioDevice.Text = lp.GetString("Tmpl_AudioDevice")
         lblModelPath.Text = lp.GetString("Tmpl_ModelPath")
@@ -243,7 +242,8 @@ Public Class FormTemplateManager
                         cboModel.Items.Add(New ModelItem(name, f))
                     End If
                 Next
-            Catch
+            Catch ex As Exception
+                FormMain.WriteDebugLog($"[TemplateManager] Error scanning model files: {ex.Message}")
             End Try
         Else
             ' Scan for model directories (contain config.json or model files)
@@ -253,7 +253,8 @@ Public Class FormTemplateManager
                         cboModel.Items.Add(New ModelItem(IO.Path.GetFileName(d), d))
                     End If
                 Next
-            Catch
+            Catch ex As Exception
+                FormMain.WriteDebugLog($"[TemplateManager] Error scanning model directories: {ex.Message}")
             End Try
         End If
 
@@ -299,7 +300,6 @@ Public Class FormTemplateManager
         nudBeamSize.Value = Math.Max(nudBeamSize.Minimum, Math.Min(nudBeamSize.Maximum, t.BeamSize))
         nudMaxSegment.Value = Math.Max(nudMaxSegment.Minimum, Math.Min(nudMaxSegment.Maximum, t.MaxSegmentSec))
         nudVadSilence.Value = Math.Max(nudVadSilence.Minimum, Math.Min(nudVadSilence.Maximum, t.VadSilenceMs))
-        txtInitialPrompt.Text = t.InitialPrompt
         ' Audio device — select by ID
         Dim deviceFound = False
         For i = 0 To cboAudioDevice.Items.Count - 1
@@ -327,7 +327,6 @@ Public Class FormTemplateManager
         t.BeamSize = CInt(nudBeamSize.Value)
         t.MaxSegmentSec = CInt(nudMaxSegment.Value)
         t.VadSilenceMs = CInt(nudVadSilence.Value)
-        t.InitialPrompt = txtInitialPrompt.Text.Trim()
         ' Audio device from combo
         Dim selDev = TryCast(cboAudioDevice.SelectedItem, AudioDeviceInfo)
         If selDev IsNot Nothing Then
@@ -348,7 +347,8 @@ Public Class FormTemplateManager
         Try
             Dim store = Services.Rooms.TemplateStore.Instance
             If store IsNot Nothing Then store.SyncFromConfig(_config.ConferenceTemplates)
-        Catch
+        Catch ex As Exception
+            FormMain.WriteDebugLog($"[TemplateManager] TemplateStore sync failed: {ex.Message}")
         End Try
         Me.DialogResult = DialogResult.OK
     End Sub

@@ -27,6 +27,8 @@ Partial Class FormOptions
         Me.lblStartupHeader = New System.Windows.Forms.Label()
         Me.cboTheme = New System.Windows.Forms.ComboBox()
         Me.lblTheme = New System.Windows.Forms.Label()
+        Me.cboLogLevel = New System.Windows.Forms.ComboBox()
+        Me.lblLogLevel = New System.Windows.Forms.Label()
         Me.cboUiLang = New System.Windows.Forms.ComboBox()
         Me.lblUiLang = New System.Windows.Forms.Label()
         Me.lblAppearanceSep = New System.Windows.Forms.Label()
@@ -370,6 +372,8 @@ Partial Class FormOptions
         Me.pnlGeneral.Controls.Add(Me.chkStartWindows)
         Me.pnlGeneral.Controls.Add(Me.lblStartupSep)
         Me.pnlGeneral.Controls.Add(Me.lblStartupHeader)
+        Me.pnlGeneral.Controls.Add(Me.cboLogLevel)
+        Me.pnlGeneral.Controls.Add(Me.lblLogLevel)
         Me.pnlGeneral.Controls.Add(Me.cboTheme)
         Me.pnlGeneral.Controls.Add(Me.lblTheme)
         Me.pnlGeneral.Controls.Add(Me.cboUiLang)
@@ -438,6 +442,25 @@ Partial Class FormOptions
         Me.cboTheme.Name = "cboTheme"
         Me.cboTheme.Size = New System.Drawing.Size(160, 23)
         Me.cboTheme.TabIndex = 5
+        '
+        ' lblLogLevel
+        '
+        Me.lblLogLevel.AutoSize = True
+        Me.lblLogLevel.Location = New System.Drawing.Point(200, 92)
+        Me.lblLogLevel.Name = "lblLogLevel"
+        Me.lblLogLevel.Size = New System.Drawing.Size(60, 15)
+        Me.lblLogLevel.TabIndex = 60
+        Me.lblLogLevel.Text = "Log Level:"
+        '
+        ' cboLogLevel
+        '
+        Me.cboLogLevel.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboLogLevel.FormattingEnabled = True
+        Me.cboLogLevel.Items.AddRange(New Object() {"Minimal", "Normal", "Verbose"})
+        Me.cboLogLevel.Location = New System.Drawing.Point(200, 110)
+        Me.cboLogLevel.Name = "cboLogLevel"
+        Me.cboLogLevel.Size = New System.Drawing.Size(160, 23)
+        Me.cboLogLevel.TabIndex = 61
         '
         ' lblStartupHeader
         '
@@ -2856,6 +2879,8 @@ Partial Class FormOptions
     Friend WithEvents cboUiLang As System.Windows.Forms.ComboBox
     Friend WithEvents lblTheme As System.Windows.Forms.Label
     Friend WithEvents cboTheme As System.Windows.Forms.ComboBox
+    Friend WithEvents lblLogLevel As System.Windows.Forms.Label
+    Friend WithEvents cboLogLevel As System.Windows.Forms.ComboBox
     Friend WithEvents lblStartupHeader As System.Windows.Forms.Label
     Friend WithEvents lblStartupSep As System.Windows.Forms.Label
     Friend WithEvents chkStartWindows As System.Windows.Forms.CheckBox

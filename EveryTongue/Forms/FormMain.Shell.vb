@@ -325,13 +325,16 @@ Partial Class FormMain
             _unifiedLogEntries.Add(entry)
         End While
 
-        ' Trim backing list
+        ' Trim backing list — if trimmed, force a full re-render so the
+        ' rendered-count Tag stays in sync (otherwise new entries never appear)
+        Dim trimmed = False
         If _unifiedLogEntries.Count > UnifiedLogMaxLines Then
             _unifiedLogEntries.RemoveRange(0, _unifiedLogEntries.Count - UnifiedLogMaxLines)
+            trimmed = True
         End If
 
-        ' If filter changed, do a full re-render
-        If filter <> _lastLogFilter Then
+        ' If filter changed or list was trimmed, do a full re-render
+        If trimmed OrElse filter <> _lastLogFilter Then
             _lastLogFilter = filter
             RenderUnifiedLog(filter)
             Return

@@ -19,6 +19,7 @@ Public Class FormConnectedClients
         ApplyTheme(theme)
         ApplyLocale()
 
+        AddHandler btnClose.Click, Sub(s, e) Me.Close()
         AddHandler btnRefresh.Click, Sub(s, e) RefreshData()
         AddHandler chkAutoRefresh.CheckedChanged, Sub(s, e)
                                                       tmrRefresh.Enabled = chkAutoRefresh.Checked

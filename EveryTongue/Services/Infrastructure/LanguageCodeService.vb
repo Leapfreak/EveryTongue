@@ -19,6 +19,7 @@ Namespace Services.Infrastructure
         Private ReadOnly _byIso1 As New Dictionary(Of String, LangEntry)(StringComparer.OrdinalIgnoreCase)
         Private ReadOnly _byIso3 As New Dictionary(Of String, LangEntry)(StringComparer.OrdinalIgnoreCase)
         Private ReadOnly _byWhisper As New Dictionary(Of String, LangEntry)(StringComparer.OrdinalIgnoreCase)
+        Private ReadOnly _byName As New Dictionary(Of String, LangEntry)(StringComparer.OrdinalIgnoreCase)
 
         Private Class LangEntry
             Public Property Flores As String
@@ -59,6 +60,7 @@ Namespace Services.Infrastructure
                         If Not String.IsNullOrEmpty(entry.Iso1) Then _byIso1(entry.Iso1) = entry
                         If Not String.IsNullOrEmpty(entry.Iso3) Then _byIso3(entry.Iso3) = entry
                         If Not String.IsNullOrEmpty(entry.Whisper) Then _byWhisper(entry.Whisper) = entry
+                        If Not String.IsNullOrEmpty(entry.Name) Then _byName(entry.Name) = entry
                     Next
                 End Using
                 AppLogger.Log($"[LanguageCodeService] Loaded {_byFlores.Count} languages")
@@ -96,6 +98,8 @@ Namespace Services.Infrastructure
             If _byWhisper.TryGetValue(whisperCode, entry) Then Return entry.Flores
             ' Fall back to ISO 639-1
             If _byIso1.TryGetValue(whisperCode, entry) Then Return entry.Flores
+            ' Fall back to language name (whisper-server returns "spanish" not "es")
+            If _byName.TryGetValue(whisperCode, entry) Then Return entry.Flores
             Return ""
         End Function
 

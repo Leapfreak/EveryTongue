@@ -280,7 +280,8 @@ Namespace Server.Hubs
                             Return False
                     End Select
                 End Using
-            Catch
+            Catch ex As Exception
+                _logger.LogWarning(ex, "[SubtitleHub] HandleSpecialCommand parse error for {Endpoint}", client.RemoteEndpoint)
                 Return False
             End Try
         End Function

@@ -9,6 +9,13 @@ Namespace Models
         Dark
     End Enum
 
+    <JsonConverter(GetType(JsonStringEnumConverter))>
+    Public Enum LogVerbosity
+        Minimal
+        Normal
+        Verbose
+    End Enum
+
     Public Class AppConfig
 
         ' --- Paths & Tools ---
@@ -50,6 +57,8 @@ Namespace Models
         Public Property SkipDownloadIfExists As Boolean = False
 
         Public Property Theme As ThemeMode = ThemeMode.Light
+
+        Public Property LogLevel As LogVerbosity = LogVerbosity.Normal
 
         Public Property LastLiveDeviceId As String = ""
 

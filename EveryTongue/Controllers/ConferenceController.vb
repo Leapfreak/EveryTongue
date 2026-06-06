@@ -172,16 +172,27 @@ Namespace Controllers
             Dim runtimeParams As New Dictionary(Of String, Object)
             Dim needsRestart = False
 
+            ' Keep room model in sync so the host panel shows current values
+            Dim mgr = _getRoomManager()
+            Dim room = mgr?.GetRoom(roomId)
+
             For Each kvp In params
                 Select Case kvp.Key
                     Case "language"
                         runtimeParams("language") = kvp.Value
+                        If room IsNot Nothing Then room.SourceLang = CStr(kvp.Value)
                     Case "maxSegmentSec"
                         runtimeParams("vad_max_segment_s") = kvp.Value
+                        If room IsNot Nothing Then room.MaxSegmentSec = CInt(kvp.Value)
                     Case "vadSilenceMs"
                         runtimeParams("vad_min_silence_ms") = kvp.Value
-                    Case "beamSize", "initialPrompt"
+                        If room IsNot Nothing Then room.VadSilenceMs = CInt(kvp.Value)
+                    Case "beamSize"
                         needsRestart = True
+                        If room IsNot Nothing Then room.BeamSize = CInt(kvp.Value)
+                    Case "initialPrompt"
+                        needsRestart = True
+                        If room IsNot Nothing Then room.InitialPrompt = CStr(kvp.Value)
                 End Select
             Next
 
@@ -359,7 +370,7 @@ Namespace Controllers
 
             Dim translations As New Dictionary(Of String, String)()
             Try
-                Dim result = Await svc.TranslateAsync(line, sourceLang, targets)
+                Dim result = Await svc.TranslateAsync(line, sourceLang, targets, timeoutSeconds:=10)
                 If result IsNot Nothing Then
                     For Each kvp In result
                         translations(kvp.Key) = kvp.Value

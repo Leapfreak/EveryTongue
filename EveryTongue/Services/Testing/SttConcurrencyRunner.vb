@@ -224,10 +224,11 @@ Namespace Services.Testing
                             If Not ok Then Interlocked.Increment(errorCount)
                         Catch ex As OperationCanceledException When ct.IsCancellationRequested
                             Throw ' Real user cancellation
-                        Catch
+                        Catch ex As Exception
                             sw.Stop()
                             allLatencies.Add(sw.ElapsedMilliseconds)
                             Interlocked.Increment(errorCount)
+                            AppLogger.Log($"[STT-CONCURRENCY] Inference error: {ex.Message}")
                         End Try
                     End Function))
                 Next

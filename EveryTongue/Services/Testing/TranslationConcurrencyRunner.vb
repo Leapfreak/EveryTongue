@@ -149,10 +149,11 @@ Namespace Services.Testing
                             allLatencies.Add(sw.ElapsedMilliseconds)
                         Catch ex As OperationCanceledException When ct.IsCancellationRequested
                             Throw
-                        Catch
+                        Catch ex As Exception
                             sw.Stop()
                             allLatencies.Add(sw.ElapsedMilliseconds)
                             Interlocked.Increment(errorCount)
+                            Services.Infrastructure.AppLogger.Log($"[TRANSLATION-CONCURRENCY] Translation error: {ex.Message}")
                         End Try
                     End Function))
                 Next

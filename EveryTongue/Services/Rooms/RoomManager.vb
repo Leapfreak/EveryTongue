@@ -110,13 +110,15 @@ Namespace Services.Rooms
         End Function
 
         ''' <summary>
-        ''' Reclaim host via stored host token. Returns True on success.
+        ''' Reclaim host via stored host token or admin PIN. Returns True on success.
         ''' Rejects if the current host is still connected (prevents second tab stealing host).
         ''' </summary>
-        Public Function ClaimHost(roomId As String, hostToken As String, newClientId As String) As Boolean
+        Public Function ClaimHost(roomId As String, hostToken As String, newClientId As String,
+                                  Optional adminPinValid As Boolean = False) As Boolean
             Dim room = GetRoom(roomId)
             If room Is Nothing Then Return False
-            If String.IsNullOrEmpty(hostToken) OrElse room.HostToken <> hostToken Then Return False
+            Dim tokenOk = Not String.IsNullOrEmpty(hostToken) AndAlso room.HostToken = hostToken
+            If Not tokenOk AndAlso Not adminPinValid Then Return False
             ' Reject if current host is still connected (different client)
             If Not String.IsNullOrEmpty(room.HostClientId) AndAlso
                room.HostClientId <> newClientId AndAlso
