@@ -106,6 +106,7 @@ Namespace Models
                 CheckWhisperServerAsync(),
                 CheckWhisperServerCudaAsync(),
                 CheckGgmlModelAsync(),
+                CheckSileroVadModelAsync(),
                 CheckNllbModelAsync(),
                 CheckNllb33bModelAsync(),
                 CheckPiperAsync()
@@ -788,10 +789,11 @@ Namespace Models
                 End If
 
                 ' Vulkan build hosted on EveryTongue releases (built from whisper.cpp source with -DGGML_VULKAN=ON)
-                Dim release = Await GetLatestReleaseAsync("LeapFreak/EveryTongue")
-                If release IsNot Nothing Then
-                    state.LatestVersion = release.Value.TagName
-                    state.DownloadUrl = FindAsset(release.Value.Assets, "whisper-server-vulkan.*x64\.zip$")
+                ' whisper-server is versioned independently — search across recent releases
+                Dim found = Await FindAssetAcrossReleasesAsync("LeapFreak/EveryTongue", "whisper-server-vulkan.*x64\.zip$")
+                If found IsNot Nothing Then
+                    state.LatestVersion = found.Value.TagName
+                    state.DownloadUrl = found.Value.Url
 
                     If state.Status = ToolStatus.Installed Then
                         state.Status = CompareVersionTags(state.InstalledVersion, state.LatestVersion)
@@ -837,11 +839,11 @@ Namespace Models
                     state.Status = ToolStatus.Installed
                 End If
 
-                ' CUDA build hosted on EveryTongue releases
-                Dim release = Await GetLatestReleaseAsync("LeapFreak/EveryTongue")
-                If release IsNot Nothing Then
-                    state.LatestVersion = release.Value.TagName
-                    state.DownloadUrl = FindAsset(release.Value.Assets, "whisper-server-cuda.*x64\.zip$")
+                ' CUDA build hosted on EveryTongue releases — versioned independently
+                Dim found = Await FindAssetAcrossReleasesAsync("LeapFreak/EveryTongue", "whisper-server-cuda.*x64\.zip$")
+                If found IsNot Nothing Then
+                    state.LatestVersion = found.Value.TagName
+                    state.DownloadUrl = found.Value.Url
 
                     If state.Status = ToolStatus.Installed Then
                         state.Status = CompareVersionTags(state.InstalledVersion, state.LatestVersion)
@@ -1045,6 +1047,31 @@ Namespace Models
         Private Shared Function FindAsset(assets As List(Of (Name As String, Url As String)), pattern As String) As String
             Dim match = assets.FirstOrDefault(Function(a) Regex.IsMatch(a.Name, pattern, RegexOptions.IgnoreCase))
             Return match.Url
+        End Function
+
+        ''' <summary>
+        ''' Searches recent releases for an asset matching the pattern.
+        ''' Used for assets like whisper-server that are versioned independently
+        ''' and may not be attached to every release.
+        ''' </summary>
+        Private Shared Async Function FindAssetAcrossReleasesAsync(repo As String, pattern As String) As Task(Of (Url As String, TagName As String)?)
+            Dim url = $"https://api.github.com/repos/{repo}/releases?per_page=10"
+            Dim response = Await _client.GetAsync(url)
+            If Not response.IsSuccessStatusCode Then Return Nothing
+
+            Dim json = Await response.Content.ReadAsStringAsync()
+            Using doc = JsonDocument.Parse(json)
+                For Each release In doc.RootElement.EnumerateArray()
+                    Dim tagName = release.GetProperty("tag_name").GetString()
+                    For Each asset In release.GetProperty("assets").EnumerateArray()
+                        Dim assetName = asset.GetProperty("name").GetString()
+                        If Regex.IsMatch(assetName, pattern, RegexOptions.IgnoreCase) Then
+                            Return (asset.GetProperty("browser_download_url").GetString(), tagName)
+                        End If
+                    Next
+                Next
+            End Using
+            Return Nothing
         End Function
 
         ' ──────────────────────────────────────────

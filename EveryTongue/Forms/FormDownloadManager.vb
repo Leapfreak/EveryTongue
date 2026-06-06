@@ -553,7 +553,7 @@ Namespace Forms
                     Return lp.GetString("DM_CategoryAiModel")
                 Case "NLLB Translation Model", "NLLB 3.3B Translation Model"
                     Return lp.GetString("DM_CategoryAiModel")
-                Case "whisper-server (Vulkan)"
+                Case "whisper-server (Vulkan)", "whisper-server (CUDA)"
                     Return lp.GetString("DM_CategoryTool")
                 Case "Piper TTS"
                     Return lp.GetString("DM_CategoryTts")

@@ -1,5 +1,5 @@
 ; Every Tongue - Inno Setup Script
-; Installer bundles whisper.cpp CUDA binaries from whisper-bin/
+; Installer bundles the app + runtime deps. Large tools/models are downloaded via Download Manager.
 
 #define MyAppName "Every Tongue"
 #define MyAppVersion GetEnv("APP_VERSION")
@@ -12,8 +12,6 @@
 
 ; Source directory for published app files
 #define AppPublishDir "EveryTongue\bin\Publish"
-; Whisper CUDA binaries (place whisper-cli.exe, DLLs here)
-#define WhisperBinDir "whisper-bin"
 
 [Setup]
 AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}
@@ -53,30 +51,73 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; --- License and notices ---
 Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
+
 ; --- Every Tongue application ---
 Source: "{#AppPublishDir}\EveryTongue.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppPublishDir}\EveryTongue.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppPublishDir}\EveryTongue.deps.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppPublishDir}\EveryTongue.runtimeconfig.json"; DestDir: "{app}"; Flags: ignoreversion
-; --- WebView2 (required for Live Output tab) ---
+Source: "{#AppPublishDir}\checksums.json"; DestDir: "{app}"; Flags: ignoreversion
+
+; --- NuGet dependency DLLs ---
 Source: "{#AppPublishDir}\Microsoft.Web.WebView2.Core.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppPublishDir}\Microsoft.Web.WebView2.WinForms.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppPublishDir}\Microsoft.Web.WebView2.Wpf.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\Microsoft.Data.Sqlite.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\NAudio.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\NAudio.Asio.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\NAudio.Core.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\NAudio.Midi.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\NAudio.Wasapi.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\NAudio.WinForms.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\NAudio.WinMM.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\QRCoder.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\SQLitePCLRaw.batteries_v2.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\SQLitePCLRaw.core.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\SQLitePCLRaw.provider.e_sqlite3.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\e_sqlite3.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\USFMToolsSharp.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\System.CodeDom.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\System.Management.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\WebView2Loader.dll"; DestDir: "{app}"; Flags: ignoreversion
+
+; --- Native runtimes (Windows only — skip Linux/macOS/WASM) ---
 Source: "{#AppPublishDir}\runtimes\win-arm64\native\WebView2Loader.dll"; DestDir: "{app}\runtimes\win-arm64\native"; Flags: ignoreversion
 Source: "{#AppPublishDir}\runtimes\win-x64\native\WebView2Loader.dll"; DestDir: "{app}\runtimes\win-x64\native"; Flags: ignoreversion
 Source: "{#AppPublishDir}\runtimes\win-x86\native\WebView2Loader.dll"; DestDir: "{app}\runtimes\win-x86\native"; Flags: ignoreversion
-Source: "{#AppPublishDir}\component-versions.json"; DestDir: "{app}"; Flags: ignoreversion
-; Help files
+Source: "{#AppPublishDir}\runtimes\win-arm\native\e_sqlite3.dll"; DestDir: "{app}\runtimes\win-arm\native"; Flags: ignoreversion
+Source: "{#AppPublishDir}\runtimes\win-arm64\native\e_sqlite3.dll"; DestDir: "{app}\runtimes\win-arm64\native"; Flags: ignoreversion
+Source: "{#AppPublishDir}\runtimes\win-x64\native\e_sqlite3.dll"; DestDir: "{app}\runtimes\win-x64\native"; Flags: ignoreversion
+Source: "{#AppPublishDir}\runtimes\win-x86\native\e_sqlite3.dll"; DestDir: "{app}\runtimes\win-x86\native"; Flags: ignoreversion
+Source: "{#AppPublishDir}\runtimes\win\lib\net8.0\System.Management.dll"; DestDir: "{app}\runtimes\win\lib\net8.0"; Flags: ignoreversion
+
+; --- Web client (served by Kestrel to phones) ---
+Source: "{#AppPublishDir}\wwwroot\*"; DestDir: "{app}\wwwroot"; Flags: ignoreversion recursesubdirs
+
+; --- Help files ---
 Source: "{#AppPublishDir}\Help\*"; DestDir: "{app}\Help"; Flags: ignoreversion recursesubdirs
-; --- Whisper CUDA binaries ---
-Source: "{#WhisperBinDir}\whisper-cli.exe"; DestDir: "{app}\whisper"; Flags: ignoreversion
-Source: "{#WhisperBinDir}\*.dll"; DestDir: "{app}\whisper"; Flags: ignoreversion
-; --- Translation server (NLLB/MADLAD) ---
+
+; --- Locale packs (JSON) ---
+Source: "{#AppPublishDir}\locales\*"; DestDir: "{app}\locales"; Flags: ignoreversion
+
+; --- Python servers (scripts only — Python runtime downloaded by Download Manager) ---
 Source: "{#AppPublishDir}\translate-server\*"; DestDir: "{app}\translate-server"; Flags: ignoreversion
-; --- Live transcription server (whisper.cpp + VAD) ---
-Source: "{#AppPublishDir}\live-server\*"; DestDir: "{app}\live-server"; Flags: ignoreversion
-; Locales are JSON-based (locales/*.json), bundled inside wwwroot or downloaded at runtime.
-; No .NET satellite assemblies needed.
+Source: "{#AppPublishDir}\live-server\*"; DestDir: "{app}\live-server"; Flags: ignoreversion recursesubdirs
+Source: "{#AppPublishDir}\mms-tts-server\*"; DestDir: "{app}\mms-tts-server"; Flags: ignoreversion
+
+; NOTE: The following are NOT bundled — they are downloaded at runtime via the Download Manager:
+;   - python-embed/          (Python 3.12 embedded + pip packages)
+;   - whisper-server.exe     (Vulkan build from GitHub releases)
+;   - whisper-server-cuda.exe (CUDA build from GitHub releases)
+;   - ggml-large-v3-turbo.bin (GGML whisper model from HuggingFace)
+;   - ggml-silero-v6.2.0.bin (Silero VAD model from HuggingFace)
+;   - yt-dlp.exe             (from GitHub releases)
+;   - ffmpeg.exe / ffprobe.exe (from GitHub releases)
+;   - SubtitleEdit/           (from GitHub releases)
+;   - nllb-model/             (NLLB 1.3B from HuggingFace)
+;   - nllb-3.3b-model/        (NLLB 3.3B from HuggingFace)
+;   - tts-models/piper/       (Piper TTS + voice models)
+;   - Bibles/                  (downloaded from eBible.org)
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
