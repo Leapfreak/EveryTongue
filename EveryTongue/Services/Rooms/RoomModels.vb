@@ -20,6 +20,8 @@ Namespace Services.Rooms
         Public Property IdleTimeoutMinutes As Integer = 15
         ''' <summary>PTT mode: "hold" (default) or "toggle".</summary>
         Public Property PttMode As String = "hold"
+        ''' <summary>When True, commits are blocked from being broadcast to room clients.</summary>
+        Public Property IsPaused As Boolean = False
     End Class
 
     ''' <summary>

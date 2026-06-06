@@ -272,6 +272,7 @@ Public Class FormMain
                                       _config,
                                       Function() SubtitleSvc,
                                       Function() _translationService,
+                                      Function() _serverController.GetRoomManager(),
                                       AddressOf WriteDebugLog,
                                       Me)
                                   _conferenceController.WireEndpointHandlers()

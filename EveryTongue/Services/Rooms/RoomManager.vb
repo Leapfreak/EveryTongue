@@ -174,6 +174,19 @@ Namespace Services.Rooms
         End Function
 
         ''' <summary>
+        ''' Pause or resume commit broadcasting for a room. Only the host can change.
+        ''' </summary>
+        Public Function SetPaused(roomId As String, paused As Boolean, requestingClientId As String) As Boolean
+            Dim room = GetRoom(roomId)
+            If room Is Nothing Then Return False
+            If room.HostClientId <> requestingClientId Then Return False
+            room.Config.IsPaused = paused
+            room.TouchActivity()
+            AppLogger.Log($"[RoomManager] Room '{room.Name}' paused={paused} by host {requestingClientId}")
+            Return True
+        End Function
+
+        ''' <summary>
         ''' Add a virtual member to a room. Host only.
         ''' </summary>
         Public Function AddVirtualMember(roomId As String, name As String, language As String, requestingClientId As String) As VirtualMember

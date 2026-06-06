@@ -1,4 +1,4 @@
-# EveryTongue — TODO (updated 2026-06-06)
+# EveryTongue — TODO (updated 2026-06-07)
 
 > **Architecture shift:** EveryTongue is evolving from a single-session desktop transcription tool into a **headless multi-room translation server**. The desktop app still has operator workspaces (Live, Transcribe, Translate, Bible), but the primary user interface is now the **phone web client**. Anyone with a phone can create rooms, manage conversations, and receive translations — no operator required. The desktop just runs the server and auto-starts engines at launch.
 
@@ -25,8 +25,11 @@ Pluggable STT/Translation/TTS backends via registries. NLLB 3.3B support. Transl
 ### Benchmark Suite — COMPLETE (v1.8.2)
 Full benchmarking form with 6 test types across 4 tabs: Translation Pipeline, Translation Concurrency, STT Comparison, STT Concurrency, TTS Comparison, TTS Concurrency. Resource monitoring (CPU/RAM/GPU/VRAM/temp), model identification in all outputs, unified CSV export with auto-save, debug logging throughout.
 
+### Filter Editor — COMPLETE (v1.8.2)
+Unified 3-tab filter editor (Hallucinations, Profanity, Glossary) with shared language selector. Glossary restructured to per-source-language dict format. CheckedListBox enable/disable for all items. Friendly language names throughout via LanguageCodeService. FormLanguageChooser searchable picker. ComboBox column for target languages. Filter hit logging at info level. Menu: Tools > Filter Editor.
+
 ## User-Reported Issues & Tasks
-- [x] Implement stubs — most done (QR Code, Hardware Score, Diagnostics Export, File Integrity, Translate workspace). Remaining stubs: Session Wizard, Audio Level Monitor, Glossary Simple Mode, Event Profiles, Spec Sheet Generator, Portable Mode, Feedback prompt
+- [x] Implement stubs — most done (QR Code, Hardware Score, Diagnostics Export, File Integrity, Translate workspace). Remaining stubs: Session Wizard, Audio Level Monitor, Event Profiles, Spec Sheet Generator, Portable Mode, Feedback prompt
 - [x] Connected Clients dialog — popup form showing all connected phones with model, OS, browser, language, TTS, connection time
 - [ ] Audio routing: NDI or Direct Audio output
 
@@ -35,8 +38,8 @@ Full benchmarking form with 6 test types across 4 tabs: Translation Pipeline, Tr
 2. Setup Wizard expansion — integrates QR, audio monitor, hardware score
 3. Cross-platform headless server (Linux/Docker)
 
-## Immediate TODO (2026-06-06)
-- [ ] Glossary system update — expand Catalan theological terms, simplified editing UI (#5)
+## Immediate TODO (2026-06-07)
+- [x] Filter Editor overhaul — shared language combo, per-language glossary, checkboxes, friendly names, filter hit logging (#5)
 - [ ] Audio Level Monitor — operator feedback, prevents bad audio (#3)
 - [ ] Rooms desktop dashboard — active rooms overview (#19g)
 
@@ -78,7 +81,7 @@ Implementation plan for making Every Tongue field-deployable by a non-technical 
 | [2](#2-setup-wizard--event-setup-mode) | Setup Wizard — Event Setup Mode | Improve | 2 |
 | [3](#3-audio-level-monitor) | Audio Level Monitor | New | 1 |
 | [4](#4-diagnostic-bundle--remote-support) | Diagnostic Bundle / Remote Support | **Done** (a-d) | 1 |
-| [5](#5-glossary-management--simplified-for-non-technical-users) | Glossary Management — Simplified | Improve | 2 |
+| [5](#5-filter-editor--glossary-profanity--hallucination-management) | Filter Editor — Glossary/Profanity/Hallucination | **Done** (core) | 2 |
 | [6](#6-text-to-speech--server-side-engine) | Text-to-Speech — Server-Side Engine | Done | 4 |
 | [7](#7-portable-usb-deployment) | Portable USB Deployment | New | 5 |
 | [8](#8-crash-recovery--system-wide-resilience) | Crash Recovery — System-Wide | Improve | 2 |
@@ -190,46 +193,38 @@ Add steps after the current two:
 
 ---
 
-## 5. Glossary Management — Simplified for Non-Technical Users
+## 5. Filter Editor — Glossary, Profanity & Hallucination Management
 
-**Status:** Fully implemented. `glossary.json` with trigger/source-lang/fixes model. `FormFilterEditor.vb` provides editing UI. Server-side application in `translate-server/server.py` with hot-reload.
+**Status:** Core editing done. Unified 3-tab Filter Editor with shared language selector, per-language glossary, checkbox enable/disable, friendly language names, and filter hit logging.
 
-**What exists:**
-- 21 entries, mostly Catalan theological terms
-- Trigger-based matching (substring in source text)
-- Per-target-language wrong→right word replacements
-- Desktop editing UI with grids
-- `/glossary/reload` endpoint for hot-reload
-
-**Pending: Catalan glossary expansion** — a previous Claude session performed a translation quality assessment and identified a batch of Catalan theological/church terms that NLLB mistranslates. These need to be added to `glossary.json`. Run the assessment again or check conversation history to retrieve the specific terms.
+**What exists (v1.8.2):**
+- **Unified language selector** — one combo at the top selects source language for all three tabs
+- **Hallucinations tab** — CheckedListBox with enable/disable per phrase, add/remove, save & hot-reload to live-server
+- **Profanity tab** — CheckedListBox with enable/disable per word, add/remove, save & hot-reload to translate-server
+- **Glossary tab** — per-source-language entries (dict format), DataGridView with enable checkbox, trigger/comment fields, fixes grid with ComboBox target language column
+- **FormLanguageChooser** — searchable modal picker for adding languages (FLORES or ISO 639-1 modes)
+- **Friendly language names** throughout via `LanguageCodeService` — users never see raw codes
+- **Filter hit logging** — info-level logs when glossary, profanity, or hallucination filters trigger
+- **JSON formats** — hallucinations: `{"iso1": [{text, enabled}]}`, profanity: `{"flores": [{word, enabled}]}`, glossary: `{"flores": [{trigger, comment, enabled, fixes}]}`
+- 26 glossary entries (12 Catalan, 16 Spanish including shared entries)
+- Menu: Tools > Filter Editor
 
 **What to improve:**
 
 ### a) Glossary Packs / Import-Export
-- Pre-built glossary pack: `glossary-packs/christian-theological.json` containing common Christian terms across major European languages (grace, salvation, fellowship, the Word, Holy Spirit, etc.)
+- Pre-built glossary pack: `glossary-packs/christian-theological.json` containing common Christian terms across major European languages
 - Import button: load a pack file and merge entries (skip duplicates by trigger)
 - Export button: save current glossary as a shareable file
-- Packs could be distributed via USB or download alongside the app
 
 ### b) Simplified Editing UI
-- Current UI exposes the full trigger/source-lang/fixes model — too complex for a volunteer
-- Add a "Simple Mode" view:
-  - Two-column table: "English term" → "Correct translation in [language]"
-  - Auto-generates the underlying trigger/fixes structure
-  - Hides source language filtering (default to "all languages")
-- Keep "Advanced Mode" for power users (current UI)
+- Add a "Simple Mode" view: two-column table "English term" → "Correct translation in [language]"
+- Auto-generates the underlying trigger/fixes structure
+- Keep current UI as "Advanced Mode"
 
 ### c) Community Contribution Workflow
 - Handled by Features #11A and #11B — listeners flag phrases on their phones (#11A glossary suggestion via long-press), suggestions flow through the language manager review workflow (#11B)
-- See Feature #11A section a (glossary suggestion) and Feature #11B section a (language manager approval UI)
 
-**Files to modify:**
-- `FormFilterEditor.vb` — simple mode toggle, import/export buttons
-- `translate-server/glossary.json` — no structural changes needed
-- New file: `glossary-packs/christian-theological.json`
-- `locales/*.json` — new UI labels
-
-**Complexity:** Medium. The import/export is straightforward; the simplified UI is the main design challenge.
+**Complexity:** Medium. Import/export is straightforward; simplified UI is the main design challenge.
 
 ---
 

@@ -645,6 +645,12 @@ function connect(){
       else if(msg.type==='kicked'){showRoomError('You have been removed');setTimeout(function(){location.href='/lobby.html'},3000)}
       else if(msg.type==='roomLocked'){LOG('Room locked: '+msg.locked)}
       else if(msg.type==='pttModeChanged'){pttMode=msg.mode||'hold';updatePttLabel()}
+      else if(msg.type==='pauseStateChanged'){
+        window._roomPaused=!!msg.paused;
+        var pb=document.getElementById('hcPauseBtn');
+        if(pb){pb.style.background=msg.paused?'#e74c3c':'#27ae60';pb.textContent=msg.paused?'\u23F8 Paused':'\u25B6 Playing'}
+        LOG('Room paused: '+msg.paused);
+      }
       else if(msg.type==='memberJoined'){addRoomMember(msg)}
       else if(msg.type==='memberLeft'){removeRoomMember(msg.clientId)}
       else if(msg.type==='memberUpdated'){updateRoomMember(msg)}
@@ -1945,6 +1951,10 @@ function toggleHostPanel(){
   var hostHtml=
     '<div style="color:#fff;font-weight:600;margin-bottom:12px">Host Controls</div>'+
     '<button id="hcEndRoom" style="width:100%;padding:10px;border:none;border-radius:8px;background:#e74c3c;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">End Room</button>';
+  if(pttRoomType==='conference'){
+    var isPaused=window._roomPaused||false;
+    hostHtml+='<button id="hcPauseBtn" style="width:100%;padding:10px;border:none;border-radius:8px;background:'+(isPaused?'#e74c3c':'#27ae60')+';color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">'+(isPaused?'\u23F8 Paused':'\u25B6 Playing')+'</button>';
+  }
   if(pttRoomType!=='conference'){
     hostHtml+=
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="color:#ccc;font-size:13px">Lock Room</span><div id="hcLockToggle" class="hc-toggle" style="width:40px;height:22px;background:#444;border-radius:11px;position:relative;cursor:pointer;transition:background 0.2s"><div style="width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s"></div></div></div>'+
@@ -1992,6 +2002,17 @@ function toggleHostPanel(){
     xhr.onload=function(){location.href='/lobby.html'};
     xhr.send();
   });
+
+  var pauseBtn=document.getElementById('hcPauseBtn');
+  if(pauseBtn){
+    pauseBtn.addEventListener('click',function(){
+      var newPaused=!window._roomPaused;
+      var xhr=new XMLHttpRequest();
+      xhr.open('POST','/api/rooms/'+encodeURIComponent(roomId)+'/pause',true);
+      xhr.setRequestHeader('Content-Type','application/json');
+      xhr.send(JSON.stringify({paused:newPaused,requestingClientId:myClientId}));
+    });
+  }
 
   var lockToggle=document.getElementById('hcLockToggle');
   if(lockToggle){

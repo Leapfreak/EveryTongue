@@ -136,6 +136,11 @@ Namespace Controllers
                 GetType(Services.Interfaces.ISubtitleService)), Services.Interfaces.ISubtitleService)
         End Function
 
+        Public Function GetRoomManager() As Services.Rooms.RoomManager
+            Return TryCast(_kestrelHost?.Services?.GetService(
+                GetType(Services.Rooms.RoomManager)), Services.Rooms.RoomManager)
+        End Function
+
         Public Function GetMetricsService() As Services.Interfaces.IMetricsService
             Return TryCast(_kestrelHost?.Services?.GetService(
                 GetType(Services.Interfaces.IMetricsService)), Services.Interfaces.IMetricsService)

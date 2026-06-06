@@ -15,6 +15,7 @@ Namespace Controllers
         Private ReadOnly _config As AppConfig
         Private ReadOnly _getSubtitleSvc As Func(Of ISubtitleService)
         Private ReadOnly _getTranslationService As Func(Of TranslationService)
+        Private ReadOnly _getRoomManager As Func(Of Services.Rooms.RoomManager)
         Private ReadOnly _log As Action(Of String)
         Private ReadOnly _ownerForm As Form
 
@@ -26,11 +27,13 @@ Namespace Controllers
         Public Sub New(config As AppConfig,
                        getSubtitleSvc As Func(Of ISubtitleService),
                        getTranslationService As Func(Of TranslationService),
+                       getRoomManager As Func(Of Services.Rooms.RoomManager),
                        log As Action(Of String),
                        ownerForm As Form)
             _config = config
             _getSubtitleSvc = getSubtitleSvc
             _getTranslationService = getTranslationService
+            _getRoomManager = getRoomManager
             _log = log
             _ownerForm = ownerForm
         End Sub
@@ -317,6 +320,16 @@ Namespace Controllers
         ' ─── Translation Pipeline ─────────────────────────────────────
 
         Private Async Sub TranslateAndBroadcastForRoomAsync(roomId As String, commitArgs As SttOutputEventArgs)
+            ' Check if the room is paused — drop commits silently to keep whisper warm
+            Dim mgr = _getRoomManager?.Invoke()
+            If mgr IsNot Nothing Then
+                Dim room = mgr.GetRoom(roomId)
+                If room IsNot Nothing AndAlso room.Config.IsPaused Then
+                    _log($"[Conference:{roomId}] Commit dropped (paused): {commitArgs.Text}")
+                    Return
+                End If
+            End If
+
             Dim detectedLang = commitArgs.DetectedLanguage
             Dim line = commitArgs.Text
 

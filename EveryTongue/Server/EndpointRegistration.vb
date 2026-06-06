@@ -762,6 +762,35 @@ Namespace Server
                                                           Await context.Response.WriteAsJsonAsync(New With {.ok = ok})
                                                       End Function)
 
+            ' Pause/resume commit broadcasting (host only)
+            app.MapPost("/api/rooms/{id}/pause", Async Function(id As String, context As HttpContext) As Task
+                                                       Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                                       Dim hub = context.RequestServices.GetRequiredService(Of SubtitleHub)()
+                                                       Dim doc As JsonDocument = Nothing
+                                                       Dim ok = False
+                                                       Dim failed = False
+                                                       Try
+                                                           doc = Await JsonDocument.ParseAsync(context.Request.Body)
+                                                           Dim root = doc.RootElement
+                                                           Dim pausedProp As JsonElement = Nothing
+                                                           Dim reqProp As JsonElement = Nothing
+                                                           Dim paused = False
+                                                           Dim requestingClientId = ""
+                                                           If root.TryGetProperty("paused", pausedProp) Then paused = pausedProp.GetBoolean()
+                                                           If root.TryGetProperty("requestingClientId", reqProp) Then requestingClientId = If(reqProp.GetString(), "")
+                                                           ok = mgr.SetPaused(id, paused, requestingClientId)
+                                                           If ok Then
+                                                               hub.BroadcastToRoom(id, "{""type"":""pauseStateChanged"",""paused"":" & If(paused, "true", "false") & "}", "")
+                                                           End If
+                                                       Catch
+                                                           failed = True
+                                                       Finally
+                                                           doc?.Dispose()
+                                                       End Try
+                                                       If failed Then context.Response.StatusCode = 400
+                                                       Await context.Response.WriteAsJsonAsync(New With {.ok = ok})
+                                                   End Function)
+
             ' Get room members (clients + virtual members)
             app.MapGet("/api/rooms/{id}/members", Function(id As String, context As HttpContext) As Task
                                                         Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
