@@ -52,58 +52,34 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 
-; --- Every Tongue application ---
+; --- Every Tongue application + all top-level DLLs/config from publish ---
 Source: "{#AppPublishDir}\EveryTongue.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppPublishDir}\EveryTongue.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppPublishDir}\EveryTongue.deps.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppPublishDir}\EveryTongue.runtimeconfig.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\checksums.json"; DestDir: "{app}"; Flags: ignoreversion
-
-; --- NuGet dependency DLLs ---
-Source: "{#AppPublishDir}\Microsoft.Web.WebView2.Core.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\Microsoft.Web.WebView2.WinForms.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\Microsoft.Web.WebView2.Wpf.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\Microsoft.Data.Sqlite.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\NAudio.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\NAudio.Asio.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\NAudio.Core.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\NAudio.Midi.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\NAudio.Wasapi.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\NAudio.WinForms.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\NAudio.WinMM.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\QRCoder.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\SQLitePCLRaw.batteries_v2.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\SQLitePCLRaw.core.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\SQLitePCLRaw.provider.e_sqlite3.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\e_sqlite3.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\USFMToolsSharp.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\System.CodeDom.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\System.Management.dll"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\WebView2Loader.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\*.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\component-versions.json"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 ; --- Native runtimes (Windows only — skip Linux/macOS/WASM) ---
-Source: "{#AppPublishDir}\runtimes\win-arm64\native\WebView2Loader.dll"; DestDir: "{app}\runtimes\win-arm64\native"; Flags: ignoreversion
-Source: "{#AppPublishDir}\runtimes\win-x64\native\WebView2Loader.dll"; DestDir: "{app}\runtimes\win-x64\native"; Flags: ignoreversion
-Source: "{#AppPublishDir}\runtimes\win-x86\native\WebView2Loader.dll"; DestDir: "{app}\runtimes\win-x86\native"; Flags: ignoreversion
-Source: "{#AppPublishDir}\runtimes\win-arm\native\e_sqlite3.dll"; DestDir: "{app}\runtimes\win-arm\native"; Flags: ignoreversion
-Source: "{#AppPublishDir}\runtimes\win-arm64\native\e_sqlite3.dll"; DestDir: "{app}\runtimes\win-arm64\native"; Flags: ignoreversion
-Source: "{#AppPublishDir}\runtimes\win-x64\native\e_sqlite3.dll"; DestDir: "{app}\runtimes\win-x64\native"; Flags: ignoreversion
-Source: "{#AppPublishDir}\runtimes\win-x86\native\e_sqlite3.dll"; DestDir: "{app}\runtimes\win-x86\native"; Flags: ignoreversion
-Source: "{#AppPublishDir}\runtimes\win\lib\net8.0\System.Management.dll"; DestDir: "{app}\runtimes\win\lib\net8.0"; Flags: ignoreversion
+Source: "{#AppPublishDir}\runtimes\win-arm64\native\*"; DestDir: "{app}\runtimes\win-arm64\native"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#AppPublishDir}\runtimes\win-x64\native\*"; DestDir: "{app}\runtimes\win-x64\native"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#AppPublishDir}\runtimes\win-x86\native\*"; DestDir: "{app}\runtimes\win-x86\native"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#AppPublishDir}\runtimes\win-arm\native\*"; DestDir: "{app}\runtimes\win-arm\native"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#AppPublishDir}\runtimes\win\lib\net8.0\*"; DestDir: "{app}\runtimes\win\lib\net8.0"; Flags: ignoreversion skipifsourcedoesntexist
 
 ; --- Web client (served by Kestrel to phones) ---
 Source: "{#AppPublishDir}\wwwroot\*"; DestDir: "{app}\wwwroot"; Flags: ignoreversion recursesubdirs
 
 ; --- Help files ---
-Source: "{#AppPublishDir}\Help\*"; DestDir: "{app}\Help"; Flags: ignoreversion recursesubdirs
+Source: "{#AppPublishDir}\Help\*"; DestDir: "{app}\Help"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
 
 ; --- Locale packs (JSON) ---
-Source: "{#AppPublishDir}\locales\*"; DestDir: "{app}\locales"; Flags: ignoreversion
+Source: "{#AppPublishDir}\locales\*"; DestDir: "{app}\locales"; Flags: ignoreversion skipifsourcedoesntexist
 
 ; --- Python servers (scripts only — Python runtime downloaded by Download Manager) ---
-Source: "{#AppPublishDir}\translate-server\*"; DestDir: "{app}\translate-server"; Flags: ignoreversion
-Source: "{#AppPublishDir}\live-server\*"; DestDir: "{app}\live-server"; Flags: ignoreversion recursesubdirs
-Source: "{#AppPublishDir}\mms-tts-server\*"; DestDir: "{app}\mms-tts-server"; Flags: ignoreversion
+Source: "{#AppPublishDir}\translate-server\*"; DestDir: "{app}\translate-server"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#AppPublishDir}\live-server\*"; DestDir: "{app}\live-server"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
+Source: "{#AppPublishDir}\mms-tts-server\*"; DestDir: "{app}\mms-tts-server"; Flags: ignoreversion skipifsourcedoesntexist
 
 ; NOTE: The following are NOT bundled — they are downloaded at runtime via the Download Manager:
 ;   - python-embed/          (Python 3.12 embedded + pip packages)
