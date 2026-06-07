@@ -7,8 +7,11 @@ Models auto-download from HuggingFace on first use per language (~100 MB each).
 import argparse
 import io
 import logging
+import logging.handlers
 import os
+import queue as _queue_mod
 import struct
+import threading
 from threading import Lock
 
 import numpy as np
@@ -18,13 +21,54 @@ from pydantic import BaseModel
 from transformers import VitsModel, AutoTokenizer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
 logger = logging.getLogger("mms-tts")
 logger.setLevel(logging.INFO)
 logger.propagate = False
-_stderr_handler = logging.StreamHandler()
-_stderr_handler.setLevel(logging.INFO)
-_stderr_handler.setFormatter(logging.Formatter("%(message)s"))
-logger.addHandler(_stderr_handler)
+
+# QueueHandler pattern: logger calls never block the caller.
+# A background writer thread drains to file (or stderr fallback).
+_log_queue = _queue_mod.Queue(maxsize=5000)
+_queue_handler = logging.handlers.QueueHandler(_log_queue)
+_queue_handler.setLevel(logging.INFO)
+logger.addHandler(_queue_handler)
+
+_file_handler = None
+_active_handler = logging.StreamHandler()
+_active_handler.setLevel(logging.INFO)
+_active_handler.setFormatter(logging.Formatter("[MMS-TTS] %(message)s"))
+
+
+def _setup_file_logging(log_dir: str):
+    """Switch from stderr fallback to RotatingFileHandler."""
+    global _file_handler, _active_handler
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, "mms-tts-server.log")
+    _file_handler = logging.handlers.RotatingFileHandler(
+        log_path, maxBytes=2 * 1024 * 1024, backupCount=2, encoding="utf-8")
+    _file_handler.setLevel(logging.INFO)
+    _file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    _active_handler = _file_handler
+
+
+def _log_writer_thread():
+    while True:
+        try:
+            record = _log_queue.get(timeout=1.0)
+            handler = _active_handler
+            if handler.level <= record.levelno:
+                try:
+                    handler.emit(record)
+                except Exception:
+                    pass
+        except _queue_mod.Empty:
+            continue
+        except Exception:
+            break
+
+
+_log_writer = threading.Thread(target=_log_writer_thread, daemon=True, name="log-writer")
+_log_writer.start()
 
 app = FastAPI()
 
@@ -114,7 +158,12 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=5092)
     parser.add_argument("--cache-dir", type=str, default="",
                         help="HuggingFace cache directory for models")
+    parser.add_argument("--log-dir", type=str, default="",
+                        help="Directory for log files (RotatingFileHandler)")
     args = parser.parse_args()
+
+    if args.log_dir:
+        _setup_file_logging(args.log_dir)
 
     if args.cache_dir:
         os.environ["HF_HOME"] = args.cache_dir

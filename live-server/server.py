@@ -8,6 +8,7 @@ import asyncio
 import io
 import json
 import logging
+import logging.handlers
 import os
 import re
 import signal
@@ -61,23 +62,73 @@ except Exception as _vad_pipe_err:
     sys.stderr.flush()
 
 # ---------------------------------------------------------------------------
-# Logging — stderr only, captured by PythonSidecarHost -> AppLogger
+# Logging — file-based via RotatingFileHandler
 # ---------------------------------------------------------------------------
-# Log level is set from --log-level arg (see _apply_log_level below).
-# Default is INFO (Normal). Verbose=DEBUG, Minimal=WARNING.
+# Logs go to a file in --log-dir (passed by .NET). The file is tailed by
+# PythonSidecarHost which feeds lines to AppLogger/UI. This completely avoids
+# the 4KB Windows pipe buffer bottleneck that caused cascading deadlocks.
+#
+# QueueHandler ensures logger.info/debug() never blocks the caller — records
+# go to an in-memory queue, drained by a background writer thread to the file.
+# ---------------------------------------------------------------------------
+import queue as _queue_mod
+
 logger = logging.getLogger("live-server")
 logger.setLevel(logging.DEBUG)
 logger.propagate = False
-_stderr_handler = logging.StreamHandler()
-_stderr_handler.setLevel(logging.INFO)
-_stderr_handler.setFormatter(logging.Formatter("[LIVE] %(message)s"))
-logger.addHandler(_stderr_handler)
+
+_log_queue = _queue_mod.Queue(maxsize=5000)
+_queue_handler = logging.handlers.QueueHandler(_log_queue)
+_queue_handler.setLevel(logging.DEBUG)
+logger.addHandler(_queue_handler)
+
+# File handler — configured in __main__ once --log-dir is known.
+# Until then, a fallback stderr handler catches early messages.
+_file_handler = None
+_active_handler = logging.StreamHandler()
+_active_handler.setLevel(logging.INFO)
+_active_handler.setFormatter(logging.Formatter("[LIVE] %(message)s"))
+
+
+def _setup_file_logging(log_dir: str):
+    """Switch from stderr fallback to RotatingFileHandler."""
+    global _file_handler, _active_handler
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, "live-server.log")
+    _file_handler = logging.handlers.RotatingFileHandler(
+        log_path, maxBytes=2 * 1024 * 1024, backupCount=2, encoding="utf-8")
+    _file_handler.setLevel(logging.DEBUG)
+    _file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    _active_handler = _file_handler
+
+
+def _log_writer_thread():
+    """Drain log queue to file (or stderr fallback). Runs as a daemon thread."""
+    while True:
+        try:
+            record = _log_queue.get(timeout=1.0)
+            handler = _active_handler
+            if handler.level <= record.levelno:
+                try:
+                    handler.emit(record)
+                except Exception:
+                    pass
+        except _queue_mod.Empty:
+            continue
+        except Exception:
+            break
+
+_log_writer = threading.Thread(target=_log_writer_thread, daemon=True, name="log-writer")
+_log_writer.start()
 
 
 def _apply_log_level(level_name: str):
-    """Set stderr handler level from config: minimal/normal/verbose."""
+    """Set file handler level from config: minimal/normal/verbose."""
     level_map = {"minimal": logging.WARNING, "normal": logging.INFO, "verbose": logging.DEBUG}
-    _stderr_handler.setLevel(level_map.get(level_name.lower(), logging.INFO))
+    if _file_handler:
+        _file_handler.setLevel(level_map.get(level_name.lower(), logging.DEBUG))
+    else:
+        _active_handler.setLevel(level_map.get(level_name.lower(), logging.INFO))
 
 # Suppress noisy loggers
 logging.basicConfig(level=logging.WARNING)
@@ -852,7 +903,12 @@ if __name__ == "__main__":
                         help="Log verbosity: minimal (errors only), normal (default), verbose (all debug)")
     parser.add_argument("--vad-model-path", type=str, default="",
                         help="(ignored, kept for backward compatibility)")
+    parser.add_argument("--log-dir", type=str, default="",
+                        help="Directory for log files (RotatingFileHandler)")
     args = parser.parse_args()
+
+    if args.log_dir:
+        _setup_file_logging(args.log_dir)
 
     _whisper_server_path = args.whisper_server_path
     _whisper_server_port = args.whisper_server_port

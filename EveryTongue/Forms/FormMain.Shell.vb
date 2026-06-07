@@ -749,8 +749,8 @@ Partial Class FormMain
                             Next
                         End Using
 
-                        ' ── Log files (last 30 days) ──
-                        Dim logDir = AppDomain.CurrentDomain.BaseDirectory
+                        ' ── Log files (last 30 days + Python server logs) ──
+                        Dim logDir = Services.Infrastructure.AppLogger.GetLogDir()
                         For dayOffset = 0 To 29
                             Dim logDate = DateTime.Now.AddDays(-dayOffset)
                             Dim logName = $"{logDate:yyyyMMdd}.log"
@@ -758,6 +758,11 @@ Partial Class FormMain
                             If IO.File.Exists(logPath) Then
                                 archive.CreateEntryFromFile(logPath, $"logs/{logName}")
                             End If
+                        Next
+                        ' Include Python server log files
+                        For Each pyLog In IO.Directory.GetFiles(logDir, "*-server.log*")
+                            Dim entryName = $"logs/{IO.Path.GetFileName(pyLog)}"
+                            archive.CreateEntryFromFile(pyLog, entryName)
                         Next
 
                         ' ── Integrity check ──

@@ -84,7 +84,7 @@ Friend Module Program
             File.Delete(CrashSentinelPath)
 
             ' Write to today's log
-            Dim logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{DateTime.Now:yyyyMMdd}.log")
+            Dim logPath = Services.Infrastructure.AppLogger.GetLogPath()
             Dim msg = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [CRASH DETECTED] Previous session did not exit cleanly." &
                       Environment.NewLine &
                       $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [CRASH DETECTED] Sentinel info: {sentinelInfo.Replace(Environment.NewLine, " | ")}" &
@@ -177,7 +177,7 @@ Friend Module Program
         End Try
         ' Also write directly in case AppLogger failed
         Try
-            Dim logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{DateTime.Now:yyyyMMdd}.log")
+            Dim logPath = Services.Infrastructure.AppLogger.GetLogPath()
             File.AppendAllText(logPath,
                 $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {tag} {detail}{Environment.NewLine}")
         Catch

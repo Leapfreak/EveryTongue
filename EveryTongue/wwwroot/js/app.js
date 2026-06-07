@@ -682,7 +682,6 @@ document.getElementById('btnSettings').title=t('settings');
 document.getElementById('lblSpeak').textContent=t('readAloud');
 if(!speakEnabled){btnSpeak.innerHTML='&#128264; '+t('readAloud')}
 document.getElementById('lblFont').textContent=t('font');
-document.getElementById('lblStyle').textContent=t('style');
 document.getElementById('lblColor').textContent=t('color');
 document.getElementById('btnBold').textContent=t('bold');
 document.getElementById('lblVoice').textContent=t('voice');
@@ -1965,7 +1964,7 @@ function toggleHostPanel(){
   closeAllPanels();
   panel=document.createElement('div');
   panel.id='hostPanel';
-  panel.style.cssText='position:fixed;top:50px;right:8px;background:#1e1e3a;border:1px solid #444;border-radius:10px;padding:16px;z-index:200;width:260px;max-height:calc(100vh - 70px);overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,0.6)';
+  panel.style.cssText='position:fixed;top:50px;right:8px;background:#1e1e3a;border:1px solid #444;border-radius:10px;padding:12px;z-index:200;width:240px;max-height:calc(100vh - 60px);overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,0.6)';
   var roomMatch=location.search.match(/[?&]room=([^&]+)/);
   var roomId=roomMatch?roomMatch[1]:'';
   var hostHtml=
@@ -2003,6 +2002,7 @@ function toggleHostPanel(){
       '<select id="hcBeam" style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:13px;margin-bottom:8px;box-sizing:border-box">'+
       '<option value="1">1</option><option value="3">3</option><option value="5">5</option><option value="7" selected>7</option></select>'+
       '<button id="hcPipeApply" style="width:100%;padding:8px;border:none;border-radius:8px;background:#7c9cf7;color:#1a1a2e;font-size:13px;font-weight:600;cursor:pointer">Apply</button>'+
+      '<button id="hcPipeReset" style="width:100%;padding:8px;border:none;border-radius:8px;background:#e67e22;color:#fff;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px">\u21BB Reset Pipeline</button>'+
       '<div id="hcPipeStatus" style="color:#888;font-size:11px;margin-top:4px;text-align:center"></div>'+
       '</div>';
     panel.innerHTML+=pipeHtml;
@@ -2081,6 +2081,24 @@ function toggleHostPanel(){
     var hcVad=document.getElementById('hcVad');
     if(hcMaxSeg)hcMaxSeg.addEventListener('input',function(){document.getElementById('hcMaxSegVal').textContent=this.value});
     if(hcVad)hcVad.addEventListener('input',function(){document.getElementById('hcVadVal').textContent=this.value});
+
+    var hcReset=document.getElementById('hcPipeReset');
+    if(hcReset)hcReset.addEventListener('click',function(){
+      var st=document.getElementById('hcPipeStatus');
+      if(st){st.textContent='Resetting...';st.style.color='#e67e22'}
+      var xhr=new XMLHttpRequest();
+      xhr.open('POST','/api/control/pipeline/reset',true);
+      xhr.setRequestHeader('Content-Type','application/json');
+      xhr.onload=function(){
+        try{
+          var res=JSON.parse(xhr.responseText);
+          if(res.ok){if(st){st.textContent='Pipeline reset OK';st.style.color='#4f4'}}
+          else{if(st){st.textContent=res.error||'Reset failed';st.style.color='#f44'}}
+        }catch(e){if(st){st.textContent='Error';st.style.color='#f44'}}
+      };
+      xhr.onerror=function(){if(st){st.textContent='Network error';st.style.color='#f44'}};
+      xhr.send(JSON.stringify({roomId:roomId,clientId:myClientId}));
+    });
 
     var hcApply=document.getElementById('hcPipeApply');
     if(hcApply)hcApply.addEventListener('click',function(){

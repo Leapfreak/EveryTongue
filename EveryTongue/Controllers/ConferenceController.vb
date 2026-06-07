@@ -71,6 +71,20 @@ Namespace Controllers
                                                               End Try
                                                           End Sub
 
+            EndpointRegistration.PipelineResetHandler = Sub(roomId)
+                                                               Try
+                                                                   _ownerForm.BeginInvoke(Sub()
+                                                                                              Try
+                                                                                                  ResetConferenceBackend(roomId)
+                                                                                              Catch ex As Exception
+                                                                                                  _log($"[Conference] ERROR in ResetConferenceBackend: {ex}")
+                                                                                              End Try
+                                                                                          End Sub)
+                                                               Catch ex As Exception
+                                                                   _log($"[Conference] ERROR invoking pipeline reset handler: {ex.Message}")
+                                                               End Try
+                                                           End Sub
+
             EndpointRegistration.RoomClosedHandler = Sub(roomId)
                                                           Try
                                                               _ownerForm.BeginInvoke(Sub()
@@ -301,6 +315,20 @@ Namespace Controllers
             _sttBackends(roomId) = newBackend
             _log($"[Pipeline:{roomId}] Restarting backend (port={sttConfig.ServerPort})")
             newBackend.Start(sttConfig)
+        End Sub
+
+        ''' <summary>
+        ''' Resets the conference pipeline for a room — stops the current backend
+        ''' and spins up a fresh one with the same config on a new port.
+        ''' Called from the host control panel when the pipeline is unresponsive.
+        ''' </summary>
+        Public Sub ResetConferenceBackend(roomId As String)
+            If Not _sttBackends.ContainsKey(roomId) Then
+                _log($"[Conference] Reset requested but no backend for room {roomId}")
+                Return
+            End If
+            _log($"[Conference] RESET requested for room {roomId}")
+            RestartConferenceBackend(roomId, New Dictionary(Of String, Object))
         End Sub
 
         ''' <summary>

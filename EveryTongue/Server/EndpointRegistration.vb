@@ -240,6 +240,20 @@ Namespace Server
         End Property
 
         ''' <summary>
+        ''' Callback for pipeline reset commands from /api/control/pipeline/reset.
+        ''' Arg: roomId.
+        ''' </summary>
+        Private _pipelineResetHandler As Action(Of String)
+        Public Property PipelineResetHandler As Action(Of String)
+            Get
+                Return Threading.Volatile.Read(_pipelineResetHandler)
+            End Get
+            Set(value As Action(Of String))
+                Threading.Volatile.Write(_pipelineResetHandler, value)
+            End Set
+        End Property
+
+        ''' <summary>
         ''' Callback fired when a conference room is closed. Arg: roomId.
         ''' </summary>
         Private _roomClosedHandler As Action(Of String)
@@ -1142,6 +1156,54 @@ Namespace Server
                                                           doc?.Dispose()
                                                       End Try
                                                   End Function)
+
+            ' Pipeline reset — host can force-restart the entire STT pipeline
+            app.MapPost("/api/control/pipeline/reset", Async Function(context As HttpContext) As Task
+                                                            Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                                            Dim doc As JsonDocument = Nothing
+                                                            Try
+                                                                doc = Await JsonDocument.ParseAsync(context.Request.Body)
+                                                                Dim root = doc.RootElement
+
+                                                                Dim roomIdProp As JsonElement = Nothing
+                                                                Dim clientIdProp As JsonElement = Nothing
+                                                                Dim roomId = ""
+                                                                Dim clientId = ""
+
+                                                                If root.TryGetProperty("roomId", roomIdProp) Then roomId = If(roomIdProp.GetString(), "")
+                                                                If root.TryGetProperty("clientId", clientIdProp) Then clientId = If(clientIdProp.GetString(), "")
+
+                                                                Dim room = mgr.GetRoom(roomId)
+                                                                If room Is Nothing Then
+                                                                    context.Response.StatusCode = 404
+                                                                    Await context.Response.WriteAsJsonAsync(New With {.error = "Room not found"})
+                                                                    Return
+                                                                End If
+
+                                                                If String.IsNullOrEmpty(clientId) OrElse room.HostClientId <> clientId Then
+                                                                    context.Response.StatusCode = 403
+                                                                    Await context.Response.WriteAsJsonAsync(New With {.error = "Not authorized"})
+                                                                    Return
+                                                                End If
+
+                                                                Dim handler = PipelineResetHandler
+                                                                If handler Is Nothing Then
+                                                                    context.Response.StatusCode = 503
+                                                                    Await context.Response.WriteAsJsonAsync(New With {.error = "Pipeline not available"})
+                                                                    Return
+                                                                End If
+
+                                                                handler.Invoke(roomId)
+                                                                room.TouchActivity()
+                                                                Await context.Response.WriteAsJsonAsync(New With {.ok = True})
+
+                                                            Catch ex As Exception
+                                                                context.Response.StatusCode = 400
+                                                                context.Response.WriteAsync("{""error"":""Invalid request""}").Wait()
+                                                            Finally
+                                                                doc?.Dispose()
+                                                            End Try
+                                                        End Function)
 
         End Sub
 

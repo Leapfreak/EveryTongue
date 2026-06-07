@@ -256,6 +256,7 @@ Namespace Services.Rooms
 
                 _logger.LogInformation("Auto-starting live server for conversation rooms...")
                 _sidecar.Port = LiveServerPort
+                _sidecar.LogFileName = $"live-server-{LiveServerPort}.log"
 
                 Dim serverScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "live-server", "server.py")
                 If Not File.Exists(serverScript) Then

@@ -24,7 +24,8 @@ Namespace Services.Tts
         }
         Private ReadOnly _host As New Pipeline.PythonSidecarHost() With {
             .Label = "MMS-TTS",
-            .Port = 5092
+            .Port = 5092,
+            .LogFileName = "mms-tts-server.log"
         }
 
         Public Event StatusChanged As EventHandler(Of String)

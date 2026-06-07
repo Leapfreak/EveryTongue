@@ -20,7 +20,7 @@ Namespace Models
 
         ' --- Paths & Tools ---
 
-        Public Property PathWhisper As String = ".\whisper\whisper-cli.exe"
+        Public Property PathWhisper As String = ".\whisper-cli.exe"
 
         Public Property PathYtdlp As String = ".\yt-dlp.exe"
 

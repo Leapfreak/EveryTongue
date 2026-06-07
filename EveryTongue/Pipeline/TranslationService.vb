@@ -16,7 +16,8 @@ Namespace Pipeline
         Private ReadOnly _host As New PythonSidecarHost() With {
             .Label = "Translation server",
             .MaxRestarts = 3,
-            .AddWhisperToPath = True
+            .AddWhisperToPath = True,
+            .LogFileName = "translate-server.log"
         }
 
         Private _port As Integer = 5090

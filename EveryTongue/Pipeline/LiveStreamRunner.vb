@@ -19,7 +19,8 @@ Namespace Pipeline
         Private ReadOnly _host As New PythonSidecarHost() With {
             .Label = "Live server",
             .AddWhisperToPath = True,
-            .GracefulShutdownPath = "/shutdown"
+            .GracefulShutdownPath = "/shutdown",
+            .LogFileName = "live-server.log"
         }
 
         Private _isCapturing As Boolean = False

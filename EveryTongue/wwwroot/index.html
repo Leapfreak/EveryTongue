@@ -52,8 +52,11 @@
 <div id="panel">
   <label id="lblDisplayName">Your Name</label>
   <input type="text" id="displayNameInput" placeholder="Enter your name" onchange="saveDisplayName(this.value)" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid #555;background:#333;color:#fff;font-size:14px;outline:none;margin-bottom:8px">
-  <button onclick="changeFontSize(4)">A+</button>
-  <button onclick="changeFontSize(-4)">A-</button>
+  <div style="display:flex;gap:4px;margin-bottom:4px">
+    <button onclick="changeFontSize(4)" style="flex:1">A+</button>
+    <button onclick="changeFontSize(-4)" style="flex:1">A-</button>
+    <button id="btnBold" onclick="toggleBold()" style="flex:1">Bold</button>
+  </div>
   <label id="lblFont">Font</label>
   <select id="fontSelect" onchange="changeFont(this.value)">
     <option value="'Segoe UI',Arial,sans-serif">Segoe UI</option>
@@ -65,10 +68,8 @@
     <option value="'Trebuchet MS',sans-serif">Trebuchet MS</option>
     <option value="Tahoma,sans-serif">Tahoma</option>
   </select>
-  <label id="lblStyle">Style</label>
-  <button id="btnBold" onclick="toggleBold()" style="min-width:60px">Bold</button>
   <label id="lblColor">Text Color</label>
-  <input type="color" id="colorPicker" onchange="changeColor(this.value)" style="width:100%;height:32px;border:1px solid #555;border-radius:4px;background:#333;cursor:pointer">
+  <input type="color" id="colorPicker" onchange="changeColor(this.value)" style="width:100%;height:28px;border:1px solid #555;border-radius:4px;background:#333;cursor:pointer">
   <label id="lblVoice">Voice</label>
   <select id="voiceSelect" onchange="onVoiceChange(this.value)"></select>
   <label id="lblSpeed">Speed</label>

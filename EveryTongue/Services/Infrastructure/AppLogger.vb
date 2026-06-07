@@ -34,8 +34,15 @@ Namespace Services.Infrastructure
             End If
         End Sub
 
+        Public Function GetLogDir() As String
+            Dim dir = IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EveryTongue", "logs")
+            If Not IO.Directory.Exists(dir) Then IO.Directory.CreateDirectory(dir)
+            Return dir
+        End Function
+
         Public Function GetLogPath() As String
-            Return IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"{DateTime.Now:yyyyMMdd}.log")
+            Return IO.Path.Combine(GetLogDir(), $"{DateTime.Now:yyyyMMdd}.log")
         End Function
 
         Public Sub Log(msg As String)
@@ -77,15 +84,32 @@ Namespace Services.Infrastructure
 
         Public Sub CleanupOldLogFiles(keepDays As Integer)
             Try
-                Dim logDir = AppDomain.CurrentDomain.BaseDirectory
+                Dim logDir = GetLogDir()
                 Dim cutoff = DateTime.Now.AddDays(-keepDays)
+
+                ' Clean daily .NET log files older than keepDays
                 For Each f In IO.Directory.GetFiles(logDir, "????????.log")
                     If IO.File.GetLastWriteTime(f) < cutoff Then
                         IO.File.Delete(f)
                     End If
                 Next
-                ' Clean up legacy pipeline-debug log files
-                For Each f In IO.Directory.GetFiles(logDir, "*_pipeline-debug.log")
+
+                ' Clean Python rotated log files (e.g. live-server.log.1, .log.2)
+                For Each f In IO.Directory.GetFiles(logDir, "*-server.log.*")
+                    If IO.File.GetLastWriteTime(f) < cutoff Then
+                        IO.File.Delete(f)
+                    End If
+                Next
+            Catch
+            End Try
+
+            ' Clean up legacy logs from the old location (install directory)
+            Try
+                Dim oldDir = AppDomain.CurrentDomain.BaseDirectory
+                For Each f In IO.Directory.GetFiles(oldDir, "????????.log")
+                    IO.File.Delete(f)
+                Next
+                For Each f In IO.Directory.GetFiles(oldDir, "*_pipeline-debug.log")
                     IO.File.Delete(f)
                 Next
             Catch

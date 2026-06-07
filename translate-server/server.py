@@ -8,8 +8,11 @@ import argparse
 import asyncio
 import json
 import logging
+import logging.handlers
 import os
+import queue as _queue_mod
 import re
+import threading
 import time
 from collections import OrderedDict
 from threading import Lock
@@ -19,32 +22,84 @@ import sentencepiece as spm
 from fastapi import FastAPI
 from pydantic import BaseModel
 
+# ---------------------------------------------------------------------------
+# Logging — file-based via RotatingFileHandler
+# ---------------------------------------------------------------------------
+# Logs go to a file in --log-dir (passed by .NET). The file is tailed by
+# PythonSidecarHost which feeds lines to AppLogger/UI. This completely avoids
+# the 4KB Windows pipe buffer bottleneck that caused cascading deadlocks.
+#
+# QueueHandler ensures logger.info/debug() never blocks the caller.
+# ---------------------------------------------------------------------------
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+_log_queue = _queue_mod.Queue(maxsize=5000)
+
+# Main logger
 logger = logging.getLogger("translate-server")
 logger.setLevel(logging.DEBUG)
 logger.propagate = False
-# Stderr handler for UI display (VB captures via ErrorDataReceived)
-_stderr_handler = logging.StreamHandler()
-_stderr_handler.setLevel(logging.INFO)
-_stderr_handler.setFormatter(logging.Formatter("%(message)s"))
-logger.addHandler(_stderr_handler)
+_queue_handler = logging.handlers.QueueHandler(_log_queue)
+_queue_handler.setLevel(logging.DEBUG)
+logger.addHandler(_queue_handler)
 
-# Debug logger — writes to stderr so VB captures via ErrorDataReceived → AppLogger
+# Debug logger (verbose translation details)
 _debug_logger = logging.getLogger("translate-debug")
 _debug_logger.setLevel(logging.DEBUG)
 _debug_logger.propagate = False
-_debug_stderr = logging.StreamHandler()
-_debug_stderr.setLevel(logging.DEBUG)
-_debug_stderr.setFormatter(logging.Formatter("[TRANSLATE] %(message)s"))
-_debug_logger.addHandler(_debug_stderr)
+_debug_queue_handler = logging.handlers.QueueHandler(_log_queue)
+_debug_queue_handler.setLevel(logging.DEBUG)
+_debug_logger.addHandler(_debug_queue_handler)
+
+# File handler — configured in __main__ once --log-dir is known.
+# Until then, a fallback stderr handler catches early messages.
+_file_handler = None
+_active_handler = logging.StreamHandler()
+_active_handler.setLevel(logging.INFO)
+_active_handler.setFormatter(logging.Formatter("[TRANSLATE] %(message)s"))
+
+
+def _setup_file_logging(log_dir: str):
+    """Switch from stderr fallback to RotatingFileHandler."""
+    global _file_handler, _active_handler
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, "translate-server.log")
+    _file_handler = logging.handlers.RotatingFileHandler(
+        log_path, maxBytes=2 * 1024 * 1024, backupCount=2, encoding="utf-8")
+    _file_handler.setLevel(logging.DEBUG)
+    _file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    _active_handler = _file_handler
+
+
+def _log_writer_thread():
+    """Drain log queue to file (or stderr fallback). Only this thread does I/O."""
+    while True:
+        try:
+            record = _log_queue.get(timeout=1.0)
+            handler = _active_handler
+            if handler.level <= record.levelno:
+                try:
+                    handler.emit(record)
+                except Exception:
+                    pass
+        except _queue_mod.Empty:
+            continue
+        except Exception:
+            break
+
+_log_writer = threading.Thread(target=_log_writer_thread, daemon=True, name="log-writer")
+_log_writer.start()
 
 
 def _apply_log_level(level_name: str):
-    """Set stderr handler levels from config: minimal/normal/verbose."""
+    """Set handler level from config: minimal/normal/verbose."""
     level_map = {"minimal": logging.WARNING, "normal": logging.INFO, "verbose": logging.DEBUG}
     level = level_map.get(level_name.lower(), logging.INFO)
-    _stderr_handler.setLevel(level)
-    _debug_stderr.setLevel(level)
+    if _file_handler:
+        _file_handler.setLevel(level)
+    else:
+        _active_handler.setLevel(level)
 
 
 app = FastAPI()
@@ -304,7 +359,7 @@ def _translate_single(text: str, source_lang: str, target_lang: str, no_cache: b
 def _reload_on_cpu():
     """Reload model on CPU after a CUDA runtime failure."""
     global translator, device_in_use
-    logger.warning("CUDA runtime error during translation, reloading model on CPU...")
+    logger.warning("CUDA runtime error during translation (device_in_use=%s), reloading model on CPU...", device_in_use)
     try:
         translator = ctranslate2.Translator(
             model_path_global, device="cpu", compute_type="float32"
@@ -312,7 +367,7 @@ def _reload_on_cpu():
         device_in_use = "cpu"
         logger.info("Model reloaded on CPU successfully")
     except Exception as e2:
-        logger.error("CPU reload also failed: %s", e2)
+        logger.error("CPU reload also failed: %s", e2, exc_info=True)
         translator = None
 
 
@@ -334,7 +389,9 @@ def _translate_to_targets(text: str, source_lang: str, target_langs: list[str], 
             results[tl] = filtered
         except Exception as e:
             err_msg = str(e)
+            logger.error("Translation to %s failed: [%s] %s", tl, type(e).__name__, err_msg, exc_info=True)
             if "cublas" in err_msg.lower() or "cuda" in err_msg.lower():
+                logger.error("CUDA error detected during translation — full exception type: %s, device_in_use: %s", type(e).__name__, device_in_use)
                 _reload_on_cpu()
                 if translator is not None:
                     try:
@@ -350,7 +407,7 @@ def _translate_to_targets(text: str, source_lang: str, target_langs: list[str], 
                     except Exception as e2:
                         logger.warning("Translation to %s failed after CPU reload: %s", tl, e2)
                         continue
-            logger.warning("Translation to %s failed: %s", tl, e)
+            # Non-CUDA error already logged with exc_info above
     total_ms = (time.perf_counter() - t_total) * 1000
     _debug_logger.debug("[TOTAL] %d targets in %.1fms", len(target_langs), total_ms)
     _debug_logger.debug("=" * 60)
@@ -397,9 +454,10 @@ async def load_model(req: LoadRequest):
                     model_path_global, device=device, compute_type="auto"
                 )
                 device_in_use = device
-            except Exception:
+            except Exception as cuda_err:
                 if device != "cpu":
-                    logger.warning("CUDA failed, falling back to CPU")
+                    logger.warning("CUDA failed during model load: [%s] %s", type(cuda_err).__name__, cuda_err, exc_info=True)
+                    logger.warning("Falling back to CPU...")
                     translator = ctranslate2.Translator(
                         model_path_global, device="cpu", compute_type="auto"
                     )
@@ -474,10 +532,14 @@ if __name__ == "__main__":
                         help="Log verbosity: minimal (errors only), normal (default), verbose (all debug)")
     parser.add_argument("--glossary", type=str, default="",
                         help="Path to glossary.json for post-translation fixes")
+    parser.add_argument("--log-dir", type=str, default="",
+                        help="Directory for log files (RotatingFileHandler)")
     args = parser.parse_args()
 
+    if args.log_dir:
+        _setup_file_logging(args.log_dir)
+
     model_path_global = args.model_path
-    _debug_stderr.setFormatter(logging.Formatter("[NLLB] %(message)s"))
     _apply_log_level(args.log_level)
     _debug_logger.info("Translation server started")
 

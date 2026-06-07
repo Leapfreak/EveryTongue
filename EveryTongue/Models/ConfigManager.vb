@@ -30,10 +30,9 @@ Namespace Models
             If String.IsNullOrEmpty(cfg.SubtitleBgColor) OrElse Not cfg.SubtitleBgColor.StartsWith("#") Then cfg.SubtitleBgColor = "#000000"
             If String.IsNullOrEmpty(cfg.SubtitleFgColor) OrElse Not cfg.SubtitleFgColor.StartsWith("#") Then cfg.SubtitleFgColor = "#FFFFFF"
 
-            ' Migrate old flat paths to whisper\ subdirectory
-            If cfg.PathWhisper IsNot Nothing AndAlso cfg.PathWhisper.EndsWith("\whisper-cli.exe") AndAlso
-               Not cfg.PathWhisper.EndsWith("\whisper\whisper-cli.exe") Then
-                cfg.PathWhisper = cfg.PathWhisper.Replace("\whisper-cli.exe", "\whisper\whisper-cli.exe")
+            ' Migrate old whisper\ subdirectory path to flat (Download Manager puts whisper-cli.exe at root)
+            If cfg.PathWhisper IsNot Nothing AndAlso cfg.PathWhisper.EndsWith("\whisper\whisper-cli.exe") Then
+                cfg.PathWhisper = cfg.PathWhisper.Replace("\whisper\whisper-cli.exe", "\whisper-cli.exe")
             End If
         End Sub
 

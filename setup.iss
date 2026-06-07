@@ -58,6 +58,7 @@ Source: "{#AppPublishDir}\EveryTongue.dll"; DestDir: "{app}"; Flags: ignoreversi
 Source: "{#AppPublishDir}\EveryTongue.deps.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppPublishDir}\EveryTongue.runtimeconfig.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppPublishDir}\*.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppPublishDir}\checksums.json"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#AppPublishDir}\component-versions.json"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 ; --- Native runtimes (Windows only — skip Linux/macOS/WASM) ---
@@ -72,6 +73,9 @@ Source: "{#AppPublishDir}\wwwroot\*"; DestDir: "{app}\wwwroot"; Flags: ignorever
 
 ; --- Help files ---
 Source: "{#AppPublishDir}\Help\*"; DestDir: "{app}\Help"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
+
+; --- Test data (benchmark corpus) ---
+Source: "{#AppPublishDir}\test-data\*"; DestDir: "{app}\test-data"; Flags: ignoreversion skipifsourcedoesntexist
 
 ; --- Locale packs (JSON) ---
 Source: "{#AppPublishDir}\locales\*"; DestDir: "{app}\locales"; Flags: ignoreversion skipifsourcedoesntexist

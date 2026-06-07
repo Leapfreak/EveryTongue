@@ -25,6 +25,7 @@ Namespace Pipeline
         Public Property MaxRestarts As Integer = 0
         Public Property AddWhisperToPath As Boolean = False
         Public Property GracefulShutdownPath As String = Nothing
+        Public Property LogFileName As String = Nothing
 
         ' ── Events ──
 
@@ -84,7 +85,8 @@ Namespace Pipeline
                     Return
                 End If
 
-                Dim args = $"""{scriptPath}"" --port {Port}"
+                Dim logDir = Services.Infrastructure.AppLogger.GetLogDir()
+                Dim args = $"""{scriptPath}"" --port {Port} --log-dir ""{logDir}"""
                 If Not String.IsNullOrEmpty(extraArgs) Then
                     args &= " " & extraArgs
                 End If
@@ -117,15 +119,6 @@ Namespace Pipeline
                     _process.StartInfo = psi
                     _process.EnableRaisingEvents = True
 
-                    AddHandler _process.ErrorDataReceived, Sub(s, e)
-                                                               If e.Data IsNot Nothing Then
-                                                                   Dim line = e.Data.Trim()
-                                                                   If line.Length > 0 Then
-                                                                       RaiseEvent StderrLine(Me, line)
-                                                                   End If
-                                                               End If
-                                                           End Sub
-
                     AddHandler _process.Exited, Sub(s, e)
                                                     SyncLock _lock
                                                         _isRunning = False
@@ -154,13 +147,29 @@ Namespace Pipeline
                                                 End Sub
 
                     _process.Start()
-                    _process.BeginErrorReadLine()
 
-                    ' Drain stdout to prevent deadlock
+                    ' Drain both pipes to nothing — prevents OS pipe buffer deadlock.
+                    ' All meaningful logging goes to the Python log file, not the pipe.
                     Dim proc = _process
                     Task.Run(Sub()
                                  Try : proc.StandardOutput.ReadToEnd() : Catch : End Try
                              End Sub)
+                    Task.Run(Sub()
+                                 Try : proc.StandardError.ReadToEnd() : Catch : End Try
+                             End Sub)
+
+                    ' Start file tail to read Python log and raise StderrLine events.
+                    ' Record initial file size BEFORE Python starts writing so we don't
+                    ' miss startup lines but also skip stale content from previous sessions.
+                    If Not String.IsNullOrEmpty(LogFileName) Then
+                        Dim logFile = IO.Path.Combine(logDir, LogFileName)
+                        Dim initialPos As Long = 0
+                        If IO.File.Exists(logFile) Then
+                            Try : initialPos = New IO.FileInfo(logFile).Length : Catch : End Try
+                        End If
+                        Dim ct = _cts.Token
+                        Task.Run(Sub() TailLogFile(logFile, initialPos, ct))
+                    End If
 
                     _isRunning = True
                     _restartCount = If(_restartCount > 0, _restartCount, 0)
@@ -172,6 +181,64 @@ Namespace Pipeline
                     RaiseEvent StatusMessage(Me, $"{Label} failed to start: {ex.Message}")
                 End Try
             End SyncLock
+        End Sub
+
+        ' ── File tail ──
+
+        Private Sub TailLogFile(logFile As String, initialPos As Long, ct As CancellationToken)
+            Dim lastPos As Long = initialPos
+            Try
+                ' Wait for the file to appear (Python may take a moment to start)
+                Dim waited = 0
+                While Not IO.File.Exists(logFile) AndAlso waited < 10000 AndAlso Not ct.IsCancellationRequested
+                    Thread.Sleep(250)
+                    waited += 250
+                End While
+
+                ' Poll loop: reopen file each cycle so we survive RotatingFileHandler rotation.
+                ' When Python rotates (live-server.log -> .log.1), the old handle would follow
+                ' the renamed file. By reopening, we always read the current file.
+                While Not ct.IsCancellationRequested
+                    Try
+                        If Not IO.File.Exists(logFile) Then
+                            ' File may be momentarily missing during rotation
+                            Thread.Sleep(250)
+                            Continue While
+                        End If
+
+                        Dim fi As New IO.FileInfo(logFile)
+                        If fi.Length < lastPos Then
+                            ' File is smaller than last read — rotation happened, start from beginning
+                            lastPos = 0
+                        End If
+
+                        If fi.Length > lastPos Then
+                            Using fs As New IO.FileStream(logFile, IO.FileMode.Open, IO.FileAccess.Read,
+                                                          IO.FileShare.ReadWrite Or IO.FileShare.Delete)
+                                fs.Seek(lastPos, IO.SeekOrigin.Begin)
+                                Using reader As New IO.StreamReader(fs, Encoding.UTF8)
+                                    Dim line = reader.ReadLine()
+                                    While line IsNot Nothing
+                                        line = line.Trim()
+                                        If line.Length > 0 Then
+                                            RaiseEvent StderrLine(Me, line)
+                                        End If
+                                        line = reader.ReadLine()
+                                    End While
+                                    lastPos = fs.Position
+                                End Using
+                            End Using
+                        End If
+                    Catch ex As IO.IOException
+                        ' File may be locked during rotation — retry next cycle
+                    End Try
+                    Thread.Sleep(250)
+                End While
+            Catch ex As OperationCanceledException
+                ' Normal shutdown
+            Catch ex As Exception
+                Services.Infrastructure.AppLogger.Log($"[{Label}] Log tail failed: {ex.Message}")
+            End Try
         End Sub
 
         ' ── Stop ──

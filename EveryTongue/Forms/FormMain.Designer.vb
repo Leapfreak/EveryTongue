@@ -181,6 +181,9 @@ Partial Class FormMain
         ctxTransOutputSelectAll = New ToolStripMenuItem()
         trayMenu = New ContextMenuStrip(components)
         trayMenuAbout = New ToolStripMenuItem()
+        traySep0 = New ToolStripSeparator()
+        trayMenuQR = New ToolStripMenuItem()
+        trayMenuBrowser = New ToolStripMenuItem()
         traySep1 = New ToolStripSeparator()
         trayMenuShow = New ToolStripMenuItem()
         traySep2 = New ToolStripSeparator()
@@ -1603,36 +1606,53 @@ Partial Class FormMain
 
         ' trayMenu
         '
-        trayMenu.Items.AddRange(New ToolStripItem() {trayMenuAbout, traySep1, trayMenuShow, traySep2, trayMenuExit})
+        trayMenu.Items.AddRange(New ToolStripItem() {trayMenuAbout, traySep0, trayMenuQR, trayMenuBrowser, traySep1, trayMenuShow, traySep2, trayMenuExit})
         trayMenu.Name = "trayMenu"
-        trayMenu.Size = New Size(117, 82)
-        ' 
+        trayMenu.Size = New Size(181, 148)
+        '
         ' trayMenuAbout
-        ' 
+        '
         trayMenuAbout.Name = "trayMenuAbout"
-        trayMenuAbout.Size = New Size(116, 22)
+        trayMenuAbout.Size = New Size(180, 22)
         trayMenuAbout.Text = "About..."
-        ' 
+        '
+        ' traySep0
+        '
+        traySep0.Name = "traySep0"
+        traySep0.Size = New Size(177, 6)
+        '
+        ' trayMenuQR
+        '
+        trayMenuQR.Name = "trayMenuQR"
+        trayMenuQR.Size = New Size(180, 22)
+        trayMenuQR.Text = "Show QR Code"
+        '
+        ' trayMenuBrowser
+        '
+        trayMenuBrowser.Name = "trayMenuBrowser"
+        trayMenuBrowser.Size = New Size(180, 22)
+        trayMenuBrowser.Text = "Open in Browser"
+        '
         ' traySep1
-        ' 
+        '
         traySep1.Name = "traySep1"
-        traySep1.Size = New Size(113, 6)
-        ' 
+        traySep1.Size = New Size(177, 6)
+        '
         ' trayMenuShow
-        ' 
+        '
         trayMenuShow.Name = "trayMenuShow"
-        trayMenuShow.Size = New Size(116, 22)
+        trayMenuShow.Size = New Size(180, 22)
         trayMenuShow.Text = "Show"
-        ' 
+        '
         ' traySep2
-        ' 
+        '
         traySep2.Name = "traySep2"
-        traySep2.Size = New Size(113, 6)
-        ' 
+        traySep2.Size = New Size(177, 6)
+        '
         ' trayMenuExit
-        ' 
+        '
         trayMenuExit.Name = "trayMenuExit"
-        trayMenuExit.Size = New Size(116, 22)
+        trayMenuExit.Size = New Size(180, 22)
         trayMenuExit.Text = "Exit"
         ' 
         ' trayIcon
@@ -1899,7 +1919,10 @@ Partial Class FormMain
     Friend WithEvents trayMenu As ContextMenuStrip
     Friend WithEvents trayMenuShow As ToolStripMenuItem
     Friend WithEvents trayMenuAbout As ToolStripMenuItem
+    Friend WithEvents trayMenuQR As ToolStripMenuItem
+    Friend WithEvents trayMenuBrowser As ToolStripMenuItem
     Friend WithEvents trayMenuExit As ToolStripMenuItem
+    Friend WithEvents traySep0 As ToolStripSeparator
     Friend WithEvents traySep1 As ToolStripSeparator
     Friend WithEvents traySep2 As ToolStripSeparator
 End Class

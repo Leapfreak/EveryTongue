@@ -244,6 +244,17 @@ Public Class FormMain
                 dlg.ShowDialog(Me)
             End Using
         End Sub
+        AddHandler trayMenuQR.Click, Sub(s, ev) ShowQrCode()
+        AddHandler trayMenuBrowser.Click, Sub(s, ev)
+            If _serverController Is Nothing OrElse _serverController.Port = 0 Then Return
+            Dim localIp = Controllers.ServerController.GetLocalIpAddress()
+            Dim url = $"https://{localIp}:{_serverController.Port + 1}"
+            Try
+                Process.Start(New ProcessStartInfo(url) With {.UseShellExecute = True})
+            Catch ex As Exception
+                WriteDebugLog($"[Tray] Failed to open browser: {ex.Message}")
+            End Try
+        End Sub
         AddHandler trayMenuExit.Click, Sub(s, ev) ExitApplication()
 
         ' Apply saved startup preference (first-run setup happens after dependency download)
