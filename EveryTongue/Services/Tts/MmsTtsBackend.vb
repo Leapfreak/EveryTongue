@@ -25,7 +25,8 @@ Namespace Services.Tts
         Private ReadOnly _host As New Pipeline.PythonSidecarHost() With {
             .Label = "MMS-TTS",
             .Port = 5092,
-            .LogFileName = "mms-tts-server.log"
+            .LogFileName = "mms-tts-server.log",
+            .BaseEventId = Services.Infrastructure.LogEvents.PYLOG_MMS_TTS
         }
 
         Public Event StatusChanged As EventHandler(Of String)
@@ -107,7 +108,7 @@ Namespace Services.Tts
             Catch ex As OperationCanceledException
                 Throw
             Catch ex As Exception
-                Services.Infrastructure.AppLogger.Log($"[ERROR] MmsTtsBackend.SynthesiseAsync: {ex.Message}")
+                Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TTS_ENGINE_ERROR, $"MmsTtsBackend.SynthesiseAsync: {ex.Message}")
             End Try
 
             Return Nothing
@@ -132,7 +133,7 @@ Namespace Services.Tts
                     $"http://127.0.0.1:{_host.Port}/health", ct)
                 Return response.IsSuccessStatusCode
             Catch ex As Exception
-                Services.Infrastructure.AppLogger.Log($"[ERROR] MmsTtsBackend.CheckHealthAsync: {ex.Message}")
+                Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TTS_ENGINE_ERROR, $"MmsTtsBackend.CheckHealthAsync: {ex.Message}")
                 Return False
             End Try
         End Function
@@ -158,7 +159,7 @@ Namespace Services.Tts
                     Return proc.ExitCode = 0
                 End Using
             Catch ex As Exception
-                Services.Infrastructure.AppLogger.Log($"[ERROR] MmsTtsBackend.CheckDepsInstalled: {ex.Message}")
+                Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TTS_ENGINE_ERROR, $"MmsTtsBackend.CheckDepsInstalled: {ex.Message}")
                 Return False
             End Try
         End Function

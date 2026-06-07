@@ -1,5 +1,6 @@
 Imports System.IO
 Imports System.Text.Json
+Imports EveryTongue.Services.Infrastructure
 
 Namespace Models
     Public Class ConfigManager
@@ -21,7 +22,7 @@ Namespace Models
                 ApplyDefaults(cfg)
                 Return cfg
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[Config] Load failed: {ex.Message}")
+                AppLogger.Log(LogEvents.CONFIG_LOAD_FAILED, $"Load failed: {ex.Message}")
                 Return New AppConfig()
             End Try
         End Function
@@ -44,7 +45,7 @@ Namespace Models
                 Dim json = JsonSerializer.Serialize(config, JsonOptions)
                 File.WriteAllText(ConfigPath, json)
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[Config] Save failed: {ex.Message}")
+                AppLogger.Log(LogEvents.CONFIG_SAVE_FAILED, $"Save failed: {ex.Message}")
             End Try
         End Sub
 
@@ -52,7 +53,7 @@ Namespace Models
             Try
                 If File.Exists(ConfigPath) Then File.Delete(ConfigPath)
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[Config] Reset failed: {ex.Message}")
+                AppLogger.Log(LogEvents.CONFIG_RESET, $"Reset failed: {ex.Message}")
             End Try
         End Sub
     End Class

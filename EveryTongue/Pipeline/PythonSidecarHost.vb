@@ -5,6 +5,7 @@ Imports System.Diagnostics
 Imports System.IO
 Imports System.Text
 Imports System.Threading
+Imports EveryTongue.Services.Infrastructure
 
 Namespace Pipeline
 
@@ -26,6 +27,12 @@ Namespace Pipeline
         Public Property AddWhisperToPath As Boolean = False
         Public Property GracefulShutdownPath As String = Nothing
         Public Property LogFileName As String = Nothing
+        Public Property BaseEventId As Integer = LogEvents.PYLOG_LIVE
+
+        ' ── Regex for parsing Python log lines: "2024-01-01 12:00:00,123 INFO message"
+        Private Shared ReadOnly _pyLogRegex As New System.Text.RegularExpressions.Regex(
+            "^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}\s+(\w+)\s+(.*)$",
+            System.Text.RegularExpressions.RegexOptions.Compiled)
 
         ' ── Events ──
 
@@ -221,6 +228,8 @@ Namespace Pipeline
                                     While line IsNot Nothing
                                         line = line.Trim()
                                         If line.Length > 0 Then
+                                            ' Parse Python log line and route to structured logging
+                                            ParseAndLogPythonLine(line)
                                             RaiseEvent StderrLine(Me, line)
                                         End If
                                         line = reader.ReadLine()
@@ -237,8 +246,34 @@ Namespace Pipeline
             Catch ex As OperationCanceledException
                 ' Normal shutdown
             Catch ex As Exception
-                Services.Infrastructure.AppLogger.Log($"[{Label}] Log tail failed: {ex.Message}")
+                AppLogger.Log(LogEvents.PIPELINE_LOG_TAIL_ERROR, $"{Label}: Log tail failed: {ex.Message}")
             End Try
+        End Sub
+
+        ''' <summary>
+        ''' Parse a Python log line (format: "2024-01-01 12:00:00,123 LEVEL message")
+        ''' and route it through structured logging with the server's BaseEventId.
+        ''' </summary>
+        Private Sub ParseAndLogPythonLine(line As String)
+            Dim m = _pyLogRegex.Match(line)
+            If m.Success Then
+                Dim levelStr = m.Groups(1).Value.ToUpperInvariant()
+                Dim message = m.Groups(2).Value
+
+                ' Map Python level to event ID offset: base+0=Info, +1=Debug, +2=Warning, +3=Error
+                Dim eventId = BaseEventId
+                Select Case levelStr
+                    Case "DEBUG" : eventId = BaseEventId + 1
+                    Case "INFO" : eventId = BaseEventId
+                    Case "WARNING" : eventId = BaseEventId + 2
+                    Case "ERROR", "CRITICAL" : eventId = BaseEventId + 3
+                End Select
+
+                AppLogger.Log(eventId, $"{Label}: {message}")
+            Else
+                ' Non-standard line (e.g. traceback continuation) — log as-is
+                AppLogger.Log(BaseEventId, $"{Label}: {line}")
+            End If
         End Sub
 
         ' ── Stop ──
@@ -259,13 +294,13 @@ Namespace Pipeline
             ' Try graceful HTTP shutdown first
             If GracefulShutdownPath IsNot Nothing Then
                 Try
-                    Services.Infrastructure.AppLogger.Log($"[{Label}] Requesting graceful shutdown on port {Port}...")
+                    AppLogger.Log(LogEvents.PIPELINE_SIDECAR_STOP, $"{Label}: Requesting graceful shutdown on port {Port}...")
                     Using client As New Net.Http.HttpClient() With {.Timeout = TimeSpan.FromSeconds(3)}
                         Dim content As New Net.Http.StringContent("{}", Encoding.UTF8, "application/json")
                         client.PostAsync($"http://127.0.0.1:{Port}{GracefulShutdownPath}", content).Wait(3000)
                     End Using
                 Catch ex As Exception
-                    Services.Infrastructure.AppLogger.Log($"[{Label}] Graceful shutdown failed, force-killing: {ex.Message}")
+                    AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"{Label}: Graceful shutdown failed, force-killing: {ex.Message}")
                 End Try
             End If
 
@@ -277,7 +312,7 @@ Namespace Pipeline
                         _process.WaitForExit(waitMs)
                     End If
                 Catch ex As Exception
-                    FormMain.WriteDebugLog($"[{Label}] Stop kill failed: {ex.Message}")
+                    AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"{Label}: Stop kill failed: {ex.Message}")
                 End Try
                 _isRunning = False
                 _process = Nothing

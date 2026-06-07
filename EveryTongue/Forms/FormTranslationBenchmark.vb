@@ -44,7 +44,7 @@ Public Class FormTranslationBenchmark
     Private Sub FormTranslationBenchmark_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Me.Icon = Owner?.Icon
         _corpus = TranslationBenchmarkRunner.LoadCorpus()
-        AppLogger.Log($"[BENCHMARK] Form loaded — corpus: {_corpus.Count} entries, " &
+        AppLogger.Log(LogEvents.BENCH_START, $"Form loaded — corpus: {_corpus.Count} entries, " &
                       $"translation: {_translationService IsNot Nothing}, " &
                       $"TTS: {_ttsService IsNot Nothing} ({_ttsBackends.Count()} backends), " &
                       $"livePort: {_liveServerPort}, " &
@@ -156,7 +156,7 @@ Public Class FormTranslationBenchmark
         Dim iterations = CInt(nudIterations.Value)
         Dim result As New BenchmarkResult() With {.Timestamp = DateTime.Now}
 
-        AppLogger.Log($"[BENCHMARK] Translation Pipeline starting — {filtered.Count} sentences, " &
+        AppLogger.Log(LogEvents.BENCH_START, $"Translation Pipeline starting — {filtered.Count} sentences, " &
                       $"{targets.Count} targets, concurrency={concurrency}, iterations={iterations}, " &
                       $"model: {GetTranslationModelInfo()}")
 
@@ -177,18 +177,18 @@ Public Class FormTranslationBenchmark
 
             ' Save latency profile and show combined results
             TranslationBenchmarkRunner.SaveLatencyProfile(result)
-            AppLogger.Log($"[BENCHMARK] Translation Pipeline complete — {result.Stages.Count} stages, model: {GetTranslationModelInfo()}")
+            AppLogger.Log(LogEvents.BENCH_COMPLETE, $"Translation Pipeline complete — {result.Stages.Count} stages, model: {GetTranslationModelInfo()}")
             ShowResult(result)
             AutoSaveResults()
 
         Catch ex As OperationCanceledException
             result.Resources = monitor.Stop()
-            AppLogger.Log("[BENCHMARK] Translation Pipeline cancelled by user")
+            AppLogger.Log(LogEvents.BENCH_COMPLETE, "Translation Pipeline cancelled by user")
             lblSummary.Text = "Benchmark cancelled."
             lblProgress.Text = ""
         Catch ex As Exception
             result.Resources = monitor.Stop()
-            AppLogger.Log($"[BENCHMARK] Translation Pipeline error: {ex.Message}")
+            AppLogger.Log(LogEvents.BENCH_ERROR, $"Translation Pipeline error: {ex.Message}")
             lblSummary.Text = $"Error: {ex.Message}"
         Finally
             btnRun.Enabled = True
@@ -394,7 +394,7 @@ Public Class FormTranslationBenchmark
         lblSttProgress.ForeColor = Color.Gray
         lblSttProgress.Text = "Starting comparison..."
 
-        AppLogger.Log($"[BENCHMARK] STT Comparison starting — audio: {txtSttAudioFile.Text}, " &
+        AppLogger.Log(LogEvents.BENCH_START, $"STT Comparison starting — audio: {txtSttAudioFile.Text}, " &
                       $"iterations: {nudSttIterations.Value}, engines: {String.Join(", ", enabled)}, " &
                       $"model: {GetSttModelInfo()}")
 
@@ -405,14 +405,14 @@ Public Class FormTranslationBenchmark
             _lastSttResult = result
             StampModelInfo(result.Resources, GetSttModelInfo())
             btnSttExport.Enabled = True
-            AppLogger.Log($"[BENCHMARK] STT Comparison complete — {result.Backends.Count} backends tested, model: {GetSttModelInfo()}")
+            AppLogger.Log(LogEvents.BENCH_COMPLETE, $"STT Comparison complete — {result.Backends.Count} backends tested, model: {GetSttModelInfo()}")
             ShowSttComparisonResult(result)
             AutoSaveResults()
         Catch ex As OperationCanceledException
-            AppLogger.Log("[BENCHMARK] STT Comparison cancelled by user")
+            AppLogger.Log(LogEvents.BENCH_COMPLETE, "STT Comparison cancelled by user")
             lblSttProgress.Text = "Comparison cancelled."
         Catch ex As Exception
-            AppLogger.Log($"[BENCHMARK] STT Comparison error: {ex.Message}")
+            AppLogger.Log(LogEvents.BENCH_ERROR, $"STT Comparison error: {ex.Message}")
             lblSttProgress.ForeColor = Color.Red
             lblSttProgress.Text = $"Error: {ex.Message}"
         Finally
@@ -646,7 +646,7 @@ Public Class FormTranslationBenchmark
         lblConcProgress.ForeColor = Color.Gray
         lblConcProgress.Text = "Starting..."
 
-        AppLogger.Log($"[BENCHMARK] STT Concurrency starting — audio: {txtConcAudioFile.Text}, " &
+        AppLogger.Log(LogEvents.BENCH_START, $"STT Concurrency starting — audio: {txtConcAudioFile.Text}, " &
                       $"levels: [{String.Join(", ", levels)}], iterations: {nudConcIterations.Value}, " &
                       $"model: {GetSttModelInfo()}")
 
@@ -657,14 +657,14 @@ Public Class FormTranslationBenchmark
             _lastConcResult = result
             StampModelInfo(result.Resources, GetSttModelInfo())
             btnConcExport.Enabled = True
-            AppLogger.Log($"[BENCHMARK] STT Concurrency complete — {result.Levels.Count} levels, backend: {result.BackendName}, model: {GetSttModelInfo()}")
+            AppLogger.Log(LogEvents.BENCH_COMPLETE, $"STT Concurrency complete — {result.Levels.Count} levels, backend: {result.BackendName}, model: {GetSttModelInfo()}")
             ShowConcurrentResult(result)
             AutoSaveResults()
         Catch ex As OperationCanceledException
-            AppLogger.Log("[BENCHMARK] STT Concurrency cancelled by user")
+            AppLogger.Log(LogEvents.BENCH_COMPLETE, "STT Concurrency cancelled by user")
             lblConcProgress.Text = "Test cancelled."
         Catch ex As Exception
-            AppLogger.Log($"[BENCHMARK] STT Concurrency error: {ex.Message}")
+            AppLogger.Log(LogEvents.BENCH_ERROR, $"STT Concurrency error: {ex.Message}")
             lblConcProgress.ForeColor = Color.Red
             lblConcProgress.Text = $"Error: {ex.Message}"
         Finally
@@ -825,7 +825,7 @@ Public Class FormTranslationBenchmark
         lblTransConcProgress.ForeColor = Color.Gray
         lblTransConcProgress.Text = "Starting..."
 
-        AppLogger.Log($"[BENCHMARK] Translation Concurrency starting — " &
+        AppLogger.Log(LogEvents.BENCH_START, $"Translation Concurrency starting — " &
                       $"{targets.Count} targets ({String.Join(", ", targets)}), " &
                       $"levels: [{String.Join(", ", levels)}], iterations: {nudTransConcIterations.Value}, " &
                       $"model: {GetTranslationModelInfo()}")
@@ -837,14 +837,14 @@ Public Class FormTranslationBenchmark
             _lastTransConcResult = result
             StampModelInfo(result.Resources, GetTranslationModelInfo())
             btnTransConcExport.Enabled = True
-            AppLogger.Log($"[BENCHMARK] Translation Concurrency complete — {result.Levels.Count} levels, backend: {result.BackendName}, model: {GetTranslationModelInfo()}")
+            AppLogger.Log(LogEvents.BENCH_COMPLETE, $"Translation Concurrency complete — {result.Levels.Count} levels, backend: {result.BackendName}, model: {GetTranslationModelInfo()}")
             ShowTransConcResult(result)
             AutoSaveResults()
         Catch ex As OperationCanceledException
-            AppLogger.Log("[BENCHMARK] Translation Concurrency cancelled by user")
+            AppLogger.Log(LogEvents.BENCH_COMPLETE, "Translation Concurrency cancelled by user")
             lblTransConcProgress.Text = "Test cancelled."
         Catch ex As Exception
-            AppLogger.Log($"[BENCHMARK] Translation Concurrency error: {ex.Message}")
+            AppLogger.Log(LogEvents.BENCH_ERROR, $"Translation Concurrency error: {ex.Message}")
             lblTransConcProgress.ForeColor = Color.Red
             lblTransConcProgress.Text = $"Error: {ex.Message}"
         Finally
@@ -1008,7 +1008,7 @@ Public Class FormTranslationBenchmark
         lblTtsProgress.ForeColor = Color.Gray
         lblTtsProgress.Text = "Starting comparison..."
 
-        AppLogger.Log($"[BENCHMARK] TTS Comparison starting — " &
+        AppLogger.Log(LogEvents.BENCH_START, $"TTS Comparison starting — " &
                       $"backends: [{String.Join(", ", selectedBackends.Select(Function(b) b.Name))}], " &
                       $"language: {language}, iterations: {nudTtsIterations.Value}, " &
                       $"text: ""{txtTtsText.Text.Substring(0, Math.Min(60, txtTtsText.Text.Length))}""")
@@ -1021,14 +1021,14 @@ Public Class FormTranslationBenchmark
             Dim ttsModels = String.Join(", ", result.Backends.Where(Function(b) Not b.Skipped AndAlso Not b.Failed).Select(Function(b) b.BackendName))
             StampModelInfo(result.Resources, $"TTS engines: {ttsModels}")
             btnTtsExport.Enabled = True
-            AppLogger.Log($"[BENCHMARK] TTS Comparison complete — {result.Backends.Count} backends tested ({ttsModels})")
+            AppLogger.Log(LogEvents.BENCH_COMPLETE, $"TTS Comparison complete — {result.Backends.Count} backends tested ({ttsModels})")
             ShowTtsComparisonResult(result)
             AutoSaveResults()
         Catch ex As OperationCanceledException
-            AppLogger.Log("[BENCHMARK] TTS Comparison cancelled by user")
+            AppLogger.Log(LogEvents.BENCH_COMPLETE, "TTS Comparison cancelled by user")
             lblTtsProgress.Text = "Comparison cancelled."
         Catch ex As Exception
-            AppLogger.Log($"[BENCHMARK] TTS Comparison error: {ex.Message}")
+            AppLogger.Log(LogEvents.BENCH_ERROR, $"TTS Comparison error: {ex.Message}")
             lblTtsProgress.ForeColor = Color.Red
             lblTtsProgress.Text = $"Error: {ex.Message}"
         Finally
@@ -1208,7 +1208,7 @@ Public Class FormTranslationBenchmark
         lblTtsConcProgress.ForeColor = Color.Gray
         lblTtsConcProgress.Text = "Starting..."
 
-        AppLogger.Log($"[BENCHMARK] TTS Concurrency starting — backend: {backend.Name}, " &
+        AppLogger.Log(LogEvents.BENCH_START, $"TTS Concurrency starting — backend: {backend.Name}, " &
                       $"language: {language}, levels: [{String.Join(", ", levels)}], " &
                       $"iterations: {nudTtsConcIterations.Value}")
 
@@ -1219,14 +1219,14 @@ Public Class FormTranslationBenchmark
             _lastTtsConcResult = result
             StampModelInfo(result.Resources, $"TTS engine: {result.BackendName}")
             btnTtsConcExport.Enabled = True
-            AppLogger.Log($"[BENCHMARK] TTS Concurrency complete — {result.Levels.Count} levels, backend: {result.BackendName}")
+            AppLogger.Log(LogEvents.BENCH_COMPLETE, $"TTS Concurrency complete — {result.Levels.Count} levels, backend: {result.BackendName}")
             ShowTtsConcResult(result)
             AutoSaveResults()
         Catch ex As OperationCanceledException
-            AppLogger.Log("[BENCHMARK] TTS Concurrency cancelled by user")
+            AppLogger.Log(LogEvents.BENCH_COMPLETE, "TTS Concurrency cancelled by user")
             lblTtsConcProgress.Text = "Test cancelled."
         Catch ex As Exception
-            AppLogger.Log($"[BENCHMARK] TTS Concurrency error: {ex.Message}")
+            AppLogger.Log(LogEvents.BENCH_ERROR, $"TTS Concurrency error: {ex.Message}")
             lblTtsConcProgress.ForeColor = Color.Red
             lblTtsConcProgress.Text = $"Error: {ex.Message}"
         Finally
@@ -1490,7 +1490,7 @@ Public Class FormTranslationBenchmark
             If dlg.ShowDialog() <> DialogResult.OK Then Return
 
             File.WriteAllText(dlg.FileName, csv, Encoding.UTF8)
-            AppLogger.Log($"[BENCHMARK] Export All saved to {dlg.FileName}")
+            AppLogger.Log(LogEvents.BENCH_RESULT, $"Export All saved to {dlg.FileName}")
             MessageBox.Show($"Exported to {dlg.FileName}", "Export All", MessageBoxButtons.OK, MessageBoxIcon.Information)
         End Using
     End Sub
@@ -1510,11 +1510,11 @@ Public Class FormTranslationBenchmark
 
             lblAutoSaveStatus.ForeColor = Color.Gray
             lblAutoSaveStatus.Text = $"Auto-saved: {Path.GetFileName(filePath)}"
-            AppLogger.Log($"[BENCHMARK] Auto-saved to {filePath}")
+            AppLogger.Log(LogEvents.BENCH_RESULT, $"Auto-saved to {filePath}")
         Catch ex As Exception
             lblAutoSaveStatus.ForeColor = Color.OrangeRed
             lblAutoSaveStatus.Text = $"Auto-save failed: {ex.Message}"
-            AppLogger.Log($"[BENCHMARK] Auto-save error: {ex.Message}")
+            AppLogger.Log(LogEvents.BENCH_ERROR, $"Auto-save error: {ex.Message}")
         End Try
     End Sub
 

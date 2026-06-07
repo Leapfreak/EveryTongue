@@ -5,6 +5,7 @@ Imports System.Text
 Imports System.Text.Json
 Imports System.Threading
 Imports EveryTongue.Models
+Imports EveryTongue.Services.Infrastructure
 
 Namespace Pipeline
     Public Class PipelineRunner
@@ -203,7 +204,7 @@ Namespace Pipeline
                         If File.Exists(chunkPaths(i)) Then File.Delete(chunkPaths(i))
                         If File.Exists(srtPaths(i)) Then File.Delete(srtPaths(i))
                     Catch ex As Exception
-                        FormMain.WriteDebugLog($"[Pipeline] Failed to delete chunk file: {ex.Message}")
+                        AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"Failed to delete chunk file: {ex.Message}")
                     End Try
                 Next
                 Log("Chunk files cleaned up.")
@@ -214,7 +215,7 @@ Namespace Pipeline
                 Try
                     If File.Exists(previewPath) Then File.Delete(previewPath)
                 Catch ex As Exception
-                    FormMain.WriteDebugLog($"[Pipeline] Failed to delete preview file: {ex.Message}")
+                    AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"Failed to delete preview file: {ex.Message}")
                 End Try
             End If
 
@@ -385,7 +386,7 @@ Namespace Pipeline
                 Try
                     If File.Exists(previewPath) Then File.Delete(previewPath)
                 Catch ex As Exception
-                    FormMain.WriteDebugLog($"[Pipeline] Failed to delete preview file: {ex.Message}")
+                    AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"Failed to delete preview file: {ex.Message}")
                 End Try
             End If
 
@@ -521,7 +522,7 @@ Namespace Pipeline
                         If File.Exists(chunkPaths(i)) Then File.Delete(chunkPaths(i))
                         If File.Exists(srtPaths(i)) Then File.Delete(srtPaths(i))
                     Catch ex As Exception
-                        FormMain.WriteDebugLog($"[Pipeline] Failed to delete chunk file: {ex.Message}")
+                        AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"Failed to delete chunk file: {ex.Message}")
                     End Try
                 Next
                 Log("Chunk files cleaned up.")
@@ -615,7 +616,7 @@ Namespace Pipeline
                     Try
                         If Not proc.HasExited Then proc.Kill(True)
                     Catch ex As Exception
-                        FormMain.WriteDebugLog($"[Pipeline] Failed to kill process: {ex.Message}")
+                        AppLogger.Log(LogEvents.PIPELINE_PROCESS_KILL, $"Failed to kill process: {ex.Message}")
                     End Try
                     proc.Dispose()
                 Next

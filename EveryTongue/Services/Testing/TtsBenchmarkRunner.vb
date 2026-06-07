@@ -36,9 +36,9 @@ Namespace Services.Testing
                 Return result
             End If
 
-            AppLogger.Log($"[TTS-BENCHMARK] ═══════════════════════════════════════════════")
-            AppLogger.Log($"[TTS-BENCHMARK] Text: {testText.Substring(0, Math.Min(80, testText.Length))}...")
-            AppLogger.Log($"[TTS-BENCHMARK] Language: {language}, Iterations: {iterations}")
+            AppLogger.Log(LogEvents.BENCH_START, $"═══════════════════════════════════════════════")
+            AppLogger.Log(LogEvents.BENCH_START, $"Text: {testText.Substring(0, Math.Min(80, testText.Length))}...")
+            AppLogger.Log(LogEvents.BENCH_START, $"Language: {language}, Iterations: {iterations}")
 
             ' Start resource monitoring
             Dim monitor As New ResourceMonitor(500)
@@ -53,14 +53,14 @@ Namespace Services.Testing
                     }
 
                     RaiseProgress($"Testing {backend.Name}...")
-                    AppLogger.Log($"[TTS-BENCHMARK] ── {backend.Name} ──")
+                    AppLogger.Log(LogEvents.BENCH_PROGRESS, $"── {backend.Name} ──")
 
                     ' Health check
                     Dim healthy = Await backend.CheckHealthAsync(token)
                     If Not healthy Then
                         backendResult.Skipped = True
                         backendResult.SkipReason = "Not available (health check failed)"
-                        AppLogger.Log($"[TTS-BENCHMARK]   Skipped: health check failed")
+                        AppLogger.Log(LogEvents.BENCH_PROGRESS, $"  Skipped: health check failed")
                         result.Backends.Add(backendResult)
                         Continue For
                     End If
@@ -70,7 +70,7 @@ Namespace Services.Testing
                     If Not langSupported Then
                         backendResult.Skipped = True
                         backendResult.SkipReason = $"Language '{language}' not supported"
-                        AppLogger.Log($"[TTS-BENCHMARK]   Skipped: language not supported")
+                        AppLogger.Log(LogEvents.BENCH_PROGRESS, $"  Skipped: language not supported")
                         result.Backends.Add(backendResult)
                         Continue For
                     End If
@@ -84,7 +84,7 @@ Namespace Services.Testing
                     Catch ex As Exception
                         backendResult.Failed = True
                         backendResult.ErrorMessage = $"Warm-up failed: {ex.Message}"
-                        AppLogger.Log($"[TTS-BENCHMARK]   Failed warm-up: {ex.Message}")
+                        AppLogger.Log(LogEvents.BENCH_ERROR, $"  Failed warm-up: {ex.Message}")
                         result.Backends.Add(backendResult)
                         Continue For
                     End Try
@@ -117,7 +117,7 @@ Namespace Services.Testing
                             sw.Stop()
                             latencies.Add(sw.ElapsedMilliseconds)
                             errors += 1
-                            Services.Infrastructure.AppLogger.Log($"[TTS-BENCHMARK] Synthesis error: {ex.Message}")
+                            Services.Infrastructure.AppLogger.Log(LogEvents.BENCH_ERROR, $"Synthesis error: {ex.Message}")
                         End Try
                     Next
 
@@ -135,7 +135,7 @@ Namespace Services.Testing
                         backendResult.P95LatencyMs = Percentile(latencies, 95)
                     End If
 
-                    AppLogger.Log($"[TTS-BENCHMARK]   Avg: {backendResult.AvgLatencyMs}ms, " &
+                    AppLogger.Log(LogEvents.BENCH_RESULT, $"  Avg: {backendResult.AvgLatencyMs}ms, " &
                                   $"Min: {backendResult.MinLatencyMs}ms, Max: {backendResult.MaxLatencyMs}ms, " &
                                   $"Audio: {backendResult.AvgAudioBytes \ 1024}KB, Errors: {errors}")
 
@@ -152,7 +152,7 @@ Namespace Services.Testing
                 End If
 
                 result.Resources = monitor.Stop()
-                AppLogger.Log($"[TTS-BENCHMARK] Resources: {result.Resources.ToSummaryText()}")
+                AppLogger.Log(LogEvents.BENCH_COMPLETE, $"Resources: {result.Resources.ToSummaryText()}")
                 RaiseProgress("TTS comparison complete.")
 
             Catch ex As OperationCanceledException When token.IsCancellationRequested
@@ -171,7 +171,7 @@ Namespace Services.Testing
         End Function
 
         Private Sub RaiseProgress(msg As String)
-            AppLogger.Log($"[TTS-BENCHMARK] {msg}")
+            AppLogger.Log(LogEvents.BENCH_PROGRESS, msg)
             RaiseEvent ProgressChanged(Me, msg)
         End Sub
 

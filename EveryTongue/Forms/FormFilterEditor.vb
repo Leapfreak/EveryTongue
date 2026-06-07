@@ -733,17 +733,17 @@ Partial Public Class FormFilterEditor
         Try
             Await _httpClient.PostAsync($"http://127.0.0.1:{_livePort}/hallucinations/reload", content)
         Catch ex As Exception
-            FormMain.WriteDebugLog($"[ERROR] ReloadServersAsync (hallucinations/reload): {ex.Message}")
+            AppLogger.Log(LogEvents.UI_ERROR, $"ReloadServersAsync (hallucinations/reload): {ex.Message}")
         End Try
         Try
             Await _httpClient.PostAsync($"http://127.0.0.1:{_transPort}/glossary/reload", New StringContent("{}", Encoding.UTF8, "application/json"))
         Catch ex As Exception
-            FormMain.WriteDebugLog($"[ERROR] ReloadServersAsync (glossary/reload): {ex.Message}")
+            AppLogger.Log(LogEvents.UI_ERROR, $"ReloadServersAsync (glossary/reload): {ex.Message}")
         End Try
         Try
             Await _httpClient.PostAsync($"http://127.0.0.1:{_transPort}/profanity/reload", New StringContent("{}", Encoding.UTF8, "application/json"))
         Catch ex As Exception
-            FormMain.WriteDebugLog($"[ERROR] ReloadServersAsync (profanity/reload): {ex.Message}")
+            AppLogger.Log(LogEvents.UI_ERROR, $"ReloadServersAsync (profanity/reload): {ex.Message}")
         End Try
     End Sub
 

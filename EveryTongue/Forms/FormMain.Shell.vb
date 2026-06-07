@@ -5,6 +5,7 @@
 Imports System.Drawing
 Imports System.Threading
 Imports System.IO.Compression
+Imports EveryTongue.Services.Infrastructure
 
 Partial Class FormMain
 
@@ -16,11 +17,13 @@ Partial Class FormMain
     Private _activeNavButton As ToolStripButton
     Private _formQr As FormQrCode
     Private _logPanelVisible As Boolean = False
-    Private ReadOnly _unifiedLogBuffer As New System.Collections.Concurrent.ConcurrentQueue(Of (Time As DateTime, Source As String, Text As String, Color As Drawing.Color))
-    Private ReadOnly _unifiedLogEntries As New List(Of (Time As DateTime, Source As String, Text As String, Color As Drawing.Color))
+    Private ReadOnly _unifiedLogBuffer As New System.Collections.Concurrent.ConcurrentQueue(Of Services.Infrastructure.LogEntry)
+    Private ReadOnly _unifiedLogEntries As New List(Of Services.Infrastructure.LogEntry)
     Private _unifiedLogPending As Integer = 0
     Private Const UnifiedLogMaxLines As Integer = 3000
-    Private _lastLogFilter As String = "All"
+    Private _logAutoScroll As Boolean = True
+    Private _lastCategoryFilter As String = "All"
+    Private _lastLevelFilter As String = "All"
     Friend _logDarkMode As Boolean = False
 
     ' ── Constants ───────────────────────────────────────────────────
@@ -154,20 +157,37 @@ Partial Class FormMain
         AddHandler tslLogToggle.Click, Sub(s, e) ToggleLogPanel()
 
         ' ── Wire log panel handlers ──────────────────────────────
-        AddHandler cboLogFilter.SelectedIndexChanged, Sub(s, e)
-                                                           _lastLogFilter = "" ' Force re-render
-                                                           FlushUnifiedLog()
-                                                       End Sub
+        ' Populate category filter from enum
+        cboLogCategory.Items.Add("All")
+        For Each cat In [Enum].GetValues(GetType(Services.Infrastructure.LogCategory)).Cast(Of Services.Infrastructure.LogCategory)()
+            cboLogCategory.Items.Add(cat.ToString())
+        Next
+        cboLogCategory.SelectedIndex = 0
+        cboLogLevel.SelectedIndex = 0
+
+        AddHandler cboLogCategory.SelectedIndexChanged, Sub(s, e) RenderFilteredLog()
+        AddHandler cboLogLevel.SelectedIndexChanged, Sub(s, e) RenderFilteredLog()
         AddHandler btnLogClear.Click, Sub(s, e)
-                                           rtbUnifiedLog.Clear()
                                            _unifiedLogEntries.Clear()
-                                           rtbUnifiedLog.Tag = 0
+                                           dgvLog.Rows.Clear()
                                        End Sub
         AddHandler btnLogCopy.Click, Sub(s, e)
-                                          If rtbUnifiedLog.TextLength > 0 Then
-                                              Clipboard.SetText(rtbUnifiedLog.Text)
+                                          Dim sb As New System.Text.StringBuilder()
+                                          For Each row As DataGridViewRow In dgvLog.SelectedRows
+                                              sb.AppendLine($"{row.Cells(0).Value}  {row.Cells(1).Value}  {row.Cells(2).Value}  {row.Cells(3).Value}")
+                                          Next
+                                          If sb.Length = 0 Then
+                                              ' Nothing selected — copy all visible rows
+                                              For Each row As DataGridViewRow In dgvLog.Rows
+                                                  sb.AppendLine($"{row.Cells(0).Value}  {row.Cells(1).Value}  {row.Cells(2).Value}  {row.Cells(3).Value}")
+                                              Next
                                           End If
+                                          If sb.Length > 0 Then Clipboard.SetText(sb.ToString())
                                       End Sub
+        AddHandler btnLogPause.Click, Sub(s, e)
+                                           _logAutoScroll = Not _logAutoScroll
+                                           btnLogPause.Text = If(_logAutoScroll, "Pause", ChrW(&H25B6))
+                                       End Sub
         AddHandler btnLogSearchNext.Click, Sub(s, e) SearchLog()
         AddHandler txtLogSearch.KeyDown, Sub(s, e)
                                               If e.KeyCode = Keys.Enter Then
@@ -175,6 +195,24 @@ Partial Class FormMain
                                                   SearchLog()
                                               End If
                                           End Sub
+        ' Enable double-buffered rendering on the DataGridView
+        Dim dgvType = GetType(DataGridView)
+        Dim pi = dgvType.GetProperty("DoubleBuffered", Reflection.BindingFlags.Instance Or Reflection.BindingFlags.NonPublic)
+        pi?.SetValue(dgvLog, True)
+
+        AddHandler mnuToolsLogConfig.Click, Sub(s, e) ShowLogConfig()
+
+        ' Show event description tooltip on hover
+        dgvLog.ShowCellToolTips = True
+        AddHandler dgvLog.CellToolTipTextNeeded, Sub(s, e2)
+                                                      If e2.RowIndex < 0 OrElse e2.RowIndex >= dgvLog.Rows.Count Then Return
+                                                      Dim entry = TryCast(dgvLog.Rows(e2.RowIndex).Tag, LogEntry)
+                                                      If entry Is Nothing OrElse entry.EventId = 0 Then Return
+                                                      Dim info = LogEventRegistry.Lookup(entry.EventId)
+                                                      If info IsNot Nothing Then
+                                                          e2.ToolTipText = $"[{info.Id}] {info.Description}"
+                                                      End If
+                                                  End Sub
 
         ' ── Wire translate workspace — delegated to TranslateController ──
         _translateController = New Controllers.TranslateController(
@@ -190,7 +228,7 @@ Partial Class FormMain
             AddressOf LangCodeFromDisplay,
             AddressOf StartTranslationService,
             Function() _translationService,
-            Sub(msg) WriteDebugLog(msg),
+            Sub(msg) AppLogger.Log(LogEvents.TRANS_REQUEST, msg),
             AddressOf GetString)
         _translateController.WireEvents()
         _translateController.WireContextMenus(ctxTransInputCut, ctxTransInputCopy, ctxTransInputPaste,
@@ -204,13 +242,13 @@ Partial Class FormMain
                                            End If
                                        End Sub
 
-        ' ── Position toolbar and rtb inside log panel (no docking) ──
+        ' ── Position toolbar and dgv inside log panel (no docking) ──
         Dim layoutLogPanel = Sub()
                                   Dim w = pnlLogPanel.ClientSize.Width
                                   Dim h = pnlLogPanel.ClientSize.Height
                                   If w > 0 AndAlso h > 0 Then
                                       Dim tbH = 30
-                                      rtbUnifiedLog.SetBounds(0, 38, w, h - tbH - 38)
+                                      dgvLog.SetBounds(0, 38, w, h - tbH - 38)
                                       pnlLogToolbar.SetBounds(0, h - tbH, w, tbH)
                                       pnlLogToolbar.BringToFront()
                                   End If
@@ -333,16 +371,16 @@ Partial Class FormMain
     End Sub
 
     ''' <summary>
-    ''' Appends a message to the unified log panel. Thread-safe.
+    ''' Appends a structured log entry to the log panel. Thread-safe.
     ''' </summary>
-    Friend Sub AppendUnifiedLog(source As String, text As String, color As Drawing.Color)
-        If rtbUnifiedLog Is Nothing Then Return
+    Friend Sub AppendUnifiedLog(entry As Services.Infrastructure.LogEntry)
+        If dgvLog Is Nothing Then Return
 
-        _unifiedLogBuffer.Enqueue((DateTime.Now, source, text, color))
+        _unifiedLogBuffer.Enqueue(entry)
 
         If Threading.Interlocked.CompareExchange(_unifiedLogPending, 1, 0) = 0 Then
-            If rtbUnifiedLog.IsHandleCreated Then
-                rtbUnifiedLog.BeginInvoke(Sub() FlushUnifiedLog())
+            If dgvLog.IsHandleCreated Then
+                dgvLog.BeginInvoke(Sub() FlushUnifiedLog())
             Else
                 Threading.Interlocked.Exchange(_unifiedLogPending, 0)
             End If
@@ -352,116 +390,118 @@ Partial Class FormMain
     Private Sub FlushUnifiedLog()
         Threading.Interlocked.Exchange(_unifiedLogPending, 0)
 
-        Dim filter = ""
-        If cboLogFilter.InvokeRequired Then
-            filter = CStr(cboLogFilter.Invoke(Function() If(cboLogFilter.SelectedItem, "All").ToString()))
-        Else
-            filter = If(cboLogFilter.SelectedItem, "All").ToString()
-        End If
-
         ' Drain queue into backing list
-        Dim entry As (Time As DateTime, Source As String, Text As String, Color As Drawing.Color) = (DateTime.MinValue, "", "", Color.White)
+        Dim entry As Services.Infrastructure.LogEntry = Nothing
         While _unifiedLogBuffer.TryDequeue(entry)
             _unifiedLogEntries.Add(entry)
         End While
 
-        ' Trim backing list — if trimmed, force a full re-render so the
-        ' rendered-count Tag stays in sync (otherwise new entries never appear)
-        Dim trimmed = False
+        ' Trim backing list
         If _unifiedLogEntries.Count > UnifiedLogMaxLines Then
             _unifiedLogEntries.RemoveRange(0, _unifiedLogEntries.Count - UnifiedLogMaxLines)
-            trimmed = True
-        End If
-
-        ' If filter changed or list was trimmed, do a full re-render
-        If trimmed OrElse filter <> _lastLogFilter Then
-            _lastLogFilter = filter
-            RenderUnifiedLog(filter)
+            RenderFilteredLog()
             Return
         End If
 
-        ' Append only new entries
-        SendMessage(rtbUnifiedLog.Handle, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero)
-        Try
-            For i = Math.Max(0, _unifiedLogEntries.Count - 500) To _unifiedLogEntries.Count - 1
-                Dim e = _unifiedLogEntries(i)
-                ' Only append entries that haven't been rendered yet
-                ' We track rendered count via rtbUnifiedLog.Tag
-                Dim rendered = If(TypeOf rtbUnifiedLog.Tag Is Integer, CInt(rtbUnifiedLog.Tag), 0)
-                If i < rendered Then Continue For
+        ' Append only new entries that pass the current filter
+        Dim catFilter = If(cboLogCategory.SelectedItem, "All").ToString()
+        Dim lvlFilter = If(cboLogLevel.SelectedItem, "All").ToString()
+        Dim rendered = If(TypeOf dgvLog.Tag Is Integer, CInt(dgvLog.Tag), 0)
 
-                If filter <> "All" AndAlso Not e.Source.Equals(filter, StringComparison.OrdinalIgnoreCase) Then
-                    Continue For
-                End If
-                AppendLogEntry(e)
-            Next
-            rtbUnifiedLog.Tag = _unifiedLogEntries.Count
-        Finally
-            SendMessage(rtbUnifiedLog.Handle, WM_SETREDRAW, New IntPtr(1), IntPtr.Zero)
-            rtbUnifiedLog.Invalidate()
-        End Try
+        For i = rendered To _unifiedLogEntries.Count - 1
+            Dim e = _unifiedLogEntries(i)
+            If PassesFilter(e, catFilter, lvlFilter) Then
+                AddLogRow(e)
+            End If
+        Next
+        dgvLog.Tag = _unifiedLogEntries.Count
 
-        SendMessage(rtbUnifiedLog.Handle, WM_VSCROLL, New IntPtr(SB_BOTTOM), IntPtr.Zero)
+        If _logAutoScroll AndAlso dgvLog.Rows.Count > 0 Then
+            dgvLog.FirstDisplayedScrollingRowIndex = dgvLog.Rows.Count - 1
+        End If
     End Sub
 
-    ''' <summary>Re-renders the entire unified log for the given filter.</summary>
-    Private Sub RenderUnifiedLog(filter As String)
-        SendMessage(rtbUnifiedLog.Handle, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero)
-        Try
-            rtbUnifiedLog.Clear()
-            For Each e In _unifiedLogEntries
-                If filter <> "All" AndAlso Not e.Source.Equals(filter, StringComparison.OrdinalIgnoreCase) Then
-                    Continue For
-                End If
-                AppendLogEntry(e)
-            Next
-            rtbUnifiedLog.Tag = _unifiedLogEntries.Count
-        Finally
-            SendMessage(rtbUnifiedLog.Handle, WM_SETREDRAW, New IntPtr(1), IntPtr.Zero)
-            rtbUnifiedLog.Invalidate()
-        End Try
-        SendMessage(rtbUnifiedLog.Handle, WM_VSCROLL, New IntPtr(SB_BOTTOM), IntPtr.Zero)
+    ''' <summary>Re-renders the entire log for current filter settings.</summary>
+    Private Sub RenderFilteredLog()
+        Dim catFilter = If(cboLogCategory.SelectedItem, "All").ToString()
+        Dim lvlFilter = If(cboLogLevel.SelectedItem, "All").ToString()
+
+        dgvLog.Rows.Clear()
+        For Each e In _unifiedLogEntries
+            If PassesFilter(e, catFilter, lvlFilter) Then
+                AddLogRow(e)
+            End If
+        Next
+        dgvLog.Tag = _unifiedLogEntries.Count
+
+        If _logAutoScroll AndAlso dgvLog.Rows.Count > 0 Then
+            dgvLog.FirstDisplayedScrollingRowIndex = dgvLog.Rows.Count - 1
+        End If
     End Sub
 
-    Private _logSearchPos As Integer = 0
+    Private Function PassesFilter(entry As Services.Infrastructure.LogEntry, catFilter As String, lvlFilter As String) As Boolean
+        If catFilter <> "All" Then
+            Dim catName = entry.Category.ToString()
+            ' Legacy entries also match by source name
+            If Not catName.Equals(catFilter, StringComparison.OrdinalIgnoreCase) AndAlso
+               Not entry.Source.Equals(catFilter, StringComparison.OrdinalIgnoreCase) Then
+                Return False
+            End If
+        End If
+        If lvlFilter <> "All" Then
+            Dim lvl As Services.Infrastructure.LogSeverity
+            If [Enum].TryParse(lvlFilter, lvl) Then
+                If entry.Level < lvl Then Return False
+            End If
+        End If
+        Return True
+    End Function
+
+    Private Sub AddLogRow(entry As Services.Infrastructure.LogEntry)
+        Dim idx = dgvLog.Rows.Add(
+            entry.Time.ToString("HH:mm:ss"),
+            entry.Category.ToString(),
+            entry.Level.ToString(),
+            entry.Message)
+        Dim row = dgvLog.Rows(idx)
+        row.Tag = entry
+        ' Color the row by level
+        Dim fg = LogColorForTheme(entry.Color)
+        row.DefaultCellStyle.ForeColor = fg
+    End Sub
+
+    Private _logSearchRow As Integer = 0
 
     Private Sub SearchLog()
         Dim keyword = txtLogSearch.Text.Trim()
         If keyword.Length = 0 Then Return
 
-        Dim startAt = If(_logSearchPos < rtbUnifiedLog.TextLength, _logSearchPos, 0)
-        Dim pos = rtbUnifiedLog.Find(keyword, startAt, RichTextBoxFinds.None)
-        If pos < 0 AndAlso startAt > 0 Then
-            ' Wrap around from the beginning
-            pos = rtbUnifiedLog.Find(keyword, 0, RichTextBoxFinds.None)
+        Dim startRow = If(_logSearchRow < dgvLog.Rows.Count, _logSearchRow, 0)
+        For i = startRow To dgvLog.Rows.Count - 1
+            Dim msg = If(dgvLog.Rows(i).Cells(3).Value?.ToString(), "")
+            If msg.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0 Then
+                dgvLog.ClearSelection()
+                dgvLog.Rows(i).Selected = True
+                dgvLog.FirstDisplayedScrollingRowIndex = i
+                _logSearchRow = i + 1
+                Return
+            End If
+        Next
+        ' Wrap around
+        If startRow > 0 Then
+            For i = 0 To startRow - 1
+                Dim msg = If(dgvLog.Rows(i).Cells(3).Value?.ToString(), "")
+                If msg.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0 Then
+                    dgvLog.ClearSelection()
+                    dgvLog.Rows(i).Selected = True
+                    dgvLog.FirstDisplayedScrollingRowIndex = i
+                    _logSearchRow = i + 1
+                    Return
+                End If
+            Next
         End If
-        If pos >= 0 Then
-            rtbUnifiedLog.Select(pos, keyword.Length)
-            rtbUnifiedLog.SelectionBackColor = Color.FromArgb(80, 80, 0)
-            rtbUnifiedLog.SelectionColor = Color.Yellow
-            rtbUnifiedLog.ScrollToCaret()
-            _logSearchPos = pos + keyword.Length
-        Else
-            _logSearchPos = 0
-            Media.SystemSounds.Beep.Play()
-        End If
-    End Sub
-
-    Private Sub AppendLogEntry(entry As (Time As DateTime, Source As String, Text As String, Color As Drawing.Color))
-        Dim timeColor = If(_logDarkMode, Color.FromArgb(150, 150, 150), Color.FromArgb(130, 130, 130))
-        Dim sourceColor = If(_logDarkMode, Color.FromArgb(120, 120, 120), Color.FromArgb(150, 150, 150))
-        Dim textColor = LogColorForTheme(entry.Color)
-
-        rtbUnifiedLog.SelectionStart = rtbUnifiedLog.TextLength
-        rtbUnifiedLog.SelectionLength = 0
-        rtbUnifiedLog.SelectionColor = timeColor
-        rtbUnifiedLog.AppendText($"{entry.Time:HH:mm:ss} ")
-        rtbUnifiedLog.SelectionStart = rtbUnifiedLog.TextLength
-        rtbUnifiedLog.SelectionColor = sourceColor
-        rtbUnifiedLog.AppendText($"[{entry.Source}] ")
-        rtbUnifiedLog.SelectionStart = rtbUnifiedLog.TextLength
-        rtbUnifiedLog.SelectionColor = textColor
-        rtbUnifiedLog.AppendText($"{entry.Text}{Environment.NewLine}")
+        _logSearchRow = 0
+        Media.SystemSounds.Beep.Play()
     End Sub
 
     ''' <summary>
@@ -469,10 +509,8 @@ Partial Class FormMain
     ''' </summary>
     Private Function LogColorForTheme(c As Color) As Color
         If _logDarkMode Then
-            ' Dark background — ensure brightness is high enough
             Dim brightness = (CInt(c.R) * 299 + CInt(c.G) * 587 + CInt(c.B) * 114) \ 1000
             If brightness < 90 Then
-                ' Too dark to read on dark bg — lighten it
                 Return Color.FromArgb(
                     Math.Min(255, c.R + 140),
                     Math.Min(255, c.G + 140),
@@ -480,10 +518,8 @@ Partial Class FormMain
             End If
             Return c
         Else
-            ' Light background — ensure brightness is low enough
             Dim brightness = (CInt(c.R) * 299 + CInt(c.G) * 587 + CInt(c.B) * 114) \ 1000
             If brightness > 180 Then
-                ' Too light to read on white bg — darken it
                 Return Color.FromArgb(
                     Math.Max(0, c.R - 140),
                     Math.Max(0, c.G - 140),
@@ -492,6 +528,16 @@ Partial Class FormMain
             Return c
         End If
     End Function
+
+    Private Sub ShowLogConfig()
+        Using dlg As New FormLogConfig(_config, AddressOf GetString)
+            If dlg.ShowDialog(Me) = DialogResult.OK Then
+                _config.LogRouting = dlg.Routing
+                Services.Infrastructure.AppLogger.Routing = dlg.Routing
+                Models.ConfigManager.Save(_config)
+            End If
+        End Using
+    End Sub
 
     ' ═══════════════════════════════════════════════════════════════
     ' Workspace Switching
@@ -602,7 +648,7 @@ Partial Class FormMain
                    (Not String.Equals(oldModelType, newModelType, StringComparison.OrdinalIgnoreCase) OrElse
                     Not String.Equals(oldModelPath, newModelPath, StringComparison.OrdinalIgnoreCase) OrElse
                     Not String.Equals(oldDevice, newDevice, StringComparison.OrdinalIgnoreCase)) Then
-                    WriteDebugLog($"[TRANSLATE] Backend changed ({oldModelType}→{newModelType}, {oldModelPath}→{newModelPath}), restarting sidecar")
+                    AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, $"Backend changed ({oldModelType}→{newModelType}, {oldModelPath}→{newModelPath}), restarting sidecar")
                     _translationService.Stop()
                     _translationService = Nothing
                     _translationStarting = False
@@ -793,7 +839,7 @@ Partial Class FormMain
 
     Private Async Sub VerifyFileIntegrity()
         mnuToolsVerifyIntegrity.Enabled = False
-        WriteDebugLog("[Integrity] Starting file integrity check...")
+        AppLogger.Log(LogEvents.STARTUP_DEPENDENCY_CHECK, "Starting file integrity check...")
 
         Dim result = Await Threading.Tasks.Task.Run(
             Function() Services.Infrastructure.IntegrityChecker.Check())
@@ -825,7 +871,7 @@ Partial Class FormMain
 
         ' Log full results to the daily log
         For Each line In Services.Infrastructure.IntegrityChecker.ToReportLines(result)
-            WriteDebugLog($"[Integrity] {line}")
+            AppLogger.Log(LogEvents.STARTUP_DEPENDENCY_CHECK, line)
         Next
 
         MessageBox.Show(sb.ToString(), title, MessageBoxButtons.OK, msgIcon)
@@ -909,7 +955,7 @@ Partial Class FormMain
     ''' Applies shell-specific theming to the nav rail and status bar.
     ''' </summary>
     Private Sub ApplyShellTheme(theme As Models.ThemeMode)
-        WriteDebugLog($"[THEME] ApplyShellTheme called with theme=""{theme}"", tsNavBar={tsNavBar IsNot Nothing}, activeBtn={_activeNavButton?.Text}")
+        AppLogger.Log(LogEvents.UI_THEME_CHANGED, $"ApplyShellTheme called with theme=""{theme}"", tsNavBar={tsNavBar IsNot Nothing}, activeBtn={_activeNavButton?.Text}")
         If tsNavBar Is Nothing Then Return
 
         Dim inactiveBg, inactiveFg, activeBg As Color
@@ -935,23 +981,47 @@ Partial Class FormMain
         End If
 
         ' Theme the log panel
-        If rtbUnifiedLog IsNot Nothing Then
+        If dgvLog IsNot Nothing Then
             Select Case theme
                 Case Models.ThemeMode.Light
                     _logDarkMode = False
-                    rtbUnifiedLog.BackColor = Color.White
-                    rtbUnifiedLog.ForeColor = Color.FromArgb(30, 30, 30)
+                    Dim lightStyle = New DataGridViewCellStyle With {
+                        .BackColor = Color.White, .ForeColor = Color.FromArgb(30, 30, 30),
+                        .Font = New Font("Consolas", 9F),
+                        .SelectionBackColor = Color.FromArgb(200, 220, 240),
+                        .SelectionForeColor = Color.FromArgb(30, 30, 30)
+                    }
+                    dgvLog.DefaultCellStyle = lightStyle
+                    dgvLog.BackgroundColor = Color.White
+                    dgvLog.GridColor = Color.FromArgb(220, 220, 220)
+                    dgvLog.ColumnHeadersDefaultCellStyle = New DataGridViewCellStyle With {
+                        .BackColor = Color.FromArgb(240, 240, 240),
+                        .ForeColor = Color.FromArgb(30, 30, 30),
+                        .Font = New Font("Segoe UI", 8.5F, FontStyle.Bold)
+                    }
                 Case Models.ThemeMode.Dark
                     _logDarkMode = True
-                    rtbUnifiedLog.BackColor = Color.FromArgb(24, 24, 24)
-                    rtbUnifiedLog.ForeColor = Color.FromArgb(200, 200, 200)
+                    Dim darkStyle = New DataGridViewCellStyle With {
+                        .BackColor = Color.FromArgb(24, 24, 24), .ForeColor = Color.FromArgb(200, 200, 200),
+                        .Font = New Font("Consolas", 9F),
+                        .SelectionBackColor = Color.FromArgb(60, 60, 80),
+                        .SelectionForeColor = Color.FromArgb(220, 220, 220)
+                    }
+                    dgvLog.DefaultCellStyle = darkStyle
+                    dgvLog.BackgroundColor = Color.FromArgb(24, 24, 24)
+                    dgvLog.GridColor = Color.FromArgb(50, 50, 50)
+                    dgvLog.ColumnHeadersDefaultCellStyle = New DataGridViewCellStyle With {
+                        .BackColor = Color.FromArgb(45, 45, 48),
+                        .ForeColor = Color.FromArgb(200, 200, 200),
+                        .Font = New Font("Segoe UI", 8.5F, FontStyle.Bold)
+                    }
                 Case Else
                     _logDarkMode = True
-                    rtbUnifiedLog.BackColor = SystemColors.Window
-                    rtbUnifiedLog.ForeColor = SystemColors.WindowText
+                    dgvLog.DefaultCellStyle.BackColor = SystemColors.Window
+                    dgvLog.DefaultCellStyle.ForeColor = SystemColors.WindowText
+                    dgvLog.BackgroundColor = SystemColors.Window
             End Select
-            _lastLogFilter = ""
-            FlushUnifiedLog()
+            RenderFilteredLog()
         End If
 
         ' Theme the translate workspace

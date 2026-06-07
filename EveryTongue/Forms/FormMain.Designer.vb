@@ -36,6 +36,7 @@ Partial Class FormMain
         mnuToolsVerifyPaths = New ToolStripMenuItem()
         mnuToolsVerifyIntegrity = New ToolStripMenuItem()
         mnuToolsBenchmark = New ToolStripMenuItem()
+        mnuToolsLogConfig = New ToolStripMenuItem()
         mnuToolsSep3 = New ToolStripSeparator()
         mnuToolsOptions = New ToolStripMenuItem()
         mnuSession = New ToolStripMenuItem()
@@ -159,14 +160,20 @@ Partial Class FormMain
         lblBibleCopyright = New Label()
         splitterLog = New Splitter()
         pnlLogPanel = New Panel()
-        rtbUnifiedLog = New RichTextBox()
+        dgvLog = New DataGridView()
+        colLogTime = New DataGridViewTextBoxColumn()
+        colLogCategory = New DataGridViewTextBoxColumn()
+        colLogLevel = New DataGridViewTextBoxColumn()
+        colLogMessage = New DataGridViewTextBoxColumn()
         txtLogSearch = New TextBox()
         btnLogSearchNext = New Button()
         pnlLogToolbar = New Panel()
         lblLogTitle = New Label()
-        cboLogFilter = New ComboBox()
+        cboLogCategory = New ComboBox()
+        cboLogLevel = New ComboBox()
         btnLogClear = New Button()
         btnLogCopy = New Button()
+        btnLogPause = New Button()
         ctxBible = New ContextMenuStrip(components)
         ctxBibleCopySelection = New ToolStripMenuItem()
         ctxBibleCopyVerse = New ToolStripMenuItem()
@@ -270,7 +277,7 @@ Partial Class FormMain
         ' 
         ' mnuTools
         ' 
-        mnuTools.DropDownItems.AddRange(New ToolStripItem() {mnuToolsTranscribe, mnuToolsTranslate, mnuToolsBible, mnuToolsSep1, mnuToolsGlossary, mnuToolsLocalization, mnuToolsSep2, mnuToolsDownloadMgr, mnuToolsVerifyPaths, mnuToolsVerifyIntegrity, mnuToolsBenchmark, mnuToolsSep3, mnuToolsOptions})
+        mnuTools.DropDownItems.AddRange(New ToolStripItem() {mnuToolsTranscribe, mnuToolsTranslate, mnuToolsBible, mnuToolsSep1, mnuToolsGlossary, mnuToolsLocalization, mnuToolsSep2, mnuToolsDownloadMgr, mnuToolsVerifyPaths, mnuToolsVerifyIntegrity, mnuToolsBenchmark, mnuToolsLogConfig, mnuToolsSep3, mnuToolsOptions})
         mnuTools.Name = "mnuTools"
         mnuTools.Size = New Size(47, 20)
         mnuTools.Text = "&Tools"
@@ -340,6 +347,12 @@ Partial Class FormMain
         mnuToolsBenchmark.Name = "mnuToolsBenchmark"
         mnuToolsBenchmark.Size = New Size(184, 22)
         mnuToolsBenchmark.Text = "Translation Benchmark..."
+        '
+        ' mnuToolsLogConfig
+        '
+        mnuToolsLogConfig.Name = "mnuToolsLogConfig"
+        mnuToolsLogConfig.Size = New Size(184, 22)
+        mnuToolsLogConfig.Text = "Log Configuration..."
         '
         ' mnuToolsSep3
         ' 
@@ -1467,8 +1480,8 @@ Partial Class FormMain
         splitterLog.Visible = False
         ' 
         ' pnlLogPanel
-        ' 
-        pnlLogPanel.Controls.Add(rtbUnifiedLog)
+        '
+        pnlLogPanel.Controls.Add(dgvLog)
         pnlLogPanel.Controls.Add(pnlLogToolbar)
         pnlLogPanel.Dock = DockStyle.Bottom
         pnlLogPanel.Location = New Point(0, 422)
@@ -1480,9 +1493,11 @@ Partial Class FormMain
         ' pnlLogToolbar
         '
         pnlLogToolbar.Controls.Add(lblLogTitle)
-        pnlLogToolbar.Controls.Add(cboLogFilter)
+        pnlLogToolbar.Controls.Add(cboLogCategory)
+        pnlLogToolbar.Controls.Add(cboLogLevel)
         pnlLogToolbar.Controls.Add(btnLogClear)
         pnlLogToolbar.Controls.Add(btnLogCopy)
+        pnlLogToolbar.Controls.Add(btnLogPause)
         pnlLogToolbar.Controls.Add(txtLogSearch)
         pnlLogToolbar.Controls.Add(btnLogSearchNext)
         pnlLogToolbar.Location = New Point(0, 0)
@@ -1490,22 +1505,69 @@ Partial Class FormMain
         pnlLogToolbar.Size = New Size(880, 28)
         pnlLogToolbar.TabIndex = 1
         '
-        ' rtbUnifiedLog
+        ' dgvLog
         '
-        rtbUnifiedLog.BackColor = Color.FromArgb(CByte(30), CByte(30), CByte(30))
-        rtbUnifiedLog.Font = New Font("Consolas", 9.5F)
-        rtbUnifiedLog.ForeColor = Color.FromArgb(CByte(200), CByte(200), CByte(200))
-        rtbUnifiedLog.Location = New Point(0, 28)
-        rtbUnifiedLog.Name = "rtbUnifiedLog"
-        rtbUnifiedLog.ReadOnly = True
-        rtbUnifiedLog.ScrollBars = RichTextBoxScrollBars.Vertical
-        rtbUnifiedLog.Size = New Size(880, 152)
-        rtbUnifiedLog.TabIndex = 0
-        rtbUnifiedLog.Text = ""
-        rtbUnifiedLog.WordWrap = False
-        ' 
+        dgvLog.AllowUserToAddRows = False
+        dgvLog.AllowUserToDeleteRows = False
+        dgvLog.AllowUserToResizeRows = False
+        dgvLog.BackgroundColor = Color.FromArgb(CByte(30), CByte(30), CByte(30))
+        dgvLog.BorderStyle = BorderStyle.None
+        dgvLog.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal
+        dgvLog.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
+        dgvLog.Columns.AddRange(New DataGridViewColumn() {colLogTime, colLogCategory, colLogLevel, colLogMessage})
+        dgvLog.DefaultCellStyle = New DataGridViewCellStyle With {
+            .BackColor = Color.FromArgb(30, 30, 30),
+            .ForeColor = Color.FromArgb(200, 200, 200),
+            .Font = New Font("Consolas", 9F),
+            .SelectionBackColor = Color.FromArgb(60, 60, 80),
+            .SelectionForeColor = Color.FromArgb(220, 220, 220)
+        }
+        dgvLog.ColumnHeadersDefaultCellStyle = New DataGridViewCellStyle With {
+            .BackColor = Color.FromArgb(45, 45, 48),
+            .ForeColor = Color.FromArgb(200, 200, 200),
+            .Font = New Font("Segoe UI", 8.5F, FontStyle.Bold)
+        }
+        dgvLog.EnableHeadersVisualStyles = False
+        dgvLog.GridColor = Color.FromArgb(50, 50, 50)
+        dgvLog.Location = New Point(0, 28)
+        dgvLog.Name = "dgvLog"
+        dgvLog.ReadOnly = True
+        dgvLog.RowHeadersVisible = False
+        dgvLog.RowTemplate.Height = 20
+        dgvLog.SelectionMode = DataGridViewSelectionMode.FullRowSelect
+        dgvLog.Size = New Size(880, 152)
+        dgvLog.TabIndex = 0
+        '
+        ' colLogTime
+        '
+        colLogTime.HeaderText = "Time"
+        colLogTime.Name = "colLogTime"
+        colLogTime.ReadOnly = True
+        colLogTime.Width = 70
+        '
+        ' colLogCategory
+        '
+        colLogCategory.HeaderText = "Category"
+        colLogCategory.Name = "colLogCategory"
+        colLogCategory.ReadOnly = True
+        colLogCategory.Width = 80
+        '
+        ' colLogLevel
+        '
+        colLogLevel.HeaderText = "Level"
+        colLogLevel.Name = "colLogLevel"
+        colLogLevel.ReadOnly = True
+        colLogLevel.Width = 55
+        '
+        ' colLogMessage
+        '
+        colLogMessage.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
+        colLogMessage.HeaderText = "Message"
+        colLogMessage.Name = "colLogMessage"
+        colLogMessage.ReadOnly = True
+        '
         ' lblLogTitle
-        ' 
+        '
         lblLogTitle.AutoSize = True
         lblLogTitle.Font = New Font("Segoe UI", 9F, FontStyle.Bold)
         lblLogTitle.Location = New Point(4, 5)
@@ -1513,49 +1575,66 @@ Partial Class FormMain
         lblLogTitle.Size = New Size(47, 15)
         lblLogTitle.TabIndex = 0
         lblLogTitle.Text = "Output"
-        ' 
-        ' cboLogFilter
-        ' 
-        cboLogFilter.DropDownStyle = ComboBoxStyle.DropDownList
-        cboLogFilter.Items.AddRange(New Object() {"All", "Pipeline", "Server", "Live", "Debug"})
-        cboLogFilter.Location = New Point(70, 2)
-        cboLogFilter.Name = "cboLogFilter"
-        cboLogFilter.Size = New Size(100, 23)
-        cboLogFilter.TabIndex = 1
-        ' 
+        '
+        ' cboLogCategory
+        '
+        cboLogCategory.DropDownStyle = ComboBoxStyle.DropDownList
+        cboLogCategory.Location = New Point(55, 2)
+        cboLogCategory.Name = "cboLogCategory"
+        cboLogCategory.Size = New Size(95, 23)
+        cboLogCategory.TabIndex = 1
+        '
+        ' cboLogLevel
+        '
+        cboLogLevel.DropDownStyle = ComboBoxStyle.DropDownList
+        cboLogLevel.Items.AddRange(New Object() {"All", "Debug", "Info", "Warning", "Error"})
+        cboLogLevel.Location = New Point(155, 2)
+        cboLogLevel.Name = "cboLogLevel"
+        cboLogLevel.Size = New Size(75, 23)
+        cboLogLevel.TabIndex = 2
+        '
         ' btnLogClear
-        ' 
+        '
         btnLogClear.FlatStyle = FlatStyle.Flat
-        btnLogClear.Location = New Point(180, 1)
+        btnLogClear.Location = New Point(235, 1)
         btnLogClear.Name = "btnLogClear"
-        btnLogClear.Size = New Size(55, 24)
-        btnLogClear.TabIndex = 2
+        btnLogClear.Size = New Size(50, 24)
+        btnLogClear.TabIndex = 3
         btnLogClear.Text = "Clear"
-        ' 
+        '
         ' btnLogCopy
-        ' 
+        '
         btnLogCopy.FlatStyle = FlatStyle.Flat
-        btnLogCopy.Location = New Point(240, 1)
+        btnLogCopy.Location = New Point(290, 1)
         btnLogCopy.Name = "btnLogCopy"
-        btnLogCopy.Size = New Size(55, 24)
-        btnLogCopy.TabIndex = 3
+        btnLogCopy.Size = New Size(50, 24)
+        btnLogCopy.TabIndex = 4
         btnLogCopy.Text = "Copy"
+        '
+        ' btnLogPause
+        '
+        btnLogPause.FlatStyle = FlatStyle.Flat
+        btnLogPause.Location = New Point(345, 1)
+        btnLogPause.Name = "btnLogPause"
+        btnLogPause.Size = New Size(50, 24)
+        btnLogPause.TabIndex = 5
+        btnLogPause.Text = "Pause"
         '
         ' txtLogSearch
         '
-        txtLogSearch.Location = New Point(310, 2)
+        txtLogSearch.Location = New Point(405, 2)
         txtLogSearch.Name = "txtLogSearch"
-        txtLogSearch.Size = New Size(150, 23)
-        txtLogSearch.TabIndex = 4
+        txtLogSearch.Size = New Size(140, 23)
+        txtLogSearch.TabIndex = 6
         txtLogSearch.PlaceholderText = "Search log..."
         '
         ' btnLogSearchNext
         '
         btnLogSearchNext.FlatStyle = FlatStyle.Flat
-        btnLogSearchNext.Location = New Point(465, 1)
+        btnLogSearchNext.Location = New Point(550, 1)
         btnLogSearchNext.Name = "btnLogSearchNext"
-        btnLogSearchNext.Size = New Size(55, 24)
-        btnLogSearchNext.TabIndex = 5
+        btnLogSearchNext.Size = New Size(45, 24)
+        btnLogSearchNext.TabIndex = 7
         btnLogSearchNext.Text = "Find"
         '
         ' ctxBible
@@ -1749,6 +1828,7 @@ Partial Class FormMain
     Friend WithEvents mnuToolsVerifyPaths As ToolStripMenuItem
     Friend WithEvents mnuToolsVerifyIntegrity As ToolStripMenuItem
     Friend WithEvents mnuToolsBenchmark As ToolStripMenuItem
+    Friend WithEvents mnuToolsLogConfig As ToolStripMenuItem
     Friend WithEvents mnuToolsSep3 As ToolStripSeparator
     Friend WithEvents mnuToolsOptions As ToolStripMenuItem
     Friend WithEvents mnuSession As ToolStripMenuItem
@@ -1797,10 +1877,16 @@ Partial Class FormMain
     Friend WithEvents splitterLog As Splitter
     Friend WithEvents pnlLogToolbar As Panel
     Friend WithEvents lblLogTitle As Label
-    Friend WithEvents cboLogFilter As ComboBox
+    Friend WithEvents cboLogCategory As ComboBox
+    Friend WithEvents cboLogLevel As ComboBox
     Friend WithEvents btnLogClear As Button
     Friend WithEvents btnLogCopy As Button
-    Friend WithEvents rtbUnifiedLog As RichTextBox
+    Friend WithEvents btnLogPause As Button
+    Friend WithEvents dgvLog As DataGridView
+    Friend WithEvents colLogTime As DataGridViewTextBoxColumn
+    Friend WithEvents colLogCategory As DataGridViewTextBoxColumn
+    Friend WithEvents colLogLevel As DataGridViewTextBoxColumn
+    Friend WithEvents colLogMessage As DataGridViewTextBoxColumn
     Friend WithEvents txtLogSearch As TextBox
     Friend WithEvents btnLogSearchNext As Button
 

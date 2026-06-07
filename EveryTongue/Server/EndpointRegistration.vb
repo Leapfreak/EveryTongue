@@ -692,7 +692,7 @@ Namespace Server
                                                                                     String.Equals(pin, serverOpts.AdminPin, StringComparison.Ordinal)
                                                                 ok = mgr.ClaimHost(id, hostToken, clientId, adminPinValid)
                                                             Catch ex As Exception
-                                                                Services.Infrastructure.AppLogger.Log($"[API] /rooms/{id}/claim-host error: {ex.Message}")
+                                                                AppLogger.Log(LogEvents.SERVER_ERROR, $"/rooms/{id}/claim-host error: {ex.Message}")
                                                                 failed = True
                                                             Finally
                                                                 doc?.Dispose()
@@ -723,7 +723,7 @@ Namespace Server
                                                               hub.BroadcastToRoom(id, "{""type"":""memberLeft"",""clientId"":""" & targetClientId & """}", "")
                                                           End If
                                                       Catch ex As Exception
-                                                          Services.Infrastructure.AppLogger.Log($"[API] /rooms/{id}/kick error: {ex.Message}")
+                                                          AppLogger.Log(LogEvents.SERVER_ERROR, $"/rooms/{id}/kick error: {ex.Message}")
                                                           failed = True
                                                       Finally
                                                           doc?.Dispose()
@@ -753,7 +753,7 @@ Namespace Server
                                                               hub.BroadcastToRoom(id, "{""type"":""roomLocked"",""locked"":" & If(locked, "true", "false") & "}", "")
                                                           End If
                                                       Catch ex As Exception
-                                                          Services.Infrastructure.AppLogger.Log($"[API] /rooms/{id}/lock error: {ex.Message}")
+                                                          AppLogger.Log(LogEvents.SERVER_ERROR, $"/rooms/{id}/lock error: {ex.Message}")
                                                           failed = True
                                                       Finally
                                                           doc?.Dispose()
@@ -783,7 +783,7 @@ Namespace Server
                                                                   hub.BroadcastToRoom(id, "{""type"":""pttModeChanged"",""mode"":""" & mode & """}", "")
                                                               End If
                                                           Catch ex As Exception
-                                                              Services.Infrastructure.AppLogger.Log($"[API] /rooms/{id}/ptt-mode error: {ex.Message}")
+                                                              AppLogger.Log(LogEvents.SERVER_ERROR, $"/rooms/{id}/ptt-mode error: {ex.Message}")
                                                               failed = True
                                                           Finally
                                                               doc?.Dispose()
@@ -813,7 +813,7 @@ Namespace Server
                                                                hub.BroadcastToRoom(id, "{""type"":""pauseStateChanged"",""paused"":" & If(paused, "true", "false") & "}", "")
                                                            End If
                                                        Catch ex As Exception
-                                                           Services.Infrastructure.AppLogger.Log($"[API] /rooms/{id}/pause error: {ex.Message}")
+                                                           AppLogger.Log(LogEvents.SERVER_ERROR, $"/rooms/{id}/pause error: {ex.Message}")
                                                            failed = True
                                                        Finally
                                                            doc?.Dispose()
@@ -882,7 +882,7 @@ Namespace Server
                                                                          hub.BroadcastToRoom(id, "{""type"":""virtualMemberAdded"",""id"":""" & vm.Id & """,""name"":" & SubtitleService.EscapeJson(vm.Name) & ",""language"":""" & If(vm.Language, "") & """}", "")
                                                                      End If
                                                                  Catch ex As Exception
-                                                                     Services.Infrastructure.AppLogger.Log($"[API] /rooms/{id}/virtual-members error: {ex.Message}")
+                                                                     AppLogger.Log(LogEvents.SERVER_ERROR, $"/rooms/{id}/virtual-members error: {ex.Message}")
                                                                      failed = True
                                                                  Finally
                                                                      doc?.Dispose()

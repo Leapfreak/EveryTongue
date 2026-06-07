@@ -1,6 +1,7 @@
 Imports System.Diagnostics
 Imports System.Text
 Imports System.Threading
+Imports EveryTongue.Services.Infrastructure
 
 Namespace Pipeline
     Public Class ProcessRunner
@@ -57,7 +58,7 @@ Namespace Pipeline
                         Try
                             If Not proc.HasExited Then proc.Kill(True)
                         Catch ex As Exception
-                            Services.Infrastructure.AppLogger.Log($"[ERROR] RunAsync: Failed to kill process on cancellation — {ex.Message}")
+                            AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"RunAsync: Failed to kill process on cancellation — {ex.Message}")
                         End Try
                     End Sub)
             End If
@@ -72,7 +73,7 @@ Namespace Pipeline
                 Try
                     If Not proc.HasExited Then proc.Kill(True)
                 Catch killEx As Exception
-                    Services.Infrastructure.AppLogger.Log($"[ERROR] RunAsync: Failed to kill process after cancellation — {killEx.Message}")
+                    AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"RunAsync: Failed to kill process after cancellation — {killEx.Message}")
                 End Try
                 Throw
             Finally

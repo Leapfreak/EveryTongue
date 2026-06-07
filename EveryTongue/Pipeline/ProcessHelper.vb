@@ -1,6 +1,7 @@
 Imports System.Diagnostics
 Imports System.IO
 Imports System.Text
+Imports EveryTongue.Services.Infrastructure
 
 Namespace Pipeline
     ''' <summary>
@@ -28,7 +29,7 @@ Namespace Pipeline
                     If proc.ExitCode = 0 Then Return "python"
                 End Using
             Catch ex As Exception
-                Services.Infrastructure.AppLogger.Log($"[ERROR] FindPython: System python check failed — {ex.Message}")
+                AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"FindPython: System python check failed — {ex.Message}")
             End Try
 
             Return ""
@@ -57,14 +58,14 @@ Namespace Pipeline
                                 Try
                                     Process.GetProcessById(pid).Kill(True)
                                 Catch ex As Exception
-                                    Services.Infrastructure.AppLogger.Log($"[ERROR] KillProcessOnPort: Failed to kill PID {pid} on port {port} — {ex.Message}")
+                                    AppLogger.Log(LogEvents.PIPELINE_PROCESS_KILL, $"Failed to kill PID {pid} on port {port} — {ex.Message}")
                                 End Try
                             End If
                         End If
                     Next
                 End Using
             Catch ex As Exception
-                Services.Infrastructure.AppLogger.Log($"[ERROR] KillProcessOnPort: Failed to enumerate processes on port {port} — {ex.Message}")
+                AppLogger.Log(LogEvents.PIPELINE_PROCESS_KILL, $"Failed to enumerate processes on port {port} — {ex.Message}")
             End Try
         End Sub
 

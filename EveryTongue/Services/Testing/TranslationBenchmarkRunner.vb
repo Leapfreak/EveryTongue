@@ -4,6 +4,7 @@ Imports System.Net.Http
 Imports System.Text
 Imports System.Text.Json
 Imports System.Threading
+Imports EveryTongue.Services.Infrastructure
 Imports EveryTongue.Services.Interfaces
 Imports EveryTongue.Services.Scheduling
 
@@ -103,7 +104,7 @@ Namespace Services.Testing
             ' Wait for translation backend to be available (model may still be loading)
             Dim backends = translationService.GetAllBackends()
             If Not backends.Any(Function(b) b.IsAvailable) Then
-                Services.Infrastructure.AppLogger.Log("[BENCHMARK] Waiting for translation backend to become available...")
+                AppLogger.Log(LogEvents.BENCH_START, "Waiting for translation backend to become available...")
                 Dim deadline = DateTime.UtcNow.AddSeconds(60)
                 While DateTime.UtcNow < deadline AndAlso Not ct.IsCancellationRequested
                     Await Task.Delay(1000, ct)
@@ -111,10 +112,10 @@ Namespace Services.Testing
                     If backends.Any(Function(b) b.IsAvailable) Then Exit While
                 End While
                 If Not backends.Any(Function(b) b.IsAvailable) Then
-                    Services.Infrastructure.AppLogger.Log("[BENCHMARK] Translation backend not available after 60s, aborting")
+                    AppLogger.Log(LogEvents.BENCH_ERROR, "Translation backend not available after 60s, aborting")
                     Return New StageBenchmarkResult()
                 End If
-                Services.Infrastructure.AppLogger.Log("[BENCHMARK] Translation backend ready")
+                AppLogger.Log(LogEvents.BENCH_START, "Translation backend ready")
             End If
 
             Dim workItems As New List(Of WorkItem)()
@@ -573,8 +574,8 @@ Namespace Services.Testing
                                          concurrency As Integer) As StageBenchmarkResult
             ' Log error details for debugging
             For Each errResult In results.Where(Function(r) r.ErrorMessage IsNot Nothing)
-                Services.Infrastructure.AppLogger.Log(
-                    $"[BENCHMARK] STT error for {errResult.Language}: {errResult.ErrorMessage}")
+                AppLogger.Log(LogEvents.BENCH_ERROR,
+                    $"STT error for {errResult.Language}: {errResult.ErrorMessage}")
             Next
 
             Dim sr As New StageBenchmarkResult() With {
@@ -650,7 +651,7 @@ Namespace Services.Testing
                 profile.Save()
                 result.ProfileSaved = True
             Catch ex As Exception
-                Infrastructure.AppLogger.Log($"[WARN] Failed to save latency profile: {ex.Message}")
+                AppLogger.Log(LogEvents.BENCH_ERROR, $"Failed to save latency profile: {ex.Message}")
             End Try
         End Sub
 

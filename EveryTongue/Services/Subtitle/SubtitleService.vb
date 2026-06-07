@@ -8,6 +8,7 @@ Imports Microsoft.Extensions.Options
 Imports EveryTongue.Server
 Imports EveryTongue.Services.Audio
 Imports EveryTongue.Services.Interfaces
+Imports EveryTongue.Services.Infrastructure
 Imports EveryTongue.Services.Models
 
 Namespace Services.Subtitle
@@ -204,7 +205,7 @@ Namespace Services.Subtitle
                                                  End If
                                              End If
                                          Catch ex As Exception
-                                             FormMain.WriteDebugLog($"[Subtitle] TTS synthesis for requestTts failed: {ex.Message}")
+                                             AppLogger.Log(LogEvents.TTS_ENGINE_ERROR, $"TTS synthesis for requestTts failed: {ex.Message}")
                                          End Try
                                      End Function)
                         End If
@@ -218,7 +219,7 @@ Namespace Services.Subtitle
                     End If
                 End Using
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[Subtitle] ProcessClientMessage failed: {ex.Message}")
+                AppLogger.Log(LogEvents.SUB_SEND_ERROR, $"ProcessClientMessage failed: {ex.Message}")
             End Try
         End Sub
 
@@ -288,7 +289,7 @@ Namespace Services.Subtitle
                         deadKeys.Add(kvp.Key)
                     End If
                 Catch ex As Exception
-                    FormMain.WriteDebugLog($"[Subtitle] WebSocket send failed for {kvp.Key}: {ex.Message}")
+                    AppLogger.Log(LogEvents.SUB_SEND_ERROR, $"WebSocket send failed for {kvp.Key}: {ex.Message}")
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -358,7 +359,7 @@ Namespace Services.Subtitle
                         deadKeys.Add(kvp.Key)
                     End If
                 Catch ex As Exception
-                    FormMain.WriteDebugLog($"[Subtitle] WebSocket send failed for {kvp.Key}: {ex.Message}")
+                    AppLogger.Log(LogEvents.SUB_SEND_ERROR, $"WebSocket send failed for {kvp.Key}: {ex.Message}")
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -404,7 +405,7 @@ Namespace Services.Subtitle
                         deadKeys.Add(kvp.Key)
                     End If
                 Catch ex As Exception
-                    FormMain.WriteDebugLog($"[Subtitle] WebSocket send failed for {kvp.Key}: {ex.Message}")
+                    AppLogger.Log(LogEvents.SUB_SEND_ERROR, $"WebSocket send failed for {kvp.Key}: {ex.Message}")
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -496,7 +497,7 @@ Namespace Services.Subtitle
                     Interlocked.Exchange(client.SendBusy, 0)
                 End Try
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[Subtitle] ReplayHistoryAsync failed: {ex.Message}")
+                AppLogger.Log(LogEvents.SUB_SEND_ERROR, $"ReplayHistoryAsync failed: {ex.Message}")
             End Try
         End Function
 
@@ -526,7 +527,7 @@ Namespace Services.Subtitle
                                  Interlocked.Increment(client.MessagesSent)
                              End If
                          Catch ex As Exception
-                             FormMain.WriteDebugLog($"[Subtitle] Async WebSocket send failed: {ex.Message}")
+                             AppLogger.Log(LogEvents.SUB_SEND_ERROR, $"Async WebSocket send failed: {ex.Message}")
                          Finally
                              Interlocked.Exchange(client.SendBusy, 0)
                          End Try
@@ -542,7 +543,7 @@ Namespace Services.Subtitle
                 Try
                     If Not TrySendToClient(kvp.Value, buffer) Then deadKeys.Add(kvp.Key)
                 Catch ex As Exception
-                    FormMain.WriteDebugLog($"[Subtitle] WebSocket send failed for {kvp.Key}: {ex.Message}")
+                    AppLogger.Log(LogEvents.SUB_SEND_ERROR, $"WebSocket send failed for {kvp.Key}: {ex.Message}")
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -578,7 +579,7 @@ Namespace Services.Subtitle
                 sb.Append("]")
                 Return sb.ToString()
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[Subtitle] Bible reference detection failed: {ex.Message}")
+                AppLogger.Log(LogEvents.BIBLE_ERROR, $"Bible reference detection failed: {ex.Message}")
                 Return ""
             End Try
         End Function
@@ -595,7 +596,7 @@ Namespace Services.Subtitle
                 sb.Append("]")
                 Return sb.ToString()
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[Subtitle] Serializing stored Bible refs failed: {ex.Message}")
+                AppLogger.Log(LogEvents.BIBLE_ERROR, $"Serializing stored Bible refs failed: {ex.Message}")
                 Return ""
             End Try
         End Function
@@ -704,7 +705,7 @@ Namespace Services.Subtitle
                         End If
                     End If
                 Catch ex As Exception
-                    FormMain.WriteDebugLog($"[Subtitle] WebSocket send failed for {kvp.Key}: {ex.Message}")
+                    AppLogger.Log(LogEvents.SUB_SEND_ERROR, $"WebSocket send failed for {kvp.Key}: {ex.Message}")
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -723,7 +724,7 @@ Namespace Services.Subtitle
                 Dim removed As ClientConnection = Nothing
                 If _clients.TryRemove(key, removed) Then
                     _logger.LogDebug("Cleanup dead client: {Endpoint}", removed.RemoteEndpoint)
-                    Try : removed.WebSocket?.Dispose() : Catch ex As Exception : FormMain.WriteDebugLog($"[Subtitle] WebSocket dispose failed: {ex.Message}") : End Try
+                    Try : removed.WebSocket?.Dispose() : Catch ex As Exception : AppLogger.Log(LogEvents.SUB_SEND_ERROR, $"WebSocket dispose failed: {ex.Message}") : End Try
                 End If
             Next
             If deadKeys.Count > 0 Then
@@ -770,7 +771,7 @@ Namespace Services.Subtitle
                     End If
                 End Using
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[Subtitle] ExtractLastId JSON parse failed: {ex.Message}")
+                AppLogger.Log(LogEvents.SUB_SEND_ERROR, $"ExtractLastId JSON parse failed: {ex.Message}")
             End Try
             Return 0
         End Function

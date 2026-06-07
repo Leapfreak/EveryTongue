@@ -106,6 +106,7 @@
   "Menu_ToolsDownloadMgr": "Download Manager",
   "Menu_ToolsVerifyPaths": "Verify Paths",
   "Menu_ToolsVerifyIntegrity": "Verify File Integrity",
+  "Menu_ToolsLogConfig": "Log Configuration...",
   "Menu_ToolsOptions": "&Options...",
   "Menu_Session": "&Server",
   "Menu_SessionQR": "Show QR Code",

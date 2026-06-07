@@ -96,7 +96,7 @@ Namespace Services.Translation
                 Catch ex As OperationCanceledException
                     Exit For
                 Catch ex As Exception
-                    Services.Infrastructure.AppLogger.Log($"[ERROR] DeepLBackend.TranslateAsync: target={targetLang} - {ex.Message}")
+                    Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR, $"DeepLBackend.TranslateAsync: target={targetLang} - {ex.Message}")
                 End Try
             Next
             Return results
@@ -114,7 +114,7 @@ Namespace Services.Translation
                     $"https://api-free.deepl.com/v2/usage?auth_key={ApiKey}", ct)
                 Return response.IsSuccessStatusCode
             Catch ex As Exception
-                Services.Infrastructure.AppLogger.Log($"[ERROR] DeepLBackend.CheckHealthAsync: {ex.Message}")
+                Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR, $"DeepLBackend.CheckHealthAsync: {ex.Message}")
                 Return False
             End Try
         End Function
@@ -162,7 +162,7 @@ Namespace Services.Translation
                 Catch ex As OperationCanceledException
                     Exit For
                 Catch ex As Exception
-                    Services.Infrastructure.AppLogger.Log($"[ERROR] GoogleBackend.TranslateAsync: target={targetLang} - {ex.Message}")
+                    Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR, $"GoogleBackend.TranslateAsync: target={targetLang} - {ex.Message}")
                 End Try
             Next
             Return results
@@ -229,7 +229,7 @@ Namespace Services.Translation
                 End If
             Catch ex As OperationCanceledException
             Catch ex As Exception
-                Services.Infrastructure.AppLogger.Log($"[ERROR] AzureBackend.TranslateAsync: {ex.Message}")
+                Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR, $"AzureBackend.TranslateAsync: {ex.Message}")
             End Try
             Return results
         End Function

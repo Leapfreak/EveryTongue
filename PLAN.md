@@ -48,40 +48,37 @@ Log nav button for full-screen Log workspace with bottom toolbar (copy/clear/sea
 
 Replace the flat `AppLogger.Log(msg)` system with numbered, categorised events. Every log message gets a unique event ID and category. Routing (UI vs file) is configurable per-category via a dialog. 334 existing log calls across 42 files.
 
-### Phase 1: Infrastructure ← CURRENT
-- `LogCategory` enum (19 categories)
-- `LogLevel` enum (Debug/Info/Warning/Error)
-- `LogEvents` module with ID constants (100-block ranges per category)
-- `LogEventInfo` registry (ID → category, level, description)
-- `AppLogger.Log(eventId, message)` overload with routing logic
-- `LogRoutingConfig` in AppConfig with presets (Minimal/Normal/Verbose)
-- Rate limiter: per-event deduplication with `(×N in last Xs)` collapse
-- Old `Log(msg)` keeps working → routes to Legacy category
+### Phase 1: Infrastructure ✅ DONE
+- `LogCategory` enum (20 categories), `LogSeverity` enum
+- `LogEvents` module with 120+ event ID constants (100-block ranges per category)
+- `LogEventRegistry` with Register/Lookup/GetAll/GetByCategory
+- `AppLogger.Log(eventId, message)` with routing logic + rate limiter
+- `LogRoutingConfig` with Minimal/Normal/Verbose presets
+- `LogEntry` class for structured UI callback
 
-### Phase 2: Config Dialog + Log Viewer
-- `FormLogConfig` — preset combo + DataGridView (category, enabled, file level, UI level)
-- Replace plain-text log area with DataGridView viewer (Time, ID, Category, Level, Message)
-- Filter row: category combo, level combo, text search
-- Color-coded rows by level, right-click context menu, pause/resume scroll
-- Tools menu entry: "Log Configuration"
+### Phase 2: Config Dialog + Log Viewer ✅ DONE
+- `FormLogConfig` dialog — preset combo + per-category routing DataGridView
+- Replaced RichTextBox log area with DataGridView (Time, Category, Level, Message)
+- Category and Level filter combos, text search, pause/resume scroll
+- Color-coded rows, theme-aware, double-buffered, event description tooltips
+- Tools → Log Configuration menu entry
 
-### Phase 3: Migrate calls by category (one batch at a time)
-1. Pipeline + STT + Conference (high-value, caused today's freeze)
-2. Translation + TTS
-3. Server + Rooms + Subtitle
-4. Startup + Config + Download
-5. Benchmark + Hardware (high volume)
-6. Everything else (Bible, Audio, UI, Localization, Update)
+### Phase 3: Migrate all calls to event IDs ✅ DONE
+- All 285+ `AppLogger.Log(msg)` / `WriteDebugLog(msg)` calls migrated to `AppLogger.Log(LogEvents.XXX, msg)`
+- `WriteDebugLog` kept as thin forwarder for controller delegates (routes to LEGACY event ID)
+- Legacy `Log(msg)` overload removed — all calls use structured path
 
-### Phase 4: Python event IDs
-- Python servers emit `[9001] INFO message` format
-- .NET tailer parses event ID + level from each line
-- Python logs route through same registry and viewer
+### Phase 4: Python event IDs ✅ DONE
+- PythonSidecarHost.TailLogFile parses `%(asctime)s %(levelname)s %(message)s` format
+- BaseEventId property + level offsets: base+0=Info, +1=Debug, +2=Warning, +3=Error
+- Per-server event IDs: PYLOG_LIVE/TRANSLATE/MMS_TTS × 4 severity levels
+- Python logs route through structured registry and DataGridView viewer
 
-### Phase 5: Session summary + cleanup
-- Summary event on session end (event counts by category, errors, duration)
-- Remove old `Log(msg)` overload — all calls must use event IDs
-- Event descriptions shown as tooltips in log viewer
+### Phase 5: Session summary + cleanup ✅ DONE
+- `EmitSessionSummary()` logs duration, total events, errors, top 5 categories on shutdown
+- Per-event session counters (thread-safe via ConcurrentDictionary + Interlocked)
+- Event descriptions shown as tooltips on DataGridView row hover
+- Legacy `Log(msg)` overload can be removed once all remaining calls are migrated
 
 ## Immediate TODO (2026-06-07)
 - [x] Filter Editor overhaul — shared language combo, per-language glossary, checkboxes, friendly names, filter hit logging (#5)

@@ -511,7 +511,7 @@ Public Class FormOptions
         _config.TranslationConcurrency = CInt(nudTranslationConcurrency.Value)
         _config.TtsConcurrency = CInt(nudTtsConcurrency.Value)
 
-        FormMain.WriteDebugLog($"[OPTIONS] ApplyToConfig: Language={_config.Language}, OutputLanguage={_config.OutputLanguage}, BiblesDirectory={_config.BiblesDirectory}, Theme={_config.Theme}, UiLanguage={_config.UiLanguage}, TranslationEnabled={_config.TranslationEnabled}")
+        AppLogger.Log(LogEvents.CONFIG_SAVED, $"ApplyToConfig: Language={_config.Language}, OutputLanguage={_config.OutputLanguage}, BiblesDirectory={_config.BiblesDirectory}, Theme={_config.Theme}, UiLanguage={_config.UiLanguage}, TranslationEnabled={_config.TranslationEnabled}")
         ConfigManager.Save(_config)
         ConfigChanged = True
     End Sub
@@ -573,9 +573,9 @@ Public Class FormOptions
         ' Auto-select best STT backend based on hardware
         Dim suggested = HardwareScanner.SuggestSttBackend(info)
         SelectSttBackend(suggested)
-        FormMain.WriteDebugLog($"[HW] Suggested STT backend: {suggested}")
+        AppLogger.Log(LogEvents.HW_SCAN_RESULT, $"Suggested STT backend: {suggested}")
 
-        FormMain.WriteDebugLog($"[HW] Scan complete: Overall={info.OverallScore}, GPU={info.GpuScore}, CPU={info.CpuScore}, RAM={info.RamScore}, Disk={info.DiskScore}, OS={info.OsScore}, Rating={info.Rating}")
+        AppLogger.Log(LogEvents.HW_SCAN_RESULT, $"Scan complete: Overall={info.OverallScore}, GPU={info.GpuScore}, CPU={info.CpuScore}, RAM={info.RamScore}, Disk={info.DiskScore}, OS={info.OsScore}, Rating={info.Rating}")
     End Sub
 
     ' ═══════════════════════════════════════════════════════════════

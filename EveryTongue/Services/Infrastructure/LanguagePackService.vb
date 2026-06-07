@@ -83,7 +83,7 @@ Namespace Services.Infrastructure
             End If
 
             _currentLang = normalized
-            AppLogger.Log($"[LanguagePack] Loaded '{normalized}' with {_strings.Count} keys")
+            AppLogger.Log(LogEvents.LOCALE_LOADED, $"Loaded '{normalized}' with {_strings.Count} keys")
         End Sub
 
         ''' <summary>
@@ -159,22 +159,22 @@ Namespace Services.Infrastructure
             Dim localPath = Path.Combine(_localesDir, $"{normalized}.json")
 
             Try
-                AppLogger.Log($"[LanguagePack] Downloading {normalized}.json from GitHub...")
+                AppLogger.Log(LogEvents.LOCALE_LOADED, $"Downloading {normalized}.json from GitHub...")
                 Dim json = Await _httpClient.GetStringAsync(url)
 
                 ' Validate it's valid JSON
                 Using doc = JsonDocument.Parse(json)
                     If doc.RootElement.ValueKind <> JsonValueKind.Object Then
-                        AppLogger.Log($"[LanguagePack] Downloaded file is not a valid locale JSON")
+                        AppLogger.Log(LogEvents.LOCALE_FALLBACK, $"Downloaded file is not a valid locale JSON")
                         Return False
                     End If
                 End Using
 
                 File.WriteAllText(localPath, json, Text.Encoding.UTF8)
-                AppLogger.Log($"[LanguagePack] Downloaded {normalized}.json successfully")
+                AppLogger.Log(LogEvents.LOCALE_LOADED, $"Downloaded {normalized}.json successfully")
                 Return True
             Catch ex As Exception
-                AppLogger.Log($"[LanguagePack] Download failed for {normalized}: {ex.Message}")
+                AppLogger.Log(LogEvents.LOCALE_FALLBACK, $"Download failed for {normalized}: {ex.Message}")
                 Return False
             End Try
         End Function
@@ -245,7 +245,7 @@ Namespace Services.Infrastructure
                     Next
                 End Using
             Catch ex As Exception
-                AppLogger.Log($"[LanguagePack] Failed to load {filePath}: {ex.Message}")
+                AppLogger.Log(LogEvents.LOCALE_FALLBACK, $"Failed to load {filePath}: {ex.Message}")
             End Try
         End Sub
 
@@ -254,7 +254,7 @@ Namespace Services.Infrastructure
                 Dim asm = Reflection.Assembly.GetExecutingAssembly()
                 Dim stream = asm.GetManifestResourceStream("EveryTongue.Assets.en.json")
                 If stream Is Nothing Then
-                    AppLogger.Log("[LanguagePack] Embedded en.json not found")
+                    AppLogger.Log(LogEvents.LOCALE_FALLBACK, "Embedded en.json not found")
                     Return
                 End If
                 Using reader As New IO.StreamReader(stream, Text.Encoding.UTF8)
@@ -265,9 +265,9 @@ Namespace Services.Infrastructure
                         Next
                     End Using
                 End Using
-                AppLogger.Log($"[LanguagePack] Loaded embedded en.json with {dict.Count} keys")
+                AppLogger.Log(LogEvents.LOCALE_LOADED, $"Loaded embedded en.json with {dict.Count} keys")
             Catch ex As Exception
-                AppLogger.Log($"[LanguagePack] Failed to load embedded en.json: {ex.Message}")
+                AppLogger.Log(LogEvents.LOCALE_FALLBACK, $"Failed to load embedded en.json: {ex.Message}")
             End Try
         End Sub
 

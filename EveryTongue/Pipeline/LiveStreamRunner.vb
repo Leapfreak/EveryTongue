@@ -4,6 +4,7 @@ Imports System.Text
 Imports System.Text.Json
 Imports System.Threading
 Imports EveryTongue.Models
+Imports EveryTongue.Services.Infrastructure
 
 Namespace Pipeline
     Public Class LiveStreamRunner
@@ -20,7 +21,8 @@ Namespace Pipeline
             .Label = "Live server",
             .AddWhisperToPath = True,
             .GracefulShutdownPath = "/shutdown",
-            .LogFileName = "live-server.log"
+            .LogFileName = "live-server.log",
+            .BaseEventId = Services.Infrastructure.LogEvents.PYLOG_LIVE
         }
 
         Private _isCapturing As Boolean = False
@@ -81,7 +83,7 @@ Namespace Pipeline
                         If devices.Count > 0 Then Return devices
                     End If
                 Catch ex As Exception
-                    FormMain.WriteDebugLog($"[Live] EnumerateDevicesAsync /devices request failed: {ex.Message}")
+                    AppLogger.Log(LogEvents.STT_WHISPER_SERVER_ERROR, $"EnumerateDevicesAsync /devices request failed: {ex.Message}")
                 End Try
             End If
 
@@ -116,7 +118,7 @@ Namespace Pipeline
                         End If
                     End Using
                 Catch ex As Exception
-                    FormMain.WriteDebugLog($"[Live] EnumerateDevicesAsync Python fallback failed: {ex.Message}")
+                    AppLogger.Log(LogEvents.STT_WHISPER_SERVER_ERROR, $"EnumerateDevicesAsync Python fallback failed: {ex.Message}")
                 End Try
             End If
 
@@ -161,7 +163,7 @@ Namespace Pipeline
                     serverAlive = resp.IsSuccessStatusCode
                     If serverAlive Then _serverReady = True
                 Catch ex As Exception
-                    FormMain.WriteDebugLog($"[Live] Start health-check failed (will restart): {ex.Message}")
+                    AppLogger.Log(LogEvents.STT_HEALTH_CHECK, $"Start health-check failed (will restart): {ex.Message}")
                 End Try
             End If
 
@@ -203,7 +205,7 @@ Namespace Pipeline
                          Catch ex As Exception When ct.IsCancellationRequested
                              ' Expected during shutdown — ignore
                          Catch ex As Exception
-                             FormMain.WriteDebugLog($"[Live] Pipeline task error: {ex.Message}")
+                             AppLogger.Log(LogEvents.STT_WHISPER_SERVER_ERROR, $"Pipeline task error: {ex.Message}")
                          End Try
                      End Sub)
         End Sub
@@ -219,7 +221,7 @@ Namespace Pipeline
                         Return True
                     End If
                 Catch ex As Exception
-                    FormMain.WriteDebugLog($"[Live] WaitForReady health poll failed: {ex.Message}")
+                    AppLogger.Log(LogEvents.STT_HEALTH_CHECK, $"WaitForReady health poll failed: {ex.Message}")
                 End Try
             End While
             If Not ct.IsCancellationRequested Then
@@ -323,7 +325,7 @@ Namespace Pipeline
                 Dim content As New StringContent(json, Encoding.UTF8, "application/json")
                 Await _httpClient.PostAsync($"http://127.0.0.1:{_host.Port}/config", content)
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[Live] UpdateConfigAsync failed: {ex.Message}")
+                AppLogger.Log(LogEvents.STT_WHISPER_SERVER_ERROR, $"UpdateConfigAsync failed: {ex.Message}")
             End Try
         End Function
 
@@ -332,7 +334,7 @@ Namespace Pipeline
                 File.WriteAllText(filePath, _transcript.ToString(), Encoding.UTF8)
                 Return True
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[Live] SaveTranscript failed: {ex.Message}")
+                AppLogger.Log(LogEvents.STT_WHISPER_SERVER_ERROR, $"SaveTranscript failed: {ex.Message}")
                 Return False
             End Try
         End Function
@@ -354,7 +356,7 @@ Namespace Pipeline
                     End If
                 End Using
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[Live] ParseJsonData failed to parse SSE payload: {ex.Message}")
+                AppLogger.Log(LogEvents.STT_WHISPER_SERVER_ERROR, $"ParseJsonData failed to parse SSE payload: {ex.Message}")
             End Try
             Return result
         End Function
@@ -366,7 +368,7 @@ Namespace Pipeline
                     Return Await response.Content.ReadAsStringAsync()
                 End If
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[Live] GetStatsAsync failed: {ex.Message}")
+                AppLogger.Log(LogEvents.STT_WHISPER_SERVER_ERROR, $"GetStatsAsync failed: {ex.Message}")
             End Try
             Return Nothing
         End Function

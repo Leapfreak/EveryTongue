@@ -53,15 +53,15 @@ Namespace Services.Testing
                 Path.Combine(whisperServerDir, "whisper-server-cuda.exe"), "")
             Dim hasCudaServer = File.Exists(cudaServerPath) AndAlso File.Exists(ggmlModelPath)
 
-            AppLogger.Log($"[STT-COMPARE] ═══════════════════════════════════════════════")
-            AppLogger.Log($"[STT-COMPARE] Audio: {audioFilePath} ({audioBytes.Length \ 1024}KB), Iterations: {iterations}")
-            AppLogger.Log($"[STT-COMPARE] CUDA={hwInfo.HasCuda}, Vulkan={hwInfo.HasVulkan}")
-            AppLogger.Log($"[STT-COMPARE] whisper-server path: {whisperServerPath} (exists={IO.File.Exists(whisperServerPath)})")
-            AppLogger.Log($"[STT-COMPARE] whisper-server-cuda path: {cudaServerPath} (exists={IO.File.Exists(cudaServerPath)})")
-            AppLogger.Log($"[STT-COMPARE] GGML model path: {ggmlModelPath} (exists={IO.File.Exists(ggmlModelPath)})")
-            AppLogger.Log($"[STT-COMPARE] hasWhisperServer={hasWhisperServer}, hasCudaServer={hasCudaServer}")
-            AppLogger.Log($"[STT-COMPARE] config.SttBackend={config.SttBackend}")
-            AppLogger.Log($"[STT-COMPARE] enabledEngines={If(enabledEngines Is Nothing, "(all)", String.Join(",", enabledEngines))}")
+            AppLogger.Log(LogEvents.BENCH_START, $"═══════════════════════════════════════════════")
+            AppLogger.Log(LogEvents.BENCH_START, $"Audio: {audioFilePath} ({audioBytes.Length \ 1024}KB), Iterations: {iterations}")
+            AppLogger.Log(LogEvents.BENCH_START, $"CUDA={hwInfo.HasCuda}, Vulkan={hwInfo.HasVulkan}")
+            AppLogger.Log(LogEvents.BENCH_START, $"whisper-server path: {whisperServerPath} (exists={IO.File.Exists(whisperServerPath)})")
+            AppLogger.Log(LogEvents.BENCH_START, $"whisper-server-cuda path: {cudaServerPath} (exists={IO.File.Exists(cudaServerPath)})")
+            AppLogger.Log(LogEvents.BENCH_START, $"GGML model path: {ggmlModelPath} (exists={IO.File.Exists(ggmlModelPath)})")
+            AppLogger.Log(LogEvents.BENCH_START, $"hasWhisperServer={hasWhisperServer}, hasCudaServer={hasCudaServer}")
+            AppLogger.Log(LogEvents.BENCH_START, $"config.SttBackend={config.SttBackend}")
+            AppLogger.Log(LogEvents.BENCH_START, $"enabledEngines={If(enabledEngines Is Nothing, "(all)", String.Join(",", enabledEngines))}")
 
             ' Helper: check if an engine is enabled (Nothing = all enabled)
             Dim isEnabled = Function(key As String) enabledEngines Is Nothing OrElse enabledEngines.Contains(key)
@@ -71,9 +71,9 @@ Namespace Services.Testing
             monitor.Start()
 
             ' 1) whisper.cpp (CUDA) — start whisper-server-cuda.exe (NVIDIA only)
-            AppLogger.Log($"[STT-COMPARE] CUDA native check: hasCudaServer={hasCudaServer}, HasCuda={hwInfo.HasCuda}")
+            AppLogger.Log(LogEvents.BENCH_PROGRESS, $"CUDA native check: hasCudaServer={hasCudaServer}, HasCuda={hwInfo.HasCuda}")
             If Not isEnabled("whisper-cpp-cuda") Then
-                AppLogger.Log($"[STT-COMPARE] CUDA native skipped: deselected by user")
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"CUDA native skipped: deselected by user")
             ElseIf hasCudaServer AndAlso hwInfo.HasCuda Then
                 RaiseProgress("Testing whisper.cpp (CUDA) — loading model...")
                 Dim cudaResult = Await TestViaWhisperServer(
@@ -82,16 +82,16 @@ Namespace Services.Testing
                 cudaResult.BackendName = "whisper.cpp (CUDA)"
                 cudaResult.BackendKey = "whisper-cpp-cuda"
                 result.Backends.Add(cudaResult)
-                AppLogger.Log($"[STT-COMPARE] CUDA native done: avg={cudaResult.AvgInferenceMs}ms, failed={cudaResult.Failed}, error={cudaResult.ErrorMessage}")
+                AppLogger.Log(LogEvents.BENCH_RESULT, $"CUDA native done: avg={cudaResult.AvgInferenceMs}ms, failed={cudaResult.Failed}, error={cudaResult.ErrorMessage}")
             ElseIf Not hasCudaServer Then
-                AppLogger.Log($"[STT-COMPARE] CUDA native skipped: whisper-server-cuda.exe not found")
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"CUDA native skipped: whisper-server-cuda.exe not found")
                 result.Backends.Add(New BackendComparisonResult() With {
                     .BackendName = "whisper.cpp (CUDA)",
                     .BackendKey = "whisper-cpp-cuda",
                     .Skipped = True,
                     .SkipReason = "whisper-server-cuda.exe not installed"})
             ElseIf Not hwInfo.HasCuda Then
-                AppLogger.Log($"[STT-COMPARE] CUDA native skipped: no NVIDIA GPU (CUDA required)")
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"CUDA native skipped: no NVIDIA GPU (CUDA required)")
                 result.Backends.Add(New BackendComparisonResult() With {
                     .BackendName = "whisper.cpp (CUDA)",
                     .BackendKey = "whisper-cpp-cuda",
@@ -103,14 +103,14 @@ Namespace Services.Testing
 
             ' Wait for port cleanup between CUDA and Vulkan tests
             If hasCudaServer AndAlso hwInfo.HasCuda Then
-                AppLogger.Log($"[STT-COMPARE] Waiting 2s for port cleanup before Vulkan test...")
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"Waiting 2s for port cleanup before Vulkan test...")
                 Await Task.Delay(2000, token)
             End If
 
             ' 3) whisper.cpp (Vulkan) — start whisper-server.exe (Vulkan build) without -ng
-            AppLogger.Log($"[STT-COMPARE] Vulkan check: hasWhisperServer={hasWhisperServer}, HasVulkan={hwInfo.HasVulkan}")
+            AppLogger.Log(LogEvents.BENCH_PROGRESS, $"Vulkan check: hasWhisperServer={hasWhisperServer}, HasVulkan={hwInfo.HasVulkan}")
             If Not isEnabled("whisper-cpp-vulkan") Then
-                AppLogger.Log($"[STT-COMPARE] Vulkan skipped: deselected by user")
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"Vulkan skipped: deselected by user")
             ElseIf hasWhisperServer AndAlso hwInfo.HasVulkan Then
                 RaiseProgress("Testing whisper.cpp (Vulkan) — loading model...")
                 Dim vulkanResult = Await TestViaWhisperServer(
@@ -118,16 +118,16 @@ Namespace Services.Testing
                 vulkanResult.BackendName = "whisper.cpp (Vulkan)"
                 vulkanResult.BackendKey = "whisper-cpp-vulkan"
                 result.Backends.Add(vulkanResult)
-                AppLogger.Log($"[STT-COMPARE] Vulkan done: avg={vulkanResult.AvgInferenceMs}ms, failed={vulkanResult.Failed}, error={vulkanResult.ErrorMessage}")
+                AppLogger.Log(LogEvents.BENCH_RESULT, $"Vulkan done: avg={vulkanResult.AvgInferenceMs}ms, failed={vulkanResult.Failed}, error={vulkanResult.ErrorMessage}")
             ElseIf Not hasWhisperServer Then
-                AppLogger.Log($"[STT-COMPARE] Vulkan skipped: whisper-server or GGML model not found")
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"Vulkan skipped: whisper-server or GGML model not found")
                 result.Backends.Add(New BackendComparisonResult() With {
                     .BackendName = "whisper.cpp (Vulkan)",
                     .BackendKey = "whisper-cpp-vulkan",
                     .Skipped = True,
                     .SkipReason = "whisper-server.exe or GGML model not installed"})
             ElseIf Not hwInfo.HasVulkan Then
-                AppLogger.Log($"[STT-COMPARE] Vulkan skipped: no Vulkan runtime")
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"Vulkan skipped: no Vulkan runtime")
                 result.Backends.Add(New BackendComparisonResult() With {
                     .BackendName = "whisper.cpp (Vulkan)",
                     .BackendKey = "whisper-cpp-vulkan",
@@ -139,14 +139,14 @@ Namespace Services.Testing
 
             ' Wait a moment for port cleanup between Vulkan and CPU tests
             If hasWhisperServer AndAlso hwInfo.HasVulkan Then
-                AppLogger.Log($"[STT-COMPARE] Waiting 2s for port cleanup before CPU test...")
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"Waiting 2s for port cleanup before CPU test...")
                 Await Task.Delay(2000, token)
             End If
 
             ' 4) whisper.cpp (CPU) — start whisper-server.exe with -ng
-            AppLogger.Log($"[STT-COMPARE] CPU check: hasWhisperServer={hasWhisperServer}")
+            AppLogger.Log(LogEvents.BENCH_PROGRESS, $"CPU check: hasWhisperServer={hasWhisperServer}")
             If Not isEnabled("whisper-cpp-cpu") Then
-                AppLogger.Log($"[STT-COMPARE] CPU skipped: deselected by user")
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"CPU skipped: deselected by user")
             ElseIf hasWhisperServer Then
                 RaiseProgress("Testing whisper.cpp (CPU) — loading model...")
                 Dim cpuResult = Await TestViaWhisperServer(
@@ -154,9 +154,9 @@ Namespace Services.Testing
                 cpuResult.BackendName = "whisper.cpp (CPU)"
                 cpuResult.BackendKey = "whisper-cpp-cpu"
                 result.Backends.Add(cpuResult)
-                AppLogger.Log($"[STT-COMPARE] CPU done: avg={cpuResult.AvgInferenceMs}ms, failed={cpuResult.Failed}, error={cpuResult.ErrorMessage}")
+                AppLogger.Log(LogEvents.BENCH_RESULT, $"CPU done: avg={cpuResult.AvgInferenceMs}ms, failed={cpuResult.Failed}, error={cpuResult.ErrorMessage}")
             Else
-                AppLogger.Log($"[STT-COMPARE] CPU skipped: whisper-server or GGML model not found")
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"CPU skipped: whisper-server or GGML model not found")
                 result.Backends.Add(New BackendComparisonResult() With {
                     .BackendName = "whisper.cpp (CPU)",
                     .BackendKey = "whisper-cpp-cpu",
@@ -177,7 +177,7 @@ Namespace Services.Testing
 
             ' Stop resource monitoring and attach report
             result.Resources = monitor.Stop()
-            AppLogger.Log($"[STT-COMPARE] Resources: {result.Resources.ToSummaryText()}")
+            AppLogger.Log(LogEvents.BENCH_COMPLETE, $"Resources: {result.Resources.ToSummaryText()}")
 
             RaiseProgress("Comparison complete.")
             Return result
@@ -201,16 +201,16 @@ Namespace Services.Testing
             If modeName Is Nothing Then modeName = If(useGpu, "Vulkan", "CPU")
             Dim proc As Process = Nothing
 
-            AppLogger.Log($"[STT-COMPARE] ── TestViaWhisperServer: mode={modeName}, useGpu={useGpu}, port={port}")
-            AppLogger.Log($"[STT-COMPARE]    serverPath={serverPath}")
-            AppLogger.Log($"[STT-COMPARE]    modelPath={modelPath}")
+            AppLogger.Log(LogEvents.BENCH_PROGRESS, $"── TestViaWhisperServer: mode={modeName}, useGpu={useGpu}, port={port}")
+            AppLogger.Log(LogEvents.BENCH_PROGRESS, $"   serverPath={serverPath}")
+            AppLogger.Log(LogEvents.BENCH_PROGRESS, $"   modelPath={modelPath}")
 
             Try
                 ' Kill any leftover whisper-server on this port
                 Try
                     Using client As New HttpClient() With {.Timeout = TimeSpan.FromSeconds(2)}
                         Dim check = Await client.GetAsync($"http://127.0.0.1:{port}/health", ct)
-                        AppLogger.Log($"[STT-COMPARE]    WARNING: port {port} already responding (status={check.StatusCode})! Waiting 3s...")
+                        AppLogger.Log(LogEvents.BENCH_PROGRESS, $"   WARNING: port {port} already responding (status={check.StatusCode})! Waiting 3s...")
                         Await Task.Delay(3000, ct)
                     End Using
                 Catch
@@ -222,7 +222,7 @@ Namespace Services.Testing
                 Dim args = $"-m ""{modelPath}"" --port {port} --host 127.0.0.1"
                 If Not useGpu Then args &= " -ng"
 
-                AppLogger.Log($"[STT-COMPARE]    Starting: {serverPath} {args}")
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"   Starting: {serverPath} {args}")
                 proc = Process.Start(New ProcessStartInfo(serverPath, args) With {
                     .RedirectStandardOutput = True,
                     .RedirectStandardError = True,
@@ -250,7 +250,7 @@ Namespace Services.Testing
                         Do
                             line = Await proc.StandardError.ReadLineAsync()
                             If line IsNot Nothing Then
-                                AppLogger.Log($"[STT-COMPARE]    [{modeName} stderr] {line}")
+                                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"   [{modeName} stderr] {line}")
                             End If
                         Loop While line IsNot Nothing
                     Catch
@@ -291,7 +291,7 @@ Namespace Services.Testing
                     Return result
                 End If
 
-                AppLogger.Log($"[STT-COMPARE]    whisper-server ({modeName}) ready in {result.ModelLoadMs}ms on port {port}")
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"   whisper-server ({modeName}) ready in {result.ModelLoadMs}ms on port {port}")
 
                 ' Run inference — scale timeout with audio size
                 Dim inferTimeoutSec = Math.Max(120, CInt(audioBytes.Length / 1024.0 / 1024.0 * 6))
@@ -319,16 +319,16 @@ Namespace Services.Testing
 
                                 If resp.IsSuccessStatusCode Then
                                     latencies.Add(sw.ElapsedMilliseconds)
-                                    AppLogger.Log($"[STT-COMPARE]    {modeName} inference {i}/{iterations}: {sw.ElapsedMilliseconds}ms OK")
+                                    AppLogger.Log(LogEvents.BENCH_PROGRESS, $"   {modeName} inference {i}/{iterations}: {sw.ElapsedMilliseconds}ms OK")
                                     If String.IsNullOrEmpty(result.TranscribedText) Then
                                         Dim body = Await resp.Content.ReadAsStringAsync()
-                                        AppLogger.Log($"[STT-COMPARE]    {modeName} response body: {If(body?.Length > 200, body.Substring(0, 200) & "...", body)}")
+                                        AppLogger.Log(LogEvents.BENCH_PROGRESS, $"   {modeName} response body: {If(body?.Length > 200, body.Substring(0, 200) & "...", body)}")
                                         result.TranscribedText = ExtractText(body)
                                     End If
                                 Else
                                     latencies.Add(sw.ElapsedMilliseconds)
                                     Dim errBody = Await resp.Content.ReadAsStringAsync()
-                                    AppLogger.Log($"[STT-COMPARE]    {modeName} inference {i}/{iterations}: {sw.ElapsedMilliseconds}ms HTTP {CInt(resp.StatusCode)} — {errBody}")
+                                    AppLogger.Log(LogEvents.BENCH_ERROR, $"   {modeName} inference {i}/{iterations}: {sw.ElapsedMilliseconds}ms HTTP {CInt(resp.StatusCode)} — {errBody}")
                                     If String.IsNullOrEmpty(result.ErrorMessage) Then
                                         result.ErrorMessage = $"HTTP {CInt(resp.StatusCode)}"
                                     End If
@@ -362,15 +362,15 @@ Namespace Services.Testing
                 ' Always kill the whisper-server process
                 If proc IsNot Nothing AndAlso Not proc.HasExited Then
                     Try
-                        AppLogger.Log($"[STT-COMPARE]    Killing whisper-server pid={proc.Id} ({modeName})...")
+                        AppLogger.Log(LogEvents.BENCH_PROGRESS, $"   Killing whisper-server pid={proc.Id} ({modeName})...")
                         proc.Kill(entireProcessTree:=True)
                         proc.WaitForExit(5000)
-                        AppLogger.Log($"[STT-COMPARE]    whisper-server killed, HasExited={proc.HasExited}")
+                        AppLogger.Log(LogEvents.BENCH_PROGRESS, $"   whisper-server killed, HasExited={proc.HasExited}")
                     Catch ex As Exception
-                        AppLogger.Log($"[STT-COMPARE]    Kill failed: {ex.Message}")
+                        AppLogger.Log(LogEvents.BENCH_ERROR, $"   Kill failed: {ex.Message}")
                     End Try
                 Else
-                    AppLogger.Log($"[STT-COMPARE]    whisper-server ({modeName}) already exited or was Nothing")
+                    AppLogger.Log(LogEvents.BENCH_PROGRESS, $"   whisper-server ({modeName}) already exited or was Nothing")
                 End If
                 proc?.Dispose()
             End Try
@@ -406,7 +406,7 @@ Namespace Services.Testing
         End Function
 
         Private Sub RaiseProgress(msg As String)
-            AppLogger.Log($"[STT-COMPARE] {msg}")
+            AppLogger.Log(LogEvents.BENCH_PROGRESS, msg)
             RaiseEvent ProgressChanged(Me, msg)
         End Sub
 

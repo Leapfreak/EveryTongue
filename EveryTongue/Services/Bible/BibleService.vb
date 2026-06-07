@@ -235,7 +235,7 @@ Namespace Services.Bible
                         End Using
                     End Using
                 Catch ex As Exception
-                    Services.Infrastructure.AppLogger.Log($"[ERROR] BibleService.LoadTranslation: failed reading info for '{dbFile}' - {ex.Message}")
+                    Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.BIBLE_ERROR, $"BibleService.LoadTranslation: failed reading info for '{dbFile}' - {ex.Message}")
                 End Try
 
                 ' Build book_number map from books table (both short_name and long_name)

@@ -50,7 +50,7 @@ Namespace Services.Rooms
             End If
 
             _rooms.TryAdd(room.Id, room)
-            AppLogger.Log($"[RoomManager] Created room '{room.Name}' ({room.Type}, {room.Visibility}) id={room.Id}")
+            AppLogger.Log(LogEvents.ROOM_CREATED, $"Created room '{room.Name}' ({room.Type}, {room.Visibility}) id={room.Id}")
             Return room
         End Function
 
@@ -93,7 +93,7 @@ Namespace Services.Rooms
             Dim room = GetRoom(roomId)
             If room Is Nothing Then Return False
             If room.IsLocked Then
-                AppLogger.Log($"[RoomManager] Client {clientId} rejected from locked room '{room.Name}'")
+                AppLogger.Log(LogEvents.ROOM_LOCKED, $"Client {clientId} rejected from locked room '{room.Name}'")
                 Return False
             End If
             room.ClientIds.TryAdd(clientId, 0)
@@ -102,10 +102,10 @@ Namespace Services.Rooms
             ' If the room has no host yet, the first joiner becomes host
             If String.IsNullOrEmpty(room.HostClientId) Then
                 room.HostClientId = clientId
-                AppLogger.Log($"[RoomManager] Client {clientId} claimed host of room '{room.Name}'")
+                AppLogger.Log(LogEvents.ROOM_CLIENT_JOINED, $"Client {clientId} claimed host of room '{room.Name}'")
             End If
 
-            AppLogger.Log($"[RoomManager] Client {clientId} joined room '{room.Name}' ({room.ClientCount} clients)")
+            AppLogger.Log(LogEvents.ROOM_CLIENT_JOINED, $"Client {clientId} joined room '{room.Name}' ({room.ClientCount} clients)")
             Return True
         End Function
 
@@ -123,12 +123,12 @@ Namespace Services.Rooms
             If Not String.IsNullOrEmpty(room.HostClientId) AndAlso
                room.HostClientId <> newClientId AndAlso
                room.ClientIds.ContainsKey(room.HostClientId) Then
-                AppLogger.Log($"[RoomManager] Host claim rejected for room '{room.Name}' — current host {room.HostClientId} still connected")
+                AppLogger.Log(LogEvents.ROOM_LOCKED, $"Host claim rejected for room '{room.Name}' — current host {room.HostClientId} still connected")
                 Return False
             End If
             room.HostClientId = newClientId
             room.TouchActivity()
-            AppLogger.Log($"[RoomManager] Host reclaimed for room '{room.Name}' by {newClientId}")
+            AppLogger.Log(LogEvents.ROOM_CLIENT_JOINED, $"Host reclaimed for room '{room.Name}' by {newClientId}")
             Return True
         End Function
 
@@ -143,7 +143,7 @@ Namespace Services.Rooms
             Dim removed = room.ClientIds.TryRemove(clientId, dummy)
             If removed Then
                 room.TouchActivity()
-                AppLogger.Log($"[RoomManager] Client {clientId} kicked from room '{room.Name}' by host {requestingClientId}")
+                AppLogger.Log(LogEvents.ROOM_CLIENT_LEFT, $"Client {clientId} kicked from room '{room.Name}' by host {requestingClientId}")
             End If
             Return removed
         End Function
@@ -157,7 +157,7 @@ Namespace Services.Rooms
             If room.HostClientId <> requestingClientId Then Return False
             room.IsLocked = locked
             room.TouchActivity()
-            AppLogger.Log($"[RoomManager] Room '{room.Name}' locked={locked} by host {requestingClientId}")
+            AppLogger.Log(LogEvents.ROOM_LOCKED, $"Room '{room.Name}' locked={locked} by host {requestingClientId}")
             Return True
         End Function
 
@@ -171,7 +171,7 @@ Namespace Services.Rooms
             If mode <> "hold" AndAlso mode <> "toggle" Then Return False
             room.Config.PttMode = mode
             room.TouchActivity()
-            AppLogger.Log($"[RoomManager] Room '{room.Name}' PTT mode={mode} by host {requestingClientId}")
+            AppLogger.Log(LogEvents.ROOM_PAUSED, $"Room '{room.Name}' PTT mode={mode} by host {requestingClientId}")
             Return True
         End Function
 
@@ -184,7 +184,7 @@ Namespace Services.Rooms
             If room.HostClientId <> requestingClientId Then Return False
             room.Config.IsPaused = paused
             room.TouchActivity()
-            AppLogger.Log($"[RoomManager] Room '{room.Name}' paused={paused} by host {requestingClientId}")
+            AppLogger.Log(LogEvents.ROOM_PAUSED, $"Room '{room.Name}' paused={paused} by host {requestingClientId}")
             Return True
         End Function
 
@@ -202,7 +202,7 @@ Namespace Services.Rooms
             }
             room.VirtualMembers.TryAdd(vm.Id, vm)
             room.TouchActivity()
-            AppLogger.Log($"[RoomManager] Virtual member '{vm.Name}' ({vm.Language}) added to room '{room.Name}'")
+            AppLogger.Log(LogEvents.ROOM_CLIENT_JOINED, $"Virtual member '{vm.Name}' ({vm.Language}) added to room '{room.Name}'")
             Return vm
         End Function
 
@@ -217,7 +217,7 @@ Namespace Services.Rooms
             Dim ok = room.VirtualMembers.TryRemove(vmId, removed)
             If ok Then
                 room.TouchActivity()
-                AppLogger.Log($"[RoomManager] Virtual member '{removed.Name}' removed from room '{room.Name}'")
+                AppLogger.Log(LogEvents.ROOM_CLIENT_LEFT, $"Virtual member '{removed.Name}' removed from room '{room.Name}'")
             End If
             Return ok
         End Function
@@ -231,7 +231,7 @@ Namespace Services.Rooms
             Dim dummy As Byte
             room.ClientIds.TryRemove(clientId, dummy)
             room.TouchActivity()
-            AppLogger.Log($"[RoomManager] Client {clientId} left room '{room.Name}' ({room.ClientCount} clients)")
+            AppLogger.Log(LogEvents.ROOM_CLIENT_LEFT, $"Client {clientId} left room '{room.Name}' ({room.ClientCount} clients)")
         End Sub
 
         ''' <summary>
@@ -248,7 +248,7 @@ Namespace Services.Rooms
             End If
 
             room.IsActive = False
-            AppLogger.Log($"[RoomManager] Room '{room.Name}' closed (id={room.Id})")
+            AppLogger.Log(LogEvents.ROOM_CLOSED, $"Room '{room.Name}' closed (id={room.Id})")
             Return True
         End Function
 
@@ -279,7 +279,7 @@ Namespace Services.Rooms
                 Dim idleMinutes = (now - room.LastActivityAt).TotalMinutes
                 If idleMinutes >= room.Config.IdleTimeoutMinutes Then
                     room.IsActive = False
-                    AppLogger.Log($"[RoomManager] Room '{room.Name}' auto-closed after {CInt(idleMinutes)}min idle (id={room.Id})")
+                    AppLogger.Log(LogEvents.ROOM_EXPIRED, $"Room '{room.Name}' auto-closed after {CInt(idleMinutes)}min idle (id={room.Id})")
                 End If
             Next
 

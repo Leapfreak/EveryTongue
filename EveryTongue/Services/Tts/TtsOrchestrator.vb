@@ -160,7 +160,7 @@ Namespace Services.Tts
                         })
                     End If
                 Catch ex As Exception
-                    Services.Infrastructure.AppLogger.Log($"[ERROR] TtsOrchestrator.GetAvailableVoicesAsync: {ex.Message}")
+                    Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TTS_ENGINE_ERROR, $"TtsOrchestrator.GetAvailableVoicesAsync: {ex.Message}")
                 End Try
             Next
             Return voices

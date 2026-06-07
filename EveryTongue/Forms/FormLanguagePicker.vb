@@ -70,7 +70,7 @@ Public Class FormLanguagePicker
                 picLogo.Image = Image.FromStream(stream)
             End If
         Catch ex As Exception
-            FormMain.WriteDebugLog($"[ERROR] FormLanguagePicker.New (load logo): {ex.Message}")
+            AppLogger.Log(LogEvents.UI_ERROR, $"FormLanguagePicker.New (load logo): {ex.Message}")
         End Try
         Me.Controls.Add(picLogo)
 

@@ -1,4 +1,5 @@
 Imports System.IO
+Imports EveryTongue.Services.Infrastructure
 
 Friend Module Program
 
@@ -32,7 +33,7 @@ Friend Module Program
         AddHandler TaskScheduler.UnobservedTaskException, Sub(s, e)
             e.SetObserved()
             If IsHarmlessNetworkException(e.Exception) Then Return
-            FormMain.WriteDebugLog($"[UNOBSERVED TASK] {e.Exception}")
+            AppLogger.Log(LogEvents.STARTUP_CRASH_DETECTED, $"Unobserved task exception: {e.Exception}")
         End Sub
 
         ' Catch unhandled UI-thread exceptions
@@ -172,7 +173,7 @@ Friend Module Program
         Dim detail = If(ex?.ToString(), "(no exception details)")
         ' Try AppLogger first
         Try
-            FormMain.WriteDebugLog($"{tag} {detail}")
+            AppLogger.Log(LogEvents.STARTUP_CRASH_DETECTED, $"{tag} {detail}")
         Catch
         End Try
         ' Also write directly in case AppLogger failed

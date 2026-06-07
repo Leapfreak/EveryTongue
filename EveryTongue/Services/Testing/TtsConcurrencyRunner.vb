@@ -41,11 +41,11 @@ Namespace Services.Testing
             End If
 
             result.BackendName = backend.Name
-            AppLogger.Log($"[TTS-CONCURRENCY] ═══════════════════════════════════════════════")
-            AppLogger.Log($"[TTS-CONCURRENCY] Backend: {backend.Name}")
-            AppLogger.Log($"[TTS-CONCURRENCY] Text: {testText.Substring(0, Math.Min(80, testText.Length))}...")
-            AppLogger.Log($"[TTS-CONCURRENCY] Language: {language}")
-            AppLogger.Log($"[TTS-CONCURRENCY] Levels: {String.Join(", ", concurrencyLevels)}, iterations/level: {iterationsPerLevel}")
+            AppLogger.Log(LogEvents.BENCH_START, $"═══════════════════════════════════════════════")
+            AppLogger.Log(LogEvents.BENCH_START, $"Backend: {backend.Name}")
+            AppLogger.Log(LogEvents.BENCH_START, $"Text: {testText.Substring(0, Math.Min(80, testText.Length))}...")
+            AppLogger.Log(LogEvents.BENCH_START, $"Language: {language}")
+            AppLogger.Log(LogEvents.BENCH_START, $"Levels: {String.Join(", ", concurrencyLevels)}, iterations/level: {iterationsPerLevel}")
 
             ' Health check
             RaiseProgress($"Checking {backend.Name} health...")
@@ -73,25 +73,25 @@ Namespace Services.Testing
                     token.ThrowIfCancellationRequested()
                     Await backend.SynthesiseAsync(testText, language, token)
                 Next
-                AppLogger.Log($"[TTS-CONCURRENCY] Warm-up complete")
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"Warm-up complete")
 
                 ' Test each concurrency level
                 For Each level In concurrencyLevels
                     token.ThrowIfCancellationRequested()
                     RaiseProgress($"Testing {level} concurrent syntheses ({iterationsPerLevel} iterations)...")
-                    AppLogger.Log($"[TTS-CONCURRENCY] ── Level {level} ──")
+                    AppLogger.Log(LogEvents.BENCH_PROGRESS, $"── Level {level} ──")
 
                     Dim levelResult = Await TestConcurrencyLevel(
                         backend, testText, language, level, iterationsPerLevel, token)
                     result.Levels.Add(levelResult)
 
-                    AppLogger.Log($"[TTS-CONCURRENCY]   Wall: {levelResult.WallTimeMs}ms, Avg: {levelResult.AvgLatencyMs}ms, " &
+                    AppLogger.Log(LogEvents.BENCH_RESULT, $"  Wall: {levelResult.WallTimeMs}ms, Avg: {levelResult.AvgLatencyMs}ms, " &
                                   $"Max: {levelResult.MaxLatencyMs}ms, Throughput: {levelResult.InferencesPerSec:F1}/s, " &
                                   $"Errors: {levelResult.Errors}")
                 Next
 
                 result.Resources = monitor.Stop()
-                AppLogger.Log($"[TTS-CONCURRENCY] Resources: {result.Resources.ToSummaryText()}")
+                AppLogger.Log(LogEvents.BENCH_COMPLETE, $"Resources: {result.Resources.ToSummaryText()}")
                 RaiseProgress("Concurrent TTS test complete.")
 
             Catch ex As OperationCanceledException When token.IsCancellationRequested
@@ -142,7 +142,7 @@ Namespace Services.Testing
                             sw.Stop()
                             allLatencies.Add(sw.ElapsedMilliseconds)
                             Interlocked.Increment(errorCount)
-                            Services.Infrastructure.AppLogger.Log($"[TTS-CONCURRENCY] Synthesis error: {ex.Message}")
+                            Services.Infrastructure.AppLogger.Log(LogEvents.BENCH_ERROR, $"Synthesis error: {ex.Message}")
                         End Try
                     End Function))
                 Next
@@ -178,7 +178,7 @@ Namespace Services.Testing
         End Function
 
         Private Sub RaiseProgress(msg As String)
-            AppLogger.Log($"[TTS-CONCURRENCY] {msg}")
+            AppLogger.Log(LogEvents.BENCH_PROGRESS, msg)
             RaiseEvent ProgressChanged(Me, msg)
         End Sub
 

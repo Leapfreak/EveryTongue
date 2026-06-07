@@ -1,5 +1,6 @@
 Imports System.Diagnostics
 Imports EveryTongue.Models
+Imports EveryTongue.Services.Infrastructure
 Imports EveryTongue.Services.Interfaces
 Imports EveryTongue.Services.Models
 
@@ -38,7 +39,7 @@ Public Class FormConnectedClients
             RefreshGrid()
             RefreshPerformance()
         Catch ex As Exception
-            FormMain.WriteDebugLog($"[ConnectedClients] Refresh failed: {ex.Message}")
+            AppLogger.Log(LogEvents.UI_ERROR, $"ConnectedClients refresh failed: {ex.Message}")
         End Try
     End Sub
 

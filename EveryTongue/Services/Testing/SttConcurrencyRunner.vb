@@ -62,10 +62,10 @@ Namespace Services.Testing
             Dim port = 18110
             Dim proc As Process = Nothing
 
-            AppLogger.Log($"[STT-CONCURRENCY] ═══════════════════════════════════════════════")
-            AppLogger.Log($"[STT-CONCURRENCY] Audio: {audioFilePath} ({audioBytes.Length \ 1024}KB)")
-            AppLogger.Log($"[STT-CONCURRENCY] Backend: {backendName} ({Path.GetFileName(serverExe)})")
-            AppLogger.Log($"[STT-CONCURRENCY] Levels: {String.Join(", ", concurrencyLevels)}, iterations/level: {iterationsPerLevel}")
+            AppLogger.Log(LogEvents.BENCH_START, $"═══════════════════════════════════════════════")
+            AppLogger.Log(LogEvents.BENCH_START, $"Audio: {audioFilePath} ({audioBytes.Length \ 1024}KB)")
+            AppLogger.Log(LogEvents.BENCH_START, $"Backend: {backendName} ({Path.GetFileName(serverExe)})")
+            AppLogger.Log(LogEvents.BENCH_START, $"Levels: {String.Join(", ", concurrencyLevels)}, iterations/level: {iterationsPerLevel}")
 
             Try
                 ' Start whisper-server
@@ -99,7 +99,7 @@ Namespace Services.Testing
                         Do
                             line = Await proc.StandardError.ReadLineAsync()
                             If line IsNot Nothing Then
-                                AppLogger.Log($"[STT-CONCURRENCY] [stderr] {line}")
+                                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"[stderr] {line}")
                             End If
                         Loop While line IsNot Nothing
                     Catch
@@ -139,7 +139,7 @@ Namespace Services.Testing
                     Return result
                 End If
 
-                AppLogger.Log($"[STT-CONCURRENCY] Server ready in {result.ModelLoadMs}ms")
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"Server ready in {result.ModelLoadMs}ms")
 
                 ' Start resource monitoring (CPU, RAM, GPU) — after model load so we capture test load
                 Dim monitor As New ResourceMonitor(500)
@@ -151,25 +151,25 @@ Namespace Services.Testing
                     token.ThrowIfCancellationRequested()
                     Await PostInferenceAsync(port, audioBytes, token)
                 Next
-                AppLogger.Log($"[STT-CONCURRENCY] Warm-up complete")
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"Warm-up complete")
 
                 ' Test each concurrency level
                 For Each level In concurrencyLevels
                     token.ThrowIfCancellationRequested()
                     RaiseProgress($"Testing {level} concurrent sessions ({iterationsPerLevel} iterations)...")
-                    AppLogger.Log($"[STT-CONCURRENCY] ── Level {level} ──")
+                    AppLogger.Log(LogEvents.BENCH_PROGRESS, $"── Level {level} ──")
 
                     Dim levelResult = Await TestConcurrencyLevel(port, audioBytes, level, iterationsPerLevel, token)
                     result.Levels.Add(levelResult)
 
-                    AppLogger.Log($"[STT-CONCURRENCY]   Wall: {levelResult.WallTimeMs}ms, Avg: {levelResult.AvgLatencyMs}ms, " &
+                    AppLogger.Log(LogEvents.BENCH_RESULT, $"  Wall: {levelResult.WallTimeMs}ms, Avg: {levelResult.AvgLatencyMs}ms, " &
                                   $"Max: {levelResult.MaxLatencyMs}ms, Throughput: {levelResult.InferencesPerSec:F1}/s, " &
                                   $"Errors: {levelResult.Errors}")
                 Next
 
                 ' Stop resource monitoring and attach report
                 result.Resources = monitor.Stop()
-                AppLogger.Log($"[STT-CONCURRENCY] Resources: {result.Resources.ToSummaryText()}")
+                AppLogger.Log(LogEvents.BENCH_COMPLETE, $"Resources: {result.Resources.ToSummaryText()}")
 
                 RaiseProgress("Concurrent throughput test complete.")
 
@@ -228,7 +228,7 @@ Namespace Services.Testing
                             sw.Stop()
                             allLatencies.Add(sw.ElapsedMilliseconds)
                             Interlocked.Increment(errorCount)
-                            AppLogger.Log($"[STT-CONCURRENCY] Inference error: {ex.Message}")
+                            AppLogger.Log(LogEvents.BENCH_ERROR, $"Inference error: {ex.Message}")
                         End Try
                     End Function))
                 Next
@@ -284,7 +284,7 @@ Namespace Services.Testing
         End Function
 
         Private Sub RaiseProgress(msg As String)
-            AppLogger.Log($"[STT-CONCURRENCY] {msg}")
+            AppLogger.Log(LogEvents.BENCH_PROGRESS, msg)
             RaiseEvent ProgressChanged(Me, msg)
         End Sub
 

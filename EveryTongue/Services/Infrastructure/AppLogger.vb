@@ -1,22 +1,33 @@
 ' AppLogger.vb — Centralized logging (file + optional UI callback)
 ' Decoupled from FormMain so any class can log without a form reference.
 '
-' Two calling patterns:
-'   AppLogger.Log(LogEvents.PIPELINE_SIDECAR_STARTED, "Started on port 5091")  ← new (structured)
-'   AppLogger.Log("[Pipeline] Started on port 5091")                            ← legacy (still works)
+' All log calls use structured event IDs:
+'   AppLogger.Log(LogEvents.PIPELINE_SIDECAR_STARTED, "Started on port 5091")
 
 Imports System.Collections.Concurrent
 
 Namespace Services.Infrastructure
 
+    ''' <summary>
+    ''' Structured log entry passed to the UI callback.
+    ''' </summary>
+    Public Class LogEntry
+        Public Time As DateTime
+        Public EventId As Integer       ' 0 = legacy (unstructured)
+        Public Category As LogCategory
+        Public Level As LogSeverity
+        Public Source As String         ' Category tag or legacy source (e.g. "Server", "Debug")
+        Public Message As String
+        Public Color As Drawing.Color
+    End Class
+
     Public Module AppLogger
 
         ''' <summary>
         ''' Optional callback for routing log messages to the UI.
-        ''' Signature: (source As String, message As String, color As Drawing.Color).
         ''' Set by FormMain during Load; Nothing before that (logs still go to file).
         ''' </summary>
-        Public UiCallback As Action(Of String, String, Drawing.Color)
+        Public UiCallback As Action(Of LogEntry)
 
         ''' <summary>
         ''' Callback to open the Download Manager. Set by FormMain during Load.
@@ -28,6 +39,12 @@ Namespace Services.Infrastructure
         ''' Defaults to Normal preset until config is loaded.
         ''' </summary>
         Public Routing As LogRoutingConfig = LogRoutingConfig.CreateNormal()
+
+        ' ── Session tracking ──
+        Private ReadOnly _sessionStart As DateTime = DateTime.Now
+        Private ReadOnly _categoryCounts As New ConcurrentDictionary(Of LogCategory, Integer)
+        Private _totalEventCount As Integer = 0
+        Private _errorCount As Integer = 0
 
         ' ── Rate limiter state ──
         Private ReadOnly _rateCounts As New ConcurrentDictionary(Of Integer, RateState)
@@ -45,7 +62,7 @@ Namespace Services.Infrastructure
         ''' Call from any controller when deps are missing.
         ''' </summary>
         Public Sub PromptDownloadManager(message As String, title As String)
-            Log($"[WARN] {message}")
+            Log(LogEvents.DL_CHECK_RESULT, message)
             Dim result = System.Windows.Forms.MessageBox.Show(
                 message,
                 title,
@@ -77,14 +94,23 @@ Namespace Services.Infrastructure
         Public Sub Log(eventId As Integer, message As String)
             Dim info = LogEventRegistry.Lookup(eventId)
             If info Is Nothing Then
-                ' Unregistered event — treat as legacy
-                Log($"[?{eventId}] {message}")
+                ' Unregistered event — log as Legacy category
+                Try
+                    Dim logPath = GetLogPath()
+                    IO.File.AppendAllText(logPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [?{eventId}] {message}{Environment.NewLine}")
+                Catch
+                End Try
                 Return
             End If
 
             Dim category = info.Category
             Dim level = info.DefaultLevel
             Dim routing = AppLogger.Routing
+
+            ' Track session statistics
+            Threading.Interlocked.Increment(_totalEventCount)
+            _categoryCounts.AddOrUpdate(category, 1, Function(k, v) v + 1)
+            If level >= LogSeverity.[Error] Then Threading.Interlocked.Increment(_errorCount)
 
             ' Rate limiting: collapse repeated events
             Dim suppressed = CheckRateLimit(eventId, message)
@@ -109,7 +135,15 @@ Namespace Services.Infrastructure
                     Dim cb = UiCallback
                     If cb IsNot Nothing Then
                         Dim color = GetColorForLevel(level, category)
-                        cb(catTag, formatted, color)
+                        cb(New LogEntry With {
+                            .Time = DateTime.Now,
+                            .EventId = eventId,
+                            .Category = category,
+                            .Level = level,
+                            .Source = catTag,
+                            .Message = formatted,
+                            .Color = color
+                        })
                     End If
                 Catch
                 End Try
@@ -171,7 +205,15 @@ Namespace Services.Infrastructure
             Try
                 Dim cb = UiCallback
                 If cb IsNot Nothing Then
-                    cb(catTag, formatted, Drawing.Color.FromArgb(180, 140, 60))
+                    cb(New LogEntry With {
+                        .Time = DateTime.Now,
+                        .EventId = eventId,
+                        .Category = info.Category,
+                        .Level = LogSeverity.Info,
+                        .Source = catTag,
+                        .Message = formatted,
+                        .Color = Drawing.Color.FromArgb(180, 140, 60)
+                    })
                 End If
             Catch
             End Try
@@ -200,53 +242,28 @@ Namespace Services.Infrastructure
             End Select
         End Function
 
-        ' ─── Legacy log (unchanged API) ─────────────────────────────────
+        ' Legacy Log(msg) overload removed — all calls now use Log(eventId, message).
+
+        ' ─── Session summary ────────────────────────────────────────────
 
         ''' <summary>
-        ''' Legacy log method. Routes through the structured system as Legacy category.
-        ''' Will be removed once all 334 call sites are migrated to use event IDs.
+        ''' Emits a session summary event with event counts by category, errors, and duration.
+        ''' Call during application shutdown.
         ''' </summary>
-        Public Sub Log(msg As String)
-            Dim routing = AppLogger.Routing
+        Public Sub EmitSessionSummary()
+            Dim duration = DateTime.Now - _sessionStart
+            Dim parts As New List(Of String)
+            parts.Add($"Duration={duration.Hours}h{duration.Minutes}m{duration.Seconds}s")
+            parts.Add($"TotalEvents={_totalEventCount}")
+            parts.Add($"Errors={_errorCount}")
 
-            ' Write to file (legacy always goes to file at Info level)
-            If routing.ShouldLogToFile(LogCategory.Legacy, LogSeverity.Info) Then
-                Try
-                    Dim logPath = GetLogPath()
-                    IO.File.AppendAllText(logPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {msg}{Environment.NewLine}")
-                Catch
-                End Try
-            End If
+            ' Top categories by count
+            Dim topCats = _categoryCounts.OrderByDescending(Function(kv) kv.Value).Take(5)
+            For Each kv In topCats
+                parts.Add($"{kv.Key}={kv.Value}")
+            Next
 
-            ' Route to UI if callback is set
-            If routing.ShouldLogToUi(LogCategory.Legacy, LogSeverity.Info) Then
-                Try
-                    Dim cb = UiCallback
-                    If cb IsNot Nothing Then
-                        Dim source = "Debug"
-                        If msg.StartsWith("[Server]") Then
-                            source = "Server"
-                        ElseIf msg.StartsWith("[Live]") Then
-                            source = "Live"
-                        End If
-
-                        Dim color As Drawing.Color
-                        If msg.Contains("[ERROR]") Then
-                            color = Drawing.Color.Red
-                        ElseIf msg.Contains("[WARN]") Then
-                            color = Drawing.Color.Orange
-                        Else
-                            Select Case source
-                                Case "Server" : color = Drawing.Color.FromArgb(0, 120, 180)
-                                Case "Live" : color = Drawing.Color.FromArgb(0, 140, 80)
-                                Case Else : color = Drawing.Color.FromArgb(100, 100, 100)
-                            End Select
-                        End If
-                        cb(source, msg, color)
-                    End If
-                Catch
-                End Try
-            End If
+            Log(LogEvents.STARTUP_SESSION_SUMMARY, String.Join(", ", parts))
         End Sub
 
         ' ─── Cleanup ────────────────────────────────────────────────────

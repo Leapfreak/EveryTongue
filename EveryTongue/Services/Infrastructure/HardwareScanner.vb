@@ -140,7 +140,7 @@ Namespace Services.Infrastructure
                     End If
                 End Using
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[HW] nvidia-smi not available: {ex.Message}")
+                AppLogger.Log(LogEvents.HW_SCAN_ERROR, $"nvidia-smi not available: {ex.Message}")
             End Try
 
             ' Fallback to WMI if nvidia-smi didn't work
@@ -161,7 +161,7 @@ Namespace Services.Infrastructure
                         Next
                     End Using
                 Catch ex As Exception
-                    FormMain.WriteDebugLog($"[HW] WMI GPU scan failed: {ex.Message}")
+                    AppLogger.Log(LogEvents.HW_SCAN_ERROR, $"WMI GPU scan failed: {ex.Message}")
                 End Try
             End If
 
@@ -170,10 +170,10 @@ Namespace Services.Infrastructure
                 Dim vulkanDll = IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "vulkan-1.dll")
                 info.HasVulkan = IO.File.Exists(vulkanDll)
                 If info.HasVulkan Then
-                    FormMain.WriteDebugLog($"[HW] Vulkan runtime detected ({vulkanDll})")
+                    AppLogger.Log(LogEvents.HW_SCAN_RESULT, $"Vulkan runtime detected ({vulkanDll})")
                 End If
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[HW] Vulkan detection failed: {ex.Message}")
+                AppLogger.Log(LogEvents.HW_SCAN_ERROR, $"Vulkan detection failed: {ex.Message}")
             End Try
 
             ' Score GPU — NVIDIA with CUDA scores highest, but AMD/Intel with Vulkan are now viable
@@ -229,7 +229,7 @@ Namespace Services.Infrastructure
                     Next
                 End Using
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[HW] WMI CPU scan failed: {ex.Message}")
+                AppLogger.Log(LogEvents.HW_SCAN_ERROR, $"WMI CPU scan failed: {ex.Message}")
             End Try
 
             ' Score CPU by cores and clock speed per plan
@@ -258,7 +258,7 @@ Namespace Services.Infrastructure
                     Next
                 End Using
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[HW] WMI RAM scan failed: {ex.Message}")
+                AppLogger.Log(LogEvents.HW_SCAN_ERROR, $"WMI RAM scan failed: {ex.Message}")
             End Try
 
             ' Score RAM per plan
@@ -278,9 +278,9 @@ Namespace Services.Infrastructure
                 Dim appDrive = IO.Path.GetPathRoot(AppDomain.CurrentDomain.BaseDirectory)
                 Dim driveInfo As New IO.DriveInfo(appDrive)
                 info.DiskFreeMB = driveInfo.AvailableFreeSpace \ (1024L * 1024L)
-                FormMain.WriteDebugLog($"[HW] Disk: drive={appDrive}, freeBytes={driveInfo.AvailableFreeSpace}, freeMB={info.DiskFreeMB}")
+                AppLogger.Log(LogEvents.HW_SCAN_RESULT, $"Disk: drive={appDrive}, freeBytes={driveInfo.AvailableFreeSpace}, freeMB={info.DiskFreeMB}")
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[HW] Disk scan failed: {ex.Message}")
+                AppLogger.Log(LogEvents.HW_SCAN_ERROR, $"Disk scan failed: {ex.Message}")
             End Try
 
             ' Score disk free space per plan
@@ -311,7 +311,7 @@ Namespace Services.Infrastructure
                 info.OsDescription = $"{winName} ({If(info.Is64Bit, "64-bit", "32-bit")}) Build {ver.Build}"
             Catch ex As Exception
                 info.OsDescription = If(info.Is64Bit, "64-bit", "32-bit")
-                FormMain.WriteDebugLog($"[HW] OS scan failed: {ex.Message}")
+                AppLogger.Log(LogEvents.HW_SCAN_ERROR, $"OS scan failed: {ex.Message}")
             End Try
 
             ' Score OS per plan: Win 10/11 64-bit = 100, 32-bit = 20, older = 0

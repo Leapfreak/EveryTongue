@@ -1,6 +1,7 @@
 Imports System.IO
 Imports System.Text
 Imports System.Text.Json
+Imports EveryTongue.Services.Infrastructure
 
 Namespace Services.Scheduling
 
@@ -62,7 +63,7 @@ Namespace Services.Scheduling
                 Dim json = JsonSerializer.Serialize(Me, opts)
                 File.WriteAllText(GetProfilePath(), json, Encoding.UTF8)
             Catch ex As Exception
-                Infrastructure.AppLogger.Log($"[WARN] Failed to save latency profile: {ex.Message}")
+                AppLogger.Log(LogEvents.BENCH_ERROR, $"Failed to save latency profile: {ex.Message}")
             End Try
         End Sub
 
@@ -78,7 +79,7 @@ Namespace Services.Scheduling
                 }
                 Return JsonSerializer.Deserialize(Of LatencyProfile)(json, opts)
             Catch ex As Exception
-                Infrastructure.AppLogger.Log($"[WARN] Failed to load latency profile: {ex.Message}")
+                AppLogger.Log(LogEvents.BENCH_ERROR, $"Failed to load latency profile: {ex.Message}")
                 Return Nothing
             End Try
         End Function

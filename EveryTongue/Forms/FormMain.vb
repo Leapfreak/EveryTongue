@@ -96,14 +96,14 @@ Public Class FormMain
                 Next
             End If
         Catch ex As Exception
-            WriteDebugLog($"[ERROR] DiscoverUiLocales: {ex.Message}")
+            AppLogger.Log(LogEvents.LOCALE_FALLBACK, $"DiscoverUiLocales: {ex.Message}")
         End Try
 
         Return result.ToArray()
     End Function
 
     Private Sub FormMain_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-        Services.Infrastructure.AppLogger.UiCallback = AddressOf AppendUnifiedLog
+        Services.Infrastructure.AppLogger.UiCallback = Sub(entry) AppendUnifiedLog(entry)
         Services.Infrastructure.AppLogger.OpenDownloadManager = AddressOf OpenDownloadManager
         _langPack = LanguagePackService.Instance
 
@@ -118,7 +118,7 @@ Public Class FormMain
             Services.Infrastructure.AppLogger.Routing = _config.LogRouting
         End If
 
-        WriteDebugLog($"[STARTUP] Config loaded: Language={_config.Language}, OutputLanguage={_config.OutputLanguage}, BiblesDirectory={_config.BiblesDirectory}, Theme={_config.Theme}, UiLanguage={_config.UiLanguage}")
+        AppLogger.Log(LogEvents.CONFIG_LOADED, $"Language={_config.Language}, OutputLanguage={_config.OutputLanguage}, BiblesDirectory={_config.BiblesDirectory}, Theme={_config.Theme}, UiLanguage={_config.UiLanguage}")
 
         ' First-run language picker — before anything else
         If Not _config.FirstRunComplete Then
@@ -129,18 +129,18 @@ Public Class FormMain
 
                     ' Download language pack if not English, then load it
                     If Not picker.SelectedLanguage.Equals("en", StringComparison.OrdinalIgnoreCase) Then
-                        WriteDebugLog($"[FIRSTRUN] Downloading language pack: {picker.SelectedLanguage}")
+                        AppLogger.Log(LogEvents.STARTUP_FIRST_RUN, $"Downloading language pack: {picker.SelectedLanguage}")
                         Try
                             ' Use Task.Run to avoid deadlock on UI thread
                             Dim ok = Task.Run(Function() _langPack.DownloadLanguageAsync(picker.SelectedLanguage)).GetAwaiter().GetResult()
                             If ok Then
-                                WriteDebugLog($"[FIRSTRUN] Language pack downloaded: {picker.SelectedLanguage}")
+                                AppLogger.Log(LogEvents.STARTUP_FIRST_RUN, $"Language pack downloaded: {picker.SelectedLanguage}")
                                 _langPack.LoadLanguage(picker.SelectedLanguage)
                             Else
-                                WriteDebugLog($"[FIRSTRUN] Language pack not available: {picker.SelectedLanguage}")
+                                AppLogger.Log(LogEvents.STARTUP_FIRST_RUN, $"Language pack not available: {picker.SelectedLanguage}")
                             End If
                         Catch ex As Exception
-                            WriteDebugLog($"[FIRSTRUN] Language pack download failed: {ex.Message}")
+                            AppLogger.Log(LogEvents.STARTUP_FIRST_RUN, $"Language pack download failed: {ex.Message}")
                         End Try
                     End If
 
@@ -158,10 +158,10 @@ Public Class FormMain
                      Try
                          Dim result = Services.Infrastructure.IntegrityChecker.Check()
                          For Each line In Services.Infrastructure.IntegrityChecker.ToReportLines(result)
-                             WriteDebugLog($"[Integrity] {line}")
+                             AppLogger.Log(LogEvents.STARTUP_DEPENDENCY_CHECK, $"{line}")
                          Next
                      Catch ex As Exception
-                         WriteDebugLog($"[Integrity] Check failed: {ex.Message}")
+                         AppLogger.Log(LogEvents.STARTUP_DEPENDENCY_CHECK, $"Check failed: {ex.Message}")
                      End Try
                  End Sub)
 
@@ -180,7 +180,10 @@ Public Class FormMain
             AddressOf LangCodeFromDisplay,
             AddressOf SaveUiToConfig,
             AddressOf ShowLogPanel,
-            Sub(source, msg, clr) AppendUnifiedLog(source, msg, clr),
+            Sub(source, msg, clr) AppendUnifiedLog(New Services.Infrastructure.LogEntry With {
+                .Time = DateTime.Now, .Category = Services.Infrastructure.LogCategory.Pipeline,
+                .Level = Services.Infrastructure.LogSeverity.Info, .Source = source, .Message = msg, .Color = clr
+            }),
             AddressOf GetString,
             AddressOf WriteDebugLog)
         _transcribeController.WireEvents()
@@ -226,7 +229,7 @@ Public Class FormMain
                      Try
                          sc.VerifyAllPathsCore()
                      Catch ex As Exception
-                         WriteDebugLog($"[VerifyPaths] Check failed: {ex.Message}")
+                         AppLogger.Log(LogEvents.STARTUP_DEPENDENCY_CHECK, $"VerifyPaths check failed: {ex.Message}")
                      End Try
                  End Sub)
 
@@ -261,7 +264,7 @@ Public Class FormMain
             Try
                 Process.Start(New ProcessStartInfo(url) With {.UseShellExecute = True})
             Catch ex As Exception
-                WriteDebugLog($"[Tray] Failed to open browser: {ex.Message}")
+                AppLogger.Log(LogEvents.UI_ERROR, $"Failed to open browser: {ex.Message}")
             End Try
         End Sub
         AddHandler trayMenuExit.Click, Sub(s, ev) ExitApplication()
@@ -310,19 +313,19 @@ Public Class FormMain
 
                                   trayIcon.Text = GetString("Tray_WarmingUpStt")
                                   If convAudioHandler IsNot Nothing Then
-                                      WriteDebugLog("[STARTUP] Auto-starting Whisper live-server for conversation rooms...")
+                                      AppLogger.Log(LogEvents.STT_WHISPER_SERVER_START, "Auto-starting Whisper live-server for conversation rooms...")
                                       Task.Run(Async Function()
                                                    Try
                                                        Dim ready = Await convAudioHandler.EnsureLiveServerAsync(CancellationToken.None)
-                                                       WriteDebugLog($"[STARTUP] Whisper live-server auto-start: ready={ready}")
+                                                       AppLogger.Log(LogEvents.STT_WHISPER_SERVER_START, $"Whisper live-server auto-start: ready={ready}")
                                                        Me.BeginInvoke(Sub() trayIcon.Text = GetString("Tray_Ready"))
                                                    Catch ex As Exception
-                                                       WriteDebugLog($"[STARTUP] Whisper live-server auto-start failed: {ex.Message}")
+                                                       AppLogger.Log(LogEvents.STT_WHISPER_SERVER_ERROR, $"Whisper live-server auto-start failed: {ex.Message}")
                                                        Me.BeginInvoke(Sub() trayIcon.Text = GetString("Tray_Ready"))
                                                    End Try
                                                End Function)
                                   Else
-                                      WriteDebugLog("[STARTUP] ConversationAudioHandler not available — skipping Whisper auto-start")
+                                      AppLogger.Log(LogEvents.STARTUP_APP_STARTED, "ConversationAudioHandler not available — skipping Whisper auto-start")
                                       trayIcon.Text = GetString("Tray_Ready")
                                   End If
 
@@ -337,7 +340,7 @@ Public Class FormMain
                 key?.SetValue("EveryTongue", $"""{Application.ExecutablePath}""")
             End Using
         Catch ex As Exception
-            WriteDebugLog($"[WARN] RegisterStartup failed: {ex.Message}")
+            AppLogger.Log(LogEvents.CONFIG_SAVE_FAILED, $"RegisterStartup failed: {ex.Message}")
         End Try
     End Sub
 
@@ -347,7 +350,7 @@ Public Class FormMain
                 key?.DeleteValue("EveryTongue", False)
             End Using
         Catch ex As Exception
-            WriteDebugLog($"[WARN] UnregisterStartup failed: {ex.Message}")
+            AppLogger.Log(LogEvents.CONFIG_SAVE_FAILED, $"UnregisterStartup failed: {ex.Message}")
         End Try
     End Sub
 
@@ -364,13 +367,13 @@ Public Class FormMain
     End Sub
 
     Private Async Sub CheckForUpdatesAsync()
-        WriteDebugLog("[UPDATE] CheckForUpdatesAsync starting...")
+        AppLogger.Log(LogEvents.UPDATE_CHECK, "CheckForUpdatesAsync starting...")
         Dim update = Await Models.UpdateChecker.CheckForUpdateAsync()
         If update Is Nothing Then
-            WriteDebugLog("[UPDATE] No update available")
+            AppLogger.Log(LogEvents.UPDATE_CHECK, "No update available")
             Return
         End If
-        WriteDebugLog($"[UPDATE] Update found: {update.TagName} — showing MessageBox")
+        AppLogger.Log(LogEvents.UPDATE_AVAILABLE, $"Update found: {update.TagName} — showing MessageBox")
 
         ' Try modular (app-only) update first, fall back to full installer
         Dim canModularUpdate = Not String.IsNullOrWhiteSpace(update.AppZipUrl)
@@ -519,39 +522,39 @@ del ""%~f0""
             ElseIf Not isFirstRun AndAlso missing.Count > 0 Then
                 ' Subsequent runs — just warn in the log
                 For Each tool In missing
-                    WriteDebugLog($"[WARN] Missing tool: {tool.Name}")
+                    AppLogger.Log(LogEvents.DL_CHECK_RESULT, $"Missing tool: {tool.Name}")
                 Next
             End If
 
         Catch ex As Exception
             If manualCheck Then
-                WriteDebugLog($"[ERROR] CheckDependenciesAsync: {ex.Message}")
+                AppLogger.Log(LogEvents.STARTUP_DEPENDENCY_CHECK, $"CheckDependenciesAsync: {ex.Message}")
             End If
         End Try
 
         ' First run: Download Manager (Language Packs tab) → Options Hardware
         If isFirstRun Then
-            WriteDebugLog("[FIRSTRUN] Setting FirstRunComplete=True")
+            AppLogger.Log(LogEvents.STARTUP_FIRST_RUN, "Setting FirstRunComplete=True")
             _config.FirstRunComplete = True
 
             ' Auto-detect best STT backend based on hardware (CUDA → Vulkan → CPU)
             Try
-                WriteDebugLog("[FIRSTRUN] Running hardware scan for STT auto-detection...")
+                AppLogger.Log(LogEvents.STARTUP_FIRST_RUN, "Running hardware scan for STT auto-detection...")
                 Dim hwInfo = Services.Infrastructure.HardwareScanner.Scan()
                 Dim suggestedBackend = Services.Infrastructure.HardwareScanner.SuggestSttBackend(hwInfo)
-                WriteDebugLog($"[FIRSTRUN] Hardware: GPU={hwInfo.GpuName}, CUDA={hwInfo.HasCuda}, Vulkan={hwInfo.HasVulkan}, Suggested STT={suggestedBackend}")
+                AppLogger.Log(LogEvents.STARTUP_FIRST_RUN, $"Hardware: GPU={hwInfo.GpuName}, CUDA={hwInfo.HasCuda}, Vulkan={hwInfo.HasVulkan}, Suggested STT={suggestedBackend}")
                 If String.IsNullOrEmpty(_config.SttBackend) OrElse _config.SttBackend = "whisper-cpp-vulkan" Then
                     _config.SttBackend = suggestedBackend
-                    WriteDebugLog($"[FIRSTRUN] Set SttBackend={suggestedBackend}")
+                    AppLogger.Log(LogEvents.STARTUP_FIRST_RUN, $"Set SttBackend={suggestedBackend}")
                 End If
             Catch ex As Exception
-                WriteDebugLog($"[FIRSTRUN] Hardware auto-detection failed: {ex.Message}")
+                AppLogger.Log(LogEvents.STARTUP_FIRST_RUN, $"Hardware auto-detection failed: {ex.Message}")
             End Try
 
             ConfigManager.Save(_config)
 
             ' Show Download Manager opened to Language Packs tab
-            WriteDebugLog("[FIRSTRUN] Opening Download Manager → Language Packs")
+            AppLogger.Log(LogEvents.STARTUP_FIRST_RUN, "Opening Download Manager → Language Packs")
             Try
                 Dim biblesDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Bibles")
                 Using dlg As New Forms.FormDownloadManager(_config, biblesDir)
@@ -562,15 +565,15 @@ del ""%~f0""
                     End If
                 End Using
             Catch ex As Exception
-                WriteDebugLog($"[FIRSTRUN] Download Manager error: {ex.Message}")
+                AppLogger.Log(LogEvents.STARTUP_FIRST_RUN, $"Download Manager error: {ex.Message}")
             End Try
-            WriteDebugLog("[FIRSTRUN] Download Manager closed")
+            AppLogger.Log(LogEvents.STARTUP_FIRST_RUN, "Download Manager closed")
 
             ' Refresh locales after user may have downloaded more packs
             _uiLocales = DiscoverUiLocales()
 
             ' Show Options dialog opened to Hardware panel
-            WriteDebugLog("[FIRSTRUN] Opening Options → Hardware")
+            AppLogger.Log(LogEvents.STARTUP_FIRST_RUN, "Opening Options → Hardware")
             Using opts As New FormOptions(_config, _uiLocales)
                 opts.SelectCategory("hardware")
                 opts.ShowDialog(Me)
@@ -616,7 +619,7 @@ del ""%~f0""
                 End If
             End Using
         Catch ex As Exception
-            WriteDebugLog($"[ERROR] OpenDownloadManager: {ex}")
+            AppLogger.Log(LogEvents.UI_ERROR, $"OpenDownloadManager: {ex}")
             MessageBox.Show($"Error opening Download Manager: {ex.Message}", "Error",
                 MessageBoxButtons.OK, MessageBoxIcon.Error)
         End Try
@@ -638,7 +641,7 @@ del ""%~f0""
     End Sub
 
     Private Sub LoadConfigToUiCore()
-        WriteDebugLog($"[CONFIG] LoadConfigToUiCore: Language={_config.Language}, OutputLanguage={_config.OutputLanguage}, BiblesDirectory={_config.BiblesDirectory}, Theme={_config.Theme}, UiLanguage={_config.UiLanguage}")
+        AppLogger.Log(LogEvents.CONFIG_LOADED, $"LoadConfigToUiCore: Language={_config.Language}, OutputLanguage={_config.OutputLanguage}, BiblesDirectory={_config.BiblesDirectory}, Theme={_config.Theme}, UiLanguage={_config.UiLanguage}")
 
         ' (Paths and Settings tabs removed — managed by FormOptions)
 
@@ -670,7 +673,7 @@ del ""%~f0""
                 Dim val = prop.GetValue(_config)
                 oldValues(prop.Name) = If(val?.ToString(), "")
             Catch ex As Exception
-                WriteDebugLog($"[ERROR] SaveUiToConfig (snapshot old): {ex.Message}")
+                AppLogger.Log(LogEvents.CONFIG_SAVE_FAILED, $"SaveUiToConfig (snapshot old): {ex.Message}")
             End Try
         Next
 
@@ -691,7 +694,7 @@ del ""%~f0""
         If cboOutputLanguage.SelectedItem IsNot Nothing Then
             _config.OutputLanguage = LangCodeFromDisplay(cboOutputLanguage.SelectedItem.ToString())
         End If
-        WriteDebugLog($"[CONFIG] SaveUiToConfig: Language={_config.Language}, OutputLanguage={_config.OutputLanguage}")
+        AppLogger.Log(LogEvents.CONFIG_SAVED, $"SaveUiToConfig: Language={_config.Language}, OutputLanguage={_config.OutputLanguage}")
 
         ' Log any changes before saving
         For Each prop In GetType(AppConfig).GetProperties(Reflection.BindingFlags.Public Or Reflection.BindingFlags.Instance)
@@ -702,10 +705,10 @@ del ""%~f0""
                 oldValues.TryGetValue(prop.Name, oldVal)
                 If Not String.Equals(oldVal, newVal, StringComparison.Ordinal) Then
                     Dim displayNew = If(prop.Name.IndexOf("Pin", StringComparison.OrdinalIgnoreCase) >= 0, "****", newVal)
-                    WriteDebugLog($"[Config] {prop.Name}: {oldVal} -> {displayNew}")
+                    AppLogger.Log(LogEvents.CONFIG_SAVED, $"{prop.Name}: {oldVal} -> {displayNew}")
                 End If
             Catch ex As Exception
-                WriteDebugLog($"[ERROR] SaveUiToConfig (change detection): {ex.Message}")
+                AppLogger.Log(LogEvents.CONFIG_SAVE_FAILED, $"SaveUiToConfig (change detection): {ex.Message}")
             End Try
         Next
 
@@ -742,7 +745,7 @@ del ""%~f0""
 
     Private Sub ApplyLocale()
         Try
-            WriteDebugLog($"[LOCALE] ApplyLocale starting, lang={_langPack.CurrentLanguage}")
+            AppLogger.Log(LogEvents.LOCALE_LOADED, $"ApplyLocale starting, lang={_langPack.CurrentLanguage}")
             tabPageJob.Text = GetString("Tab_Main")
             tabPageHelp.Text = GetString("Tab_Help")
 
@@ -786,6 +789,7 @@ del ""%~f0""
             mnuToolsDownloadMgr.Text = GetString("Menu_ToolsDownloadMgr")
             mnuToolsVerifyPaths.Text = GetString("Menu_ToolsVerifyPaths")
             mnuToolsVerifyIntegrity.Text = GetString("Menu_ToolsVerifyIntegrity")
+            mnuToolsLogConfig.Text = GetString("Menu_ToolsLogConfig")
             mnuToolsOptions.Text = GetString("Menu_ToolsOptions")
             mnuSession.Text = GetString("Menu_Session")
             mnuSessionQR.Text = GetString("Menu_SessionQR")
@@ -811,9 +815,9 @@ del ""%~f0""
             btnNavTranscribe.Text = GetString("Nav_Transcribe")
             btnNavTranslate.Text = GetString("Nav_Translate")
             btnNavBible.Text = GetString("Nav_Bible")
-            WriteDebugLog($"[LOCALE] ApplyLocale complete: Nav_Transcribe={btnNavTranscribe.Text}, Menu_File={mnuFile.Text}")
+            AppLogger.Log(LogEvents.LOCALE_LOADED, $"ApplyLocale complete: Nav_Transcribe={btnNavTranscribe.Text}, Menu_File={mnuFile.Text}")
         Catch ex As Exception
-            WriteDebugLog($"[ERROR] ApplyLocale: {ex.Message}")
+            AppLogger.Log(LogEvents.LOCALE_FALLBACK, $"ApplyLocale: {ex.Message}")
         End Try
     End Sub
 
@@ -859,7 +863,7 @@ del ""%~f0""
 #Region "Theme"
 
     Private Sub ApplyTheme(theme As Models.ThemeMode)
-        WriteDebugLog($"[THEME] ApplyTheme called with theme=""{theme}""")
+        AppLogger.Log(LogEvents.UI_THEME_CHANGED, $"ApplyTheme called with theme=""{theme}""")
         Dim backColor, foreColor, controlBack As Drawing.Color
 
         Dim panelBack, buttonBack, borderColor As Drawing.Color
@@ -935,22 +939,22 @@ del ""%~f0""
 
     Private Sub StartTranslationService()
         If Not _config.TranslationEnabled Then
-            WriteDebugLog("[TRANSLATE] StartTranslationService: TranslationEnabled=False, skipping")
+            AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, "StartTranslationService: TranslationEnabled=False, skipping")
             Return
         End If
 
         If _translationService IsNot Nothing AndAlso _translationService.IsRunning Then
-            WriteDebugLog("[TRANSLATE] StartTranslationService: already running, skipping")
+            AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, "StartTranslationService: already running, skipping")
             Return
         End If
         If _translationStarting Then
-            WriteDebugLog("[TRANSLATE] StartTranslationService: already starting, skipping")
+            AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, "StartTranslationService: already starting, skipping")
             Return
         End If
         _translationStarting = True
 
         If _translationService IsNot Nothing Then
-            WriteDebugLog("[TRANSLATE] StartTranslationService: stopping existing service before creating new one")
+            AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, "StartTranslationService: stopping existing service before creating new one")
             _translationService.Stop()
             _translationService = Nothing
         End If
@@ -960,12 +964,12 @@ del ""%~f0""
             Dim ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version
             IO.File.AppendAllText(logPath, $"{Environment.NewLine}=== Session started at {DateTime.Now:yyyy-MM-dd HH:mm:ss} v{ver.Major}.{ver.Minor}.{ver.Build} ==={Environment.NewLine}")
         Catch ex As Exception
-            WriteDebugLog($"[ERROR] StartTranslationService (write session header): {ex.Message}")
+            AppLogger.Log(LogEvents.TRANS_ERROR, $"StartTranslationService (write session header): {ex.Message}")
         End Try
 
         _translationService = New TranslationService()
         AddHandler _translationService.StatusChanged, Sub(s, msg)
-                                                          WriteDebugLog(msg)
+                                                          AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, msg)
                                                       End Sub
 
         ' Register SidecarTranslationBackend with the TranslationOrchestrator so conversation rooms
@@ -983,12 +987,12 @@ del ""%~f0""
                     Function(e) e.Key.Equals(configKey, StringComparison.OrdinalIgnoreCase))
                 Dim orchestratorName = If(entry?.BackendName, "Local")
                 orchestrator.SetActiveBackend(orchestratorName)
-                WriteDebugLog($"[TRANSLATE] SidecarTranslationBackend registered, active backend set to {orchestratorName} (config={configKey})")
+                AppLogger.Log(LogEvents.TRANS_SERVER_READY, $"SidecarTranslationBackend registered, active backend set to {orchestratorName} (config={configKey})")
             Else
-                WriteDebugLog("[TRANSLATE] Warning: TranslationOrchestrator not available to register SidecarTranslationBackend")
+                AppLogger.Log(LogEvents.TRANS_ERROR, "TranslationOrchestrator not available to register SidecarTranslationBackend")
             End If
         Catch ex As Exception
-            WriteDebugLog($"[ERROR] Failed to register SidecarTranslationBackend: {ex.Message}")
+            AppLogger.Log(LogEvents.TRANS_ERROR, $"Failed to register SidecarTranslationBackend: {ex.Message}")
         End Try
 
         Dim modelPath = _config.TranslationModelPath
@@ -997,10 +1001,10 @@ del ""%~f0""
         Dim glossaryPath = _config.TranslationGlossaryPath
         Dim modelType = If(_config.TranslationModelType, "nllb")
 
-        WriteDebugLog($"[TRANSLATE] StartTranslationService: port={port}, device={device}, modelPath={modelPath}, modelType={modelType}")
+        AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, $"StartTranslationService: port={port}, device={device}, modelPath={modelPath}, modelType={modelType}")
         _translationService.Start(port, modelPath, device, glossaryPath, modelType)
         _translationStarting = False
-        WriteDebugLog("Translation service starting...")
+        AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, "Translation service starting...")
     End Sub
 
     ''' <summary>
@@ -1019,20 +1023,20 @@ del ""%~f0""
                     If Not sidecarRegistered Then
                         Dim sidecarBackend As New Services.Translation.SidecarTranslationBackend(_translationService)
                         orchestrator.RegisterBackend(sidecarBackend)
-                        WriteDebugLog("[ROOMS] Re-registered SidecarTranslationBackend with orchestrator")
+                        AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, "Re-registered SidecarTranslationBackend with orchestrator")
                     End If
                 End If
             Catch ex As Exception
-                WriteDebugLog($"[ERROR] EnsureTranslationForRooms re-register: {ex.Message}")
+                AppLogger.Log(LogEvents.CONF_BACKEND_ERROR, $"EnsureTranslationForRooms re-register: {ex.Message}")
             End Try
             Return
         End If
 
-        WriteDebugLog("[ROOMS] Conversation room needs translation — starting translation sidecar")
+        AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, "Conversation room needs translation — starting translation sidecar")
 
         Dim deps = Pipeline.TranslationService.CheckDependenciesInstalled()
         If Not deps.pythonOk OrElse Not deps.depsOk OrElse Not deps.modelOk Then
-            WriteDebugLog("[ROOMS] Translation dependencies not installed — translation unavailable for rooms")
+            AppLogger.Log(LogEvents.TRANS_ERROR, "Translation dependencies not installed — translation unavailable for rooms")
             Return
         End If
 
@@ -1048,7 +1052,7 @@ del ""%~f0""
     End Function
 
     Friend Shared Sub WriteDebugLog(msg As String)
-        Services.Infrastructure.AppLogger.Log(msg)
+        Services.Infrastructure.AppLogger.Log(LogEvents.LEGACY, msg)
     End Sub
 
     ' Subtitle Server — delegated to ServerController
@@ -1070,11 +1074,11 @@ del ""%~f0""
                     End If
                 Catch ex As Exception
                     ' Access denied or already exited — ignore
-                    WriteDebugLog($"[ERROR] KillOrphanedPythonProcesses (per-process): {ex.Message}")
+                    AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"KillOrphanedPythonProcesses (per-process): {ex.Message}")
                 End Try
             Next
         Catch ex As Exception
-            WriteDebugLog($"[ERROR] KillOrphanedPythonProcesses: {ex.Message}")
+            AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"KillOrphanedPythonProcesses: {ex.Message}")
         End Try
     End Sub
 
@@ -1096,6 +1100,9 @@ del ""%~f0""
 
         ' Stop conference backends
         _conferenceController?.StopAllConferenceBackends()
+
+        ' Emit session summary before shutdown
+        AppLogger.EmitSessionSummary()
 
         ' Clean exit
         KillOrphanedPythonProcesses()

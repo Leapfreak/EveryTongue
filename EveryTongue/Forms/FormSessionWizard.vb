@@ -3,6 +3,7 @@
 
 Imports System.Diagnostics
 Imports EveryTongue.Models
+Imports EveryTongue.Services.Infrastructure
 Imports QRCoder
 
 Public Class FormSessionWizard
@@ -259,7 +260,7 @@ Public Class FormSessionWizard
             lblNetworkStatus.Text = String.Format(lp.GetString("SW_NetworkConnected"), ip)
             lblNetworkStatus.ForeColor = Drawing.Color.DarkGreen
         Catch ex As Exception
-            FormMain.WriteDebugLog($"[ERROR] UpdateNetworkLabel: {ex.Message}")
+            AppLogger.Log(LogEvents.UI_ERROR, $"UpdateNetworkLabel: {ex.Message}")
             lblNetworkStatus.Text = lp.GetString("SW_NetworkNoIp")
             lblNetworkStatus.ForeColor = Drawing.Color.Red
         End Try
@@ -307,7 +308,7 @@ Public Class FormSessionWizard
                 End Using
             End Using
         Catch ex As Exception
-            FormMain.WriteDebugLog($"[Wizard] GenerateQr failed: {ex.Message}")
+            AppLogger.Log(LogEvents.UI_ERROR, $"Wizard: GenerateQr failed: {ex.Message}")
         End Try
     End Sub
 
@@ -417,7 +418,7 @@ Public Class FormSessionWizard
                 End If
             Next
         Catch ex As Exception
-            FormMain.WriteDebugLog($"[Wizard] GetLocalIp failed: {ex.Message}")
+            AppLogger.Log(LogEvents.UI_ERROR, $"Wizard: GetLocalIp failed: {ex.Message}")
         End Try
         Return "127.0.0.1"
     End Function

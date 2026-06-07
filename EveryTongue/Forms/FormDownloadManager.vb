@@ -3,6 +3,7 @@ Imports System.IO.Compression
 Imports System.Net.Http
 Imports EveryTongue.Models
 Imports EveryTongue.Services.Bible
+Imports EveryTongue.Services.Infrastructure
 Imports EveryTongue.Services.Tts
 
 Namespace Forms
@@ -253,7 +254,7 @@ Namespace Forms
                     Dim csvText = File.ReadAllText(cacheFile)
                     _catalog = ParseCatalogCsv(csvText)
                 Catch ex As Exception
-                    FormMain.WriteDebugLog($"[ERROR] LoadCachedCatalog: {ex.Message}")
+                    AppLogger.Log(LogEvents.DL_CHECK_RESULT, $"LoadCachedCatalog: {ex.Message}")
                 End Try
             End If
         End Sub
@@ -359,7 +360,7 @@ Namespace Forms
                         entries.Add(entry)
                     End If
                 Catch ex As Exception
-                    FormMain.WriteDebugLog($"[ERROR] ParseCatalogCsv (row {i}): {ex.Message}")
+                    AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"ParseCatalogCsv (row {i}): {ex.Message}")
                 End Try
             Next
 
@@ -510,7 +511,7 @@ Namespace Forms
                     Try
                         Directory.Delete(tempDir, True)
                     Catch ex As Exception
-                        FormMain.WriteDebugLog($"[ERROR] DownloadBibles (cleanup tempDir): {ex.Message}")
+                        AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"DownloadBibles (cleanup tempDir): {ex.Message}")
                     End Try
 
                     pbProgress.Value = CInt((i + 1) * 100 \ toDownload.Count)
@@ -586,9 +587,9 @@ Namespace Forms
                 End If
             Next
 
-            Services.Infrastructure.AppLogger.Log($"[DM] Download button: {toDownload.Count} tools, needPython={needPython}, needPythonDeps={needPythonDeps}")
+            AppLogger.Log(LogEvents.DL_DOWNLOAD_START, $"Download button: {toDownload.Count} tools, needPython={needPython}, needPythonDeps={needPythonDeps}")
             For Each tool In toDownload
-                Services.Infrastructure.AppLogger.Log($"[DM]   queued: '{tool.Name}' status={tool.Status}")
+                AppLogger.Log(LogEvents.DL_DOWNLOAD_START, $"queued: '{tool.Name}' status={tool.Status}")
             Next
 
             If toDownload.Count = 0 AndAlso Not needPython AndAlso Not needPythonDeps Then
@@ -748,7 +749,7 @@ Namespace Forms
                         If File.Exists(jsonPath) Then File.Delete(jsonPath)
                         removed += 1
                     Catch ex As Exception
-                        FormMain.WriteDebugLog($"[ERROR] RemoveVoices (delete model files): {ex.Message}")
+                        AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"RemoveVoices (delete model files): {ex.Message}")
                     End Try
                 End If
             Next
@@ -935,7 +936,7 @@ Namespace Forms
                         deleted += 1
                     End If
                 Catch ex As Exception
-                    FormMain.WriteDebugLog($"[LangPack] Failed to uninstall {code}: {ex.Message}")
+                    AppLogger.Log(LogEvents.LOCALE_LOADED, $"Failed to uninstall {code}: {ex.Message}")
                 End Try
             Next
 

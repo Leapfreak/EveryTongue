@@ -72,7 +72,7 @@ Namespace Services.Tts
                     End If
                 End Using
             Catch ex As Exception
-                Services.Infrastructure.AppLogger.Log($"[ERROR] EdgeTtsBackend.SynthesiseAsync: {ex.Message}")
+                Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TTS_ENGINE_ERROR, $"EdgeTtsBackend.SynthesiseAsync: {ex.Message}")
             Finally
                 Try : File.Delete(tempFile) : Catch : End Try
                 Try : File.Delete(textFile) : Catch : End Try

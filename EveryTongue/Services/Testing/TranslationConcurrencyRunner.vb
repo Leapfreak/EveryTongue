@@ -42,10 +42,10 @@ Namespace Services.Testing
 
             ' Detect active backend
             result.BackendName = translationService.ActiveBackend
-            AppLogger.Log($"[TRANS-CONCURRENCY] ═══════════════════════════════════════════════")
-            AppLogger.Log($"[TRANS-CONCURRENCY] Backend: {result.BackendName}")
-            AppLogger.Log($"[TRANS-CONCURRENCY] Corpus: {corpus.Count} sentences, Targets: {String.Join(", ", targetLangs)}")
-            AppLogger.Log($"[TRANS-CONCURRENCY] Levels: {String.Join(", ", concurrencyLevels)}, iterations/level: {iterationsPerLevel}")
+            AppLogger.Log(LogEvents.BENCH_START, $"═══════════════════════════════════════════════")
+            AppLogger.Log(LogEvents.BENCH_START, $"Backend: {result.BackendName}")
+            AppLogger.Log(LogEvents.BENCH_START, $"Corpus: {corpus.Count} sentences, Targets: {String.Join(", ", targetLangs)}")
+            AppLogger.Log(LogEvents.BENCH_START, $"Levels: {String.Join(", ", concurrencyLevels)}, iterations/level: {iterationsPerLevel}")
 
             ' Wait for backend to be available
             Dim loadSw = Stopwatch.StartNew()
@@ -65,7 +65,7 @@ Namespace Services.Testing
             End If
             loadSw.Stop()
             result.ModelLoadMs = loadSw.ElapsedMilliseconds
-            AppLogger.Log($"[TRANS-CONCURRENCY] Backend ready in {result.ModelLoadMs}ms")
+            AppLogger.Log(LogEvents.BENCH_PROGRESS, $"Backend ready in {result.ModelLoadMs}ms")
 
             ' Start resource monitoring
             Dim monitor As New ResourceMonitor(500)
@@ -81,26 +81,26 @@ Namespace Services.Testing
                         entry.Source, entry.SourceLang, targetLangs, token,
                         noCache:=True)
                 Next
-                AppLogger.Log($"[TRANS-CONCURRENCY] Warm-up complete")
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"Warm-up complete")
 
                 ' Test each concurrency level
                 For Each level In concurrencyLevels
                     token.ThrowIfCancellationRequested()
                     RaiseProgress($"Testing {level} concurrent translations ({iterationsPerLevel} iterations)...")
-                    AppLogger.Log($"[TRANS-CONCURRENCY] ── Level {level} ──")
+                    AppLogger.Log(LogEvents.BENCH_PROGRESS, $"── Level {level} ──")
 
                     Dim levelResult = Await TestConcurrencyLevel(
                         translationService, corpus, targetLangs, level, iterationsPerLevel, token)
                     result.Levels.Add(levelResult)
 
-                    AppLogger.Log($"[TRANS-CONCURRENCY]   Wall: {levelResult.WallTimeMs}ms, Avg: {levelResult.AvgLatencyMs}ms, " &
+                    AppLogger.Log(LogEvents.BENCH_RESULT, $"  Wall: {levelResult.WallTimeMs}ms, Avg: {levelResult.AvgLatencyMs}ms, " &
                                   $"Max: {levelResult.MaxLatencyMs}ms, Throughput: {levelResult.InferencesPerSec:F1}/s, " &
                                   $"Errors: {levelResult.Errors}")
                 Next
 
                 ' Stop resource monitoring
                 result.Resources = monitor.Stop()
-                AppLogger.Log($"[TRANS-CONCURRENCY] Resources: {result.Resources.ToSummaryText()}")
+                AppLogger.Log(LogEvents.BENCH_COMPLETE, $"Resources: {result.Resources.ToSummaryText()}")
 
                 RaiseProgress("Concurrent translation test complete.")
 
@@ -153,7 +153,7 @@ Namespace Services.Testing
                             sw.Stop()
                             allLatencies.Add(sw.ElapsedMilliseconds)
                             Interlocked.Increment(errorCount)
-                            Services.Infrastructure.AppLogger.Log($"[TRANSLATION-CONCURRENCY] Translation error: {ex.Message}")
+                            Services.Infrastructure.AppLogger.Log(LogEvents.BENCH_ERROR, $"Translation error: {ex.Message}")
                         End Try
                     End Function))
                 Next
@@ -189,7 +189,7 @@ Namespace Services.Testing
         End Function
 
         Private Sub RaiseProgress(msg As String)
-            AppLogger.Log($"[TRANS-CONCURRENCY] {msg}")
+            AppLogger.Log(LogEvents.BENCH_PROGRESS, msg)
             RaiseEvent ProgressChanged(Me, msg)
         End Sub
 

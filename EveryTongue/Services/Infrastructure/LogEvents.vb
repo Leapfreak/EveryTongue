@@ -146,9 +146,19 @@ Namespace Services.Infrastructure
         Public Const UI_ERROR As Integer = 8003
 
         ' ── Python Log (9000–9299) ──
+        ' Each server gets base+0=Info, base+1=Debug, base+2=Warning, base+3=Error
         Public Const PYLOG_LIVE As Integer = 9000
+        Public Const PYLOG_LIVE_DEBUG As Integer = 9001
+        Public Const PYLOG_LIVE_WARN As Integer = 9002
+        Public Const PYLOG_LIVE_ERROR As Integer = 9003
         Public Const PYLOG_TRANSLATE As Integer = 9100
+        Public Const PYLOG_TRANSLATE_DEBUG As Integer = 9101
+        Public Const PYLOG_TRANSLATE_WARN As Integer = 9102
+        Public Const PYLOG_TRANSLATE_ERROR As Integer = 9103
         Public Const PYLOG_MMS_TTS As Integer = 9200
+        Public Const PYLOG_MMS_TTS_DEBUG As Integer = 9201
+        Public Const PYLOG_MMS_TTS_WARN As Integer = 9202
+        Public Const PYLOG_MMS_TTS_ERROR As Integer = 9203
 
         ''' <summary>
         ''' Register all events at module load time.
@@ -295,10 +305,19 @@ Namespace Services.Infrastructure
             R(UI_DIALOG_OPENED, LogCategory.UI, LogSeverity.Debug, "Dialog opened")
             R(UI_ERROR, LogCategory.UI, LogSeverity.[Error], "UI error")
 
-            ' Python log lines (tailed from files)
+            ' Python log lines (tailed from files) — base+0=Info, base+1=Debug, base+2=Warning, base+3=Error
             R(PYLOG_LIVE, LogCategory.PythonLog, LogSeverity.Info, "Live server log line")
+            R(PYLOG_LIVE_DEBUG, LogCategory.PythonLog, LogSeverity.Debug, "Live server debug")
+            R(PYLOG_LIVE_WARN, LogCategory.PythonLog, LogSeverity.Warning, "Live server warning")
+            R(PYLOG_LIVE_ERROR, LogCategory.PythonLog, LogSeverity.[Error], "Live server error")
             R(PYLOG_TRANSLATE, LogCategory.PythonLog, LogSeverity.Info, "Translation server log line")
+            R(PYLOG_TRANSLATE_DEBUG, LogCategory.PythonLog, LogSeverity.Debug, "Translation server debug")
+            R(PYLOG_TRANSLATE_WARN, LogCategory.PythonLog, LogSeverity.Warning, "Translation server warning")
+            R(PYLOG_TRANSLATE_ERROR, LogCategory.PythonLog, LogSeverity.[Error], "Translation server error")
             R(PYLOG_MMS_TTS, LogCategory.PythonLog, LogSeverity.Info, "MMS-TTS server log line")
+            R(PYLOG_MMS_TTS_DEBUG, LogCategory.PythonLog, LogSeverity.Debug, "MMS-TTS server debug")
+            R(PYLOG_MMS_TTS_WARN, LogCategory.PythonLog, LogSeverity.Warning, "MMS-TTS server warning")
+            R(PYLOG_MMS_TTS_ERROR, LogCategory.PythonLog, LogSeverity.[Error], "MMS-TTS server error")
         End Sub
 
     End Module

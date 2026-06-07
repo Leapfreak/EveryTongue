@@ -2,6 +2,7 @@
 ' Phase 3 of the UI redesign — Feature #1
 
 Imports System.Diagnostics
+Imports EveryTongue.Services.Infrastructure
 Imports QRCoder
 
 Public Class FormQrCode
@@ -46,7 +47,7 @@ Public Class FormQrCode
                 End Using
             End Using
         Catch ex As Exception
-            FormMain.WriteDebugLog($"[QR] GenerateQr failed: {ex.Message}")
+            AppLogger.Log(LogEvents.UI_ERROR, $"GenerateQr failed: {ex.Message}")
         End Try
     End Sub
 

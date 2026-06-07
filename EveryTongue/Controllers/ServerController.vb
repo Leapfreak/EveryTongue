@@ -2,6 +2,7 @@ Imports System.Diagnostics
 Imports System.Threading
 Imports EveryTongue.Models
 Imports EveryTongue.Server
+Imports EveryTongue.Services.Infrastructure
 
 Namespace Controllers
     ''' <summary>
@@ -218,7 +219,7 @@ Namespace Controllers
                     End If
                 Next
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[ERROR] GetLocalIpAddress: {ex.Message}")
+                AppLogger.Log(LogEvents.SERVER_ERROR, $"GetLocalIpAddress: {ex.Message}")
             End Try
             Return "127.0.0.1"
         End Function
@@ -247,7 +248,7 @@ Namespace Controllers
                 p.WaitForExit(5000)
                 If p.ExitCode = 0 Then Return
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[ERROR] EnsureFirewallRule (netsh direct): {ex.Message}")
+                AppLogger.Log(LogEvents.SERVER_ERROR, $"EnsureFirewallRule (netsh direct): {ex.Message}")
             End Try
 
             Try
@@ -264,7 +265,7 @@ Namespace Controllers
                 Dim p = Process.Start(psi)
                 p?.WaitForExit(10000)
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[ERROR] EnsureFirewallRule (elevated cmd): {ex.Message}")
+                AppLogger.Log(LogEvents.SERVER_ERROR, $"EnsureFirewallRule (elevated cmd): {ex.Message}")
             End Try
         End Sub
 

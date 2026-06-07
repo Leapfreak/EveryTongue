@@ -67,7 +67,7 @@ Namespace Services.Audio
                         .Name = If(i = -1, "Default", caps.ProductName)
                     })
                 Catch ex As Exception
-                    Services.Infrastructure.AppLogger.Log($"[ERROR] TtsAudioOutput.GetOutputDevices: device {i} - {ex.Message}")
+                    Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.AUDIO_PLAYBACK_ERROR, $"TtsAudioOutput.GetOutputDevices: device {i} - {ex.Message}")
                 End Try
             Next
             Return devices
@@ -183,7 +183,7 @@ Namespace Services.Audio
                     Try
                         Return New Mp3FileReader(filePath)
                     Catch ex As Exception
-                        Services.Infrastructure.AppLogger.Log($"[ERROR] TtsAudioOutput.CreateReader: failed to read '{filePath}' - {ex.Message}")
+                        Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.AUDIO_PLAYBACK_ERROR, $"TtsAudioOutput.CreateReader: failed to read '{filePath}' - {ex.Message}")
                         Return Nothing
                     End Try
             End Select

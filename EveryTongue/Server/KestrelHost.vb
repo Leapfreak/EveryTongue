@@ -378,7 +378,7 @@ Namespace Server
                 Dim subtitleSvc = TryCast(_app?.Services?.GetService(GetType(ISubtitleService)), SubtitleService)
                 subtitleSvc?.TtsAudioOutput?.Dispose()
             Catch ex As Exception
-                AppLogger.Log($"[ERROR] KestrelHost.Dispose (TtsAudioOutput): {ex.Message}")
+                AppLogger.Log(LogEvents.SERVER_ERROR, $"KestrelHost.Dispose (TtsAudioOutput): {ex.Message}")
             End Try
             Try
                 Dim backends = _app?.Services?.GetServices(Of ITtsBackend)()
@@ -389,7 +389,7 @@ Namespace Server
                     Next
                 End If
             Catch ex As Exception
-                AppLogger.Log($"[ERROR] KestrelHost.Dispose (MmsTtsBackend): {ex.Message}")
+                AppLogger.Log(LogEvents.SERVER_ERROR, $"KestrelHost.Dispose (MmsTtsBackend): {ex.Message}")
             End Try
 
             [Stop]()

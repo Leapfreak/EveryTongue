@@ -3,6 +3,7 @@ Imports System.Net.Http
 Imports System.Text
 Imports System.Text.Json
 Imports System.Threading
+Imports EveryTongue.Services.Infrastructure
 
 Namespace Pipeline
     Public Class TranslationService
@@ -17,7 +18,8 @@ Namespace Pipeline
             .Label = "Translation server",
             .MaxRestarts = 3,
             .AddWhisperToPath = True,
-            .LogFileName = "translate-server.log"
+            .LogFileName = "translate-server.log",
+            .BaseEventId = Services.Infrastructure.LogEvents.PYLOG_TRANSLATE
         }
 
         Private _port As Integer = 5090
@@ -92,7 +94,7 @@ Namespace Pipeline
                         depsOk = (proc.ExitCode = 0)
                     End Using
                 Catch ex As Exception
-                    FormMain.WriteDebugLog($"[Translation] dependency check failed: {ex.Message}")
+                    AppLogger.Log(LogEvents.TRANS_ERROR, $"Dependency check failed: {ex.Message}")
                 End Try
             End If
 
@@ -154,7 +156,7 @@ Namespace Pipeline
                                     WarmUpModel()
                                 End If
                             Catch ex As Exception
-                                Services.Infrastructure.AppLogger.Log($"[ERROR] WaitForReady: LoadModelAsync failed — {ex.Message}")
+                                AppLogger.Log(LogEvents.TRANS_ERROR, $"WaitForReady: LoadModelAsync failed — {ex.Message}")
                             End Try
                             Return
                         End If
@@ -209,7 +211,7 @@ Namespace Pipeline
                 sw.Stop()
                 RaiseEvent StatusChanged(Me, $"Translation engine warm — first inference took {sw.ElapsedMilliseconds}ms, subsequent requests will be fast")
             Catch ex As Exception
-                Services.Infrastructure.AppLogger.Log($"[WARN] Translation warmup failed (non-fatal): {ex.Message}")
+                AppLogger.Log(LogEvents.TRANS_ERROR, $"Translation warmup failed (non-fatal): {ex.Message}")
             End Try
         End Sub
 
@@ -236,7 +238,7 @@ Namespace Pipeline
                 _modelLoaded = False
                 RaiseEvent StatusChanged(Me, "Translation model unloaded")
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[Translation] unload model failed: {ex.Message}")
+                AppLogger.Log(LogEvents.TRANS_ERROR, $"Unload model failed: {ex.Message}")
             End Try
         End Function
 
@@ -274,7 +276,7 @@ Namespace Pipeline
                     End If
                 End Using
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[Translation] translate request failed: {ex.Message}")
+                AppLogger.Log(LogEvents.TRANS_ERROR, $"Translate request failed: {ex.Message}")
             End Try
 
             Return New Dictionary(Of String, String)()

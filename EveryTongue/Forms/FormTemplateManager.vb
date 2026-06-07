@@ -243,7 +243,7 @@ Public Class FormTemplateManager
                     End If
                 Next
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[TemplateManager] Error scanning model files: {ex.Message}")
+                AppLogger.Log(LogEvents.UI_ERROR, $"TemplateManager: error scanning model files: {ex.Message}")
             End Try
         Else
             ' Scan for model directories (contain config.json or model files)
@@ -254,7 +254,7 @@ Public Class FormTemplateManager
                     End If
                 Next
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[TemplateManager] Error scanning model directories: {ex.Message}")
+                AppLogger.Log(LogEvents.UI_ERROR, $"TemplateManager: error scanning model directories: {ex.Message}")
             End Try
         End If
 
@@ -348,7 +348,7 @@ Public Class FormTemplateManager
             Dim store = Services.Rooms.TemplateStore.Instance
             If store IsNot Nothing Then store.SyncFromConfig(_config.ConferenceTemplates)
         Catch ex As Exception
-            FormMain.WriteDebugLog($"[TemplateManager] TemplateStore sync failed: {ex.Message}")
+            AppLogger.Log(LogEvents.UI_ERROR, $"TemplateManager: TemplateStore sync failed: {ex.Message}")
         End Try
         Me.DialogResult = DialogResult.OK
     End Sub

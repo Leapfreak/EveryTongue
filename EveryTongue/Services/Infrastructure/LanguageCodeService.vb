@@ -35,7 +35,7 @@ Namespace Services.Infrastructure
 
         Private Sub New(jsonPath As String)
             If Not File.Exists(jsonPath) Then
-                AppLogger.Log($"[LanguageCodeService] language-codes.json not found: {jsonPath}")
+                AppLogger.Log(LogEvents.LOCALE_FALLBACK, $"language-codes.json not found: {jsonPath}")
                 Return
             End If
 
@@ -63,9 +63,9 @@ Namespace Services.Infrastructure
                         If Not String.IsNullOrEmpty(entry.Name) Then _byName(entry.Name) = entry
                     Next
                 End Using
-                AppLogger.Log($"[LanguageCodeService] Loaded {_byFlores.Count} languages")
+                AppLogger.Log(LogEvents.LOCALE_LOADED, $"Loaded {_byFlores.Count} languages from language-codes.json")
             Catch ex As Exception
-                AppLogger.Log($"[LanguageCodeService] Failed to load: {ex.Message}")
+                AppLogger.Log(LogEvents.LOCALE_FALLBACK, $"Failed to load language-codes.json: {ex.Message}")
             End Try
         End Sub
 

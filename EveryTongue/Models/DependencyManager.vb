@@ -4,6 +4,7 @@ Imports System.IO.Compression
 Imports System.Net.Http
 Imports System.Text.Json
 Imports System.Text.RegularExpressions
+Imports EveryTongue.Services.Infrastructure
 Imports EveryTongue.Services.Tts
 
 Namespace Models
@@ -66,7 +67,7 @@ Namespace Models
                     Return JsonSerializer.Deserialize(Of Dictionary(Of String, String))(json)
                 End If
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[Deps] Failed to load tool versions: {ex.Message}")
+                AppLogger.Log(LogEvents.DL_CHECK_RESULT, $"Failed to load tool versions: {ex.Message}")
             End Try
             Return New Dictionary(Of String, String)()
         End Function
@@ -77,7 +78,7 @@ Namespace Models
                 Dim json = JsonSerializer.Serialize(_versions, New JsonSerializerOptions With {.WriteIndented = True})
                 File.WriteAllText(VersionsFilePath(), json)
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[Deps] Failed to save tool versions: {ex.Message}")
+                AppLogger.Log(LogEvents.DL_CHECK_RESULT, $"Failed to save tool versions: {ex.Message}")
             End Try
         End Sub
 
@@ -163,7 +164,7 @@ Namespace Models
                     End If
                 End If
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[Deps] yt-dlp check failed: {ex.Message}")
+                AppLogger.Log(LogEvents.DL_CHECK_RESULT, $"yt-dlp check failed: {ex.Message}")
                 If state.Status = ToolStatus.Missing Then state.Status = ToolStatus.CheckFailed
             End Try
             Return state
@@ -216,7 +217,7 @@ Namespace Models
                     End If
                 End If
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[Deps] FFmpeg check failed: {ex.Message}")
+                AppLogger.Log(LogEvents.DL_CHECK_RESULT, $"FFmpeg check failed: {ex.Message}")
                 If state.Status = ToolStatus.Missing Then state.Status = ToolStatus.CheckFailed
             End Try
             Return state
@@ -298,7 +299,7 @@ Namespace Models
                     End If
                 End If
             Catch ex As Exception
-                FormMain.WriteDebugLog($"[Deps] Subtitle Edit check failed: {ex.Message}")
+                AppLogger.Log(LogEvents.DL_CHECK_RESULT, $"Subtitle Edit check failed: {ex.Message}")
                 If state.Status = ToolStatus.Missing Then state.Status = ToolStatus.CheckFailed
             End Try
             Return state
@@ -389,7 +390,7 @@ Namespace Models
                     Await RunProcessAsync(PythonExePath(),
                         $"-m pip install -r ""{translateReq}"" --no-warn-script-location", _toolsDir, 600000)
                 Catch ex As Exception
-                    Services.Infrastructure.AppLogger.Log($"[ERROR] InstallPythonDepsAsync: Translation requirements install failed — {ex.Message}")
+                    AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"InstallPythonDepsAsync: Translation requirements install failed — {ex.Message}")
                     translateFailed = True
                 End Try
             End If
@@ -401,7 +402,7 @@ Namespace Models
                         Await RunProcessAsync(PythonExePath(),
                             $"-m pip install {pkg} --no-warn-script-location", _toolsDir, 300000)
                     Catch ex As Exception
-                        Services.Infrastructure.AppLogger.Log($"[ERROR] InstallPythonDepsAsync: Failed to install package '{pkg}' — {ex.Message}")
+                        AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"InstallPythonDepsAsync: Failed to install package '{pkg}' — {ex.Message}")
                     End Try
                 Next
             End If
@@ -411,7 +412,7 @@ Namespace Models
                     Await RunProcessAsync(PythonExePath(),
                         $"-m pip install -r ""{liveReq}"" --no-warn-script-location", _toolsDir, 600000)
                 Catch ex As Exception
-                    Services.Infrastructure.AppLogger.Log($"[ERROR] InstallPythonDepsAsync: Live requirements install failed — {ex.Message}")
+                    AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"InstallPythonDepsAsync: Live requirements install failed — {ex.Message}")
                 End Try
             End If
 
@@ -420,7 +421,7 @@ Namespace Models
                 Await RunProcessAsync(PythonExePath(),
                     "-m pip install edge-tts --no-warn-script-location", _toolsDir, 300000)
             Catch ex As Exception
-                Services.Infrastructure.AppLogger.Log($"[ERROR] InstallPythonDepsAsync: edge-tts install failed — {ex.Message}")
+                AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"InstallPythonDepsAsync: edge-tts install failed — {ex.Message}")
             End Try
         End Function
 
@@ -476,7 +477,7 @@ Namespace Models
 
                 Return packages.Where(Function(p) Not found.Contains(p)).ToList()
             Catch ex As Exception
-                Services.Infrastructure.AppLogger.Log($"[ERROR] GetMissingPythonPackages: Failed to check packages — {ex.Message}")
+                AppLogger.Log(LogEvents.DL_CHECK_RESULT, $"GetMissingPythonPackages: Failed to check packages — {ex.Message}")
                 Return packages.ToList()
             End Try
         End Function
@@ -515,7 +516,7 @@ Namespace Models
                     Try
                         Await proc.WaitForExitAsync(cts.Token)
                     Catch ex As OperationCanceledException
-                        Try : proc.Kill(True) : Catch killEx As Exception : FormMain.WriteDebugLog($"[Deps] Failed to kill timed-out process: {killEx.Message}") : End Try
+                        Try : proc.Kill(True) : Catch killEx As Exception : AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"Failed to kill timed-out process: {killEx.Message}") : End Try
                         Throw New TimeoutException($"Process timed out after {timeoutMs / 1000}s")
                     End Try
                 End Using
@@ -800,7 +801,7 @@ Namespace Models
                     End If
                 End If
             Catch ex As Exception
-                Services.Infrastructure.AppLogger.Log($"[Deps] whisper-server check failed: {ex.Message}")
+                AppLogger.Log(LogEvents.DL_CHECK_RESULT, $"whisper-server check failed: {ex.Message}")
                 If state.Status = ToolStatus.Missing Then state.Status = ToolStatus.CheckFailed
             End Try
             Return state
@@ -850,7 +851,7 @@ Namespace Models
                     End If
                 End If
             Catch ex As Exception
-                Services.Infrastructure.AppLogger.Log($"[Deps] whisper-server-cuda check failed: {ex.Message}")
+                AppLogger.Log(LogEvents.DL_CHECK_RESULT, $"whisper-server-cuda check failed: {ex.Message}")
                 If state.Status = ToolStatus.Missing Then state.Status = ToolStatus.CheckFailed
             End Try
             Return state
@@ -934,7 +935,7 @@ Namespace Models
         End Function
 
         Public Async Function DownloadToolAsync(state As ToolState, progress As IProgress(Of (downloaded As Long, total As Long))) As Task
-            Services.Infrastructure.AppLogger.Log($"[DOWNLOAD] Starting download: {state.Name} (Status={state.Status}, URL={state.DownloadUrl})")
+            AppLogger.Log(LogEvents.DL_DOWNLOAD_START, $"Starting download: {state.Name} (Status={state.Status}, URL={state.DownloadUrl})")
             Try
                 Select Case state.Name
                     Case "yt-dlp"
@@ -960,17 +961,17 @@ Namespace Models
                     Case "Silero VAD Model"
                         Await DownloadSileroVadModelAsync(state.DownloadUrl, progress)
                     Case Else
-                        Services.Infrastructure.AppLogger.Log($"[DOWNLOAD] Unknown tool name: '{state.Name}' — no download handler")
+                        AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"Unknown tool name: '{state.Name}' — no download handler")
                 End Select
 
-                Services.Infrastructure.AppLogger.Log($"[DOWNLOAD] Completed: {state.Name}")
+                AppLogger.Log(LogEvents.DL_DOWNLOAD_DONE, $"Completed: {state.Name}")
 
                 ' Save the downloaded version
                 If Not String.IsNullOrEmpty(state.LatestVersion) Then
                     SaveVersion(state.Name, state.LatestVersion)
                 End If
             Catch ex As Exception
-                Services.Infrastructure.AppLogger.Log($"[DOWNLOAD] FAILED: {state.Name} — {ex.GetType().Name}: {ex.Message}")
+                AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"FAILED: {state.Name} — {ex.GetType().Name}: {ex.Message}")
                 Throw
             End Try
         End Function
@@ -1148,7 +1149,7 @@ Namespace Models
                         Dim result = If(String.IsNullOrWhiteSpace(stdout), stderr, stdout)
                         Return result.Trim()
                     Catch ex As OperationCanceledException
-                        Try : proc.Kill() : Catch killEx As Exception : FormMain.WriteDebugLog($"[Deps] Failed to kill timed-out process: {killEx.Message}") : End Try
+                        Try : proc.Kill() : Catch killEx As Exception : AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"Failed to kill timed-out process: {killEx.Message}") : End Try
                         Return ""
                     End Try
                 End Using
