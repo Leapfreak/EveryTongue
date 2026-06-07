@@ -31,58 +31,30 @@ Unified 3-tab filter editor (Hallucinations, Profanity, Glossary) with shared la
 ### Log Workspace & Resilience — COMPLETE (v1.8.4)
 Log nav button for full-screen Log workspace with bottom toolbar (copy/clear/search). Whisper-server recovery in ConversationAudioHandler: detects whisper subprocess death via `whisper_server_running` health field, auto-reloads model via `/load-model`. Bible panel click-outside fix for detached DOM nodes.
 
+### Structured Logging System — COMPLETE (v1.8.5)
+Replaced flat `AppLogger.Log(msg)` with numbered, categorised events. 120+ event IDs across 20 categories. All 285+ legacy calls migrated. DataGridView log viewer with category/level filtering, FormLogConfig dialog with Minimal/Normal/Verbose presets. Python sidecar logs parsed by level with per-server base event IDs. Session summary on shutdown. Rate limiter collapses repeated events.
+
 ## User-Reported Issues & Tasks
 - [x] Implement stubs — most done (QR Code, Hardware Score, Diagnostics Export, File Integrity, Translate workspace). Remaining stubs: Session Wizard, Audio Level Monitor, Event Profiles, Spec Sheet Generator, Portable Mode, Feedback prompt
 - [x] Connected Clients dialog — popup form showing all connected phones with model, OS, browser, language, TTS, connection time
 - [ ] Audio routing: NDI or Direct Audio output
 
 ## Suggested Next Priorities
-1. **Structured Logging System** — event IDs, categories, configurable routing (in progress)
+1. ~~**Structured Logging System**~~ — DONE (v1.8.5)
 2. Audio Level Monitor — operator feedback, prevents bad audio
 3. Setup Wizard expansion — integrates QR, audio monitor, hardware score
 4. Cross-platform headless server (Linux/Docker)
 
 ---
 
-## Structured Logging System (v1.8.5)
+## Structured Logging System — COMPLETE (v1.8.5)
 
-Replace the flat `AppLogger.Log(msg)` system with numbered, categorised events. Every log message gets a unique event ID and category. Routing (UI vs file) is configurable per-category via a dialog. 334 existing log calls across 42 files.
+All 5 phases done. Replaced flat `AppLogger.Log(msg)` with numbered, categorised events. `LogCategory` enum (20 categories), `LogEvents` module (120+ event IDs), `LogEventRegistry`, `LogRoutingConfig` with Minimal/Normal/Verbose presets. `FormLogConfig` dialog for per-category routing. DataGridView log viewer with category/level filtering, color-coded rows, tooltips, pause/resume. All 285+ legacy calls migrated to structured event IDs. Python sidecar logs parsed by level (BaseEventId + offsets). Session summary on shutdown. Rate limiter collapses repeated events. Key files: `Services/Infrastructure/LogEvents.vb`, `LogRoutingConfig.vb`, `LogEventRegistry.vb`, `AppLogger.vb`, `Forms/FormLogConfig.vb`.
 
-### Phase 1: Infrastructure ✅ DONE
-- `LogCategory` enum (20 categories), `LogSeverity` enum
-- `LogEvents` module with 120+ event ID constants (100-block ranges per category)
-- `LogEventRegistry` with Register/Lookup/GetAll/GetByCategory
-- `AppLogger.Log(eventId, message)` with routing logic + rate limiter
-- `LogRoutingConfig` with Minimal/Normal/Verbose presets
-- `LogEntry` class for structured UI callback
-
-### Phase 2: Config Dialog + Log Viewer ✅ DONE
-- `FormLogConfig` dialog — preset combo + per-category routing DataGridView
-- Replaced RichTextBox log area with DataGridView (Time, Category, Level, Message)
-- Category and Level filter combos, text search, pause/resume scroll
-- Color-coded rows, theme-aware, double-buffered, event description tooltips
-- Tools → Log Configuration menu entry
-
-### Phase 3: Migrate all calls to event IDs ✅ DONE
-- All 285+ `AppLogger.Log(msg)` / `WriteDebugLog(msg)` calls migrated to `AppLogger.Log(LogEvents.XXX, msg)`
-- `WriteDebugLog` kept as thin forwarder for controller delegates (routes to LEGACY event ID)
-- Legacy `Log(msg)` overload removed — all calls use structured path
-
-### Phase 4: Python event IDs ✅ DONE
-- PythonSidecarHost.TailLogFile parses `%(asctime)s %(levelname)s %(message)s` format
-- BaseEventId property + level offsets: base+0=Info, +1=Debug, +2=Warning, +3=Error
-- Per-server event IDs: PYLOG_LIVE/TRANSLATE/MMS_TTS × 4 severity levels
-- Python logs route through structured registry and DataGridView viewer
-
-### Phase 5: Session summary + cleanup ✅ DONE
-- `EmitSessionSummary()` logs duration, total events, errors, top 5 categories on shutdown
-- Per-event session counters (thread-safe via ConcurrentDictionary + Interlocked)
-- Event descriptions shown as tooltips on DataGridView row hover
-- Legacy `Log(msg)` overload can be removed once all remaining calls are migrated
-
-## Immediate TODO (2026-06-07)
+## Immediate TODO
 - [x] Filter Editor overhaul — shared language combo, per-language glossary, checkboxes, friendly names, filter hit logging (#5)
 - [x] Log workspace — full-screen Log with nav button, bottom toolbar, whisper-server recovery (v1.8.4)
+- [x] Structured Logging System — event IDs, categories, configurable routing (v1.8.5)
 - [ ] Audio Level Monitor — operator feedback, prevents bad audio (#3)
 - [ ] Rooms desktop dashboard — active rooms overview (#19g)
 
