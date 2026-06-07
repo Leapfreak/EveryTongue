@@ -210,6 +210,8 @@ Namespace Models
 
         Public Property LogPanelHeight As Integer = 250
 
+        Public Property LogRouting As Services.Infrastructure.LogRoutingConfig
+
         Public Shared Function CreateDefault() As AppConfig
             Return New AppConfig()
         End Function

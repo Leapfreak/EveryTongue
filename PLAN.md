@@ -37,9 +37,51 @@ Log nav button for full-screen Log workspace with bottom toolbar (copy/clear/sea
 - [ ] Audio routing: NDI or Direct Audio output
 
 ## Suggested Next Priorities
-1. Audio Level Monitor — operator feedback, prevents bad audio
-2. Setup Wizard expansion — integrates QR, audio monitor, hardware score
-3. Cross-platform headless server (Linux/Docker)
+1. **Structured Logging System** — event IDs, categories, configurable routing (in progress)
+2. Audio Level Monitor — operator feedback, prevents bad audio
+3. Setup Wizard expansion — integrates QR, audio monitor, hardware score
+4. Cross-platform headless server (Linux/Docker)
+
+---
+
+## Structured Logging System (v1.8.5)
+
+Replace the flat `AppLogger.Log(msg)` system with numbered, categorised events. Every log message gets a unique event ID and category. Routing (UI vs file) is configurable per-category via a dialog. 334 existing log calls across 42 files.
+
+### Phase 1: Infrastructure ← CURRENT
+- `LogCategory` enum (19 categories)
+- `LogLevel` enum (Debug/Info/Warning/Error)
+- `LogEvents` module with ID constants (100-block ranges per category)
+- `LogEventInfo` registry (ID → category, level, description)
+- `AppLogger.Log(eventId, message)` overload with routing logic
+- `LogRoutingConfig` in AppConfig with presets (Minimal/Normal/Verbose)
+- Rate limiter: per-event deduplication with `(×N in last Xs)` collapse
+- Old `Log(msg)` keeps working → routes to Legacy category
+
+### Phase 2: Config Dialog + Log Viewer
+- `FormLogConfig` — preset combo + DataGridView (category, enabled, file level, UI level)
+- Replace plain-text log area with DataGridView viewer (Time, ID, Category, Level, Message)
+- Filter row: category combo, level combo, text search
+- Color-coded rows by level, right-click context menu, pause/resume scroll
+- Tools menu entry: "Log Configuration"
+
+### Phase 3: Migrate calls by category (one batch at a time)
+1. Pipeline + STT + Conference (high-value, caused today's freeze)
+2. Translation + TTS
+3. Server + Rooms + Subtitle
+4. Startup + Config + Download
+5. Benchmark + Hardware (high volume)
+6. Everything else (Bible, Audio, UI, Localization, Update)
+
+### Phase 4: Python event IDs
+- Python servers emit `[9001] INFO message` format
+- .NET tailer parses event ID + level from each line
+- Python logs route through same registry and viewer
+
+### Phase 5: Session summary + cleanup
+- Summary event on session end (event counts by category, errors, duration)
+- Remove old `Log(msg)` overload — all calls must use event IDs
+- Event descriptions shown as tooltips in log viewer
 
 ## Immediate TODO (2026-06-07)
 - [x] Filter Editor overhaul — shared language combo, per-language glossary, checkboxes, friendly names, filter hit logging (#5)

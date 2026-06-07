@@ -109,6 +109,15 @@ Public Class FormMain
 
         ' Load config
         _config = ConfigManager.Load()
+
+        ' Apply log routing from config (or default to Normal preset)
+        If _config.LogRouting IsNot Nothing AndAlso _config.LogRouting.Routes.Count > 0 Then
+            Services.Infrastructure.AppLogger.Routing = _config.LogRouting
+        Else
+            _config.LogRouting = Services.Infrastructure.LogRoutingConfig.CreateNormal()
+            Services.Infrastructure.AppLogger.Routing = _config.LogRouting
+        End If
+
         WriteDebugLog($"[STARTUP] Config loaded: Language={_config.Language}, OutputLanguage={_config.OutputLanguage}, BiblesDirectory={_config.BiblesDirectory}, Theme={_config.Theme}, UiLanguage={_config.UiLanguage}")
 
         ' First-run language picker — before anything else
