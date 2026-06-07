@@ -26,6 +26,15 @@ Namespace Services.Infrastructure
         Private ReadOnly _events As New Dictionary(Of Integer, LogEventInfo)
 
         ''' <summary>
+        ''' Module constructor — forces LogEvents.RegisterAll() to populate the registry.
+        ''' LogEvents uses Public Const fields which are inlined at compile time,
+        ''' so its own Sub New() never fires. We call it explicitly here.
+        ''' </summary>
+        Sub New()
+            LogEvents.RegisterAll()
+        End Sub
+
+        ''' <summary>
         ''' Register a log event. Called from LogEvents module init.
         ''' </summary>
         Public Sub Register(id As Integer, category As LogCategory, level As LogSeverity, description As String)

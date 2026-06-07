@@ -161,9 +161,10 @@ Namespace Services.Infrastructure
         Public Const PYLOG_MMS_TTS_ERROR As Integer = 9203
 
         ''' <summary>
-        ''' Register all events at module load time.
+        ''' Register all events. Called by LogEventRegistry.Sub New() since
+        ''' Public Const fields are inlined and this module's constructor won't fire.
         ''' </summary>
-        Sub New()
+        Public Sub RegisterAll()
             Dim R = Sub(id As Integer, cat As LogCategory, lvl As LogSeverity, desc As String)
                         LogEventRegistry.Register(id, cat, lvl, desc)
                     End Sub
@@ -178,7 +179,7 @@ Namespace Services.Infrastructure
             R(STARTUP_SESSION_SUMMARY, LogCategory.Startup, LogSeverity.Info, "Session summary on shutdown")
 
             ' Config
-            R(CONFIG_LOADED, LogCategory.Config, LogSeverity.Debug, "Configuration loaded from disk")
+            R(CONFIG_LOADED, LogCategory.Config, LogSeverity.Info, "Configuration loaded from disk")
             R(CONFIG_SAVED, LogCategory.Config, LogSeverity.Debug, "Configuration saved to disk")
             R(CONFIG_RESET, LogCategory.Config, LogSeverity.Info, "Configuration reset to defaults")
             R(CONFIG_LOAD_FAILED, LogCategory.Config, LogSeverity.[Error], "Configuration load failed")

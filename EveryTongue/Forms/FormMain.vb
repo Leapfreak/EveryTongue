@@ -118,6 +118,7 @@ Public Class FormMain
             Services.Infrastructure.AppLogger.Routing = _config.LogRouting
         End If
 
+        AppLogger.Log(LogEvents.STARTUP_APP_STARTED, $"EveryTongue v{Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString(3)} starting")
         AppLogger.Log(LogEvents.CONFIG_LOADED, $"Language={_config.Language}, OutputLanguage={_config.OutputLanguage}, BiblesDirectory={_config.BiblesDirectory}, Theme={_config.Theme}, UiLanguage={_config.UiLanguage}")
 
         ' First-run language picker — before anything else
