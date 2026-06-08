@@ -40,6 +40,10 @@ Namespace Services.Infrastructure
         ''' </summary>
         Public Routing As LogRoutingConfig = LogRoutingConfig.CreateNormal()
 
+        ' ── File write lock ──
+        Private ReadOnly _fileLock As New Object
+        Private ReadOnly _sessionTimestamp As String = DateTime.Now.ToString("yyyyMMdd_HHmmss")
+
         ' ── Session tracking ──
         Private ReadOnly _sessionStart As DateTime = DateTime.Now
         Private ReadOnly _categoryCounts As New ConcurrentDictionary(Of LogCategory, Integer)
@@ -74,15 +78,39 @@ Namespace Services.Infrastructure
             End If
         End Sub
 
+        ''' <summary>
+        ''' Configured logs directory. Set from AppConfig.LogsDirectory during startup.
+        ''' Defaults to .\logs (program directory) until config is loaded.
+        ''' </summary>
+        Public LogDirectory As String = ""
+
         Public Function GetLogDir() As String
-            Dim dir = IO.Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EveryTongue", "logs")
+            Dim dir As String
+            If Not String.IsNullOrEmpty(LogDirectory) Then
+                If IO.Path.IsPathRooted(LogDirectory) Then
+                    dir = IO.Path.GetFullPath(LogDirectory)
+                Else
+                    dir = IO.Path.GetFullPath(IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, LogDirectory))
+                End If
+            Else
+                dir = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs")
+            End If
+            If Not IO.Directory.Exists(dir) Then IO.Directory.CreateDirectory(dir)
+            Return dir
+        End Function
+
+        ''' <summary>
+        ''' Returns the per-session subdirectory inside GetLogDir().
+        ''' Python sidecars also write their logs here via --log-dir.
+        ''' </summary>
+        Public Function GetSessionDir() As String
+            Dim dir = IO.Path.Combine(GetLogDir(), _sessionTimestamp)
             If Not IO.Directory.Exists(dir) Then IO.Directory.CreateDirectory(dir)
             Return dir
         End Function
 
         Public Function GetLogPath() As String
-            Return IO.Path.Combine(GetLogDir(), $"{DateTime.Now:yyyyMMdd}.log")
+            Return IO.Path.Combine(GetSessionDir(), "session.log")
         End Function
 
         ' ─── Structured log (new) ───────────────────────────────────────
@@ -96,8 +124,10 @@ Namespace Services.Infrastructure
             If info Is Nothing Then
                 ' Unregistered event — log as Legacy category
                 Try
-                    Dim logPath = GetLogPath()
-                    IO.File.AppendAllText(logPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [?{eventId}] {message}{Environment.NewLine}")
+                    SyncLock _fileLock
+                        Dim logPath = GetLogPath()
+                        IO.File.AppendAllText(logPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [?{eventId}] {message}{Environment.NewLine}")
+                    End SyncLock
                 Catch
                 End Try
                 Return
@@ -123,9 +153,27 @@ Namespace Services.Infrastructure
             ' Write to file if routing allows
             If routing.ShouldLogToFile(category, level) Then
                 Try
-                    Dim logPath = GetLogPath()
-                    IO.File.AppendAllText(logPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {formatted}{Environment.NewLine}")
-                Catch
+                    SyncLock _fileLock
+                        Dim logPath = GetLogPath()
+                        IO.File.AppendAllText(logPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {formatted}{Environment.NewLine}")
+                    End SyncLock
+                Catch ex As Exception
+                    ' Surface file-write errors to UI so they don't vanish silently
+                    Try
+                        Dim cb = UiCallback
+                        If cb IsNot Nothing Then
+                            cb(New LogEntry With {
+                                .Time = DateTime.Now,
+                                .EventId = 0,
+                                .Category = LogCategory.Legacy,
+                                .Level = LogSeverity.[Error],
+                                .Source = "AppLogger",
+                                .Message = $"[LOG FILE ERROR] {ex.GetType().Name}: {ex.Message} (path={GetLogPath()})",
+                                .Color = Drawing.Color.Red
+                            })
+                        End If
+                    Catch
+                    End Try
                 End Try
             End If
 
@@ -197,8 +245,10 @@ Namespace Services.Infrastructure
             Dim formatted = $"[{eventId}] [{catTag}:INFO] {msg}"
 
             Try
-                Dim logPath = GetLogPath()
-                IO.File.AppendAllText(logPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {formatted}{Environment.NewLine}")
+                SyncLock _fileLock
+                    Dim logPath = GetLogPath()
+                    IO.File.AppendAllText(logPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {formatted}{Environment.NewLine}")
+                End SyncLock
             Catch
             End Try
 
@@ -273,15 +323,22 @@ Namespace Services.Infrastructure
                 Dim logDir = GetLogDir()
                 Dim cutoff = DateTime.Now.AddDays(-keepDays)
 
-                ' Clean daily .NET log files older than keepDays
-                For Each f In IO.Directory.GetFiles(logDir, "????????.log")
+                ' Clean old session directories
+                For Each d In IO.Directory.GetDirectories(logDir, "????????_??????")
+                    If IO.Directory.GetLastWriteTime(d) < cutoff Then
+                        IO.Directory.Delete(d, True)
+                    End If
+                Next
+
+                ' Clean legacy flat log files (pre-session-directory format)
+                For Each f In IO.Directory.GetFiles(logDir, "????????*.log")
                     If IO.File.GetLastWriteTime(f) < cutoff Then
                         IO.File.Delete(f)
                     End If
                 Next
 
                 ' Clean Python rotated log files (e.g. live-server.log.1, .log.2)
-                For Each f In IO.Directory.GetFiles(logDir, "*-server.log.*")
+                For Each f In IO.Directory.GetFiles(logDir, "*-server.log*")
                     If IO.File.GetLastWriteTime(f) < cutoff Then
                         IO.File.Delete(f)
                     End If
@@ -292,7 +349,7 @@ Namespace Services.Infrastructure
             ' Clean up legacy logs from the old location (install directory)
             Try
                 Dim oldDir = AppDomain.CurrentDomain.BaseDirectory
-                For Each f In IO.Directory.GetFiles(oldDir, "????????.log")
+                For Each f In IO.Directory.GetFiles(oldDir, "????????*.log")
                     IO.File.Delete(f)
                 Next
                 For Each f In IO.Directory.GetFiles(oldDir, "*_pipeline-debug.log")

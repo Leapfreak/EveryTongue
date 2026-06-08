@@ -110,6 +110,9 @@ Public Class FormMain
         ' Load config
         _config = ConfigManager.Load()
 
+        ' Apply logs directory from config
+        Services.Infrastructure.AppLogger.LogDirectory = If(_config.LogsDirectory, ".\logs")
+
         ' Apply log routing from config (or default to Normal preset)
         If _config.LogRouting IsNot Nothing AndAlso _config.LogRouting.Routes.Count > 0 Then
             Services.Infrastructure.AppLogger.Routing = _config.LogRouting
@@ -118,8 +121,9 @@ Public Class FormMain
             Services.Infrastructure.AppLogger.Routing = _config.LogRouting
         End If
 
-        AppLogger.Log(LogEvents.STARTUP_APP_STARTED, $"EveryTongue v{Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString(3)} starting")
+        AppLogger.Log(LogEvents.STARTUP_APP_STARTED, $"EveryTongue v{Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString(3)} starting (logs: {Services.Infrastructure.AppLogger.GetLogDir()})")
         AppLogger.Log(LogEvents.CONFIG_LOADED, $"Language={_config.Language}, OutputLanguage={_config.OutputLanguage}, BiblesDirectory={_config.BiblesDirectory}, Theme={_config.Theme}, UiLanguage={_config.UiLanguage}")
+        AppLogger.Log(LogEvents.CONFIG_LOADED, $"SttBackend={_config.SttBackend}, WhisperModel={AppConfig.ResolvePath(_config.PathWhisperCppModel)}, TranslationBackend={_config.TranslationBackend}, TtsBackends={_config.TtsBackends}")
 
         ' First-run language picker — before anything else
         If Not _config.FirstRunComplete Then
@@ -791,6 +795,7 @@ del ""%~f0""
             mnuToolsVerifyPaths.Text = GetString("Menu_ToolsVerifyPaths")
             mnuToolsVerifyIntegrity.Text = GetString("Menu_ToolsVerifyIntegrity")
             mnuToolsLogConfig.Text = GetString("Menu_ToolsLogConfig")
+            mnuToolsLogViewer.Text = GetString("Menu_ToolsLogViewer")
             mnuToolsOptions.Text = GetString("Menu_ToolsOptions")
             mnuSession.Text = GetString("Menu_Session")
             mnuSessionQR.Text = GetString("Menu_SessionQR")

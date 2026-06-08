@@ -79,6 +79,8 @@ Namespace Controllers
                     .WhisperServerPort = _config.WhisperServerPort,
                     .SttBackend = If(_config.SttBackend, "whisper-cpp-vulkan"),
                     .SileroVadModelPath = Models.AppConfig.ResolvePath(_config.PathSileroVadModel),
+                    .BeamSize = _config.BeamSize,
+                    .BestOf = _config.BestOf,
                     .TranslationConcurrency = _config.TranslationConcurrency,
                     .TtsConcurrency = _config.TtsConcurrency,
                     .ConferenceTemplates = _config.ConferenceTemplates
@@ -187,7 +189,7 @@ Namespace Controllers
                     _log($"[VerifyPaths] {line}")
                     allOk = False
                 Else
-                    Dim line = $"  OK: {item.Label}"
+                    Dim line = $"  OK: {item.Label} → {resolved}"
                     sb.AppendLine(line)
                     _log($"[VerifyPaths] {line}")
                 End If

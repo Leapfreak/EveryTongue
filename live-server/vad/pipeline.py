@@ -38,7 +38,7 @@ class VadPipeline:
         Args:
             silero_model: loaded Silero VAD model
             config: VadConfig with all tuning parameters
-            transcribe_fn: (audio, language, beam_size, initial_prompt) -> (segments, info)
+            transcribe_fn: (audio, language, beam_size, best_of, initial_prompt) -> (segments, info)
             broadcast_fn: (event_type, text, lang) -> None
             hallucination_fn: (segments, last_text, lang, recent_langs) -> bool
             stats: SessionStats object for telemetry
@@ -179,7 +179,7 @@ class VadPipeline:
             f"[PIPELINE] READY: device={cfg.device_index} lang={cfg.language} "
             f"soft_commit={cfg.soft_commit_ms}ms silence={cfg.vad_silence_ms}ms "
             f"max_seg={cfg.vad_max_segment_s}s preroll={cfg.vad_preroll_ms}ms "
-            f"beam={cfg.beam_size} interim={cfg.enable_interim}"
+            f"beam={cfg.beam_size} best_of={cfg.best_of} interim={cfg.enable_interim}"
         )
 
     def stop(self):
@@ -337,6 +337,7 @@ class VadPipeline:
                     segments, info = self._transcribe_fn(
                         audio, language=language,
                         beam_size=self._config.beam_size,
+                        best_of=self._config.best_of,
                         initial_prompt=self._config.initial_prompt,
                     )
                 except Exception as e:
@@ -461,6 +462,7 @@ class VadPipeline:
                     segments, info = self._transcribe_fn(
                         latest, language=language,
                         beam_size=self._config.beam_size,
+                        best_of=self._config.best_of,
                         initial_prompt=self._config.initial_prompt,
                     )
                 except Exception as e:

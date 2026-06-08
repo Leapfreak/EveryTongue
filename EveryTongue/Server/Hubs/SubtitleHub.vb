@@ -187,7 +187,7 @@ Namespace Server.Hubs
                                 client.RemoteEndpoint, audioData.Length, client.RoomId)
                             Dim capturedClient = client
                             Dim capturedAudio = audioData
-                            Task.Run(Async Function()
+                            Dim fireAndForget = Task.Run(Async Function()
                                          Await _audioHandler.ProcessAudioAsync(capturedClient, capturedAudio, ct)
                                      End Function)
                         ElseIf String.IsNullOrEmpty(client.RoomId) Then

@@ -77,6 +77,7 @@ Public Class FormOptions
         lblOutputRootPath.Text = langPack.GetString("Opt_OutputRootPath")
         lblGlossaryPath.Text = langPack.GetString("Opt_GlossaryPath")
         lblBiblesPath.Text = langPack.GetString("Opt_BiblesPath")
+        lblLogsPath.Text = langPack.GetString("Opt_LogsPath")
         lblAdvancedHeader.Text = langPack.GetString("Opt_PathsAdvancedHeader")
         lblYtdlpFormat.Text = langPack.GetString("Opt_YtdlpFormat")
 
@@ -211,6 +212,7 @@ Public Class FormOptions
         AddHandler btnBrowseTransModel.Click, Sub(s, e) BrowseFolder(txtTransModel)
         AddHandler btnBrowseOutputRoot.Click, Sub(s, e) BrowseFolder(txtOutputRoot)
         AddHandler btnBrowseBibles.Click, Sub(s, e) BrowseFolder(txtBibles)
+        AddHandler btnBrowseLogs.Click, Sub(s, e) BrowseFolder(txtLogs)
     End Sub
 
     Private Sub PopulateFontCombo()
@@ -287,6 +289,7 @@ Public Class FormOptions
         txtSubtitleEdit.Text = _config.PathSubtitleEdit
         txtGlossary.Text = _config.TranslationGlossaryPath
         txtBibles.Text = _config.BiblesDirectory
+        txtLogs.Text = _config.LogsDirectory
 
         ' Server
         nudPort.Value = _config.SubtitleServerPort
@@ -416,6 +419,10 @@ Public Class FormOptions
         _config.PathSubtitleEdit = txtSubtitleEdit.Text
         _config.TranslationGlossaryPath = txtGlossary.Text
         _config.BiblesDirectory = txtBibles.Text
+        _config.LogsDirectory = txtLogs.Text
+
+        ' Update the live logger directory
+        Services.Infrastructure.AppLogger.LogDirectory = _config.LogsDirectory
 
         ' Server
         _config.SubtitleServerPort = CInt(nudPort.Value)

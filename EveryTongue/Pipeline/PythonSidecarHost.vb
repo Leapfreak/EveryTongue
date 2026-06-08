@@ -92,7 +92,7 @@ Namespace Pipeline
                     Return
                 End If
 
-                Dim logDir = Services.Infrastructure.AppLogger.GetLogDir()
+                Dim logDir = Services.Infrastructure.AppLogger.GetSessionDir()
                 Dim args = $"""{scriptPath}"" --port {Port} --log-dir ""{logDir}"""
                 If Not String.IsNullOrEmpty(extraArgs) Then
                     args &= " " & extraArgs

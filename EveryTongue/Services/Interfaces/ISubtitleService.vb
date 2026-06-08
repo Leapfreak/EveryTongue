@@ -49,7 +49,8 @@ Namespace Services.Interfaces
                                        sourceLang As String,
                                        translations As Dictionary(Of String, String),
                                        langTags As Dictionary(Of String, String),
-                                       Optional targetRoomId As String = Nothing) As Integer
+                                       Optional targetRoomId As String = Nothing,
+                                       Optional sourceFloresLang As String = Nothing) As Integer
         Sub BroadcastTranslationsOnly(translations As Dictionary(Of String, String),
                                        langTags As Dictionary(Of String, String))
         Sub BroadcastClear()

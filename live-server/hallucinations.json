@@ -32,7 +32,10 @@
     {"text": "Subtitles by the Amara.org community", "enabled": true},
     {"text": "Subtitles by", "enabled": true},
     {"text": "Translated by", "enabled": true},
-    {"text": "Transcribed by", "enabled": true}
+    {"text": "Transcribed by", "enabled": true},
+    {"text": "Thank you", "enabled": true},
+    {"text": "Thanks", "enabled": true},
+    {"text": "See you tomorrow", "enabled": true}
   ],
   "es": [
     {"text": "Gracias por ver", "enabled": true},
@@ -58,7 +61,9 @@
     {"text": "No olvides darle like", "enabled": true},
     {"text": "Subtítulos por", "enabled": true},
     {"text": "Traducido por", "enabled": true},
-    {"text": "Transcrito por", "enabled": true}
+    {"text": "Transcrito por", "enabled": true},
+    {"text": "Gracias", "enabled": true},
+    {"text": "Hasta mañana", "enabled": true}
   ],
   "ca": [
     {"text": "Gràcies per veure", "enabled": true},
@@ -75,6 +80,8 @@
     {"text": "Ens veiem la propera vegada", "enabled": true},
     {"text": "Fins la propera", "enabled": true},
     {"text": "Bona nit", "enabled": true},
+    {"text": "Gràcies", "enabled": true},
+    {"text": "Fins demà", "enabled": true},
     {"text": "Deixa un comentari", "enabled": true},
     {"text": "Comparteix aquest vídeo", "enabled": true},
     {"text": "Segueix-me a", "enabled": true},

@@ -375,6 +375,7 @@ def _translate_to_targets(text: str, source_lang: str, target_langs: list[str], 
     """Translate to all target languages, then apply glossary fixes."""
     global translator
     t_total = time.perf_counter()
+    logger.info("[TRANSLATE] %s -> %s: %r", source_lang, target_langs, text)
     results = {}
     for tl in target_langs:
         try:
@@ -409,8 +410,9 @@ def _translate_to_targets(text: str, source_lang: str, target_langs: list[str], 
                         continue
             # Non-CUDA error already logged with exc_info above
     total_ms = (time.perf_counter() - t_total) * 1000
-    _debug_logger.debug("[TOTAL] %d targets in %.1fms", len(target_langs), total_ms)
-    _debug_logger.debug("=" * 60)
+    for tl, tr in results.items():
+        logger.info("[RESULT] %s: %r", tl, tr)
+    logger.info("[TOTAL] %d targets in %.1fms", len(target_langs), total_ms)
     return results
 
 

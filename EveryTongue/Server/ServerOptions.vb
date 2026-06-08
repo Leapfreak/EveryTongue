@@ -74,6 +74,12 @@ Namespace Server
         ''' <summary>Path to Silero VAD GGML model for whisper-server built-in VAD.</summary>
         Public Property SileroVadModelPath As String = ""
 
+        ''' <summary>Beam size for whisper transcription.</summary>
+        Public Property BeamSize As Integer = 5
+
+        ''' <summary>Number of independent decoding attempts (best_of) for whisper transcription.</summary>
+        Public Property BestOf As Integer = 1
+
         ''' <summary>Max concurrent translation requests through the priority queue.</summary>
         Public Property TranslationConcurrency As Integer = 3
 

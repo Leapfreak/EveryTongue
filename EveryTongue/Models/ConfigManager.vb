@@ -8,10 +8,15 @@ Namespace Models
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EveryTongue")
         Private Shared ReadOnly ConfigPath As String = Path.Combine(ConfigDir, "config.json")
 
-        Private Shared ReadOnly JsonOptions As New JsonSerializerOptions With {
-            .WriteIndented = True,
-            .PropertyNameCaseInsensitive = True
-        }
+        Private Shared ReadOnly JsonOptions As JsonSerializerOptions
+
+        Shared Sub New()
+            JsonOptions = New JsonSerializerOptions With {
+                .WriteIndented = True,
+                .PropertyNameCaseInsensitive = True
+            }
+            JsonOptions.Converters.Add(New System.Text.Json.Serialization.JsonStringEnumConverter())
+        End Sub
 
         Public Shared Function Load() As AppConfig
             Try

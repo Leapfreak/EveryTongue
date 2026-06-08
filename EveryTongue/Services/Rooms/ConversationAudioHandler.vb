@@ -64,6 +64,12 @@ Namespace Services.Rooms
         ''' <summary>Path to Silero VAD GGML model for whisper-server built-in VAD.</summary>
         Public Property SileroVadModelPath As String = ""
 
+        ''' <summary>Beam size for whisper transcription.</summary>
+        Public Property BeamSize As Integer = 5
+
+        ''' <summary>Number of independent decoding attempts (best_of) for whisper transcription.</summary>
+        Public Property BestOf As Integer = 1
+
         ''' <summary>
         ''' Callback invoked when conversation rooms need translation but no backend is available.
         ''' FormMain wires this to start the translation service and register SidecarTranslationBackend.
@@ -131,7 +137,7 @@ Namespace Services.Rooms
             _logger.LogInformation("FFmpeg conversion OK: {InBytes} -> {OutBytes} bytes", audioData.Length, wavData.Length)
 
             ' Send WAV to live-server /transcribe endpoint
-            Dim transcribeUrl = $"http://127.0.0.1:{LiveServerPort}/transcribe"
+            Dim transcribeUrl = $"http://127.0.0.1:{LiveServerPort}/transcribe?beam_size={BeamSize}&best_of={BestOf}"
 
             ' Determine speaker identity (self or virtual member)
             Dim speakerName As String
@@ -157,7 +163,7 @@ Namespace Services.Rooms
             Dim whisperLang = If(Not String.IsNullOrEmpty(clientLangFlores),
                 TranslationService.FloresToShortCode(clientLangFlores).ToLowerInvariant(), "")
             If Not String.IsNullOrEmpty(whisperLang) Then
-                transcribeUrl &= $"?lang={Uri.EscapeDataString(whisperLang)}"
+                transcribeUrl &= $"&lang={Uri.EscapeDataString(whisperLang)}"
                 _logger.LogInformation("Transcribe with forced language: {Lang} (from client {Flores})", whisperLang, clientLangFlores)
             End If
 

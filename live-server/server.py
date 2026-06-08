@@ -323,7 +323,7 @@ def _audio_to_wav_bytes(audio_array: np.ndarray) -> bytes:
 _whisper_lock = threading.Lock()
 
 def _transcribe_whisper_cpp(audio_array: np.ndarray, language=None,
-                            beam_size=5, initial_prompt=""):
+                            beam_size=5, best_of=1, initial_prompt=""):
     """Transcribe audio via whisper-server.exe /inference endpoint.
     Serialized with _whisper_lock -- whisper-server hangs on concurrent requests.
     Returns (segments, info) or (None, None) on error."""
@@ -336,6 +336,10 @@ def _transcribe_whisper_cpp(audio_array: np.ndarray, language=None,
         "temperature_inc": "0.2",
         "response_format": "verbose_json",
     }
+    if beam_size and beam_size > 0:
+        fields["beam_size"] = str(beam_size)
+    if best_of and best_of > 1:
+        fields["best_of"] = str(best_of)
     if language:
         fields["language"] = language
     if initial_prompt:
@@ -442,19 +446,25 @@ def _is_hallucination(segments, last_commit_text: str = "", detected_lang: str =
     avg_no_speech = sum(seg.no_speech_prob for seg in segments) / len(segments)
     avg_logprob = sum(seg.avg_logprob for seg in segments) / len(segments)
 
+    full_text_preview = " ".join(seg.text.strip() for seg in segments if seg.text.strip())[:60]
+
     # Very high no-speech probability — almost certainly not real speech
     if avg_no_speech >= 0.85:
+        logger.info(f"[HALLUCINATION] high no_speech={avg_no_speech:.2f}: '{full_text_preview}'")
         return True
     # Short audio (< 1.5s) with high no-speech probability
     if total_speech_dur < 1.5 and avg_no_speech >= 0.7:
+        logger.info(f"[HALLUCINATION] short+no_speech (dur={total_speech_dur:.1f}s, nsp={avg_no_speech:.2f}): '{full_text_preview}'")
         return True
-    # Single word, short duration, moderate no-speech — catches filler
+    # Single word, short duration, high no-speech — catches filler
     word_count = sum(1 for seg in segments for w in seg.text.split() if w.strip())
-    if word_count <= 1 and total_speech_dur < 2.0 and avg_no_speech > 0.45:
+    if word_count <= 1 and total_speech_dur < 2.0 and avg_no_speech > 0.6:
+        logger.info(f"[HALLUCINATION] single-word (dur={total_speech_dur:.1f}s, nsp={avg_no_speech:.2f}): '{full_text_preview}'")
         return True
 
     # Low confidence on very short audio (likely hallucinated filler)
     if avg_logprob < -0.8 and total_speech_dur < 1.0:
+        logger.info(f"[HALLUCINATION] low-confidence (dur={total_speech_dur:.1f}s, logprob={avg_logprob:.2f}): '{full_text_preview}'")
         return True
 
     full_text = " ".join(seg.text.strip() for seg in segments if seg.text.strip())
@@ -629,13 +639,14 @@ async def start_capture_endpoint(request: Request):
         device_index=body.get("device_index", 0),
         language=body.get("language", "auto"),
         beam_size=body.get("beam_size", 5),
+        best_of=body.get("best_of", 1),
         initial_prompt=body.get("initial_prompt", ""),
         soft_commit_ms=body.get("soft_commit_ms", 400),
         vad_silence_ms=body.get("vad_min_silence_ms", 750),
         vad_max_segment_s=body.get("vad_max_segment_s", 25),
         vad_preroll_ms=body.get("vad_preroll_ms", 400),
-        vad_speech_threshold=body.get("vad_speech_threshold", 0.6),
-        vad_silence_threshold=body.get("vad_silence_threshold", 0.4),
+        vad_speech_threshold=body.get("vad_speech_threshold", 0.7),
+        vad_silence_threshold=body.get("vad_silence_threshold", 0.45),
         vad_speech_confirm_frames=body.get("vad_speech_confirm_frames", 2),
         merge_similarity_threshold=body.get("merge_similarity_threshold", 0.75),
         enable_interim=body.get("enable_interim", True),
@@ -757,6 +768,8 @@ async def transcribe_audio(request: Request):
     lang = request.query_params.get("lang", None)
     if lang == "auto":
         lang = None
+    beam_size = int(request.query_params.get("beam_size", 5))
+    best_of = int(request.query_params.get("best_of", 1))
 
     audio = None
     content_type = request.headers.get("content-type", "")
@@ -812,7 +825,7 @@ async def transcribe_audio(request: Request):
         return JSONResponse({"status": "error", "detail": "Audio too short"}, status_code=400)
 
     try:
-        segments, info = _transcribe_whisper_cpp(audio, language=lang, beam_size=5)
+        segments, info = _transcribe_whisper_cpp(audio, language=lang, beam_size=beam_size, best_of=best_of)
         text = " ".join(seg.text.strip() for seg in segments if seg.text.strip())
         detected = info.language if info else ""
 

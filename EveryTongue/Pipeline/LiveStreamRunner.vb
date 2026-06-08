@@ -244,6 +244,7 @@ Namespace Pipeline
                     $"""compute_type"":""{config.LiveComputeType}""," &
                     $"""device"":""{If(config.NoGpu, "cpu", "cuda")}""," &
                     $"""beam_size"":{config.BeamSize}," &
+                    $"""best_of"":{config.BestOf}," &
                     $"""vad_min_silence_ms"":{config.LiveVadSilenceMs}," &
                     $"""vad_max_segment_s"":{config.LiveMaxSegmentSec}," &
                     $"""interim_interval_ms"":{config.LiveInterimIntervalMs}," &

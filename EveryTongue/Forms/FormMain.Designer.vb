@@ -37,6 +37,7 @@ Partial Class FormMain
         mnuToolsVerifyIntegrity = New ToolStripMenuItem()
         mnuToolsBenchmark = New ToolStripMenuItem()
         mnuToolsLogConfig = New ToolStripMenuItem()
+        mnuToolsLogViewer = New ToolStripMenuItem()
         mnuToolsSep3 = New ToolStripSeparator()
         mnuToolsOptions = New ToolStripMenuItem()
         mnuSession = New ToolStripMenuItem()
@@ -277,7 +278,7 @@ Partial Class FormMain
         ' 
         ' mnuTools
         ' 
-        mnuTools.DropDownItems.AddRange(New ToolStripItem() {mnuToolsTranscribe, mnuToolsTranslate, mnuToolsBible, mnuToolsSep1, mnuToolsGlossary, mnuToolsLocalization, mnuToolsSep2, mnuToolsDownloadMgr, mnuToolsVerifyPaths, mnuToolsVerifyIntegrity, mnuToolsBenchmark, mnuToolsLogConfig, mnuToolsSep3, mnuToolsOptions})
+        mnuTools.DropDownItems.AddRange(New ToolStripItem() {mnuToolsTranscribe, mnuToolsTranslate, mnuToolsBible, mnuToolsSep1, mnuToolsGlossary, mnuToolsLocalization, mnuToolsSep2, mnuToolsDownloadMgr, mnuToolsVerifyPaths, mnuToolsVerifyIntegrity, mnuToolsBenchmark, mnuToolsLogConfig, mnuToolsLogViewer, mnuToolsSep3, mnuToolsOptions})
         mnuTools.Name = "mnuTools"
         mnuTools.Size = New Size(47, 20)
         mnuTools.Text = "&Tools"
@@ -353,6 +354,12 @@ Partial Class FormMain
         mnuToolsLogConfig.Name = "mnuToolsLogConfig"
         mnuToolsLogConfig.Size = New Size(184, 22)
         mnuToolsLogConfig.Text = "Log Configuration..."
+        '
+        ' mnuToolsLogViewer
+        '
+        mnuToolsLogViewer.Name = "mnuToolsLogViewer"
+        mnuToolsLogViewer.Size = New Size(184, 22)
+        mnuToolsLogViewer.Text = "Session Logs..."
         '
         ' mnuToolsSep3
         ' 
@@ -1829,6 +1836,7 @@ Partial Class FormMain
     Friend WithEvents mnuToolsVerifyIntegrity As ToolStripMenuItem
     Friend WithEvents mnuToolsBenchmark As ToolStripMenuItem
     Friend WithEvents mnuToolsLogConfig As ToolStripMenuItem
+    Friend WithEvents mnuToolsLogViewer As ToolStripMenuItem
     Friend WithEvents mnuToolsSep3 As ToolStripSeparator
     Friend WithEvents mnuToolsOptions As ToolStripMenuItem
     Friend WithEvents mnuSession As ToolStripMenuItem

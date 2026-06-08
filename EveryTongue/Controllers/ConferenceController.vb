@@ -21,6 +21,7 @@ Namespace Controllers
 
         Private ReadOnly _sttBackends As New Dictionary(Of String, ISttBackend)()
         Private ReadOnly _roomTemplateIds As New Dictionary(Of String, String)()
+        Private ReadOnly _sentenceBuffers As New Dictionary(Of String, SentenceBuffer)()
         Private _nextConferencePort As Integer = 5101
         Private _nextWhisperServerPort As Integer = 8179  ' 8178 is used by ConversationAudioHandler
 
@@ -135,9 +136,9 @@ Namespace Controllers
                 .InitialPrompt = If(template.InitialPrompt, ""),
                 .TranslateToEnglish = False,
                 .ServerPort = port,
-                .WhisperServerPath = _config.PathWhisperServer,
+                .WhisperServerPath = Models.AppConfig.ResolvePath(_config.PathWhisperServer),
                 .WhisperServerPort = _nextWhisperServerPort,
-                .SileroVadModelPath = _config.PathSileroVadModel
+                .SileroVadModelPath = Models.AppConfig.ResolvePath(_config.PathSileroVadModel)
             }
             _nextWhisperServerPort += 1
 
@@ -159,7 +160,7 @@ Namespace Controllers
 
             _sttBackends(roomId) = backend
             _roomTemplateIds(roomId) = templateId
-            _log($"[Conference] Starting backend for room {roomId} (template={template.Name}, port={port}, lang={sttConfig.Language})")
+            _log($"[Conference] Starting backend for room {roomId} (template={template.Name}, port={port}, lang={sttConfig.Language}, model={sttConfig.ModelPath}, backend={backendKey})")
             backend.Start(sttConfig)
 
             If backend.IsRunning Then
@@ -228,6 +229,15 @@ Namespace Controllers
             Dim backend As ISttBackend = Nothing
             If Not _sttBackends.TryGetValue(roomId, backend) Then Return
 
+            ' Flush sentence buffer before restart
+            Dim buffer As SentenceBuffer = Nothing
+            If _sentenceBuffers.TryGetValue(roomId, buffer) Then
+                Dim flush = buffer.ForceFlush()
+                If flush IsNot Nothing Then
+                    TranslateAndBroadcastBufferedAsync(roomId, flush.Text, flush.DetectedLanguage)
+                End If
+            End If
+
             Dim tplId As String = Nothing
             _roomTemplateIds.TryGetValue(roomId, tplId)
             Dim template = If(Not String.IsNullOrEmpty(tplId),
@@ -291,9 +301,9 @@ Namespace Controllers
                 .InitialPrompt = cfgPrompt,
                 .TranslateToEnglish = False,
                 .ServerPort = _nextConferencePort,
-                .WhisperServerPath = _config.PathWhisperServer,
+                .WhisperServerPath = Models.AppConfig.ResolvePath(_config.PathWhisperServer),
                 .WhisperServerPort = _nextWhisperServerPort,
-                .SileroVadModelPath = _config.PathSileroVadModel
+                .SileroVadModelPath = Models.AppConfig.ResolvePath(_config.PathSileroVadModel)
             }
             _nextConferencePort += 1
             _nextWhisperServerPort += 1
@@ -335,12 +345,29 @@ Namespace Controllers
         ''' Stops and removes a conference backend when a room is closed.
         ''' </summary>
         Public Sub StopConferenceBackend(roomId As String)
+            ' Flush any remaining buffered text before stopping
+            Dim buffer As SentenceBuffer = Nothing
+            If _sentenceBuffers.TryGetValue(roomId, buffer) Then
+                Dim flush = buffer.ForceFlush()
+                If flush IsNot Nothing Then
+                    TranslateAndBroadcastBufferedAsync(roomId, flush.Text, flush.DetectedLanguage)
+                End If
+                _sentenceBuffers.Remove(roomId)
+            End If
+
             Dim backend As ISttBackend = Nothing
             If _sttBackends.TryGetValue(roomId, backend) Then
                 _log($"[Conference] Stopping backend for room {roomId}")
-                If backend.IsRunning Then backend.Stop()
                 _sttBackends.Remove(roomId)
                 _roomTemplateIds.Remove(roomId)
+                ' Stop on background thread to avoid freezing the UI
+                Task.Run(Sub()
+                             Try
+                                 If backend.IsRunning Then backend.Stop()
+                             Catch ex As Exception
+                                 _log($"[Conference] Error stopping backend for room {roomId}: {ex.Message}")
+                             End Try
+                         End Sub)
             End If
         End Sub
 
@@ -348,17 +375,37 @@ Namespace Controllers
         ''' Stops all conference backends (called on app shutdown).
         ''' </summary>
         Public Sub StopAllConferenceBackends()
+            ' Flush all sentence buffers
+            For Each kvp In _sentenceBuffers.ToList()
+                Dim flush = kvp.Value.ForceFlush()
+                If flush IsNot Nothing Then
+                    TranslateAndBroadcastBufferedAsync(kvp.Key, flush.Text, flush.DetectedLanguage)
+                End If
+            Next
+            _sentenceBuffers.Clear()
+
+            ' Stop all backends in parallel on background threads to avoid UI freeze
+            Dim stopTasks As New List(Of Task)()
             For Each kvp In _sttBackends.ToList()
                 _log($"[Conference] Stopping backend for room {kvp.Key}")
-                If kvp.Value.IsRunning Then kvp.Value.Stop()
+                Dim backend = kvp.Value
+                Dim rid = kvp.Key
+                stopTasks.Add(Task.Run(Sub()
+                                           Try
+                                               If backend.IsRunning Then backend.Stop()
+                                           Catch ex As Exception
+                                               _log($"[Conference] Error stopping backend for room {rid}: {ex.Message}")
+                                           End Try
+                                       End Sub))
             Next
             _sttBackends.Clear()
             _roomTemplateIds.Clear()
+            Task.WaitAll(stopTasks.ToArray(), 10000)
         End Sub
 
         ' ─── Translation Pipeline ─────────────────────────────────────
 
-        Private Async Sub TranslateAndBroadcastForRoomAsync(roomId As String, commitArgs As SttOutputEventArgs)
+        Private Sub TranslateAndBroadcastForRoomAsync(roomId As String, commitArgs As SttOutputEventArgs)
             ' Check if the room is paused — drop commits silently to keep whisper warm
             Dim mgr = _getRoomManager?.Invoke()
             If mgr IsNot Nothing Then
@@ -384,6 +431,33 @@ Namespace Controllers
                 Return
             End If
 
+            ' Always broadcast source text immediately (no delay for source-lang viewers)
+            subtitleSvc.BroadcastCommit(line, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang, targetRoomId:=roomId)
+
+            ' Check for expired buffers on other rooms
+            FlushExpiredBuffers(roomId)
+
+            ' Buffer the commit for translation
+            Dim buffer As SentenceBuffer = Nothing
+            If Not _sentenceBuffers.TryGetValue(roomId, buffer) Then
+                buffer = New SentenceBuffer()
+                _sentenceBuffers(roomId) = buffer
+            End If
+
+            Dim flush = buffer.Add(line, detectedLang)
+            If flush Is Nothing Then Return
+
+            ' Buffer flushed — translate the accumulated text
+            TranslateAndBroadcastBufferedAsync(roomId, flush.Text, flush.DetectedLanguage)
+        End Sub
+
+        Private Async Sub TranslateAndBroadcastBufferedAsync(roomId As String, bufferedText As String, detectedLang As String)
+            Dim sourceLang = If(Not String.IsNullOrEmpty(detectedLang), WhisperToNllbCode(detectedLang), "eng_Latn")
+            Dim sourceShort = TranslationService.FloresToShortCode(sourceLang)
+
+            Dim subtitleSvc = _getSubtitleSvc()
+            If subtitleSvc Is Nothing Then Return
+
             Dim targets = subtitleSvc.GetActiveTranslationLanguages()
             targets?.Remove(sourceLang)
 
@@ -392,13 +466,15 @@ Namespace Controllers
                                    svc IsNot Nothing AndAlso svc.IsRunning AndAlso svc.IsModelLoaded
 
             If Not translationReady Then
-                subtitleSvc.BroadcastCommit(line, skipTranslationClients:=False, lang:=sourceShort, targetRoomId:=roomId)
+                ' No translation available — source already broadcast, nothing more to do
                 Return
             End If
 
+            _log($"[Conference:{roomId}] Translating buffered: {bufferedText}")
+
             Dim translations As New Dictionary(Of String, String)()
             Try
-                Dim result = Await svc.TranslateAsync(line, sourceLang, targets, timeoutSeconds:=10)
+                Dim result = Await svc.TranslateAsync(bufferedText, sourceLang, targets, timeoutSeconds:=10)
                 If result IsNot Nothing Then
                     For Each kvp In result
                         translations(kvp.Key) = kvp.Value
@@ -408,14 +484,26 @@ Namespace Controllers
                 _log($"[Conference:{roomId}] Translate error: {ex.Message}")
             End Try
 
-            translations(sourceLang) = line
-
             Dim langTags As New Dictionary(Of String, String)
             For Each kvp In translations
                 langTags(kvp.Key) = TranslationService.FloresToShortCode(kvp.Key)
             Next
 
-            subtitleSvc.BroadcastCommitTranslated(line, sourceShort, translations, langTags, targetRoomId:=roomId)
+            subtitleSvc.BroadcastCommitTranslated(bufferedText, sourceShort, translations, langTags, targetRoomId:=roomId, sourceFloresLang:=sourceLang)
+        End Sub
+
+        ''' <summary>
+        ''' Flush any sentence buffers that have timed out (4s since last commit).
+        ''' Called on every new commit to avoid needing a separate timer.
+        ''' </summary>
+        Private Sub FlushExpiredBuffers(Optional excludeRoomId As String = Nothing)
+            For Each kvp In _sentenceBuffers.ToList()
+                If kvp.Key = excludeRoomId Then Continue For
+                Dim flush = kvp.Value.TryFlushExpired()
+                If flush IsNot Nothing Then
+                    TranslateAndBroadcastBufferedAsync(kvp.Key, flush.Text, flush.DetectedLanguage)
+                End If
+            Next
         End Sub
 
         ' ─── Helpers ──────────────────────────────────────────────────

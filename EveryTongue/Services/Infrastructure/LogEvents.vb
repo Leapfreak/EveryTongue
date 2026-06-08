@@ -144,6 +144,7 @@ Namespace Services.Infrastructure
         Public Const UI_WORKSPACE_SWITCH As Integer = 8001
         Public Const UI_DIALOG_OPENED As Integer = 8002
         Public Const UI_ERROR As Integer = 8003
+        Public Const UI_LOG_VIEWER_OPENED As Integer = 8004
 
         ' ── Python Log (9000–9299) ──
         ' Each server gets base+0=Info, base+1=Debug, base+2=Warning, base+3=Error
@@ -305,6 +306,7 @@ Namespace Services.Infrastructure
             R(UI_WORKSPACE_SWITCH, LogCategory.UI, LogSeverity.Debug, "Workspace switched")
             R(UI_DIALOG_OPENED, LogCategory.UI, LogSeverity.Debug, "Dialog opened")
             R(UI_ERROR, LogCategory.UI, LogSeverity.[Error], "UI error")
+            R(UI_LOG_VIEWER_OPENED, LogCategory.UI, LogSeverity.Debug, "Log viewer opened")
 
             ' Python log lines (tailed from files) — base+0=Info, base+1=Debug, base+2=Warning, base+3=Error
             R(PYLOG_LIVE, LogCategory.PythonLog, LogSeverity.Info, "Live server log line")

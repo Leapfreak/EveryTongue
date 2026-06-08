@@ -14,9 +14,10 @@ class VadConfig:
     device_index: int = 0
     language: str = "auto"
     beam_size: int = 5
+    best_of: int = 1
     initial_prompt: str = ""
-    vad_speech_threshold: float = 0.6
-    vad_silence_threshold: float = 0.4
+    vad_speech_threshold: float = 0.7
+    vad_silence_threshold: float = 0.45
     soft_commit_ms: int = 400
     vad_silence_ms: int = 750
     vad_max_segment_s: int = 25

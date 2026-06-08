@@ -201,6 +201,7 @@ Partial Class FormMain
         pi?.SetValue(dgvLog, True)
 
         AddHandler mnuToolsLogConfig.Click, Sub(s, e) ShowLogConfig()
+        AddHandler mnuToolsLogViewer.Click, Sub(s, e) ShowLogViewer()
 
         ' Show event description tooltip on hover
         dgvLog.ShowCellToolTips = True
@@ -539,6 +540,13 @@ Partial Class FormMain
         End Using
     End Sub
 
+    Private Sub ShowLogViewer()
+        AppLogger.Log(LogEvents.UI_LOG_VIEWER_OPENED, "Session log viewer opened")
+        Using dlg As New FormLogViewer(AddressOf GetString, _logDarkMode)
+            dlg.ShowDialog(Me)
+        End Using
+    End Sub
+
     ' ═══════════════════════════════════════════════════════════════
     ' Workspace Switching
     ' ═══════════════════════════════════════════════════════════════
@@ -795,20 +803,23 @@ Partial Class FormMain
                             Next
                         End Using
 
-                        ' ── Log files (last 30 days + Python server logs) ──
+                        ' ── Log files (last 30 days — session directories + legacy flat files) ──
                         Dim logDir = Services.Infrastructure.AppLogger.GetLogDir()
-                        For dayOffset = 0 To 29
-                            Dim logDate = DateTime.Now.AddDays(-dayOffset)
-                            Dim logName = $"{logDate:yyyyMMdd}.log"
-                            Dim logPath = IO.Path.Combine(logDir, logName)
-                            If IO.File.Exists(logPath) Then
-                                archive.CreateEntryFromFile(logPath, $"logs/{logName}")
+                        Dim cutoff = DateTime.Now.AddDays(-30)
+                        ' Session directories (yyyyMMdd_HHmmss/)
+                        For Each sessionDir In IO.Directory.GetDirectories(logDir, "????????_??????")
+                            If IO.Directory.GetLastWriteTime(sessionDir) > cutoff Then
+                                Dim dirName = IO.Path.GetFileName(sessionDir)
+                                For Each f In IO.Directory.GetFiles(sessionDir)
+                                    archive.CreateEntryFromFile(f, $"logs/{dirName}/{IO.Path.GetFileName(f)}")
+                                Next
                             End If
                         Next
-                        ' Include Python server log files
-                        For Each pyLog In IO.Directory.GetFiles(logDir, "*-server.log*")
-                            Dim entryName = $"logs/{IO.Path.GetFileName(pyLog)}"
-                            archive.CreateEntryFromFile(pyLog, entryName)
+                        ' Legacy flat log files
+                        For Each logFile In IO.Directory.GetFiles(logDir, "*.log")
+                            If IO.File.GetLastWriteTime(logFile) > cutoff Then
+                                archive.CreateEntryFromFile(logFile, $"logs/{IO.Path.GetFileName(logFile)}")
+                            End If
                         Next
 
                         ' ── Integrity check ──

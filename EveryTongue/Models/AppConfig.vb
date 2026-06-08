@@ -208,6 +208,8 @@ Namespace Models
         Public Property MinimizeToTray As Boolean = True
         Public Property StartMinimized As Boolean = True
 
+        Public Property LogsDirectory As String = ".\logs"
+
         Public Property LogPanelHeight As Integer = 250
 
         Public Property LogRouting As Services.Infrastructure.LogRoutingConfig

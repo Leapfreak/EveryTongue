@@ -183,6 +183,8 @@ Namespace Server
                 convAudioHandler.WhisperServerPort = options.WhisperServerPort
                 convAudioHandler.SttBackend = options.SttBackend
                 convAudioHandler.SileroVadModelPath = options.SileroVadModelPath
+                convAudioHandler.BeamSize = options.BeamSize
+                convAudioHandler.BestOf = options.BestOf
             End If
 
             ' Start MMS-TTS sidecar if deps are installed (optional tier-2 offline TTS)

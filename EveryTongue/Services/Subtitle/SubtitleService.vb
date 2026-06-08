@@ -308,7 +308,8 @@ Namespace Services.Subtitle
                                               sourceLang As String,
                                               translations As Dictionary(Of String, String),
                                               langTags As Dictionary(Of String, String),
-                                              Optional targetRoomId As String = Nothing) As Integer Implements ISubtitleService.BroadcastCommitTranslated
+                                              Optional targetRoomId As String = Nothing,
+                                              Optional sourceFloresLang As String = Nothing) As Integer Implements ISubtitleService.BroadcastCommitTranslated
             If Not IsRunning Then Return 0
             _currentLine = ""
 
@@ -334,6 +335,13 @@ Namespace Services.Subtitle
                     End If
 
                     Dim clientLang = kvp.Value.Language
+
+                    ' When source clients already received an immediate broadcast, skip them here
+                    If Not String.IsNullOrEmpty(sourceFloresLang) AndAlso
+                       (String.IsNullOrEmpty(clientLang) OrElse clientLang = sourceFloresLang) Then
+                        Continue For
+                    End If
+
                     Dim text As String
                     Dim tag As String
 

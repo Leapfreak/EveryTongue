@@ -107,6 +107,7 @@
   "Menu_ToolsVerifyPaths": "Verify Paths",
   "Menu_ToolsVerifyIntegrity": "Verify File Integrity",
   "Menu_ToolsLogConfig": "Log Configuration...",
+  "Menu_ToolsLogViewer": "Session Logs...",
   "Menu_ToolsOptions": "&Options...",
   "Menu_Session": "&Server",
   "Menu_SessionQR": "Show QR Code",
@@ -285,6 +286,7 @@
   "Opt_OutputRootPath": "Output root:",
   "Opt_GlossaryPath": "Glossary file:",
   "Opt_BiblesPath": "Bibles directory:",
+  "Opt_LogsPath": "Logs directory:",
   "Opt_PathsAdvancedHeader": "Advanced",
   "Opt_YtdlpFormat": "yt-dlp format:",
 
@@ -594,5 +596,16 @@
   "Web_PipelineMaxSeg": "Max Segment",
   "Web_PipelineVadSilence": "VAD Silence",
   "Web_PipelineBeamSize": "Beam Size",
-  "Web_PipelinePrompt": "Initial Prompt"
+  "Web_PipelinePrompt": "Initial Prompt",
+
+  "LogViewer_Title": "Session Logs",
+  "LogViewer_SessionLabel": "Session:",
+  "LogViewer_CategoryFilter": "Category:",
+  "LogViewer_LevelFilter": "Level:",
+  "LogViewer_Search": "Search...",
+  "LogViewer_Copy": "Copy",
+  "LogViewer_Close": "Close",
+  "LogViewer_NoSessions": "No log sessions found",
+  "LogViewer_Lines": "{0} lines",
+  "LogViewer_FilterAll": "All"
 }
