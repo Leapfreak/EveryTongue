@@ -18,11 +18,30 @@
     },
     {
       "trigger": "elies",
-      "comment": "'Elies' = Elijah (NLLB mistranslates as 'Alias')",
+      "comment": "'Elies' = Elijah (Whisper garbles as l'IAS, Alias, al·lis)",
       "enabled": true,
       "fixes": {
-        "eng_Latn": {"Alias": "Elijah", "alias": "Elijah"},
-        "spa_Latn": {"Alias": "Elías", "alias": "Elías"}
+        "eng_Latn": {"Alias": "Elijah", "alias": "Elijah", "the IAS": "Elijah", "IAS": "Elijah", "alleys": "Elijah", "Malias": "Elijah", "the Ice": "Elijah", "Elias": "Elijah"},
+        "cat_Latn": {"Elías": "Elies", "Alias": "Elies", "alias": "Elies", "Malías": "Elies", "l'Ias": "l'Elies", "al·lis": "Elies"},
+        "spa_Latn": {"Alias": "Elías", "alias": "Elías", "el IAS": "Elías", "IAS": "Elías", "Malias": "Elías"}
+      }
+    },
+    {
+      "trigger": "querit",
+      "comment": "'Querit' = Brook Cherith (Whisper garbles as Carib, Carip)",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"Caribbean": "Cherith", "Carib": "Cherith", "the Caribbean supply": "the provision at Cherith"},
+        "spa_Latn": {"Caribe": "Querit", "caribe": "Querit"}
+      }
+    },
+    {
+      "trigger": "eliseu",
+      "comment": "'Eliseu' = Elisha",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"Eliseo": "Elisha", "Eliseu": "Elisha"},
+        "spa_Latn": {"Eliseo": "Eliseo"}
       }
     },
     {
