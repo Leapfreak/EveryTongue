@@ -28,6 +28,9 @@ Namespace Services.Rooms
         Private ReadOnly _logger As ILogger(Of ConversationAudioHandler)
         Private _nextCommitId As Integer = 0
 
+        ' Rolling context: per-room buffers of recent transcribed text for whisper prompt
+        Private ReadOnly _roomContext As New Concurrent.ConcurrentDictionary(Of String, List(Of String))
+
         ' Live-server auto-start
         Private ReadOnly _sidecar As New PythonSidecarHost() With {
             .Label = "Live server (conversation)",
@@ -139,6 +142,18 @@ Namespace Services.Rooms
             ' Send WAV to live-server /transcribe endpoint
             Dim transcribeUrl = $"http://127.0.0.1:{LiveServerPort}/transcribe?beam_size={BeamSize}&best_of={BestOf}"
 
+            ' Rolling context: pass recent transcriptions as prompt for vocabulary continuity
+            Dim contextList = _roomContext.GetOrAdd(room.Id, Function(k) New List(Of String)())
+            Dim prompt As String
+            SyncLock contextList
+                prompt = String.Join(" ", contextList)
+            End SyncLock
+            ' Trim to ~800 chars (whisper prompt limit is 224 tokens)
+            If prompt.Length > 800 Then prompt = prompt.Substring(prompt.Length - 800)
+            If prompt.Length > 0 Then
+                transcribeUrl &= $"&prompt={Uri.EscapeDataString(prompt)}"
+            End If
+
             ' Determine speaker identity (self or virtual member)
             Dim speakerName As String
             Dim speakerLang As String
@@ -198,6 +213,14 @@ Namespace Services.Rooms
 
                     _logger.LogInformation("Room {RoomId} [{Lang}] {Speaker}: {Text}",
                         client.RoomId, detectedLang, speakerName, text)
+
+                    ' Rolling context: remember this transcription for future prompts
+                    SyncLock contextList
+                        contextList.Add(text)
+                        While contextList.Count > 10
+                            contextList.RemoveAt(0)
+                        End While
+                    End SyncLock
 
                     ' Broadcast to room members
                     Await BroadcastToRoomAsync(client, room, text, detectedLang, speakerName, ct).ConfigureAwait(False)

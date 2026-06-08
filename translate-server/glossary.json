@@ -18,11 +18,11 @@
     },
     {
       "trigger": "elies",
-      "comment": "'Elies' = Elijah (Whisper garbles as l'IAS, Alias, al·lis)",
+      "comment": "'Elies' = Elijah (Whisper garbles as l'IAS, Alias, al·lis, al·líes)",
       "enabled": true,
       "fixes": {
-        "eng_Latn": {"Alias": "Elijah", "alias": "Elijah", "the IAS": "Elijah", "IAS": "Elijah", "alleys": "Elijah", "Malias": "Elijah", "the Ice": "Elijah", "Elias": "Elijah"},
-        "cat_Latn": {"Elías": "Elies", "Alias": "Elies", "alias": "Elies", "Malías": "Elies", "l'Ias": "l'Elies", "al·lis": "Elies"},
+        "eng_Latn": {"Alias": "Elijah", "alias": "Elijah", "the IAS": "Elijah", "IAS": "Elijah", "alleys": "Elijah", "Malias": "Elijah", "the Ice": "Elijah", "Elias": "Elijah", "aliens": "Elijah", "allies": "Elijah"},
+        "cat_Latn": {"Elías": "Elies", "Alias": "Elies", "alias": "Elies", "Malías": "Elies", "l'Ias": "l'Elies", "al·lis": "Elies", "al·líes": "Elies", "d'al·lis": "d'Elies", "d'al·líes": "d'Elies", "d'aquestes": "d'Elies"},
         "spa_Latn": {"Alias": "Elías", "alias": "Elías", "el IAS": "Elías", "IAS": "Elías", "Malias": "Elías"}
       }
     },
@@ -33,6 +33,14 @@
       "fixes": {
         "eng_Latn": {"Caribbean": "Cherith", "Carib": "Cherith", "the Caribbean supply": "the provision at Cherith"},
         "spa_Latn": {"Caribe": "Querit", "caribe": "Querit"}
+      }
+    },
+    {
+      "trigger": "xaretza",
+      "comment": "Whisper mangles 'Sarepta' as 'xaretza' in Catalan",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"charity": "Zarephath", "xaretza": "Zarephath"}
       }
     },
     {

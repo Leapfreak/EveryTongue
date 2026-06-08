@@ -328,7 +328,10 @@ def _transcribe_whisper_cpp(audio_array: np.ndarray, language=None,
     Serialized with _whisper_lock -- whisper-server hangs on concurrent requests.
     Returns (segments, info) or (None, None) on error."""
     audio_duration = len(audio_array) / SAMPLE_RATE
-    logger.debug(f"INFERENCE START: sending {audio_duration:.1f}s audio to whisper-server port {_whisper_server_port}")
+    logger.debug(
+        f"INFERENCE START: {audio_duration:.1f}s audio to port {_whisper_server_port} "
+        f"beam={beam_size} best_of={best_of} lang={language} prompt_len={len(initial_prompt)}"
+    )
     t0 = time.time()
     wav_data = _audio_to_wav_bytes(audio_array)
     fields = {
@@ -676,7 +679,11 @@ async def start_capture_endpoint(request: Request):
 
     _vad_pipeline = pipeline
     capturing = True
-    logger.debug(f"CAPTURE START device={vad_config.device_index} lang={vad_config.language}")
+    logger.info(
+        f"CAPTURE START device={vad_config.device_index} lang={vad_config.language} "
+        f"beam_size={vad_config.beam_size} best_of={vad_config.best_of} "
+        f"vad_silence={vad_config.vad_silence_ms}ms max_seg={vad_config.vad_max_segment_s}s"
+    )
 
     return {"status": "started"}
 
@@ -710,7 +717,7 @@ async def update_config(request: Request):
     if _vad_pipeline:
         _vad_pipeline.update_config(**{k: body[k] for k in updated if k in body})
 
-    logger.debug(f"CONFIG UPDATE: {', '.join(f'{k}={current_config.get(k)}' for k in updated)}")
+    logger.info(f"CONFIG UPDATE: {', '.join(f'{k}={current_config.get(k)}' for k in updated)}")
     return {"status": "ok", "updated": updated}
 
 
@@ -770,6 +777,11 @@ async def transcribe_audio(request: Request):
         lang = None
     beam_size = int(request.query_params.get("beam_size", 5))
     best_of = int(request.query_params.get("best_of", 1))
+    prompt = request.query_params.get("prompt", "")
+    logger.info(
+        f"TRANSCRIBE request: lang={lang} beam_size={beam_size} best_of={best_of} "
+        f"prompt_len={len(prompt)} audio_bytes={len(body)}"
+    )
 
     audio = None
     content_type = request.headers.get("content-type", "")
@@ -825,7 +837,7 @@ async def transcribe_audio(request: Request):
         return JSONResponse({"status": "error", "detail": "Audio too short"}, status_code=400)
 
     try:
-        segments, info = _transcribe_whisper_cpp(audio, language=lang, beam_size=beam_size, best_of=best_of)
+        segments, info = _transcribe_whisper_cpp(audio, language=lang, beam_size=beam_size, best_of=best_of, initial_prompt=prompt)
         text = " ".join(seg.text.strip() for seg in segments if seg.text.strip())
         detected = info.language if info else ""
 

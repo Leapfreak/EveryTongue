@@ -130,6 +130,7 @@ Namespace Controllers
                 .ComputeType = _config.LiveComputeType,
                 .UseGpu = Not _config.NoGpu,
                 .BeamSize = template.BeamSize,
+                .BestOf = _config.BestOf,
                 .VadSilenceMs = template.VadSilenceMs,
                 .MaxSegmentSec = template.MaxSegmentSec,
                 .InterimIntervalMs = _config.LiveInterimIntervalMs,
@@ -160,7 +161,7 @@ Namespace Controllers
 
             _sttBackends(roomId) = backend
             _roomTemplateIds(roomId) = templateId
-            _log($"[Conference] Starting backend for room {roomId} (template={template.Name}, port={port}, lang={sttConfig.Language}, model={sttConfig.ModelPath}, backend={backendKey})")
+            _log($"[Conference] Starting backend for room {roomId} (template={template.Name}, port={port}, lang={sttConfig.Language}, model={sttConfig.ModelPath}, backend={backendKey}, beam={sttConfig.BeamSize}, best_of={sttConfig.BestOf})")
             backend.Start(sttConfig)
 
             If backend.IsRunning Then
@@ -295,6 +296,7 @@ Namespace Controllers
                 .ComputeType = _config.LiveComputeType,
                 .UseGpu = Not _config.NoGpu,
                 .BeamSize = cfgBeam,
+                .BestOf = _config.BestOf,
                 .VadSilenceMs = cfgVad,
                 .MaxSegmentSec = cfgMaxSeg,
                 .InterimIntervalMs = _config.LiveInterimIntervalMs,

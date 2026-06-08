@@ -28,6 +28,7 @@ Namespace Services.Models
         Public Property ComputeType As String = "int8_float16"
         Public Property UseGpu As Boolean = True
         Public Property BeamSize As Integer = 7
+        Public Property BestOf As Integer = 5
         Public Property VadSilenceMs As Integer = 800
         Public Property MaxSegmentSec As Integer = 15
         Public Property InterimIntervalMs As Integer = 1000

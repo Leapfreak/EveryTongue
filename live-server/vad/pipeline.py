@@ -60,6 +60,8 @@ class VadPipeline:
         self._interim_queue = None
         self._merger = None
         self._recent_langs = []
+        # Rolling context: recent committed texts fed as 'prompt' to whisper
+        self._context_buffer = []
         # Debugging / health monitoring
         self._audio_callback_count = 0
         self._audio_callback_errors = 0
@@ -308,6 +310,17 @@ class VadPipeline:
     # ------------------------------------------------------------------
     # Transcription worker thread
     # ------------------------------------------------------------------
+    def _build_rolling_prompt(self):
+        """Build a prompt string from recent committed texts for whisper context.
+        Whisper's prompt token limit is 224 tokens (~900 chars). We keep it under
+        that by trimming oldest entries first."""
+        MAX_PROMPT_CHARS = 800
+        prompt = " ".join(self._context_buffer)
+        while len(prompt) > MAX_PROMPT_CHARS and len(self._context_buffer) > 1:
+            self._context_buffer.pop(0)
+            prompt = " ".join(self._context_buffer)
+        return prompt
+
     def _transcription_worker(self):
         """Dedicated thread for Whisper inference on committed utterances."""
         thread_name = "transcribe-worker"
@@ -332,13 +345,23 @@ class VadPipeline:
                 if language == "auto":
                     language = None
 
+                # Rolling context: use recent committed text as prompt,
+                # falling back to static initial_prompt if no context yet
+                rolling_prompt = self._build_rolling_prompt()
+                prompt = rolling_prompt or self._config.initial_prompt
+                if rolling_prompt:
+                    logger.debug(
+                        f"[WHISPER] utterance #{utterance_id}: rolling context "
+                        f"({len(self._context_buffer)} entries, {len(rolling_prompt)} chars)"
+                    )
+
                 t0 = time.time()
                 try:
                     segments, info = self._transcribe_fn(
                         audio, language=language,
                         beam_size=self._config.beam_size,
                         best_of=self._config.best_of,
-                        initial_prompt=self._config.initial_prompt,
+                        initial_prompt=prompt,
                     )
                 except Exception as e:
                     logger.error(
@@ -402,6 +425,11 @@ class VadPipeline:
                     f"[{commit_type}]"
                 )
 
+                # Rolling context: keep recent commits for whisper prompt
+                self._context_buffer.append(merged_text)
+                if len(self._context_buffer) > 10:
+                    self._context_buffer.pop(0)
+
                 # Record full text for boundary merge context
                 self._merger.record_commit(merged_text)
                 self._stats.record_commit(
@@ -458,12 +486,16 @@ class VadPipeline:
                 if drained > 0:
                     logger.debug(f"[WHISPER] INTERIM #{interim_count}: drained {drained} stale entries")
 
+                # Rolling context for interim too (reads buffer, never writes)
+                rolling_prompt = self._build_rolling_prompt()
+                prompt = rolling_prompt or self._config.initial_prompt
+
                 try:
                     segments, info = self._transcribe_fn(
                         latest, language=language,
                         beam_size=self._config.beam_size,
                         best_of=self._config.best_of,
-                        initial_prompt=self._config.initial_prompt,
+                        initial_prompt=prompt,
                     )
                 except Exception as e:
                     logger.error(f"[WHISPER] INTERIM #{interim_count}: transcribe error: {e}")

@@ -88,6 +88,7 @@ Namespace Services.Stt
                 .WhisperServerPort = config.WhisperServerPort,
                 .NoGpu = Not _useGpu,
                 .BeamSize = config.BeamSize,
+                .BestOf = config.BestOf,
                 .LiveVadSilenceMs = config.VadSilenceMs,
                 .LiveMaxSegmentSec = config.MaxSegmentSec,
                 .LiveInterimIntervalMs = config.InterimIntervalMs,
