@@ -107,6 +107,7 @@ Namespace Models
                 CheckWhisperServerAsync(),
                 CheckWhisperServerCudaAsync(),
                 CheckGgmlModelAsync(),
+                CheckFasterWhisperModelAsync(),
                 CheckSileroVadModelAsync(),
                 CheckNllbModelAsync(),
                 CheckNllb33bModelAsync(),
@@ -416,13 +417,15 @@ Namespace Models
                 End Try
             End If
 
-            ' edge-tts is always needed
-            Try
-                Await RunProcessAsync(PythonExePath(),
-                    "-m pip install edge-tts --no-warn-script-location", _toolsDir, 300000)
-            Catch ex As Exception
-                AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"InstallPythonDepsAsync: edge-tts install failed — {ex.Message}")
-            End Try
+            ' Standalone packages not covered by requirements files
+            For Each pkg In {"edge-tts", "faster-whisper"}
+                Try
+                    Await RunProcessAsync(PythonExePath(),
+                        $"-m pip install {pkg} --no-warn-script-location", _toolsDir, 300000)
+                Catch ex As Exception
+                    AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"InstallPythonDepsAsync: {pkg} install failed — {ex.Message}")
+                End Try
+            Next
         End Function
 
         Public Function CheckPythonDepsStateAsync() As Task(Of ToolState)
@@ -443,7 +446,7 @@ Namespace Models
         ''' Empty list means all required packages are installed.
         ''' </summary>
         Public Function GetMissingPythonPackages() As List(Of String)
-            Dim packages = {"ctranslate2", "sentencepiece", "fastapi", "uvicorn", "silero-vad", "sounddevice", "edge-tts"}
+            Dim packages = {"ctranslate2", "sentencepiece", "fastapi", "uvicorn", "silero-vad", "sounddevice", "edge-tts", "faster-whisper"}
             If Not File.Exists(PythonExePath()) Then
                 Return New List(Of String) From {"(Python not installed)"}
             End If
@@ -893,6 +896,47 @@ Namespace Models
         End Function
 
         ' ──────────────────────────────────────────
+        '  faster-whisper CTranslate2 Model
+        ' ──────────────────────────────────────────
+
+        Private Function FasterWhisperModelInstalledPath() As String
+            Return AppConfig.ResolvePath(_config.PathFasterWhisperModel)
+        End Function
+
+        Public Function CheckFasterWhisperModelAsync() As Task(Of ToolState)
+            Dim state As New ToolState With {
+                .Name = "faster-whisper Model",
+                .DownloadUrl = ""
+            }
+            Dim modelDir = FasterWhisperModelInstalledPath()
+            ' Check for model.bin + vocabulary file (vocabulary.json or vocabulary.txt)
+            If IO.Directory.Exists(modelDir) AndAlso
+               File.Exists(Path.Combine(modelDir, "model.bin")) AndAlso
+               (File.Exists(Path.Combine(modelDir, "vocabulary.json")) OrElse
+                File.Exists(Path.Combine(modelDir, "vocabulary.txt"))) Then
+                state.Status = ToolStatus.UpToDate
+                state.InstalledVersion = "installed"
+            End If
+            Return Task.FromResult(state)
+        End Function
+
+        ''' <summary>
+        ''' Downloads the faster-whisper model using faster-whisper's own download_model(),
+        ''' which delegates to huggingface_hub.snapshot_download with integrity checks.
+        ''' </summary>
+        Public Async Function DownloadFasterWhisperModelAsync(progress As IProgress(Of (downloaded As Long, total As Long))) As Task
+            Dim modelDir = FasterWhisperModelInstalledPath()
+            Dim pythonPath = PythonExePath()
+            If Not File.Exists(pythonPath) Then
+                Throw New FileNotFoundException("Python not installed — install Python packages first")
+            End If
+
+            ' Use faster-whisper's built-in downloader (handles partial downloads, integrity, correct file list)
+            Dim script = $"from faster_whisper.utils import download_model; download_model('large-v3', output_dir=r'{modelDir}')"
+            Await RunProcessAsync(pythonPath, $"-c ""{script}""", _toolsDir, 1200000)
+        End Function
+
+        ' ──────────────────────────────────────────
         '  Silero VAD Model (for whisper-server built-in VAD)
         ' ──────────────────────────────────────────
 
@@ -958,6 +1002,8 @@ Namespace Models
                         Await DownloadWhisperServerCudaAsync(state.DownloadUrl, progress)
                     Case "GGML Whisper Model"
                         Await DownloadGgmlModelAsync(state.DownloadUrl, progress)
+                    Case "faster-whisper Model"
+                        Await DownloadFasterWhisperModelAsync(progress)
                     Case "Silero VAD Model"
                         Await DownloadSileroVadModelAsync(state.DownloadUrl, progress)
                     Case Else

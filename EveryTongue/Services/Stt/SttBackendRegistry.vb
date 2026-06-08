@@ -20,7 +20,8 @@ Namespace Services.Stt
         Private Shared ReadOnly _backends As New List(Of Entry) From {
             New Entry With {.Key = "whisper-cpp-vulkan", .DisplayName = "whisper.cpp Vulkan (offline)", .RequiresInternet = False, .UseGpu = True, .Factory = Function() New WhisperCppBackend(useGpu:=True)},
             New Entry With {.Key = "whisper-cpp-cuda", .DisplayName = "whisper.cpp CUDA (offline)", .RequiresInternet = False, .UseGpu = True, .Factory = Function() New WhisperCppBackend(useGpu:=True)},
-            New Entry With {.Key = "whisper-cpp-cpu", .DisplayName = "whisper.cpp CPU (offline)", .RequiresInternet = False, .UseGpu = False, .Factory = Function() New WhisperCppBackend(useGpu:=False)}
+            New Entry With {.Key = "whisper-cpp-cpu", .DisplayName = "whisper.cpp CPU (offline)", .RequiresInternet = False, .UseGpu = False, .Factory = Function() New WhisperCppBackend(useGpu:=False)},
+            New Entry With {.Key = "faster-whisper", .DisplayName = "faster-whisper CUDA (offline)", .RequiresInternet = False, .UseGpu = True, .Factory = Function() New FasterWhisperBackend()}
         }
 
         Public Shared Function GetAll() As IReadOnlyList(Of Entry)

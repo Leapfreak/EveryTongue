@@ -164,6 +164,40 @@ Namespace Services.Testing
                     .SkipReason = "whisper-server.exe or GGML model not installed"})
             End If
 
+            token.ThrowIfCancellationRequested()
+
+            ' 5) faster-whisper (CUDA) — uses live-server's /transcribe endpoint
+            Dim fwModelPath = AppConfig.ResolvePath(config.PathFasterWhisperModel)
+            Dim hasFwModel = IO.Directory.Exists(fwModelPath)
+            AppLogger.Log(LogEvents.BENCH_PROGRESS, $"faster-whisper check: hasFwModel={hasFwModel} ({fwModelPath}), HasCuda={hwInfo.HasCuda}")
+            If Not isEnabled("faster-whisper") Then
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"faster-whisper skipped: deselected by user")
+            ElseIf hasFwModel AndAlso hwInfo.HasCuda Then
+                ' Wait for port cleanup
+                Await Task.Delay(2000, token)
+                RaiseProgress("Testing faster-whisper (CUDA) — loading model...")
+                Dim fwResult = Await TestViaLiveServer(
+                    fwModelPath, audioBytes, iterations, config.LiveServerPort + 10, token)
+                fwResult.BackendName = "faster-whisper (CUDA)"
+                fwResult.BackendKey = "faster-whisper"
+                result.Backends.Add(fwResult)
+                AppLogger.Log(LogEvents.BENCH_RESULT, $"faster-whisper done: avg={fwResult.AvgInferenceMs}ms, failed={fwResult.Failed}, error={fwResult.ErrorMessage}")
+            ElseIf Not hasFwModel Then
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"faster-whisper skipped: CTranslate2 model not found at {fwModelPath}")
+                result.Backends.Add(New BackendComparisonResult() With {
+                    .BackendName = "faster-whisper (CUDA)",
+                    .BackendKey = "faster-whisper",
+                    .Skipped = True,
+                    .SkipReason = "CTranslate2 model directory not found"})
+            ElseIf Not hwInfo.HasCuda Then
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"faster-whisper skipped: no NVIDIA GPU (CUDA required)")
+                result.Backends.Add(New BackendComparisonResult() With {
+                    .BackendName = "faster-whisper (CUDA)",
+                    .BackendKey = "faster-whisper",
+                    .Skipped = True,
+                    .SkipReason = "No NVIDIA GPU (CUDA required)"})
+            End If
+
             ' Compute speedup ratios (relative to fastest)
             Dim completed = result.Backends.Where(Function(b) Not b.Skipped AndAlso Not b.Failed).ToList()
             If completed.Count > 0 Then
@@ -373,6 +407,138 @@ Namespace Services.Testing
                     AppLogger.Log(LogEvents.BENCH_PROGRESS, $"   whisper-server ({modeName}) already exited or was Nothing")
                 End If
                 proc?.Dispose()
+            End Try
+
+            Return result
+        End Function
+
+        ''' <summary>
+        ''' Test faster-whisper via live-server's /transcribe endpoint.
+        ''' Starts a temporary live-server in faster-whisper mode, runs inference, then stops it.
+        ''' </summary>
+        Private Async Function TestViaLiveServer(
+            modelPath As String, audioBytes As Byte(), iterations As Integer,
+            port As Integer, ct As CancellationToken
+        ) As Task(Of BackendComparisonResult)
+
+            Dim result As New BackendComparisonResult()
+            Dim host As New Pipeline.PythonSidecarHost() With {
+                .Label = "Benchmark live-server",
+                .AddWhisperToPath = True,
+                .GracefulShutdownPath = "/shutdown",
+                .LogFileName = "bench-live-server.log",
+                .BaseEventId = LogEvents.PYLOG_LIVE,
+                .Port = port
+            }
+
+            Try
+                Dim loadSw = Stopwatch.StartNew()
+
+                Dim serverScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "live-server", "server.py")
+                Dim logLevel = EveryTongue.Models.ConfigManager.Load().LogLevel.ToString().ToLowerInvariant()
+                host.Start(serverScript, $"--backend faster-whisper --log-level {logLevel}")
+
+                ' Wait for /health
+                Dim ready = False
+                Using client As New HttpClient() With {.Timeout = TimeSpan.FromSeconds(3)}
+                    For i = 0 To 239
+                        ct.ThrowIfCancellationRequested()
+                        Try
+                            Dim resp = Await client.GetAsync($"http://127.0.0.1:{port}/health", ct)
+                            If resp.IsSuccessStatusCode Then
+                                ready = True
+                                Exit For
+                            End If
+                        Catch ex As OperationCanceledException When ct.IsCancellationRequested
+                            Throw
+                        Catch
+                        End Try
+                        Await Task.Delay(500, ct)
+                    Next
+                End Using
+
+                If Not ready Then
+                    result.Failed = True
+                    result.ErrorMessage = "live-server startup timeout (120s)"
+                    Return result
+                End If
+
+                ' Load the faster-whisper model via /load-model
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"   Loading faster-whisper model: {modelPath}")
+                Using loadClient As New HttpClient() With {.Timeout = TimeSpan.FromSeconds(120)}
+                    Dim loadJson = $"{{""model_path"":""{modelPath.Replace("\", "\\")}""}}"
+                    Dim loadContent As New StringContent(loadJson, Text.Encoding.UTF8, "application/json")
+                    Dim loadResp = Await loadClient.PostAsync($"http://127.0.0.1:{port}/load-model", loadContent, ct)
+                    If Not loadResp.IsSuccessStatusCode Then
+                        Dim loadErr = Await loadResp.Content.ReadAsStringAsync()
+                        result.Failed = True
+                        result.ErrorMessage = $"Failed to load model: {loadErr}"
+                        Return result
+                    End If
+                End Using
+
+                loadSw.Stop()
+                result.ModelLoadMs = loadSw.ElapsedMilliseconds
+                AppLogger.Log(LogEvents.BENCH_PROGRESS, $"   faster-whisper model loaded in {result.ModelLoadMs}ms on port {port}")
+
+                ' Run inference — /transcribe expects raw audio body with query params
+                Dim inferTimeoutSec = Math.Max(120, CInt(audioBytes.Length / 1024.0 / 1024.0 * 6))
+                Dim latencies As New List(Of Long)()
+                Using client As New HttpClient() With {.Timeout = TimeSpan.FromSeconds(inferTimeoutSec)}
+                    For i = 1 To iterations
+                        ct.ThrowIfCancellationRequested()
+                        RaiseProgress($"faster-whisper (CUDA): inference {i}/{iterations}...")
+
+                        Dim sw = Stopwatch.StartNew()
+                        Try
+                            Dim audioContent As New ByteArrayContent(audioBytes)
+                            audioContent.Headers.ContentType = New Headers.MediaTypeHeaderValue("audio/wav")
+
+                            Dim resp = Await client.PostAsync(
+                                $"http://127.0.0.1:{port}/transcribe?lang=auto&beam_size=5&best_of=1", audioContent, ct)
+                                sw.Stop()
+
+                                If resp.IsSuccessStatusCode Then
+                                    latencies.Add(sw.ElapsedMilliseconds)
+                                    AppLogger.Log(LogEvents.BENCH_PROGRESS, $"   faster-whisper inference {i}/{iterations}: {sw.ElapsedMilliseconds}ms OK")
+                                    If String.IsNullOrEmpty(result.TranscribedText) Then
+                                        Dim body = Await resp.Content.ReadAsStringAsync()
+                                        result.TranscribedText = ExtractText(body)
+                                    End If
+                                Else
+                                    latencies.Add(sw.ElapsedMilliseconds)
+                                    Dim errBody = Await resp.Content.ReadAsStringAsync()
+                                    AppLogger.Log(LogEvents.BENCH_ERROR, $"   faster-whisper inference {i}/{iterations}: {sw.ElapsedMilliseconds}ms HTTP {CInt(resp.StatusCode)} — {errBody}")
+                                    If String.IsNullOrEmpty(result.ErrorMessage) Then
+                                        result.ErrorMessage = $"HTTP {CInt(resp.StatusCode)}"
+                                    End If
+                                End If
+                        Catch ex As OperationCanceledException
+                            Throw
+                        Catch ex As Exception
+                            sw.Stop()
+                            latencies.Add(sw.ElapsedMilliseconds)
+                            If String.IsNullOrEmpty(result.ErrorMessage) Then
+                                result.ErrorMessage = ex.Message
+                            End If
+                        End Try
+                    Next
+                End Using
+
+                If latencies.Count > 0 Then
+                    result.AvgInferenceMs = CLng(latencies.Average())
+                    result.MinInferenceMs = latencies.Min()
+                    result.MaxInferenceMs = latencies.Max()
+                    result.Iterations = latencies.Count
+                End If
+
+            Catch ex As OperationCanceledException
+                Throw
+            Catch ex As Exception
+                result.Failed = True
+                result.ErrorMessage = ex.Message
+            Finally
+                host.Stop(5000)
             End Try
 
             Return result

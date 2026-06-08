@@ -278,6 +278,7 @@
   "Opt_SubtitleEditPath": "SubtitleEdit:",
   "Opt_ModelPathsHeader": "Model Paths",
   "Opt_WhisperServerPath": "whisper-server:",
+  "Opt_FwModelPath": "faster-whisper model (CUDA):",
   "Opt_GgmlModelPath": "GGML model (Vulkan/CPU):",
   "Opt_TransModelPath": "Translation model:",
   "Opt_ModelPath": "STT model (job):",

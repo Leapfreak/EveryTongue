@@ -381,6 +381,7 @@ Public Class FormTranslationBenchmark
         If chkSttCuda.Checked Then enabled.Add("whisper-cpp-cuda")
         If chkSttVulkan.Checked Then enabled.Add("whisper-cpp-vulkan")
         If chkSttCpu.Checked Then enabled.Add("whisper-cpp-cpu")
+        If chkSttFasterWhisper.Checked Then enabled.Add("faster-whisper")
 
         If enabled.Count = 0 Then
             MessageBox.Show("Select at least one engine to test.", "STT Comparison",

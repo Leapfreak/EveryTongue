@@ -70,6 +70,7 @@ Public Class FormOptions
         lblModelPathsHeader.Text = langPack.GetString("Opt_ModelPathsHeader")
         lblWhisperServerPath.Text = langPack.GetString("Opt_WhisperServerPath")
         lblGgmlModelPath.Text = langPack.GetString("Opt_GgmlModelPath")
+        lblFwModelPath.Text = langPack.GetString("Opt_FwModelPath")
         lblTransModelPath.Text = langPack.GetString("Opt_TransModelPath")
         lblModelPath.Text = langPack.GetString("Opt_ModelPath")
         lblModelAudioPath.Text = langPack.GetString("Opt_ModelAudioPath")
@@ -198,6 +199,7 @@ Public Class FormOptions
         AddHandler btnBrowseSubtitleEdit.Click, Sub(s, e) BrowseFile(txtSubtitleEdit)
         AddHandler btnBrowseWhisperServer.Click, Sub(s, e) BrowseFile(txtWhisperServer)
         AddHandler btnBrowseGgmlModel.Click, Sub(s, e) BrowseFile(txtGgmlModel)
+        AddHandler btnBrowseFwModel.Click, Sub(s, e) BrowseFolder(txtFwModel)
         AddHandler btnBrowseModel.Click, Sub(s, e) BrowseFile(txtModel)
         AddHandler btnBrowseModelAudio.Click, Sub(s, e) BrowseFile(txtModelAudio)
         AddHandler btnBrowseGlossary.Click, Sub(s, e) BrowseFile(txtGlossary)
@@ -281,6 +283,7 @@ Public Class FormOptions
         txtFfprobe.Text = _config.PathFfprobe
         txtWhisperServer.Text = _config.PathWhisperServer
         txtGgmlModel.Text = _config.PathWhisperCppModel
+        txtFwModel.Text = _config.PathFasterWhisperModel
         txtTransModel.Text = _config.TranslationModelPath
         txtModel.Text = _config.PathModel
         txtModelAudio.Text = _config.PathModelAudio
@@ -411,6 +414,7 @@ Public Class FormOptions
         _config.PathFfprobe = txtFfprobe.Text
         _config.PathWhisperServer = txtWhisperServer.Text
         _config.PathWhisperCppModel = txtGgmlModel.Text
+        _config.PathFasterWhisperModel = txtFwModel.Text
         _config.TranslationModelPath = txtTransModel.Text
         _config.PathModel = txtModel.Text
         _config.PathModelAudio = txtModelAudio.Text

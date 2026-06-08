@@ -96,6 +96,7 @@ Partial Class FormTranslationBenchmark
         Me.chkSttCuda = New CheckBox()
         Me.chkSttVulkan = New CheckBox()
         Me.chkSttCpu = New CheckBox()
+        Me.chkSttFasterWhisper = New CheckBox()
         Me.btnSttCompare = New Button()
         Me.btnSttCancel = New Button()
         Me.btnSttExport = New Button()
@@ -331,6 +332,7 @@ Partial Class FormTranslationBenchmark
         Me.tabSttComparison.Controls.Add(Me.chkSttCuda)
         Me.tabSttComparison.Controls.Add(Me.chkSttVulkan)
         Me.tabSttComparison.Controls.Add(Me.chkSttCpu)
+        Me.tabSttComparison.Controls.Add(Me.chkSttFasterWhisper)
         Me.tabSttComparison.Controls.Add(Me.btnSttCompare)
         Me.tabSttComparison.Controls.Add(Me.btnSttCancel)
         Me.tabSttComparison.Controls.Add(Me.btnSttExport)
@@ -854,6 +856,14 @@ Partial Class FormTranslationBenchmark
         Me.chkSttCpu.Location = New Point(220, 74)
         Me.chkSttCpu.Name = "chkSttCpu"
         Me.chkSttCpu.Text = "CPU"
+
+        ' chkSttFasterWhisper
+        Me.chkSttFasterWhisper.AutoSize = True
+        Me.chkSttFasterWhisper.Checked = True
+        Me.chkSttFasterWhisper.CheckState = CheckState.Checked
+        Me.chkSttFasterWhisper.Location = New Point(300, 74)
+        Me.chkSttFasterWhisper.Name = "chkSttFasterWhisper"
+        Me.chkSttFasterWhisper.Text = "faster-whisper"
 
         ' btnSttCompare
         Me.btnSttCompare.Location = New Point(12, 104)
@@ -1540,6 +1550,7 @@ Partial Class FormTranslationBenchmark
     Friend WithEvents chkSttCuda As CheckBox
     Friend WithEvents chkSttVulkan As CheckBox
     Friend WithEvents chkSttCpu As CheckBox
+    Friend WithEvents chkSttFasterWhisper As CheckBox
     Friend WithEvents btnSttCompare As Button
     Friend WithEvents btnSttCancel As Button
     Friend WithEvents btnSttExport As Button

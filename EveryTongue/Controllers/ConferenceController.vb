@@ -121,7 +121,8 @@ Namespace Controllers
             _nextConferencePort += 1
 
             Dim backendKey = If(template.SttBackendKey, _config.SttBackend)
-            Dim defaultModel = _config.PathWhisperCppModel
+            Dim defaultModel = If(backendKey.Equals("faster-whisper", StringComparison.OrdinalIgnoreCase),
+                _config.PathFasterWhisperModel, _config.PathWhisperCppModel)
 
             Dim sttConfig As New SttConfig() With {
                 .DeviceIndex = If(template.AudioDeviceId >= 0, template.AudioDeviceId, 0),
@@ -258,7 +259,9 @@ Namespace Controllers
                 cfgLang = template.SourceLanguage
             End If
 
-            Dim cfgModel As String = _config.PathWhisperCppModel
+            Dim restartBackendKey = If(template?.SttBackendKey, _config.SttBackend)
+            Dim cfgModel As String = If(restartBackendKey.Equals("faster-whisper", StringComparison.OrdinalIgnoreCase),
+                _config.PathFasterWhisperModel, _config.PathWhisperCppModel)
             If hasTpl AndAlso Not String.IsNullOrEmpty(template.ModelPath) Then cfgModel = template.ModelPath
 
             Dim cfgBeam As Integer = _config.BeamSize

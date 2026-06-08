@@ -128,13 +128,16 @@ Namespace Pipeline
 
                     AddHandler _process.Exited, Sub(s, e)
                                                     SyncLock _lock
+                                                        Dim exitCode = -1
+                                                        Try : exitCode = _process?.ExitCode : Catch : End Try
+                                                        AppLogger.Log(LogEvents.LEGACY, $"{Label} process exited with code {exitCode}")
                                                         _isRunning = False
                                                         If MaxRestarts > 0 AndAlso _cts IsNot Nothing AndAlso Not _cts.IsCancellationRequested Then
                                                             _restartCount += 1
                                                             If _restartCount <= MaxRestarts Then
                                                                 Dim delay = Math.Min(5000 * _restartCount, 15000)
                                                                 _isRestarting = True
-                                                                RaiseEvent StatusMessage(Me, $"{Label} exited, restarting in {delay / 1000}s...")
+                                                                RaiseEvent StatusMessage(Me, $"{Label} exited (code={exitCode}), restarting in {delay / 1000}s...")
                                                                 Task.Delay(delay).ContinueWith(
                                                                     Sub(t)
                                                                         If _cts IsNot Nothing AndAlso Not _cts.IsCancellationRequested Then

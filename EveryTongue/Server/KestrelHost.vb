@@ -54,7 +54,11 @@ Namespace Server
         ''' </summary>
         Public ReadOnly Property Services As IServiceProvider
             Get
-                Return _app?.Services
+                Try
+                    Return _app?.Services
+                Catch ex As ObjectDisposedException
+                    Return Nothing
+                End Try
             End Get
         End Property
 
@@ -78,8 +82,16 @@ Namespace Server
                             Await _app.RunAsync(_cts.Token)
                         Catch ex As OperationCanceledException
                             ' Normal shutdown
+                            AppLogger.Log(LogEvents.SERVER_STOPPED, "Kestrel RunAsync cancelled (normal shutdown)")
                         Catch ex As Exception
+                            AppLogger.Log(LogEvents.SERVER_ERROR, $"Kestrel RunAsync CRASHED: {ex.GetType().Name}: {ex.Message}")
+                            AppLogger.Log(LogEvents.SERVER_ERROR, $"Kestrel RunAsync stack: {ex.StackTrace}")
                             RaiseEvent StatusChanged(Me, $"Kestrel error: {ex.Message}")
+                        Finally
+                            ' RunAsync exiting (crash, port conflict, or shutdown) disposes the
+                            ' IServiceProvider. Mark as stopped so callers don't hit disposed objects.
+                            AppLogger.Log(LogEvents.SERVER_ERROR, "Kestrel RunAsync exited — IServiceProvider will be disposed")
+                            _isRunning = False
                         End Try
                     End Function, _cts.Token)
 

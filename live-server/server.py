@@ -169,7 +169,10 @@ current_stats = None  # type: SessionStats or None
 _server = None
 _shutting_down: bool = False
 
-# whisper-server process management
+# Backend selection — set from --backend arg in __main__
+_backend_mode: str = "whisper-cpp"  # "whisper-cpp" or "faster-whisper"
+
+# whisper-server process management (whisper-cpp backend)
 _whisper_server_path: str = ""
 _whisper_server_port: int = 0
 _no_gpu: bool = False
@@ -402,6 +405,102 @@ def _transcribe_whisper_cpp(audio_array: np.ndarray, language=None,
 
 
 # ---------------------------------------------------------------------------
+# faster-whisper transcription (CTranslate2 backend)
+# ---------------------------------------------------------------------------
+_faster_whisper_model = None
+_faster_whisper_lock = threading.Lock()
+
+def _load_faster_whisper_model(model_path, device="cuda", compute_type="int8_float16"):
+    """Load the faster-whisper model (once). Thread-safe."""
+    global _faster_whisper_model
+    if _faster_whisper_model is not None:
+        return _faster_whisper_model
+    with _faster_whisper_lock:
+        if _faster_whisper_model is not None:
+            return _faster_whisper_model
+        from faster_whisper import WhisperModel
+        logger.info(f"Loading faster-whisper model from {model_path} on {device} ({compute_type})")
+        _faster_whisper_model = WhisperModel(
+            model_path, device=device, compute_type=compute_type
+        )
+        logger.info(f"faster-whisper model loaded on {device}")
+        return _faster_whisper_model
+
+
+def _transcribe_faster_whisper(audio_array: np.ndarray, language=None,
+                               beam_size=5, best_of=1, initial_prompt=""):
+    """Transcribe audio via faster-whisper (CTranslate2).
+    Returns (segments, info) matching the same interface as _transcribe_whisper_cpp."""
+    if _faster_whisper_model is None:
+        logger.error("faster-whisper model not loaded")
+        return None, None
+
+    audio_duration = len(audio_array) / SAMPLE_RATE
+    logger.debug(
+        f"INFERENCE START: {audio_duration:.1f}s audio via faster-whisper "
+        f"beam={beam_size} best_of={best_of} lang={language} prompt_len={len(initial_prompt)}"
+    )
+    t0 = time.time()
+
+    fw_segments, fw_info = _faster_whisper_model.transcribe(
+        audio_array,
+        language=language if language and language != "auto" else None,
+        beam_size=beam_size,
+        best_of=best_of,
+        initial_prompt=initial_prompt if initial_prompt else None,
+        temperature=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],  # Fallback chain (faster-whisper default)
+        vad_filter=True,
+        vad_parameters={
+            "threshold": 0.3,
+            "min_silence_duration_ms": 300,
+            "max_speech_duration_s": 30,
+            "speech_pad_ms": 100,
+        },
+        word_timestamps=True,
+        no_repeat_ngram_size=3,         # Prevent 3-gram repetition loops
+        repetition_penalty=1.1,         # Softly penalize repeated tokens
+    )
+
+    # faster-whisper returns a generator — consume it
+    segments = []
+    for seg in fw_segments:
+        words = []
+        if seg.words:
+            for w in seg.words:
+                words.append(WordInfo(
+                    word=w.word,
+                    start=w.start,
+                    end=w.end,
+                    probability=w.probability,
+                ))
+        segments.append(SegmentInfo(
+            start=seg.start,
+            end=seg.end,
+            text=seg.text,
+            no_speech_prob=seg.no_speech_prob,
+            avg_logprob=seg.avg_logprob,
+            words=words,
+        ))
+
+    detected_lang = fw_info.language if fw_info else ""
+    elapsed = time.time() - t0
+    logger.debug(f"INFERENCE DONE: {elapsed:.1f}s elapsed, {len(segments)} segments, lang={detected_lang}")
+    return segments, TranscribeInfo(language=detected_lang)
+
+
+# ---------------------------------------------------------------------------
+# Backend dispatcher — routes to the active engine based on _backend_mode
+# ---------------------------------------------------------------------------
+def _transcribe(audio_array: np.ndarray, language=None,
+                beam_size=5, best_of=1, initial_prompt=""):
+    """Transcribe audio using whichever backend is configured."""
+    if _backend_mode == "faster-whisper":
+        return _transcribe_faster_whisper(audio_array, language, beam_size, best_of, initial_prompt)
+    else:
+        return _transcribe_whisper_cpp(audio_array, language, beam_size, best_of, initial_prompt)
+
+
+# ---------------------------------------------------------------------------
 # SSE helpers
 # ---------------------------------------------------------------------------
 def broadcast_event(event_type: str, text: str, lang: str = ""):
@@ -614,19 +713,34 @@ async def start_capture_endpoint(request: Request):
     body = await request.json()
     current_config = body
 
-    # Start whisper-server if needed
+    # Start transcription backend
     requested_model_path = body.get("model_path", model_path_global)
-    if _whisper_server_process is None or _whisper_server_process.poll() is not None:
-        if not _whisper_server_path:
-            return JSONResponse({"status": "error", "detail": "whisper-server path not configured"}, status_code=500)
+    use_faster_whisper = (_backend_mode == "faster-whisper")
+
+    if use_faster_whisper:
+        # Load faster-whisper model (CTranslate2)
+        device = body.get("device", "cuda")
+        compute_type = body.get("compute_type", "int8_float16")
         if not requested_model_path:
             return JSONResponse({"status": "error", "detail": "Model path not configured"}, status_code=500)
         try:
-            ws_port = body.get("whisper_server_port", _whisper_server_port or 8178)
-            _start_whisper_server(_whisper_server_path, requested_model_path, ws_port, _no_gpu)
+            _load_faster_whisper_model(requested_model_path, device=device, compute_type=compute_type)
         except Exception as e:
-            logger.error(f"Failed to start whisper-server: {e}")
+            logger.error(f"Failed to load faster-whisper model: {e}")
             return JSONResponse({"status": "error", "detail": str(e)}, status_code=500)
+    else:
+        # Start whisper-server if needed
+        if _whisper_server_process is None or _whisper_server_process.poll() is not None:
+            if not _whisper_server_path:
+                return JSONResponse({"status": "error", "detail": "whisper-server path not configured"}, status_code=500)
+            if not requested_model_path:
+                return JSONResponse({"status": "error", "detail": "Model path not configured"}, status_code=500)
+            try:
+                ws_port = body.get("whisper_server_port", _whisper_server_port or 8178)
+                _start_whisper_server(_whisper_server_path, requested_model_path, ws_port, _no_gpu)
+            except Exception as e:
+                logger.error(f"Failed to start whisper-server: {e}")
+                return JSONResponse({"status": "error", "detail": str(e)}, status_code=500)
     model_path_global = requested_model_path
 
     # Require Silero VAD + pipeline
@@ -666,7 +780,7 @@ async def start_capture_endpoint(request: Request):
     pipeline = VadPipeline(
         silero_model=_silero_vad_model,
         config=vad_config,
-        transcribe_fn=_transcribe_whisper_cpp,
+        transcribe_fn=_transcribe,
         broadcast_fn=broadcast_event,
         hallucination_fn=_is_hallucination,
         stats=stats,
@@ -745,16 +859,26 @@ async def load_model_endpoint(request: Request):
     body = await request.json()
     requested_model_path = body.get("model_path", model_path_global)
 
-    # Start whisper-server if not already running
-    if _whisper_server_process is None or _whisper_server_process.poll() is not None:
-        if not _whisper_server_path:
-            return JSONResponse({"status": "error", "detail": "whisper-server path not configured"}, status_code=500)
+    if _backend_mode == "faster-whisper":
+        # Load faster-whisper model in-process
         try:
-            ws_port = _whisper_server_port or 8178
-            _start_whisper_server(_whisper_server_path, requested_model_path, ws_port, _no_gpu)
+            device = body.get("device", "cuda")
+            compute_type = body.get("compute_type", "int8_float16")
+            _load_faster_whisper_model(requested_model_path, device=device, compute_type=compute_type)
         except Exception as e:
-            logger.error(f"Failed to start whisper-server: {e}")
+            logger.error(f"Failed to load faster-whisper model: {e}")
             return JSONResponse({"status": "error", "detail": str(e)}, status_code=500)
+    else:
+        # Start whisper-server if not already running
+        if _whisper_server_process is None or _whisper_server_process.poll() is not None:
+            if not _whisper_server_path:
+                return JSONResponse({"status": "error", "detail": "whisper-server path not configured"}, status_code=500)
+            try:
+                ws_port = _whisper_server_port or 8178
+                _start_whisper_server(_whisper_server_path, requested_model_path, ws_port, _no_gpu)
+            except Exception as e:
+                logger.error(f"Failed to start whisper-server: {e}")
+                return JSONResponse({"status": "error", "detail": str(e)}, status_code=500)
     model_path_global = requested_model_path
     return {"status": "loaded"}
 
@@ -765,8 +889,13 @@ async def transcribe_audio(request: Request):
     Accepts WAV, MP3, or raw 16kHz float32 PCM.
     Used by conversation rooms for push-to-talk and benchmarks."""
 
-    if _whisper_server_process is None or _whisper_server_process.poll() is not None:
-        return JSONResponse({"status": "error", "detail": "whisper-server not running"}, status_code=503)
+    # Gate-check: ensure the active backend is ready
+    if _backend_mode == "faster-whisper":
+        if _faster_whisper_model is None:
+            return JSONResponse({"status": "error", "detail": "faster-whisper model not loaded"}, status_code=503)
+    else:
+        if _whisper_server_process is None or _whisper_server_process.poll() is not None:
+            return JSONResponse({"status": "error", "detail": "whisper-server not running"}, status_code=503)
 
     body = await request.body()
     if not body:
@@ -837,7 +966,7 @@ async def transcribe_audio(request: Request):
         return JSONResponse({"status": "error", "detail": "Audio too short"}, status_code=400)
 
     try:
-        segments, info = _transcribe_whisper_cpp(audio, language=lang, beam_size=beam_size, best_of=best_of, initial_prompt=prompt)
+        segments, info = _transcribe(audio, language=lang, beam_size=beam_size, best_of=best_of, initial_prompt=prompt)
         text = " ".join(seg.text.strip() for seg in segments if seg.text.strip())
         detected = info.language if info else ""
 
@@ -916,7 +1045,8 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=5091)
     parser.add_argument("--host", type=str, default="127.0.0.1")
     parser.add_argument("--backend", type=str, default="whisper-cpp",
-                        help="(ignored, kept for backward compatibility)")
+                        choices=["whisper-cpp", "faster-whisper"],
+                        help="Transcription backend: whisper-cpp (via whisper-server.exe) or faster-whisper (CTranslate2)")
     parser.add_argument("--whisper-server-path", type=str, default="",
                         help="Path to whisper-server.exe")
     parser.add_argument("--whisper-server-port", type=int, default=8178,
@@ -935,12 +1065,13 @@ if __name__ == "__main__":
     if args.log_dir:
         _setup_file_logging(args.log_dir)
 
+    _backend_mode = args.backend
     _whisper_server_path = args.whisper_server_path
     _whisper_server_port = args.whisper_server_port
     _no_gpu = args.no_gpu
     _apply_log_level(args.log_level)
 
-    logger.info("Running in whisper-cpp mode with VAD pipeline")
+    logger.info(f"Running in {_backend_mode} mode with VAD pipeline")
 
     _load_hallucination_phrases()
 

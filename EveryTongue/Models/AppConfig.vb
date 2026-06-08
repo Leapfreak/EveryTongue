@@ -167,6 +167,9 @@ Namespace Models
         ''' <summary>Path to GGML model file for whisper-cpp backends.</summary>
         Public Property PathWhisperCppModel As String = ".\ggml-large-v3-turbo.bin"
 
+        ''' <summary>Path to CTranslate2 model directory for faster-whisper backend.</summary>
+        Public Property PathFasterWhisperModel As String = ".\faster-whisper-large-v3"
+
         ''' <summary>Port for whisper-server.exe inference endpoint.</summary>
         Public Property WhisperServerPort As Integer = 8178
 

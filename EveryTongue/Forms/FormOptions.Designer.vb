@@ -67,6 +67,9 @@ Partial Class FormOptions
         Me.btnBrowseGgmlModel = New System.Windows.Forms.Button()
         Me.txtGgmlModel = New System.Windows.Forms.TextBox()
         Me.lblGgmlModelPath = New System.Windows.Forms.Label()
+        Me.btnBrowseFwModel = New System.Windows.Forms.Button()
+        Me.txtFwModel = New System.Windows.Forms.TextBox()
+        Me.lblFwModelPath = New System.Windows.Forms.Label()
         Me.lblModelPathsSep = New System.Windows.Forms.Label()
         Me.lblModelPathsHeader = New System.Windows.Forms.Label()
         Me.btnBrowseSubtitleEdit = New System.Windows.Forms.Button()
@@ -559,6 +562,9 @@ Partial Class FormOptions
         Me.pnlPaths.Controls.Add(Me.btnBrowseTransModel)
         Me.pnlPaths.Controls.Add(Me.txtTransModel)
         Me.pnlPaths.Controls.Add(Me.lblTransModelPath)
+        Me.pnlPaths.Controls.Add(Me.btnBrowseFwModel)
+        Me.pnlPaths.Controls.Add(Me.txtFwModel)
+        Me.pnlPaths.Controls.Add(Me.lblFwModelPath)
         Me.pnlPaths.Controls.Add(Me.btnBrowseGgmlModel)
         Me.pnlPaths.Controls.Add(Me.txtGgmlModel)
         Me.pnlPaths.Controls.Add(Me.lblGgmlModelPath)
@@ -827,10 +833,38 @@ Partial Class FormOptions
         Me.btnBrowseGgmlModel.Text = "..."
         Me.btnBrowseGgmlModel.UseVisualStyleBackColor = True
         '
+        ' lblFwModelPath
+        '
+        Me.lblFwModelPath.AutoSize = True
+        Me.lblFwModelPath.Location = New System.Drawing.Point(12, 436)
+        Me.lblFwModelPath.Name = "lblFwModelPath"
+        Me.lblFwModelPath.Size = New System.Drawing.Size(170, 15)
+        Me.lblFwModelPath.TabIndex = 56
+        Me.lblFwModelPath.Text = "faster-whisper model (CUDA):"
+        '
+        ' txtFwModel
+        '
+        Me.txtFwModel.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.txtFwModel.Location = New System.Drawing.Point(12, 454)
+        Me.txtFwModel.Name = "txtFwModel"
+        Me.txtFwModel.Size = New System.Drawing.Size(510, 23)
+        Me.txtFwModel.TabIndex = 57
+        '
+        ' btnBrowseFwModel
+        '
+        Me.btnBrowseFwModel.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.btnBrowseFwModel.Location = New System.Drawing.Point(528, 453)
+        Me.btnBrowseFwModel.Name = "btnBrowseFwModel"
+        Me.btnBrowseFwModel.Size = New System.Drawing.Size(36, 25)
+        Me.btnBrowseFwModel.TabIndex = 58
+        Me.btnBrowseFwModel.Text = "..."
+        Me.btnBrowseFwModel.UseVisualStyleBackColor = True
+        '
         ' lblTransModelPath
         '
         Me.lblTransModelPath.AutoSize = True
-        Me.lblTransModelPath.Location = New System.Drawing.Point(12, 436)
+        Me.lblTransModelPath.Location = New System.Drawing.Point(12, 488)
         Me.lblTransModelPath.Name = "lblTransModelPath"
         Me.lblTransModelPath.Size = New System.Drawing.Size(77, 15)
         Me.lblTransModelPath.TabIndex = 22
@@ -840,7 +874,7 @@ Partial Class FormOptions
         '
         Me.txtTransModel.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.txtTransModel.Location = New System.Drawing.Point(12, 454)
+        Me.txtTransModel.Location = New System.Drawing.Point(12, 506)
         Me.txtTransModel.Name = "txtTransModel"
         Me.txtTransModel.Size = New System.Drawing.Size(510, 23)
         Me.txtTransModel.TabIndex = 23
@@ -848,7 +882,7 @@ Partial Class FormOptions
         ' btnBrowseTransModel
         '
         Me.btnBrowseTransModel.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnBrowseTransModel.Location = New System.Drawing.Point(528, 453)
+        Me.btnBrowseTransModel.Location = New System.Drawing.Point(528, 505)
         Me.btnBrowseTransModel.Name = "btnBrowseTransModel"
         Me.btnBrowseTransModel.Size = New System.Drawing.Size(36, 25)
         Me.btnBrowseTransModel.TabIndex = 24
@@ -858,7 +892,7 @@ Partial Class FormOptions
         ' lblModelPath
         '
         Me.lblModelPath.AutoSize = True
-        Me.lblModelPath.Location = New System.Drawing.Point(12, 488)
+        Me.lblModelPath.Location = New System.Drawing.Point(12, 540)
         Me.lblModelPath.Name = "lblModelPath"
         Me.lblModelPath.Size = New System.Drawing.Size(119, 15)
         Me.lblModelPath.TabIndex = 25
@@ -868,7 +902,7 @@ Partial Class FormOptions
         '
         Me.txtModel.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.txtModel.Location = New System.Drawing.Point(12, 506)
+        Me.txtModel.Location = New System.Drawing.Point(12, 558)
         Me.txtModel.Name = "txtModel"
         Me.txtModel.Size = New System.Drawing.Size(510, 23)
         Me.txtModel.TabIndex = 26
@@ -876,7 +910,7 @@ Partial Class FormOptions
         ' btnBrowseModel
         '
         Me.btnBrowseModel.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnBrowseModel.Location = New System.Drawing.Point(528, 505)
+        Me.btnBrowseModel.Location = New System.Drawing.Point(528, 557)
         Me.btnBrowseModel.Name = "btnBrowseModel"
         Me.btnBrowseModel.Size = New System.Drawing.Size(36, 25)
         Me.btnBrowseModel.TabIndex = 27
@@ -886,7 +920,7 @@ Partial Class FormOptions
         ' lblModelAudioPath
         '
         Me.lblModelAudioPath.AutoSize = True
-        Me.lblModelAudioPath.Location = New System.Drawing.Point(12, 540)
+        Me.lblModelAudioPath.Location = New System.Drawing.Point(12, 592)
         Me.lblModelAudioPath.Name = "lblModelAudioPath"
         Me.lblModelAudioPath.Size = New System.Drawing.Size(136, 15)
         Me.lblModelAudioPath.TabIndex = 28
@@ -896,7 +930,7 @@ Partial Class FormOptions
         '
         Me.txtModelAudio.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.txtModelAudio.Location = New System.Drawing.Point(12, 558)
+        Me.txtModelAudio.Location = New System.Drawing.Point(12, 610)
         Me.txtModelAudio.Name = "txtModelAudio"
         Me.txtModelAudio.Size = New System.Drawing.Size(510, 23)
         Me.txtModelAudio.TabIndex = 29
@@ -904,7 +938,7 @@ Partial Class FormOptions
         ' btnBrowseModelAudio
         '
         Me.btnBrowseModelAudio.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnBrowseModelAudio.Location = New System.Drawing.Point(528, 557)
+        Me.btnBrowseModelAudio.Location = New System.Drawing.Point(528, 609)
         Me.btnBrowseModelAudio.Name = "btnBrowseModelAudio"
         Me.btnBrowseModelAudio.Size = New System.Drawing.Size(36, 25)
         Me.btnBrowseModelAudio.TabIndex = 30
@@ -915,7 +949,7 @@ Partial Class FormOptions
         '
         Me.lblDirectoriesHeader.AutoSize = True
         Me.lblDirectoriesHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
-        Me.lblDirectoriesHeader.Location = New System.Drawing.Point(8, 592)
+        Me.lblDirectoriesHeader.Location = New System.Drawing.Point(8, 644)
         Me.lblDirectoriesHeader.Name = "lblDirectoriesHeader"
         Me.lblDirectoriesHeader.Size = New System.Drawing.Size(89, 20)
         Me.lblDirectoriesHeader.TabIndex = 31
@@ -926,7 +960,7 @@ Partial Class FormOptions
         Me.lblDirectoriesSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.lblDirectoriesSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
-        Me.lblDirectoriesSep.Location = New System.Drawing.Point(8, 614)
+        Me.lblDirectoriesSep.Location = New System.Drawing.Point(8, 666)
         Me.lblDirectoriesSep.Name = "lblDirectoriesSep"
         Me.lblDirectoriesSep.Size = New System.Drawing.Size(520, 1)
         Me.lblDirectoriesSep.TabIndex = 32
@@ -934,7 +968,7 @@ Partial Class FormOptions
         ' lblOutputRootPath
         '
         Me.lblOutputRootPath.AutoSize = True
-        Me.lblOutputRootPath.Location = New System.Drawing.Point(12, 622)
+        Me.lblOutputRootPath.Location = New System.Drawing.Point(12, 674)
         Me.lblOutputRootPath.Name = "lblOutputRootPath"
         Me.lblOutputRootPath.Size = New System.Drawing.Size(73, 15)
         Me.lblOutputRootPath.TabIndex = 33
@@ -944,7 +978,7 @@ Partial Class FormOptions
         '
         Me.txtOutputRoot.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.txtOutputRoot.Location = New System.Drawing.Point(12, 640)
+        Me.txtOutputRoot.Location = New System.Drawing.Point(12, 692)
         Me.txtOutputRoot.Name = "txtOutputRoot"
         Me.txtOutputRoot.Size = New System.Drawing.Size(510, 23)
         Me.txtOutputRoot.TabIndex = 34
@@ -952,7 +986,7 @@ Partial Class FormOptions
         ' btnBrowseOutputRoot
         '
         Me.btnBrowseOutputRoot.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnBrowseOutputRoot.Location = New System.Drawing.Point(528, 639)
+        Me.btnBrowseOutputRoot.Location = New System.Drawing.Point(528, 691)
         Me.btnBrowseOutputRoot.Name = "btnBrowseOutputRoot"
         Me.btnBrowseOutputRoot.Size = New System.Drawing.Size(36, 25)
         Me.btnBrowseOutputRoot.TabIndex = 35
@@ -962,7 +996,7 @@ Partial Class FormOptions
         ' lblGlossaryPath
         '
         Me.lblGlossaryPath.AutoSize = True
-        Me.lblGlossaryPath.Location = New System.Drawing.Point(12, 674)
+        Me.lblGlossaryPath.Location = New System.Drawing.Point(12, 726)
         Me.lblGlossaryPath.Name = "lblGlossaryPath"
         Me.lblGlossaryPath.Size = New System.Drawing.Size(76, 15)
         Me.lblGlossaryPath.TabIndex = 36
@@ -972,7 +1006,7 @@ Partial Class FormOptions
         '
         Me.txtGlossary.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.txtGlossary.Location = New System.Drawing.Point(12, 692)
+        Me.txtGlossary.Location = New System.Drawing.Point(12, 744)
         Me.txtGlossary.Name = "txtGlossary"
         Me.txtGlossary.Size = New System.Drawing.Size(510, 23)
         Me.txtGlossary.TabIndex = 37
@@ -980,7 +1014,7 @@ Partial Class FormOptions
         ' btnBrowseGlossary
         '
         Me.btnBrowseGlossary.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnBrowseGlossary.Location = New System.Drawing.Point(528, 691)
+        Me.btnBrowseGlossary.Location = New System.Drawing.Point(528, 743)
         Me.btnBrowseGlossary.Name = "btnBrowseGlossary"
         Me.btnBrowseGlossary.Size = New System.Drawing.Size(36, 25)
         Me.btnBrowseGlossary.TabIndex = 38
@@ -990,7 +1024,7 @@ Partial Class FormOptions
         ' lblBiblesPath
         '
         Me.lblBiblesPath.AutoSize = True
-        Me.lblBiblesPath.Location = New System.Drawing.Point(12, 726)
+        Me.lblBiblesPath.Location = New System.Drawing.Point(12, 778)
         Me.lblBiblesPath.Name = "lblBiblesPath"
         Me.lblBiblesPath.Size = New System.Drawing.Size(95, 15)
         Me.lblBiblesPath.TabIndex = 39
@@ -1000,7 +1034,7 @@ Partial Class FormOptions
         '
         Me.txtBibles.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.txtBibles.Location = New System.Drawing.Point(12, 744)
+        Me.txtBibles.Location = New System.Drawing.Point(12, 796)
         Me.txtBibles.Name = "txtBibles"
         Me.txtBibles.Size = New System.Drawing.Size(510, 23)
         Me.txtBibles.TabIndex = 40
@@ -1008,7 +1042,7 @@ Partial Class FormOptions
         ' btnBrowseBibles
         '
         Me.btnBrowseBibles.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnBrowseBibles.Location = New System.Drawing.Point(528, 743)
+        Me.btnBrowseBibles.Location = New System.Drawing.Point(528, 795)
         Me.btnBrowseBibles.Name = "btnBrowseBibles"
         Me.btnBrowseBibles.Size = New System.Drawing.Size(36, 25)
         Me.btnBrowseBibles.TabIndex = 41
@@ -1018,7 +1052,7 @@ Partial Class FormOptions
         ' lblLogsPath
         '
         Me.lblLogsPath.AutoSize = True
-        Me.lblLogsPath.Location = New System.Drawing.Point(12, 776)
+        Me.lblLogsPath.Location = New System.Drawing.Point(12, 828)
         Me.lblLogsPath.Name = "lblLogsPath"
         Me.lblLogsPath.Size = New System.Drawing.Size(85, 15)
         Me.lblLogsPath.TabIndex = 42
@@ -1028,7 +1062,7 @@ Partial Class FormOptions
         '
         Me.txtLogs.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.txtLogs.Location = New System.Drawing.Point(12, 794)
+        Me.txtLogs.Location = New System.Drawing.Point(12, 846)
         Me.txtLogs.Name = "txtLogs"
         Me.txtLogs.Size = New System.Drawing.Size(510, 23)
         Me.txtLogs.TabIndex = 43
@@ -1036,7 +1070,7 @@ Partial Class FormOptions
         ' btnBrowseLogs
         '
         Me.btnBrowseLogs.Anchor = CType((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.btnBrowseLogs.Location = New System.Drawing.Point(528, 793)
+        Me.btnBrowseLogs.Location = New System.Drawing.Point(528, 845)
         Me.btnBrowseLogs.Name = "btnBrowseLogs"
         Me.btnBrowseLogs.Size = New System.Drawing.Size(36, 25)
         Me.btnBrowseLogs.TabIndex = 44
@@ -1047,7 +1081,7 @@ Partial Class FormOptions
         '
         Me.lblAdvancedHeader.AutoSize = True
         Me.lblAdvancedHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
-        Me.lblAdvancedHeader.Location = New System.Drawing.Point(8, 828)
+        Me.lblAdvancedHeader.Location = New System.Drawing.Point(8, 880)
         Me.lblAdvancedHeader.Name = "lblAdvancedHeader"
         Me.lblAdvancedHeader.Size = New System.Drawing.Size(82, 20)
         Me.lblAdvancedHeader.TabIndex = 42
@@ -1058,7 +1092,7 @@ Partial Class FormOptions
         Me.lblAdvancedSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.lblAdvancedSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
-        Me.lblAdvancedSep.Location = New System.Drawing.Point(8, 850)
+        Me.lblAdvancedSep.Location = New System.Drawing.Point(8, 902)
         Me.lblAdvancedSep.Name = "lblAdvancedSep"
         Me.lblAdvancedSep.Size = New System.Drawing.Size(520, 1)
         Me.lblAdvancedSep.TabIndex = 43
@@ -1066,7 +1100,7 @@ Partial Class FormOptions
         ' lblYtdlpFormat
         '
         Me.lblYtdlpFormat.AutoSize = True
-        Me.lblYtdlpFormat.Location = New System.Drawing.Point(12, 858)
+        Me.lblYtdlpFormat.Location = New System.Drawing.Point(12, 910)
         Me.lblYtdlpFormat.Name = "lblYtdlpFormat"
         Me.lblYtdlpFormat.Size = New System.Drawing.Size(81, 15)
         Me.lblYtdlpFormat.TabIndex = 44
@@ -1076,7 +1110,7 @@ Partial Class FormOptions
         '
         Me.txtYtdlpFormat.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.txtYtdlpFormat.Location = New System.Drawing.Point(12, 876)
+        Me.txtYtdlpFormat.Location = New System.Drawing.Point(12, 928)
         Me.txtYtdlpFormat.Name = "txtYtdlpFormat"
         Me.txtYtdlpFormat.Size = New System.Drawing.Size(550, 23)
         Me.txtYtdlpFormat.TabIndex = 45
@@ -2954,6 +2988,9 @@ Partial Class FormOptions
     Friend WithEvents lblGgmlModelPath As System.Windows.Forms.Label
     Friend WithEvents txtGgmlModel As System.Windows.Forms.TextBox
     Friend WithEvents btnBrowseGgmlModel As System.Windows.Forms.Button
+    Friend WithEvents lblFwModelPath As System.Windows.Forms.Label
+    Friend WithEvents txtFwModel As System.Windows.Forms.TextBox
+    Friend WithEvents btnBrowseFwModel As System.Windows.Forms.Button
     Friend WithEvents lblTransModelPath As System.Windows.Forms.Label
     Friend WithEvents txtTransModel As System.Windows.Forms.TextBox
     Friend WithEvents btnBrowseTransModel As System.Windows.Forms.Button

@@ -56,6 +56,7 @@ Namespace Pipeline
                             Dim pid As Integer
                             If parts.Length > 0 AndAlso Integer.TryParse(parts(parts.Length - 1), pid) AndAlso pid > 0 Then
                                 Try
+                                    AppLogger.Log(LogEvents.PIPELINE_PROCESS_KILL, $"KillProcessOnPort({port}): killing PID {pid} (line: {line.Trim()})")
                                     Process.GetProcessById(pid).Kill(True)
                                 Catch ex As Exception
                                     AppLogger.Log(LogEvents.PIPELINE_PROCESS_KILL, $"Failed to kill PID {pid} on port {port} — {ex.Message}")

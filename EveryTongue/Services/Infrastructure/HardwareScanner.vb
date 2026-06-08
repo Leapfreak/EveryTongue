@@ -110,6 +110,8 @@ Namespace Services.Infrastructure
         ''' <summary>
         ''' Returns the best STT backend key based on detected hardware.
         ''' CUDA → "whisper-cpp-cuda", Vulkan → "whisper-cpp-vulkan", else → "whisper-cpp-cpu".
+        ''' faster-whisper is not auto-suggested because it requires separate CTranslate2 models,
+        ''' but it is a valid CUDA option users can select manually.
         ''' </summary>
         Public Shared Function SuggestSttBackend(info As HardwareInfo) As String
             If info.HasCuda Then Return "whisper-cpp-cuda"

@@ -148,7 +148,7 @@ Namespace Forms
                 Dim missingPkgs = _mgr.GetMissingPythonPackages()
                 If missingPkgs.Count = 0 Then
                     pkgItem.SubItems.Add(lp.GetString("DM_StatusInstalled"))
-                    pkgItem.SubItems.Add("ctranslate2, sentencepiece, fastapi, uvicorn, silero-vad, sounddevice, edge-tts")
+                    pkgItem.SubItems.Add("ctranslate2, sentencepiece, fastapi, uvicorn, silero-vad, sounddevice, edge-tts, faster-whisper")
                     pkgItem.ForeColor = Drawing.Color.DarkGreen
                 Else
                     pkgItem.SubItems.Add(String.Format(lp.GetString("DM_PackagesMissing"), missingPkgs.Count))
@@ -550,7 +550,7 @@ Namespace Forms
             Select Case name
                 Case "yt-dlp", "FFmpeg", "Subtitle Edit"
                     Return lp.GetString("DM_CategoryTool")
-                Case "Whisper Model (ggml-large-v3)", "GGML Whisper Model", "Silero VAD Model"
+                Case "Whisper Model (ggml-large-v3)", "GGML Whisper Model", "faster-whisper Model", "Silero VAD Model"
                     Return lp.GetString("DM_CategoryAiModel")
                 Case "NLLB Translation Model", "NLLB 3.3B Translation Model"
                     Return lp.GetString("DM_CategoryAiModel")

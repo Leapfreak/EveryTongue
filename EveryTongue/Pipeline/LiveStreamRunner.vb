@@ -177,7 +177,9 @@ Namespace Pipeline
                 ' Build extra args for backend selection
                 Dim extraArgs = ""
                 Dim backendKey = If(Backend, "whisper-cpp-vulkan")
-                If backendKey.StartsWith("whisper-cpp", StringComparison.OrdinalIgnoreCase) Then
+                If backendKey.Equals("faster-whisper", StringComparison.OrdinalIgnoreCase) Then
+                    extraArgs = "--backend faster-whisper"
+                ElseIf backendKey.StartsWith("whisper-cpp", StringComparison.OrdinalIgnoreCase) Then
                     Dim wsPath = AppConfig.ResolvePath(If(WhisperServerPath, ""))
                     extraArgs = $"--backend whisper-cpp --whisper-server-path ""{wsPath}"" --whisper-server-port {WhisperServerPort}"
                     Dim vadPath = AppConfig.ResolvePath(If(SileroVadModelPath, ""))
@@ -234,7 +236,12 @@ Namespace Pipeline
             Try
                 ' Resolve model path based on backend
                 Dim backendKey = If(Backend, "whisper-cpp-vulkan")
-                Dim modelPath = AppConfig.ResolvePath(config.PathWhisperCppModel)
+                Dim modelPath As String
+                If backendKey.Equals("faster-whisper", StringComparison.OrdinalIgnoreCase) Then
+                    modelPath = AppConfig.ResolvePath(config.PathFasterWhisperModel)
+                Else
+                    modelPath = AppConfig.ResolvePath(config.PathWhisperCppModel)
+                End If
 
                 Dim jsonBody = $"{{""device_index"":{deviceIndex}," &
                     $"""language"":""{inputLanguage}""," &

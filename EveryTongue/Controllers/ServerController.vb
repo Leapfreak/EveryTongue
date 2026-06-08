@@ -56,6 +56,7 @@ Namespace Controllers
             If _config.AllowFirewall Then EnsureFirewallRule(port)
 
             Try
+                AppLogger.Log(LogEvents.SERVER_STARTING, "StartServer: creating KestrelHost...")
                 _kestrelHost = New KestrelHost()
                 AddHandler _kestrelHost.StatusChanged, Sub(s, msg) _log($"[Server] {msg}")
 
@@ -72,7 +73,9 @@ Namespace Controllers
                     .ShowBibleCopyright = _config.ShowBibleCopyright,
                     .LiveServerPort = _config.LiveServerPort,
                     .FfmpegPath = Models.AppConfig.ResolvePath(_config.PathFfmpeg),
-                    .WhisperModelPath = Models.AppConfig.ResolvePath(_config.PathWhisperCppModel),
+                    .WhisperModelPath = Models.AppConfig.ResolvePath(
+                        If(_config.SttBackend.Equals("faster-whisper", StringComparison.OrdinalIgnoreCase),
+                           _config.PathFasterWhisperModel, _config.PathWhisperCppModel)),
                     .WhisperComputeType = If(_config.LiveComputeType, "int8_float16"),
                     .WhisperUseCpu = _config.NoGpu,
                     .WhisperServerPath = Models.AppConfig.ResolvePath(_config.PathWhisperServer),
@@ -86,7 +89,9 @@ Namespace Controllers
                     .ConferenceTemplates = _config.ConferenceTemplates
                 }
 
+                AppLogger.Log(LogEvents.SERVER_STARTING, $"StartServer: calling Start() on port {port}...")
                 _kestrelHost.Start(kestrelOptions, Sub(msg) _log($"[Server] {msg}"))
+                AppLogger.Log(LogEvents.SERVER_STARTING, $"StartServer: Start() returned, IsRunning={_kestrelHost.IsRunning}, Services IsNot Nothing={_kestrelHost.Services IsNot Nothing}")
 
                 ' Let caller wire live-specific subtitle service events
                 Dim svc = GetSubtitleService()
@@ -110,6 +115,8 @@ Namespace Controllers
                 _log("[Server] (Accept the certificate warning on first visit)")
                 _updateShellStatus()
             Catch ex As Exception
+                AppLogger.Log(LogEvents.SERVER_ERROR, $"StartServer FAILED: {ex.GetType().Name}: {ex.Message}")
+                AppLogger.Log(LogEvents.SERVER_ERROR, $"StartServer stack: {ex.StackTrace}")
                 _log($"[Server] ERROR: {ex.Message}")
                 _log("[Server] Tip: Try running as Administrator, or use a different port.")
                 _kestrelHost = Nothing
