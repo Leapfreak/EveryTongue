@@ -647,8 +647,11 @@ Namespace Services.Subtitle
             End If
 
             ' Also generate for source-language clients (no translation needed)
-            If Not String.IsNullOrEmpty(sourceLang) AndAlso
-               (clientLangs.Count = 0 OrElse hasSourceLangClients) Then
+            ' For rooms: only if there are actual source-lang clients (skip on room close when all disconnected)
+            ' For desktop (no targetRoomId): fire if no clients have set a language (backward compat)
+            Dim shouldFireSourceTts = hasSourceLangClients OrElse
+                (String.IsNullOrEmpty(targetRoomId) AndAlso clientLangs.Count = 0)
+            If Not String.IsNullOrEmpty(sourceLang) AndAlso shouldFireSourceTts Then
                 ChainTtsTask(sourceLang, originalText, commitId, targetRoomId)
             End If
         End Sub
