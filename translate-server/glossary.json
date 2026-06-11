@@ -21,9 +21,45 @@
       "comment": "'Elies' = Elijah (Whisper garbles as l'IAS, Alias, al·lis, al·líes)",
       "enabled": true,
       "fixes": {
-        "eng_Latn": {"Alias": "Elijah", "alias": "Elijah", "Alías": "Elijah", "the IAS": "Elijah", "IAS": "Elijah", "alleys": "Elijah", "Malias": "Elijah", "the Ice": "Elijah", "Elias": "Elijah", "aliens": "Elijah", "allies": "Elijah", "Ali's": "Elijah's", "the AI": "Elijah"},
+        "eng_Latn": {"Alias": "Elijah", "alias": "Elijah", "Alías": "Elijah", "the IAS": "Elijah", "IAS": "Elijah", "alleys": "Elijah", "Malias": "Elijah", "the Ice": "Elijah", "Elies": "Elijah", "Elias": "Elijah", "aliens": "Elijah", "allies": "Elijah", "Ali's": "Elijah's", "the AI": "Elijah"},
         "cat_Latn": {"Elías": "Elies", "Alías": "Elies", "Alias": "Elies", "alias": "Elies", "Malías": "Elies", "l'Ias": "l'Elies", "l'IA": "l'Elies", "al·lis": "Elies", "al·líes": "Elies", "d'al·lis": "d'Elies", "d'al·líes": "d'Elies", "d'aquestes": "d'Elies", "d'Ali": "d'Elies", "d'Alias": "d'Elies"},
         "spa_Latn": {"Alias": "Elías", "alias": "Elías", "Alías": "Elías", "el IAS": "Elías", "IAS": "Elías", "Malias": "Elías"}
+      }
+    },
+    {
+      "trigger": "elias",
+      "comment": "'Elias' = Elijah (Spanish/Latin form — Whisper uses this instead of Catalan 'Elies')",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"Alias": "Elijah", "alias": "Elijah", "Alías": "Elijah", "Elies": "Elijah", "Elias": "Elijah", "Malias": "Elijah", "alleys": "Elijah", "allies": "Elijah"},
+        "cat_Latn": {"Elias": "Elies", "Alias": "Elies", "alias": "Elies"},
+        "spa_Latn": {"Alias": "Elías", "alias": "Elías"}
+      }
+    },
+    {
+      "trigger": "alias",
+      "comment": "'Alias' = Whisper's garbled form of Elies/Elijah — fires when source contains 'alias' but NOT 'elias'",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"Alias": "Elijah", "alias": "Elijah", "Alías": "Elijah", "alleys": "Elijah", "allies": "Elijah"},
+        "cat_Latn": {"Alias": "Elies", "alias": "Elies", "Alías": "Elies", "d'Alias": "d'Elies"},
+        "spa_Latn": {"Alias": "Elías", "alias": "Elías", "Alías": "Elías"}
+      }
+    },
+    {
+      "trigger": "l'ias",
+      "comment": "Speechmatics mishears Catalan 'Elies' as 'l'IAS' -> English 'the IAS'; map to Elijah",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"the IAS": "Elijah", "l'IAS": "Elijah", "IAS": "Elijah"}
+      }
+    },
+    {
+      "trigger": "l'ies",
+      "comment": "Speechmatics mishears Catalan 'Elies' as 'l'IES' -> English 'the IES'; map to Elijah",
+      "enabled": true,
+      "fixes": {
+        "eng_Latn": {"the IES": "Elijah", "l'IES": "Elijah", "IES": "Elijah"}
       }
     },
     {

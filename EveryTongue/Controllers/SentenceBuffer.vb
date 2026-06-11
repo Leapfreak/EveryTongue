@@ -8,11 +8,20 @@ Namespace Controllers
     Friend Class SentenceBuffer
 
         Private Const MAX_CHARS As Integer = 200
-        Private Const FLUSH_TIMEOUT_MS As Integer = 4000
+        Private ReadOnly _flushTimeoutMs As Integer
 
         Private ReadOnly _buffer As New Text.StringBuilder()
         Private _lang As String = ""
         Private _lastAddTime As Long = 0  ' Environment.TickCount64
+
+        ''' <summary>
+        ''' Create a sentence buffer with a configurable flush timeout.
+        ''' NLLB (slow, works best on full sentences): 4000ms.
+        ''' Cloud backends (fast, handles fragments OK): 2000ms.
+        ''' </summary>
+        Public Sub New(Optional flushTimeoutMs As Integer = 4000)
+            _flushTimeoutMs = flushTimeoutMs
+        End Sub
 
         ''' <summary>
         ''' Add a commit to the buffer. Returns the text to translate if a flush
@@ -52,7 +61,7 @@ Namespace Controllers
         Public Function TryFlushExpired() As FlushResult
             If _buffer.Length = 0 Then Return Nothing
             Dim elapsed = Environment.TickCount64 - _lastAddTime
-            If elapsed >= FLUSH_TIMEOUT_MS Then
+            If elapsed >= _flushTimeoutMs Then
                 Return Flush()
             End If
             Return Nothing

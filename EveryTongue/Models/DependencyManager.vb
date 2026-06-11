@@ -446,7 +446,20 @@ Namespace Models
         ''' Empty list means all required packages are installed.
         ''' </summary>
         Public Function GetMissingPythonPackages() As List(Of String)
-            Dim packages = {"ctranslate2", "sentencepiece", "fastapi", "uvicorn", "silero-vad", "sounddevice", "edge-tts", "faster-whisper"}
+            Dim packages As New List(Of String) From {
+                "ctranslate2", "sentencepiece", "fastapi", "uvicorn",
+                "silero-vad", "sounddevice", "edge-tts", "faster-whisper"}
+
+            ' Online STT engines need their SDK only when that engine is the
+            ' selected backend — these are optional and not required for the
+            ' offline whisper engines. (pip distribution names, matched by pip show.)
+            Dim sttBackend = If(_config.SttBackend, "")
+            If sttBackend.Equals("speechmatics", StringComparison.OrdinalIgnoreCase) Then
+                packages.Add("speechmatics-rt")
+            ElseIf sttBackend.Equals("google-cloud-stt", StringComparison.OrdinalIgnoreCase) Then
+                packages.Add("google-cloud-speech")
+            End If
+
             If Not File.Exists(PythonExePath()) Then
                 Return New List(Of String) From {"(Python not installed)"}
             End If

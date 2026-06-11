@@ -298,6 +298,14 @@ class TranslateResponse(BaseModel):
     translations: dict[str, str]
 
 
+class GlossaryApplyRequest(BaseModel):
+    # Apply glossary + profanity fixups to already-translated text (no NLLB).
+    # Used for translations produced inline by the STT engine (e.g. Speechmatics).
+    source_text: str
+    source_lang: str                 # FLORES code, e.g. "cat_Latn"
+    translations: dict[str, str]     # {target FLORES code: translated text}
+
+
 class LoadRequest(BaseModel):
     device: str = "cuda"
 
@@ -495,6 +503,18 @@ async def unload_model():
         gc.collect()
         logger.info("Model unloaded")
     return StatusResponse(status="ok")
+
+
+@app.post("/glossary/apply", response_model=TranslateResponse)
+async def apply_glossary(req: GlossaryApplyRequest):
+    """Apply glossary + profanity fixups to already-translated text without running
+    NLLB. For inline STT-engine translations (Speechmatics) that bypass /translate."""
+    result: dict[str, str] = {}
+    for target_lang, translated in req.translations.items():
+        fixed = glossary.apply(req.source_text, req.source_lang, target_lang, translated)
+        fixed = _filter_profanity(fixed, target_lang)
+        result[target_lang] = fixed
+    return TranslateResponse(translations=result)
 
 
 @app.post("/glossary/reload")

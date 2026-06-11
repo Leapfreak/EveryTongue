@@ -11,7 +11,16 @@ Namespace Pipeline
 
         Public Event OutputLineUpdated As EventHandler(Of String)   ' interim - in-progress text
         Public Event OutputLineCommitted As EventHandler(Of String) ' final - committed text
+        ''' <summary>Final commit that carries inline engine translations (Speechmatics).</summary>
+        Public Event OutputLineCommittedTranslated As EventHandler(Of TranslatedCommit)
         Public Event ErrorReceived As EventHandler(Of String)
+
+        ''' <summary>A committed line plus inline translations keyed by engine target code.</summary>
+        Public Structure TranslatedCommit
+            Public Text As String
+            Public Lang As String
+            Public Translations As Dictionary(Of String, String)
+        End Structure
 
         Private Shared ReadOnly _httpClient As New HttpClient() With {
             .Timeout = TimeSpan.FromMinutes(5)
@@ -144,6 +153,24 @@ Namespace Pipeline
         ''' <summary>Path to Silero VAD GGML model for whisper-server built-in VAD.</summary>
         Public Property SileroVadModelPath As String = ""
 
+        ''' <summary>API key for online STT backends (e.g. Google Cloud STT, Speechmatics).</summary>
+        Public Property SttApiKey As String = ""
+
+        ''' <summary>Region for region-scoped online backends (e.g. Speechmatics "eu2"/"us").</summary>
+        Public Property SttRegion As String = ""
+
+        ''' <summary>Operating point / quality tier for online backends (e.g. Speechmatics "enhanced"/"standard").</summary>
+        Public Property SttOperatingPoint As String = ""
+
+        ''' <summary>End-of-utterance silence trigger (ms) for server-side endpointing engines (Speechmatics). 0 = engine default.</summary>
+        Public Property SttEouSilenceMs As Integer = 0
+
+        ''' <summary>Whether the online engine should translate inline (Speechmatics built-in translation).</summary>
+        Public Property SttEnableTranslation As Boolean = False
+
+        ''' <summary>Speechmatics translation target codes (engine-native, e.g. "es","de"). Max 5.</summary>
+        Public Property SttTranslationTargets As New List(Of String)
+
         ''' <summary>
         ''' Start the live-server Python process and begin capturing.
         ''' </summary>
@@ -177,7 +204,11 @@ Namespace Pipeline
                 ' Build extra args for backend selection
                 Dim extraArgs = ""
                 Dim backendKey = If(Backend, "whisper-cpp-vulkan")
-                If backendKey.Equals("faster-whisper", StringComparison.OrdinalIgnoreCase) Then
+                If IsOnlineBackend(backendKey) Then
+                    ' Online engine — pass the backend key straight through; the
+                    ' sidecar looks it up in its engine registry. No local model.
+                    extraArgs = $"--backend {backendKey}"
+                ElseIf backendKey.Equals("faster-whisper", StringComparison.OrdinalIgnoreCase) Then
                     extraArgs = "--backend faster-whisper"
                 ElseIf backendKey.StartsWith("whisper-cpp", StringComparison.OrdinalIgnoreCase) Then
                     Dim wsPath = AppConfig.ResolvePath(If(WhisperServerPath, ""))
@@ -237,7 +268,9 @@ Namespace Pipeline
                 ' Resolve model path based on backend
                 Dim backendKey = If(Backend, "whisper-cpp-vulkan")
                 Dim modelPath As String
-                If backendKey.Equals("faster-whisper", StringComparison.OrdinalIgnoreCase) Then
+                If IsOnlineBackend(backendKey) Then
+                    modelPath = ""
+                ElseIf backendKey.Equals("faster-whisper", StringComparison.OrdinalIgnoreCase) Then
                     modelPath = AppConfig.ResolvePath(config.PathFasterWhisperModel)
                 Else
                     modelPath = AppConfig.ResolvePath(config.PathWhisperCppModel)
@@ -255,7 +288,23 @@ Namespace Pipeline
                     $"""vad_min_silence_ms"":{config.LiveVadSilenceMs}," &
                     $"""vad_max_segment_s"":{config.LiveMaxSegmentSec}," &
                     $"""interim_interval_ms"":{config.LiveInterimIntervalMs}," &
-                    $"""whisper_server_port"":{config.WhisperServerPort}}}"
+                    $"""whisper_server_port"":{config.WhisperServerPort}"
+
+                ' Add API key + engine-specific options for online backends (not logged in plaintext)
+                If IsOnlineBackend(backendKey) AndAlso Not String.IsNullOrEmpty(SttApiKey) Then
+                    jsonBody &= $",""stt_api_key"":""{EscapeJsonUnquoted(SttApiKey)}"""
+                End If
+                If backendKey.Equals("speechmatics", StringComparison.OrdinalIgnoreCase) Then
+                    jsonBody &= $",""speechmatics_region"":""{EscapeJsonUnquoted(SttRegion)}"""
+                    jsonBody &= $",""speechmatics_operating_point"":""{EscapeJsonUnquoted(SttOperatingPoint)}"""
+                    If SttEouSilenceMs > 0 Then
+                        jsonBody &= $",""speechmatics_eou_silence_s"":{(SttEouSilenceMs / 1000.0).ToString(Globalization.CultureInfo.InvariantCulture)}"
+                    End If
+                    jsonBody &= $",""enable_translation"":{If(SttEnableTranslation, "true", "false")}"
+                    jsonBody &= $",""translation_targets"":{SerializeStringArray(SttTranslationTargets)}"
+                End If
+
+                jsonBody &= "}"
 
                 Dim content As New StringContent(jsonBody, Encoding.UTF8, "application/json")
                 Dim response = _httpClient.PostAsync($"http://127.0.0.1:{_host.Port}/start", content).Result
@@ -290,8 +339,13 @@ Namespace Pipeline
                                         RaiseEvent OutputLineUpdated(Me, parsed.Text)
                                     ElseIf eventType = "commit" Then
                                         _transcript.AppendLine(parsed.Text)
-                                        Dim commitData = If(String.IsNullOrEmpty(parsed.Lang), parsed.Text, parsed.Lang & vbTab & parsed.Text)
-                                        RaiseEvent OutputLineCommitted(Me, commitData)
+                                        If parsed.Translations IsNot Nothing AndAlso parsed.Translations.Count > 0 Then
+                                            RaiseEvent OutputLineCommittedTranslated(Me, New TranslatedCommit With {
+                                                .Text = parsed.Text, .Lang = parsed.Lang, .Translations = parsed.Translations})
+                                        Else
+                                            Dim commitData = If(String.IsNullOrEmpty(parsed.Lang), parsed.Text, parsed.Lang & vbTab & parsed.Text)
+                                            RaiseEvent OutputLineCommitted(Me, commitData)
+                                        End If
                                     ElseIf eventType = "error" Then
                                         RaiseEvent ErrorReceived(Me, parsed.Text)
                                     End If
@@ -350,6 +404,7 @@ Namespace Pipeline
         Private Structure ParsedData
             Public Text As String
             Public Lang As String
+            Public Translations As Dictionary(Of String, String)
         End Structure
 
         Private Shared Function ParseJsonData(json As String) As ParsedData
@@ -361,6 +416,13 @@ Namespace Pipeline
                     Dim langProp As JsonElement = Nothing
                     If root.TryGetProperty("lang", langProp) Then
                         result.Lang = langProp.GetString()
+                    End If
+                    Dim txProp As JsonElement = Nothing
+                    If root.TryGetProperty("translations", txProp) AndAlso txProp.ValueKind = JsonValueKind.Object Then
+                        result.Translations = New Dictionary(Of String, String)
+                        For Each prop In txProp.EnumerateObject()
+                            result.Translations(prop.Name) = prop.Value.GetString()
+                        Next
                     End If
                 End Using
             Catch ex As Exception
@@ -381,10 +443,44 @@ Namespace Pipeline
             Return Nothing
         End Function
 
+        ''' <summary>
+        ''' An "online" backend is a registered cloud engine that needs an API key
+        ''' and has no local model (e.g. Google Cloud STT, Speechmatics). Determined
+        ''' from the STT registry so new engines work without editing this class.
+        ''' </summary>
+        Private Shared Function IsOnlineBackend(backendKey As String) As Boolean
+            Dim entry = Services.Stt.SttBackendRegistry.Find(backendKey)
+            Return entry IsNot Nothing AndAlso entry.RequiresApiKey
+        End Function
+
         Private Shared Function EscapeJsonUnquoted(s As String) As String
             If String.IsNullOrEmpty(s) Then Return ""
             Dim quoted = ProcessHelper.EscapeJson(s)
             Return quoted.Substring(1, quoted.Length - 2)
+        End Function
+
+        ''' <summary>Serialize a string list to a JSON array (quoted, escaped).</summary>
+        Private Shared Function SerializeStringArray(items As List(Of String)) As String
+            If items Is Nothing OrElse items.Count = 0 Then Return "[]"
+            Dim sb As New StringBuilder("[")
+            For i = 0 To items.Count - 1
+                If i > 0 Then sb.Append(","c)
+                sb.Append(ProcessHelper.EscapeJson(If(items(i), "")))
+            Next
+            sb.Append("]"c)
+            Return sb.ToString()
+        End Function
+
+        ''' <summary>
+        ''' Push a new set of Speechmatics translation targets to the running engine.
+        ''' Speechmatics restarts its session to apply them (brief audio gap).
+        ''' </summary>
+        Public Async Function UpdateTranslationTargetsAsync(targets As List(Of String)) As Task
+            SttTranslationTargets = If(targets, New List(Of String))
+            Dim params As New Dictionary(Of String, Object) From {
+                {"translation_targets", SttTranslationTargets}
+            }
+            Await UpdateConfigAsync(params)
         End Function
 
     End Class

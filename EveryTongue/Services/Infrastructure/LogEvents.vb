@@ -83,6 +83,8 @@ Namespace Services.Infrastructure
         Public Const CONF_PIPELINE_CONFIG As Integer = 5006
         Public Const CONF_PIPELINE_RESTART As Integer = 5007
         Public Const CONF_COMMIT_DROPPED As Integer = 5008
+        Public Const CONF_CLAUSE_LOCK As Integer = 5009
+        Public Const CONF_CLAUSE_FRAGMENT As Integer = 5010
 
         ' ── Rooms (5100–5199) ──
         Public Const ROOM_CREATED As Integer = 5100
@@ -245,6 +247,8 @@ Namespace Services.Infrastructure
             R(CONF_PIPELINE_CONFIG, LogCategory.Conference, LogSeverity.Info, "Conference pipeline config changed")
             R(CONF_PIPELINE_RESTART, LogCategory.Conference, LogSeverity.Warning, "Conference pipeline restarting")
             R(CONF_COMMIT_DROPPED, LogCategory.Conference, LogSeverity.Debug, "Conference commit dropped (paused)")
+            R(CONF_CLAUSE_LOCK, LogCategory.Conference, LogSeverity.Info, "Speechmatics clause locked (hold-and-lock diagnostics for tuning dials)")
+            R(CONF_CLAUSE_FRAGMENT, LogCategory.Conference, LogSeverity.Debug, "Speechmatics clause fragment accumulated (inter-fragment gap trace)")
 
             ' Rooms
             R(ROOM_CREATED, LogCategory.Rooms, LogSeverity.Info, "Room created")

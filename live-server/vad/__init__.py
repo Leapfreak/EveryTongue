@@ -28,9 +28,23 @@ class VadConfig:
     enable_interim: bool = True
     interim_interval_s: float = 3.0
     enable_sentence_split: bool = True
+    # When True, the transcription worker accumulates audio across multiple
+    # VAD commits and only transcribes when there's a long pause or enough
+    # audio. Designed for cloud STT APIs that work best with longer audio.
+    accumulate_audio: bool = False
+    accumulate_pause_s: float = 1.5   # flush after this much silence
+    accumulate_max_s: float = 20.0    # flush when accumulated audio exceeds this
 
 
 from .pipeline import VadPipeline  # noqa: E402
 from .segment import SessionStats  # noqa: E402
 
-__all__ = ["VadPipeline", "VadConfig", "SessionStats"]
+try:
+    from .accumulating_pipeline import AccumulatingPipeline  # noqa: E402
+except Exception as _accum_err:
+    import traceback as _tb
+    print(f"[VAD] WARNING: AccumulatingPipeline import failed: {_accum_err}", flush=True)
+    _tb.print_exc()
+    AccumulatingPipeline = None
+
+__all__ = ["VadPipeline", "AccumulatingPipeline", "VadConfig", "SessionStats"]

@@ -13,6 +13,8 @@ Namespace Services.Stt
             Public Property RequiresInternet As Boolean
             ''' <summary>Whether this backend uses GPU acceleration.</summary>
             Public Property UseGpu As Boolean
+            ''' <summary>Whether the backend requires an API key to function.</summary>
+            Public Property RequiresApiKey As Boolean
             ''' <summary>Factory function that creates an ISttBackend instance for this entry.</summary>
             Public Property Factory As Func(Of Interfaces.ISttBackend)
         End Class
@@ -21,7 +23,9 @@ Namespace Services.Stt
             New Entry With {.Key = "whisper-cpp-vulkan", .DisplayName = "whisper.cpp Vulkan (offline)", .RequiresInternet = False, .UseGpu = True, .Factory = Function() New WhisperCppBackend(useGpu:=True)},
             New Entry With {.Key = "whisper-cpp-cuda", .DisplayName = "whisper.cpp CUDA (offline)", .RequiresInternet = False, .UseGpu = True, .Factory = Function() New WhisperCppBackend(useGpu:=True)},
             New Entry With {.Key = "whisper-cpp-cpu", .DisplayName = "whisper.cpp CPU (offline)", .RequiresInternet = False, .UseGpu = False, .Factory = Function() New WhisperCppBackend(useGpu:=False)},
-            New Entry With {.Key = "faster-whisper", .DisplayName = "faster-whisper CUDA (offline)", .RequiresInternet = False, .UseGpu = True, .Factory = Function() New FasterWhisperBackend()}
+            New Entry With {.Key = "faster-whisper", .DisplayName = "faster-whisper CUDA (offline)", .RequiresInternet = False, .UseGpu = True, .Factory = Function() New FasterWhisperBackend()},
+            New Entry With {.Key = "google-cloud-stt", .DisplayName = "Google Cloud STT (online)", .RequiresInternet = True, .UseGpu = False, .RequiresApiKey = True, .Factory = Function() New CloudStreamingSttBackend("google-cloud-stt", "Google Cloud STT (online)")},
+            New Entry With {.Key = "speechmatics", .DisplayName = "Speechmatics (online)", .RequiresInternet = True, .UseGpu = False, .RequiresApiKey = True, .Factory = Function() New CloudStreamingSttBackend("speechmatics", "Speechmatics (online)")}
         }
 
         Public Shared Function GetAll() As IReadOnlyList(Of Entry)

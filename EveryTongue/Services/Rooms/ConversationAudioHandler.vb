@@ -73,6 +73,9 @@ Namespace Services.Rooms
         ''' <summary>Number of independent decoding attempts (best_of) for whisper transcription.</summary>
         Public Property BestOf As Integer = 1
 
+        ''' <summary>API key for online STT backends (Google Cloud STT, Speechmatics, …).</summary>
+        Public Property SttApiKey As String = ""
+
         ''' <summary>
         ''' Callback invoked when conversation rooms need translation but no backend is available.
         ''' FormMain wires this to start the translation service and register SidecarTranslationBackend.
@@ -278,7 +281,10 @@ Namespace Services.Rooms
                 End If
 
                 ' Server not running — start it ourselves
-                If String.IsNullOrEmpty(WhisperModelPath) Then
+                Dim backendKey = If(SttBackend, "")
+                Dim sttEntry = Stt.SttBackendRegistry.Find(backendKey)
+                Dim isCloudBackend = sttEntry IsNot Nothing AndAlso sttEntry.RequiresApiKey
+                If Not isCloudBackend AndAlso String.IsNullOrEmpty(WhisperModelPath) Then
                     _logger.LogWarning("Cannot auto-start live server: WhisperModelPath not configured")
                     Return False
                 End If
@@ -295,17 +301,20 @@ Namespace Services.Rooms
                 End If
 
                 ' Build args based on STT backend
-                Dim useWhisperCpp = SttBackend IsNot Nothing AndAlso SttBackend.StartsWith("whisper-cpp", StringComparison.OrdinalIgnoreCase)
                 Dim sidecarArgs As String
-                If useWhisperCpp Then
+                If isCloudBackend Then
+                    ' Online engine — pass the key straight to the sidecar registry.
+                    sidecarArgs = $"--backend {backendKey}"
+                ElseIf backendKey.StartsWith("whisper-cpp", StringComparison.OrdinalIgnoreCase) Then
                     Dim wsPath = If(WhisperServerPath, "")
                     Dim wsPort = WhisperServerPort
-                    Dim sttEntry = Stt.SttBackendRegistry.Find(SttBackend)
                     Dim noGpuFlag = If(sttEntry IsNot Nothing AndAlso Not sttEntry.UseGpu, " --no-gpu", "")
                     Dim vadPath = If(SileroVadModelPath, "")
                     Dim vadFlag = If(Not String.IsNullOrEmpty(vadPath) AndAlso File.Exists(vadPath),
                         $" --vad-model-path ""{vadPath}""", "")
                     sidecarArgs = $"--backend whisper-cpp --whisper-server-path ""{wsPath}"" --whisper-server-port {wsPort}{noGpuFlag}{vadFlag}"
+                ElseIf backendKey.Equals("faster-whisper", StringComparison.OrdinalIgnoreCase) Then
+                    sidecarArgs = "--backend faster-whisper"
                 Else
                     sidecarArgs = ""
                 End If
@@ -324,6 +333,13 @@ Namespace Services.Rooms
                 If Not serverUp Then
                     _logger.LogWarning("Live server failed to start within 15s")
                     Return False
+                End If
+
+                ' Online engines don't need a local model — server up is enough
+                If isCloudBackend Then
+                    _logger.LogInformation("Online STT backend ({Backend}) — no model to load", backendKey)
+                    _serverEnsured = True
+                    Return True
                 End If
 
                 ' Check if model is already loaded (e.g. server was already running)

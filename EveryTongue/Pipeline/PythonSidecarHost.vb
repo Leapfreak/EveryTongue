@@ -129,7 +129,7 @@ Namespace Pipeline
                     AddHandler _process.Exited, Sub(s, e)
                                                     SyncLock _lock
                                                         Dim exitCode = -1
-                                                        Try : exitCode = _process?.ExitCode : Catch : End Try
+                                                        Try : exitCode = If(_process?.ExitCode, -1) : Catch : End Try
                                                         AppLogger.Log(LogEvents.LEGACY, $"{Label} process exited with code {exitCode}")
                                                         _isRunning = False
                                                         If MaxRestarts > 0 AndAlso _cts IsNot Nothing AndAlso Not _cts.IsCancellationRequested Then

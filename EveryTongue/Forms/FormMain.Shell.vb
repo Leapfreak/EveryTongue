@@ -5,6 +5,7 @@
 Imports System.Drawing
 Imports System.Threading
 Imports System.IO.Compression
+Imports Microsoft.Extensions.DependencyInjection
 Imports EveryTongue.Services.Infrastructure
 
 Partial Class FormMain
@@ -647,6 +648,26 @@ Partial Class FormMain
                 ApplyLocale()
                 ApplyTheme(_config.Theme)
                 If _config.StartWithWindows Then RegisterStartup() Else UnregisterStartup()
+
+                ' Propagate updated API keys to running cloud backends
+                Try
+                    Dim svc = _serverController?.KestrelHost?.Services
+                    If svc IsNot Nothing Then
+                        ' Google Translate shares the Google Cloud key
+                        Dim googleKey = _config.GetSttApiKey("google-cloud-stt")
+                        If Not String.IsNullOrEmpty(googleKey) Then
+                            For Each backend In svc.GetServices(Of Services.Interfaces.ITranslationBackend)()
+                                Dim gb = TryCast(backend, Services.Translation.GoogleBackend)
+                                If gb IsNot Nothing Then gb.Configure(googleKey)
+                            Next
+                        End If
+                        ' Update ConversationAudioHandler with the active backend's key
+                        Dim cah = TryCast(svc.GetService(GetType(Services.Rooms.ConversationAudioHandler)), Services.Rooms.ConversationAudioHandler)
+                        If cah IsNot Nothing Then cah.SttApiKey = _config.GetSttApiKey(If(_config.SttBackend, ""))
+                    End If
+                Catch ex As Exception
+                    AppLogger.Log(LogEvents.CONFIG_SAVED, $"Failed to propagate API key: {ex.Message}")
+                End Try
 
                 ' If translation backend/model/device changed, restart the sidecar
                 Dim newModelType = If(_config.TranslationModelType, "nllb")

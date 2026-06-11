@@ -1,3 +1,5 @@
 silero-vad
 sounddevice
 sse-starlette
+google-cloud-speech
+speechmatics-rt

@@ -68,6 +68,8 @@ Namespace Services.Stt
 
         Public Event OutputUpdated As EventHandler(Of SttOutputEventArgs) Implements ISttBackend.OutputUpdated
         Public Event OutputCommitted As EventHandler(Of SttOutputEventArgs) Implements ISttBackend.OutputCommitted
+        ' Offline engine — never raised; declared to satisfy the interface.
+        Public Event OutputCommittedTranslated As EventHandler(Of SttTranslatedCommitEventArgs) Implements ISttBackend.OutputCommittedTranslated
         Public Event ErrorReceived As EventHandler(Of String) Implements ISttBackend.ErrorReceived
 
         Public Sub Start(config As SttConfig) Implements ISttBackend.Start

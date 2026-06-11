@@ -126,11 +126,27 @@ Namespace Services.Translation
     Public Class GoogleBackend
         Inherits CloudTranslationBackend
 
+        Private Shared ReadOnly _langService As Infrastructure.LanguageCodeService =
+            Infrastructure.LanguageCodeService.Instance
+
         Public Overrides ReadOnly Property Name As String
             Get
                 Return "Google"
             End Get
         End Property
+
+        ''' <summary>
+        ''' Convert a FLORES code (e.g. "cat_Latn") to a Google Translate ISO code (e.g. "ca").
+        ''' Falls back to extracting the ISO 639-3 prefix from the FLORES code.
+        ''' </summary>
+        Private Shared Function ToGoogleCode(floresCode As String) As String
+            If String.IsNullOrEmpty(floresCode) Then Return ""
+            Dim code = _langService.FloresToGoogle(floresCode)
+            If Not String.IsNullOrEmpty(code) Then Return code
+            ' Fallback: extract ISO 639-3 prefix (e.g. "cat_Latn" -> "cat")
+            Dim underscore = floresCode.IndexOf("_"c)
+            Return If(underscore > 0, floresCode.Substring(0, underscore), floresCode)
+        End Function
 
         Public Overrides Async Function TranslateAsync(text As String,
                                                         sourceLang As String,
@@ -140,31 +156,49 @@ Namespace Services.Translation
         ) As Task(Of Dictionary(Of String, String))
             If Not IsAvailable Then Return New Dictionary(Of String, String)()
 
+            ' Convert FLORES codes to Google Translate codes
+            Dim googleSource = ToGoogleCode(sourceLang)
+
+            ' Launch all target translations in parallel for speed
             Dim results As New Dictionary(Of String, String)()
+            Dim tasks As New List(Of Task)()
+            Dim url = $"https://translation.googleapis.com/language/translate/v2?key={ApiKey}"
+
             For Each targetLang In targetLangs
-                Try
-                    Dim requestBody = $"{{""q"":{EscapeJson(text)},""source"":""{sourceLang}"",""target"":""{targetLang}"",""format"":""text""}}"
-                    Dim content As New StringContent(requestBody, Encoding.UTF8, "application/json")
-                    Dim response = Await HttpClient.PostAsync(
-                        $"https://translation.googleapis.com/language/translate/v2?key={ApiKey}",
-                        content, ct)
-                    If response.IsSuccessStatusCode Then
-                        Dim body = Await response.Content.ReadAsStringAsync()
-                        Using doc = JsonDocument.Parse(body)
-                            Dim translated = doc.RootElement.
-                                GetProperty("data").
-                                GetProperty("translations")(0).
-                                GetProperty("translatedText").GetString()
-                            results(targetLang) = translated
-                            CharactersUsed += text.Length
-                        End Using
-                    End If
-                Catch ex As OperationCanceledException
-                    Exit For
-                Catch ex As Exception
-                    Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR, $"GoogleBackend.TranslateAsync: target={targetLang} - {ex.Message}")
-                End Try
+                Dim tl = targetLang  ' capture for closure
+                Dim googleTarget = ToGoogleCode(tl)
+                If String.IsNullOrEmpty(googleTarget) Then Continue For
+
+                tasks.Add(Task.Run(Async Function()
+                    Try
+                        Dim requestBody = $"{{""q"":{EscapeJson(text)},""source"":""{googleSource}"",""target"":""{googleTarget}"",""format"":""text""}}"
+                        Dim content As New StringContent(requestBody, Encoding.UTF8, "application/json")
+                        Dim response = Await HttpClient.PostAsync(url, content, ct)
+                        If response.IsSuccessStatusCode Then
+                            Dim body = Await response.Content.ReadAsStringAsync()
+                            Using doc = JsonDocument.Parse(body)
+                                Dim translated = doc.RootElement.
+                                    GetProperty("data").
+                                    GetProperty("translations")(0).
+                                    GetProperty("translatedText").GetString()
+                                SyncLock results
+                                    results(tl) = translated
+                                End SyncLock
+                                Interlocked.Add(CharactersUsed, text.Length)
+                            End Using
+                        Else
+                            Dim errBody = Await response.Content.ReadAsStringAsync()
+                            Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR,
+                                $"GoogleBackend: {response.StatusCode} for {googleSource}->{googleTarget}: {errBody}")
+                        End If
+                    Catch ex As OperationCanceledException
+                    Catch ex As Exception
+                        Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR, $"GoogleBackend.TranslateAsync: target={tl} - {ex.Message}")
+                    End Try
+                End Function))
             Next
+
+            Await Task.WhenAll(tasks)
             Return results
         End Function
 

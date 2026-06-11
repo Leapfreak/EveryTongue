@@ -6,9 +6,9 @@
     <RootNamespace>EveryTongue</RootNamespace>
     <StartupObject>EveryTongue.Program</StartupObject>
     <UseWindowsForms>true</UseWindowsForms>
-    <Version>1.8.8</Version>
-    <AssemblyVersion>1.8.8.0</AssemblyVersion>
-    <FileVersion>1.8.8.0</FileVersion>
+    <Version>1.8.9</Version>
+    <AssemblyVersion>1.8.9.0</AssemblyVersion>
+    <FileVersion>1.8.9.0</FileVersion>
     <IsPackable>false</IsPackable>
     <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
     <NoWarn>MSB3277;NU5118</NoWarn>
@@ -107,6 +107,26 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>live-server\vad\state_machine.py</Link>
     </Content>
+    <Content Include="..\live-server\vad\accumulating_pipeline.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>live-server\vad\accumulating_pipeline.py</Link>
+    </Content>
+    <Content Include="..\live-server\engines\__init__.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>live-server\engines\__init__.py</Link>
+    </Content>
+    <Content Include="..\live-server\engines\common.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>live-server\engines\common.py</Link>
+    </Content>
+    <Content Include="..\live-server\engines\google.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>live-server\engines\google.py</Link>
+    </Content>
+    <Content Include="..\live-server\engines\speechmatics.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>live-server\engines\speechmatics.py</Link>
+    </Content>
     <Content Include="..\translate-server\profanity.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>translate-server\profanity.json</Link>
@@ -179,6 +199,11 @@
       <ChecksumFile Include="$(PublishDir)live-server\vad\pipeline.py" />
       <ChecksumFile Include="$(PublishDir)live-server\vad\segment.py" />
       <ChecksumFile Include="$(PublishDir)live-server\vad\state_machine.py" />
+      <ChecksumFile Include="$(PublishDir)live-server\vad\accumulating_pipeline.py" />
+      <ChecksumFile Include="$(PublishDir)live-server\engines\__init__.py" />
+      <ChecksumFile Include="$(PublishDir)live-server\engines\common.py" />
+      <ChecksumFile Include="$(PublishDir)live-server\engines\google.py" />
+      <ChecksumFile Include="$(PublishDir)live-server\engines\speechmatics.py" />
       <ChecksumFile Include="$(PublishDir)mms-tts-server\server.py" />
       <ChecksumFile Include="$(PublishDir)mms-tts-server\requirements.txt" />
       <!-- Locale JSON — only en.json ships; others downloaded on demand -->

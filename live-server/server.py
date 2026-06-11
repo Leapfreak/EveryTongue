@@ -62,6 +62,17 @@ except Exception as _vad_pipe_err:
     sys.stderr.flush()
 
 # ---------------------------------------------------------------------------
+# Pluggable STT engine registry. Online engines (Google gRPC, Speechmatics)
+# register themselves on import. server.py drives everything through this
+# registry and contains no engine-specific code — to add an engine, drop a
+# module in engines/ (see engines/common.py for the contract).
+# ---------------------------------------------------------------------------
+import engines
+from engines.common import (
+    SAMPLE_RATE, SegmentInfo, WordInfo, TranscribeInfo, audio_to_wav_bytes,
+)
+
+# ---------------------------------------------------------------------------
 # Logging — file-based via RotatingFileHandler
 # ---------------------------------------------------------------------------
 # Logs go to a file in --log-dir (passed by .NET). The file is tailed by
@@ -156,8 +167,7 @@ _vad_pipeline = None  # type: VadPipeline or None
 subscribers = []  # list of asyncio.Queue
 subscribers_lock: threading.Lock = threading.Lock()
 
-# Audio config
-SAMPLE_RATE = 16000
+# Audio config — SAMPLE_RATE imported from engines.common.
 
 # Capture config (set via /start, read by /config)
 current_config: dict = {}
@@ -169,8 +179,10 @@ current_stats = None  # type: SessionStats or None
 _server = None
 _shutting_down: bool = False
 
-# Backend selection — set from --backend arg in __main__
-_backend_mode: str = "whisper-cpp"  # "whisper-cpp" or "faster-whisper"
+# Backend selection — set from --backend arg in __main__. Offline engines
+# ("whisper-cpp", "faster-whisper") run the local VAD pipeline; online engines
+# (registered in engines/) are looked up through the registry.
+_backend_mode: str = "whisper-cpp"
 
 # whisper-server process management (whisper-cpp backend)
 _whisper_server_path: str = ""
@@ -179,34 +191,8 @@ _no_gpu: bool = False
 _whisper_server_process = None  # type: subprocess.Popen or None
 
 
-# ---------------------------------------------------------------------------
-# Normalized segment class (bridges whisper-server JSON and internal pipeline)
-# ---------------------------------------------------------------------------
-class WordInfo:
-    """Word-level timestamp from whisper-server DTW tokens."""
-    __slots__ = ('word', 'start', 'end', 'probability')
-    def __init__(self, word="", start=0.0, end=0.0, probability=0.0):
-        self.word = word
-        self.start = start
-        self.end = end
-        self.probability = probability
-
-class SegmentInfo:
-    """Transcription segment from whisper-server."""
-    __slots__ = ('start', 'end', 'text', 'no_speech_prob', 'avg_logprob', 'words')
-    def __init__(self, start=0.0, end=0.0, text="", no_speech_prob=0.0, avg_logprob=0.0, words=None):
-        self.start = start
-        self.end = end
-        self.text = text
-        self.no_speech_prob = no_speech_prob
-        self.avg_logprob = avg_logprob
-        self.words = words or []
-
-class TranscribeInfo:
-    """Transcription metadata from whisper-server."""
-    __slots__ = ('language',)
-    def __init__(self, language=""):
-        self.language = language
+# SegmentInfo / WordInfo / TranscribeInfo are imported from engines.common —
+# shared between whisper-server, faster-whisper, and the Google REST engine.
 
 
 # ---------------------------------------------------------------------------
@@ -311,18 +297,6 @@ def _post_multipart(url: str, fields: dict, files: dict, timeout: int = 30):
         return json.loads(resp.read())
 
 
-def _audio_to_wav_bytes(audio_array: np.ndarray) -> bytes:
-    """Convert float32 numpy audio to 16-bit WAV bytes."""
-    buf = io.BytesIO()
-    audio_int16 = (np.clip(audio_array, -1.0, 1.0) * 32767).astype(np.int16)
-    with wave.open(buf, "wb") as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(SAMPLE_RATE)
-        wf.writeframes(audio_int16.tobytes())
-    return buf.getvalue()
-
-
 _whisper_lock = threading.Lock()
 
 def _transcribe_whisper_cpp(audio_array: np.ndarray, language=None,
@@ -336,7 +310,7 @@ def _transcribe_whisper_cpp(audio_array: np.ndarray, language=None,
         f"beam={beam_size} best_of={best_of} lang={language} prompt_len={len(initial_prompt)}"
     )
     t0 = time.time()
-    wav_data = _audio_to_wav_bytes(audio_array)
+    wav_data = audio_to_wav_bytes(audio_array)
     fields = {
         "temperature": "0.0",
         "temperature_inc": "0.2",
@@ -448,7 +422,6 @@ def _transcribe_faster_whisper(audio_array: np.ndarray, language=None,
         beam_size=beam_size,
         best_of=best_of,
         initial_prompt=initial_prompt if initial_prompt else None,
-        temperature=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],  # Fallback chain (faster-whisper default)
         vad_filter=True,
         vad_parameters={
             "threshold": 0.3,
@@ -457,8 +430,8 @@ def _transcribe_faster_whisper(audio_array: np.ndarray, language=None,
             "speech_pad_ms": 100,
         },
         word_timestamps=True,
-        no_repeat_ngram_size=3,         # Prevent 3-gram repetition loops
-        repetition_penalty=1.1,         # Softly penalize repeated tokens
+        no_repeat_ngram_size=3,
+        repetition_penalty=1.1,
     )
 
     # faster-whisper returns a generator — consume it
@@ -489,25 +462,35 @@ def _transcribe_faster_whisper(audio_array: np.ndarray, language=None,
 
 
 # ---------------------------------------------------------------------------
-# Backend dispatcher — routes to the active engine based on _backend_mode
+# Backend dispatcher — routes to the active engine based on _backend_mode.
+# Online engines (e.g. Google REST) supply a transcribe fn via the registry;
+# offline engines (whisper-cpp, faster-whisper) are built in here.
 # ---------------------------------------------------------------------------
 def _transcribe(audio_array: np.ndarray, language=None,
                 beam_size=5, best_of=1, initial_prompt=""):
     """Transcribe audio using whichever backend is configured."""
+    fn = engines.get_transcribe_fn(_backend_mode)
+    if fn is not None:
+        return fn(audio_array, language, beam_size, best_of, initial_prompt)
     if _backend_mode == "faster-whisper":
         return _transcribe_faster_whisper(audio_array, language, beam_size, best_of, initial_prompt)
-    else:
-        return _transcribe_whisper_cpp(audio_array, language, beam_size, best_of, initial_prompt)
+    return _transcribe_whisper_cpp(audio_array, language, beam_size, best_of, initial_prompt)
 
 
 # ---------------------------------------------------------------------------
 # SSE helpers
 # ---------------------------------------------------------------------------
-def broadcast_event(event_type: str, text: str, lang: str = ""):
-    """Send an SSE event to all connected subscribers."""
+def broadcast_event(event_type: str, text: str, lang: str = "", translations: dict = None):
+    """Send an SSE event to all connected subscribers.
+
+    ``translations`` (optional) is a dict of {language_code: translated_text} for
+    engines that translate inline (e.g. Speechmatics); it is attached to commit
+    payloads so the .NET side can broadcast translated subtitles directly."""
     payload = {"text": text}
     if lang:
         payload["lang"] = lang
+    if translations:
+        payload["translations"] = translations
     data = json.dumps(payload)
     with subscribers_lock:
         for q in subscribers:
@@ -715,9 +698,19 @@ async def start_capture_endpoint(request: Request):
 
     # Start transcription backend
     requested_model_path = body.get("model_path", model_path_global)
-    use_faster_whisper = (_backend_mode == "faster-whisper")
 
-    if use_faster_whisper:
+    # Online engines carry their API key in the request body.
+    stt_api_key = body.get("stt_api_key", "")
+    if stt_api_key:
+        engines.set_api_key(_backend_mode, stt_api_key)
+
+    if not engines.requires_model(_backend_mode):
+        # Online engine — no local model. Registered engines that need a key
+        # require one to be present (set above or from a previous /start).
+        if engines.is_registered(_backend_mode) and not engines.get_api_key(_backend_mode):
+            return JSONResponse({"status": "error", "detail": f"{_backend_mode}: API key not provided"}, status_code=400)
+        logger.info(f"{_backend_mode} backend configured (online, no local model)")
+    elif _backend_mode == "faster-whisper":
         # Load faster-whisper model (CTranslate2)
         device = body.get("device", "cuda")
         compute_type = body.get("compute_type", "int8_float16")
@@ -776,8 +769,47 @@ async def start_capture_endpoint(request: Request):
     stats = SessionStats()
     current_stats = stats
 
-    # Create and start pipeline
-    pipeline = VadPipeline(
+    # Online streaming engines (self-endpointing) bypass the VAD pipeline —
+    # they capture audio themselves and emit update/commit events directly.
+    streaming = engines.create_streaming_pipeline(
+        _backend_mode,
+        api_key=engines.get_api_key(_backend_mode),
+        config=vad_config,
+        broadcast_fn=broadcast_event,
+        stats=stats,
+        options=body,
+    )
+    if streaming is not None:
+        try:
+            streaming.start()
+        except Exception as e:
+            logger.error(f"Failed to start {_backend_mode} streaming pipeline: {e}")
+            return JSONResponse({"status": "error", "detail": f"Audio device error: {e}"}, status_code=500)
+        _vad_pipeline = streaming
+        capturing = True
+        logger.info(
+            f"CAPTURE START device={vad_config.device_index} lang={vad_config.language} "
+            f"mode=streaming engine={_backend_mode}"
+        )
+        return {"status": "ok", "pipeline": "streaming", "engine": _backend_mode}
+
+    # VAD-pipeline path (offline whisper engines, or an online engine's fallback
+    # such as Google REST). Let the engine tweak VAD config if it wants to.
+    engines.apply_vad_preset(_backend_mode, vad_config)
+    use_accumulating = (body.get("use_accumulating_pipeline", True)
+                        and not getattr(vad_config, "force_vad_pipeline", False))
+    PipelineClass = VadPipeline
+    if use_accumulating:
+        try:
+            from vad import AccumulatingPipeline
+            if AccumulatingPipeline is not None:
+                PipelineClass = AccumulatingPipeline
+            else:
+                logger.warning("AccumulatingPipeline is None (import failed at startup), using VadPipeline")
+        except Exception as e:
+            logger.warning(f"AccumulatingPipeline import failed: {e}, using VadPipeline")
+    logger.info(f"Pipeline mode: {'accumulating' if PipelineClass.__name__ == 'AccumulatingPipeline' else 'vad-chunked'}")
+    pipeline = PipelineClass(
         silero_model=_silero_vad_model,
         config=vad_config,
         transcribe_fn=_transcribe,
@@ -822,7 +854,8 @@ async def update_config(request: Request):
     """Update live-adjustable config values without restarting capture."""
     body = await request.json()
     updated = []
-    for key in ("vad_min_silence_ms", "vad_max_segment_s", "soft_commit_ms", "language"):
+    for key in ("vad_min_silence_ms", "vad_max_segment_s", "soft_commit_ms",
+                "language", "translation_targets"):
         if key in body:
             current_config[key] = body[key]
             updated.append(key)
@@ -859,7 +892,10 @@ async def load_model_endpoint(request: Request):
     body = await request.json()
     requested_model_path = body.get("model_path", model_path_global)
 
-    if _backend_mode == "faster-whisper":
+    if not engines.requires_model(_backend_mode):
+        # Online engine — no local model to load.
+        pass
+    elif _backend_mode == "faster-whisper":
         # Load faster-whisper model in-process
         try:
             device = body.get("device", "cuda")
@@ -890,7 +926,14 @@ async def transcribe_audio(request: Request):
     Used by conversation rooms for push-to-talk and benchmarks."""
 
     # Gate-check: ensure the active backend is ready
-    if _backend_mode == "faster-whisper":
+    if not engines.requires_model(_backend_mode):
+        # Online engine. One-shot /transcribe needs a registry transcribe fn
+        # (streaming-only engines like Speechmatics don't support it).
+        if engines.get_transcribe_fn(_backend_mode) is None:
+            return JSONResponse({"status": "error", "detail": f"{_backend_mode} does not support one-shot /transcribe"}, status_code=503)
+        if engines.is_registered(_backend_mode) and not engines.get_api_key(_backend_mode):
+            return JSONResponse({"status": "error", "detail": f"{_backend_mode}: API key not configured"}, status_code=503)
+    elif _backend_mode == "faster-whisper":
         if _faster_whisper_model is None:
             return JSONResponse({"status": "error", "detail": "faster-whisper model not loaded"}, status_code=503)
     else:
@@ -986,6 +1029,179 @@ async def transcribe_audio(request: Request):
         return JSONResponse({"status": "error", "detail": str(e)}, status_code=500)
 
 
+# ---------------------------------------------------------------------------
+# Benchmark endpoint — feed audio file through the real pipeline
+# ---------------------------------------------------------------------------
+@app.post("/benchmark")
+async def benchmark_endpoint(request: Request):
+    """Run a benchmark: feed an audio file through the pipeline and collect commits.
+
+    Runs synchronously (blocks until audio is fully processed). Does NOT require
+    or interfere with a live capture session.
+
+    Request body (JSON):
+    {
+        "audio_path": "C:\\path\\to\\audio.wav",
+        "language": "ca",
+        "realtime_factor": 0.0,
+        "pipeline": "vad" | "accumulating",
+        "beam_size": 5, "best_of": 1, "temperature": 0.0,
+        "initial_prompt": "", "no_repeat_ngram_size": 0, "repetition_penalty": 1.0,
+        "vad_min_silence_ms": 750, "vad_max_segment_s": 25,
+        "interim_interval_ms": 1000
+    }
+    """
+    import soundfile  # lazy import — only needed for benchmark
+
+    body = await request.json()
+    audio_path = body.get("audio_path", "")
+    if not audio_path or not os.path.isfile(audio_path):
+        return JSONResponse({"status": "error", "detail": f"Audio file not found: {audio_path}"}, status_code=400)
+
+    # Gate-check: ensure backend is ready
+    if not engines.requires_model(_backend_mode):
+        if engines.get_transcribe_fn(_backend_mode) is None:
+            return JSONResponse({"status": "error", "detail": f"{_backend_mode} does not support /benchmark (streaming-only)"}, status_code=503)
+        if engines.is_registered(_backend_mode) and not engines.get_api_key(_backend_mode):
+            return JSONResponse({"status": "error", "detail": f"{_backend_mode}: API key not configured"}, status_code=503)
+    elif _backend_mode == "faster-whisper":
+        if _faster_whisper_model is None:
+            return JSONResponse({"status": "error", "detail": "faster-whisper model not loaded"}, status_code=503)
+    else:
+        if _whisper_server_process is None or _whisper_server_process.poll() is not None:
+            return JSONResponse({"status": "error", "detail": "whisper-server not running"}, status_code=503)
+
+    if not _has_silero_vad or not _has_vad_pipeline:
+        return JSONResponse({"status": "error", "detail": "VAD pipeline not available"}, status_code=503)
+
+    # Load audio file
+    try:
+        audio_data, sr = soundfile.read(audio_path, dtype="float32", always_2d=False)
+        if len(audio_data.shape) > 1:
+            audio_data = audio_data[:, 0]  # take first channel
+        if sr != SAMPLE_RATE:
+            # Simple linear resample
+            ratio = SAMPLE_RATE / sr
+            new_len = int(len(audio_data) * ratio)
+            indices = np.linspace(0, len(audio_data) - 1, new_len)
+            audio_data = np.interp(indices, np.arange(len(audio_data)), audio_data).astype(np.float32)
+        total_duration = len(audio_data) / SAMPLE_RATE
+    except Exception as e:
+        return JSONResponse({"status": "error", "detail": f"Failed to load audio: {e}"}, status_code=400)
+
+    logger.info(f"[BENCHMARK] Starting: {audio_path} ({total_duration:.1f}s), backend={_backend_mode}")
+
+    # Parse parameters
+    language = body.get("language", "auto")
+    realtime_factor = float(body.get("realtime_factor", 0.0))
+    pipeline_type = body.get("pipeline", "vad").lower()
+    beam_size = int(body.get("beam_size", 5))
+    best_of = int(body.get("best_of", 1))
+    initial_prompt = body.get("initial_prompt", "")
+    vad_min_silence_ms = int(body.get("vad_min_silence_ms", 750))
+    vad_max_segment_s = int(body.get("vad_max_segment_s", 25))
+    interim_interval_ms = int(body.get("interim_interval_ms", 1000))
+
+    # Build config
+    vad_config = VadConfig(
+        device_index=0,
+        language=language,
+        beam_size=beam_size,
+        best_of=best_of,
+        initial_prompt=initial_prompt,
+        vad_silence_ms=vad_min_silence_ms,
+        vad_max_segment_s=vad_max_segment_s,
+        interim_interval_s=interim_interval_ms / 1000.0,
+        enable_interim=False,
+        enable_sentence_split=True,
+    )
+
+    # Collect commits
+    commits = []
+    hallucination_count = [0]
+    bench_start = time.time()
+
+    def bench_broadcast(event_type, text, lang=""):
+        if event_type == "commit":
+            elapsed = time.time() - bench_start
+            commits.append({"text": text, "lang": lang, "timestamp": round(elapsed, 2)})
+
+    def bench_hallucination(segments, last_text="", detected_lang="", recent_langs=None):
+        is_hal = _is_hallucination(segments, last_text, detected_lang, recent_langs)
+        if is_hal:
+            hallucination_count[0] += 1
+        return is_hal
+
+    # Create pipeline
+    stats = SessionStats()
+    use_accum = (pipeline_type == "accumulating")
+    if use_accum:
+        from vad import AccumulatingPipeline as BenchAccum
+        if BenchAccum is None:
+            return JSONResponse({"status": "error", "detail": "AccumulatingPipeline not available"}, status_code=503)
+        pipeline = BenchAccum(
+            silero_model=_silero_vad_model,
+            config=vad_config,
+            transcribe_fn=_transcribe,
+            broadcast_fn=bench_broadcast,
+            hallucination_fn=bench_hallucination,
+            stats=stats,
+        )
+    else:
+        pipeline = VadPipeline(
+            silero_model=_silero_vad_model,
+            config=vad_config,
+            transcribe_fn=_transcribe,
+            broadcast_fn=bench_broadcast,
+            hallucination_fn=bench_hallucination,
+            stats=stats,
+        )
+
+    # Run the benchmark
+    done_event = threading.Event()
+    pipeline.start_from_file(audio_data, realtime_factor=realtime_factor, done_event=done_event)
+
+    # Wait for completion (with timeout: 3x audio duration + 60s margin)
+    timeout = max(total_duration * 3, 120) + 60
+    done_event.wait(timeout=timeout)
+
+    # Ensure pipeline is cleaned up
+    try:
+        pipeline.stop()
+    except Exception:
+        pass
+
+    bench_duration = time.time() - bench_start
+    logger.info(
+        f"[BENCHMARK] Done: {len(commits)} commits, {hallucination_count[0]} hallucinations, "
+        f"{bench_duration:.1f}s elapsed for {total_duration:.1f}s audio"
+    )
+
+    parameters_used = {
+        "backend": _backend_mode,
+        "pipeline": pipeline_type,
+        "language": language,
+        "beam_size": beam_size,
+        "best_of": best_of,
+        "initial_prompt": initial_prompt,
+        "vad_min_silence_ms": vad_min_silence_ms,
+        "vad_max_segment_s": vad_max_segment_s,
+        "interim_interval_ms": interim_interval_ms,
+        "realtime_factor": realtime_factor,
+    }
+
+    return {
+        "status": "ok",
+        "commits": commits,
+        "hallucination_count": hallucination_count[0],
+        "total_duration_s": round(total_duration, 1),
+        "elapsed_s": round(bench_duration, 1),
+        "commit_count": len(commits),
+        "parameters_used": parameters_used,
+        "stats_summary": stats.summary() if stats else "",
+    }
+
+
 @app.post("/shutdown")
 async def shutdown():
     """Gracefully shut down the server."""
@@ -1045,8 +1261,9 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=5091)
     parser.add_argument("--host", type=str, default="127.0.0.1")
     parser.add_argument("--backend", type=str, default="whisper-cpp",
-                        choices=["whisper-cpp", "faster-whisper"],
-                        help="Transcription backend: whisper-cpp (via whisper-server.exe) or faster-whisper (CTranslate2)")
+                        help="Transcription backend: whisper-cpp (via whisper-server.exe), "
+                             "faster-whisper (CTranslate2), or any registered online engine "
+                             f"({', '.join(engines.online_keys())})")
     parser.add_argument("--whisper-server-path", type=str, default="",
                         help="Path to whisper-server.exe")
     parser.add_argument("--whisper-server-port", type=int, default=8178,
@@ -1066,6 +1283,10 @@ if __name__ == "__main__":
         _setup_file_logging(args.log_dir)
 
     _backend_mode = args.backend
+    _valid_backends = {"whisper-cpp", "faster-whisper"} | set(engines.online_keys())
+    if _backend_mode not in _valid_backends:
+        logger.warning(f"Unknown --backend '{_backend_mode}', defaulting to whisper-cpp")
+        _backend_mode = "whisper-cpp"
     _whisper_server_path = args.whisper_server_path
     _whisper_server_port = args.whisper_server_port
     _no_gpu = args.no_gpu

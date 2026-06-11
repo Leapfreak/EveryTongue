@@ -322,18 +322,94 @@ class VadPipeline:
         return prompt
 
     def _transcription_worker(self):
-        """Dedicated thread for Whisper inference on committed utterances."""
+        """Dedicated thread for transcription on committed utterances.
+
+        Two modes:
+        - Normal (whisper): transcribe each VAD segment independently.
+          Whisper handles context via rolling prompt.
+        - Accumulating (cloud STT): accumulate audio across multiple VAD
+          segments and only transcribe when there's a real pause or enough
+          audio. Cloud APIs work best with longer audio because they have
+          no rolling context mechanism — each call is independent.
+        """
         thread_name = "transcribe-worker"
         logger.debug(f"[{thread_name}] Started, waiting for committed utterances...")
         utterance_id = 0
+
+        # Accumulation state for cloud STT mode
+        accumulate = self._config.accumulate_audio
+        accum_chunks = []       # list of audio arrays
+        accum_samples = 0       # total samples accumulated (incl. silence gaps)
+        last_chunk_time = 0.0   # time.time() of last chunk received
+        pause_s = self._config.accumulate_pause_s
+        max_s = self._config.accumulate_max_s
+        max_samples = int(max_s * SAMPLE_RATE)
+        # Silence gap to insert between accumulated speech segments.
+        # This preserves the natural rhythm of speech so Google can
+        # detect sentence boundaries from the pauses.
+        SILENCE_GAP_SAMPLES = int(0.4 * SAMPLE_RATE)  # 400ms silence
+        silence_gap = np.zeros(SILENCE_GAP_SAMPLES, dtype=np.float32)
+
+        if accumulate:
+            logger.info(
+                f"[{thread_name}] Cloud accumulation mode: "
+                f"pause={pause_s}s, max={max_s}s, gap=400ms"
+            )
+
         try:
             while not self._stop_event.is_set():
+                # --- Get next item from queue ---
                 try:
-                    item = self._transcribe_queue.get(timeout=1.0)
+                    item = self._transcribe_queue.get(
+                        timeout=0.3 if accumulate else 1.0
+                    )
+                    audio, commit_type = item
                 except queue.Empty:
-                    continue
+                    # In accumulate mode, check if we should flush on silence
+                    if accumulate and accum_chunks:
+                        elapsed = time.time() - last_chunk_time
+                        if elapsed >= pause_s:
+                            # Long enough pause — flush accumulated audio
+                            audio = np.concatenate(accum_chunks)
+                            commit_type = "ACCUMULATE-FLUSH"
+                            accum_chunks.clear()
+                            accum_samples = 0
+                        else:
+                            continue
+                    else:
+                        continue
 
-                audio, commit_type = item
+                # --- Accumulate mode: buffer audio until flush condition ---
+                if accumulate and commit_type != "ACCUMULATE-FLUSH":
+                    # Insert a silence gap between segments to preserve
+                    # natural speech rhythm — Google needs these pauses to
+                    # detect sentence boundaries and add punctuation.
+                    if accum_chunks:
+                        accum_chunks.append(silence_gap)
+                        accum_samples += SILENCE_GAP_SAMPLES
+                    accum_chunks.append(audio)
+                    accum_samples += len(audio)
+                    last_chunk_time = time.time()
+
+                    # Check if accumulated audio exceeds max duration
+                    if accum_samples >= max_samples:
+                        audio = np.concatenate(accum_chunks)
+                        commit_type = "ACCUMULATE-MAXDUR"
+                        accum_chunks.clear()
+                        accum_samples = 0
+                        logger.debug(
+                            f"[WHISPER] Accumulated {len(audio)/SAMPLE_RATE:.1f}s "
+                            f"audio (max duration), flushing"
+                        )
+                    else:
+                        # Keep accumulating
+                        logger.debug(
+                            f"[WHISPER] Accumulated {accum_samples/SAMPLE_RATE:.1f}s "
+                            f"audio, waiting for pause..."
+                        )
+                        continue
+
+                # --- Transcribe the audio ---
                 utterance_id += 1
                 speech_dur = len(audio) / SAMPLE_RATE
                 logger.debug(
@@ -345,8 +421,6 @@ class VadPipeline:
                 if language == "auto":
                     language = None
 
-                # Rolling context: use recent committed text as prompt,
-                # falling back to static initial_prompt if no context yet
                 rolling_prompt = self._build_rolling_prompt()
                 prompt = rolling_prompt or self._config.initial_prompt
                 if rolling_prompt:
@@ -374,7 +448,7 @@ class VadPipeline:
                 if segments is None:
                     logger.debug(
                         f"[WHISPER] utterance #{utterance_id}: inference returned None "
-                        f"(whisper-server error?) after {inference_dur:.1f}s"
+                        f"after {inference_dur:.1f}s"
                     )
                     continue
 
@@ -452,6 +526,109 @@ class VadPipeline:
     # ------------------------------------------------------------------
     # Interim worker thread (optional)
     # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # File-based feeding (for benchmark mode — no microphone)
+    # ------------------------------------------------------------------
+    def start_from_file(self, audio_array, realtime_factor=0.0, done_event=None):
+        """Feed audio from a numpy array instead of a microphone.
+
+        Starts all pipeline threads without opening an audio device, then
+        feeds chunks into the pipeline at the specified speed.
+
+        Args:
+            audio_array: float32 numpy array at 16kHz mono
+            realtime_factor: 0.0 = max speed, 1.0 = real-time
+            done_event: threading.Event to signal when all audio has been processed
+        """
+        cfg = self._config
+        logger.info(f"[PIPELINE] start_from_file: {len(audio_array)/SAMPLE_RATE:.1f}s audio, rt_factor={realtime_factor}")
+
+        from .buffers import PrerollBuffer, UtteranceBuffer
+        from .frame_vad import FrameVAD
+        from .state_machine import UtteranceStateMachine
+
+        # Create buffers
+        preroll = PrerollBuffer(duration_ms=cfg.vad_preroll_ms)
+        utterance = UtteranceBuffer()
+        self._preroll = preroll
+
+        # Create queues
+        self._vad_queue = queue.Queue(maxsize=500)
+        self._transcribe_queue = queue.Queue(maxsize=10)
+        self._interim_queue = None  # no interim in benchmark mode
+
+        # Create frame-level VAD
+        vad = FrameVAD(
+            self._model,
+            speech_threshold=cfg.vad_speech_threshold,
+            silence_threshold=cfg.vad_silence_threshold,
+            speech_confirm_frames=cfg.vad_speech_confirm_frames,
+        )
+        vad.reset()
+        self._vad = vad
+
+        # Create boundary merger
+        self._merger = BoundaryMerger(cfg.merge_similarity_threshold)
+
+        # Non-blocking commit callback
+        def on_commit(audio, commit_type):
+            try:
+                self._transcribe_queue.put_nowait((audio, commit_type))
+            except queue.Full:
+                logger.warning("[STATE] transcribe_queue full -- dropping utterance")
+                self._stats.record_drop()
+
+        # Create state machine
+        sm = UtteranceStateMachine(
+            preroll, utterance, on_commit,
+            soft_commit_ms=cfg.soft_commit_ms,
+            silence_commit_ms=cfg.vad_silence_ms,
+            max_utterance_s=cfg.vad_max_segment_s,
+            max_soft_utterance_s=cfg.vad_max_soft_segment_s,
+            interim_queue=None,
+            interim_interval_s=cfg.interim_interval_s,
+        )
+        self._sm = sm
+
+        # Start worker threads (no audio stream)
+        vad_thread = threading.Thread(
+            target=self._vad_thread, name="vad-thread", daemon=True
+        )
+        transcribe_thread = threading.Thread(
+            target=self._transcription_worker, name="transcribe-worker", daemon=True
+        )
+        self._threads = [vad_thread, transcribe_thread]
+        for t in self._threads:
+            t.start()
+
+        # File feeder thread
+        chunk_samples = FrameVAD.SILERO_FRAME_SAMPLES  # 512 samples = 32ms
+        chunk_duration = chunk_samples / SAMPLE_RATE
+
+        def _feeder():
+            offset = 0
+            chunks_fed = 0
+            while offset < len(audio_array) and not self._stop_event.is_set():
+                end = min(offset + chunk_samples, len(audio_array))
+                chunk = audio_array[offset:end]
+                if len(chunk) < chunk_samples:
+                    chunk = np.pad(chunk, (0, chunk_samples - len(chunk)))
+                self._audio_callback(chunk.reshape(-1, 1), chunk_samples, None, None)
+                offset = end
+                chunks_fed += 1
+                if realtime_factor > 0:
+                    time.sleep(chunk_duration * realtime_factor)
+            logger.info(f"[PIPELINE] File feeder done: {chunks_fed} chunks, {offset/SAMPLE_RATE:.1f}s")
+            # Grace period for pipeline to flush remaining audio
+            time.sleep(3.0)
+            self._stop_event.set()
+            if done_event:
+                done_event.set()
+
+        feeder_thread = threading.Thread(target=_feeder, name="file-feeder", daemon=True)
+        feeder_thread.start()
+        self._threads.append(feeder_thread)
+
     def _interim_worker(self):
         """Dedicated thread for interim (provisional) transcription.
 

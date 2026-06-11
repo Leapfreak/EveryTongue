@@ -7,17 +7,22 @@ Imports EveryTongue.Services.Models
 Namespace Services.Stt
 
     ''' <summary>
-    ''' ISttBackend using whisper.cpp via whisper-server.exe (Vulkan or CPU).
-    ''' Thin adapter — delegates to LiveStreamRunner with backend="whisper-cpp".
+    ''' Generic ISttBackend for online streaming engines (Google Cloud STT,
+    ''' Speechmatics, …). A thin adapter that delegates to LiveStreamRunner with
+    ''' the engine's backend key. Engine-specific behaviour lives entirely in the
+    ''' Python live-server engine module — adding a new cloud engine needs only a
+    ''' registry entry, not a new class here.
     ''' </summary>
-    Friend Class WhisperCppBackend
+    Friend Class CloudStreamingSttBackend
         Implements ISttBackend
 
         Private ReadOnly _runner As New LiveStreamRunner()
-        Private ReadOnly _useGpu As Boolean
+        Private ReadOnly _backendKey As String
+        Private ReadOnly _displayName As String
 
-        Public Sub New(useGpu As Boolean)
-            _useGpu = useGpu
+        Public Sub New(backendKey As String, displayName As String)
+            _backendKey = backendKey
+            _displayName = displayName
 
             AddHandler _runner.OutputLineUpdated, Sub(s, line)
                                                       RaiseEvent OutputUpdated(Me, New SttOutputEventArgs(line))
@@ -34,6 +39,11 @@ Namespace Services.Stt
                                                         RaiseEvent OutputCommitted(Me, New SttOutputEventArgs(text, lang))
                                                     End Sub
 
+            AddHandler _runner.OutputLineCommittedTranslated, Sub(s, tc)
+                                                                  RaiseEvent OutputCommittedTranslated(
+                                                                      Me, New SttTranslatedCommitEventArgs(tc.Text, tc.Lang, tc.Translations))
+                                                              End Sub
+
             AddHandler _runner.ErrorReceived, Sub(s, line)
                                                   RaiseEvent ErrorReceived(Me, line)
                                               End Sub
@@ -41,13 +51,13 @@ Namespace Services.Stt
 
         Public ReadOnly Property Name As String Implements ISttBackend.Name
             Get
-                Return If(_useGpu, "whisper.cpp (Vulkan)", "whisper.cpp (CPU)")
+                Return _displayName
             End Get
         End Property
 
         Public ReadOnly Property RequiresInternet As Boolean Implements ISttBackend.RequiresInternet
             Get
-                Return False
+                Return True
             End Get
         End Property
 
@@ -71,24 +81,21 @@ Namespace Services.Stt
 
         Public Event OutputUpdated As EventHandler(Of SttOutputEventArgs) Implements ISttBackend.OutputUpdated
         Public Event OutputCommitted As EventHandler(Of SttOutputEventArgs) Implements ISttBackend.OutputCommitted
-        ' Offline engine — never raised; declared to satisfy the interface.
         Public Event OutputCommittedTranslated As EventHandler(Of SttTranslatedCommitEventArgs) Implements ISttBackend.OutputCommittedTranslated
         Public Event ErrorReceived As EventHandler(Of String) Implements ISttBackend.ErrorReceived
 
         Public Sub Start(config As SttConfig) Implements ISttBackend.Start
-            ' Configure the runner for whisper-cpp backend
-            _runner.Backend = If(_useGpu, "whisper-cpp-vulkan", "whisper-cpp-cpu")
-            _runner.WhisperServerPath = config.WhisperServerPath
-            _runner.WhisperServerPort = config.WhisperServerPort
-            _runner.SileroVadModelPath = config.SileroVadModelPath
-            _runner.NoGpu = Not _useGpu
+            _runner.Backend = _backendKey
+            _runner.SttApiKey = config.ApiKey
+            _runner.SttRegion = config.Region
+            _runner.SttOperatingPoint = config.OperatingPoint
+            _runner.SttEouSilenceMs = config.EouSilenceMs
+            _runner.SttEnableTranslation = config.EnableTranslation
+            _runner.SttTranslationTargets = If(config.TranslationTargets, New List(Of String))
 
             Dim appConfig As New AppConfig() With {
                 .LiveServerPort = config.ServerPort,
-                .PathWhisperCppModel = config.ModelPath,
-                .PathWhisperServer = config.WhisperServerPath,
-                .WhisperServerPort = config.WhisperServerPort,
-                .NoGpu = Not _useGpu,
+                .NoGpu = False,
                 .BeamSize = config.BeamSize,
                 .BestOf = config.BestOf,
                 .LiveVadSilenceMs = config.VadSilenceMs,
@@ -105,6 +112,25 @@ Namespace Services.Stt
 
         Public Function UpdateConfigAsync(params As Dictionary(Of String, Object)) As Task Implements ISttBackend.UpdateConfigAsync
             Return _runner.UpdateConfigAsync(params)
+        End Function
+
+        ''' <summary>The engine key this backend was created for (e.g. "speechmatics").</summary>
+        Public ReadOnly Property BackendKey As String
+            Get
+                Return _backendKey
+            End Get
+        End Property
+
+        ''' <summary>Current Speechmatics translation targets (engine codes) for this backend.</summary>
+        Public ReadOnly Property TranslationTargets As List(Of String)
+            Get
+                Return _runner.SttTranslationTargets
+            End Get
+        End Property
+
+        ''' <summary>Push a new set of Speechmatics translation targets (restarts the session).</summary>
+        Public Function UpdateTranslationTargetsAsync(targets As List(Of String)) As Task
+            Return _runner.UpdateTranslationTargetsAsync(targets)
         End Function
 
         Public Function EnumerateDevicesAsync(pythonExePath As String) As List(Of AudioDeviceInfo) Implements ISttBackend.EnumerateDevicesAsync

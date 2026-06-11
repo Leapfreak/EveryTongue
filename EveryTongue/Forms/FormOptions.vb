@@ -101,6 +101,16 @@ Public Class FormOptions
         ' Translation panel
         lblTranslationHeader.Text = langPack.GetString("Opt_TranslationHeader")
         chkTransEnabled.Text = langPack.GetString("Opt_TransEnabled")
+        chkUseSpeechmaticsTranslation.Text = langPack.GetString("Opt_UseSpeechmaticsTranslation")
+        lblClauseHeader.Text = langPack.GetString("Opt_ClauseHeader")
+        chkSpeechmaticsHoldClauses.Text = langPack.GetString("Opt_HoldClauses")
+        chkClauseLockOnPunctuation.Text = langPack.GetString("Opt_ClauseLockOnPunct")
+        lblClauseGraceMs.Text = langPack.GetString("Opt_ClauseGraceMs")
+        lblClauseMaxMs.Text = langPack.GetString("Opt_ClauseMaxMs")
+        lblClauseMaxChars.Text = langPack.GetString("Opt_ClauseMaxChars")
+        lblClauseMinLockChars.Text = langPack.GetString("Opt_ClauseMinLockChars")
+        lblClauseTimerMs.Text = langPack.GetString("Opt_ClauseTimerMs")
+        lblClauseSentenceEnders.Text = langPack.GetString("Opt_ClauseSentenceEnders")
         lblTransBackend.Text = langPack.GetString("Opt_TransBackend")
         lblDevice.Text = langPack.GetString("Opt_TransDevice")
         lblUnload.Text = langPack.GetString("Opt_TransUnload")
@@ -123,6 +133,10 @@ Public Class FormOptions
         End If
         lblSttEngineHeader.Text = langPack.GetString("Opt_SttEngineHeader")
         lblSttBackend.Text = langPack.GetString("Opt_SttBackend")
+        lblSttApiKey.Text = langPack.GetString("Opt_SttApiKey")
+        lblSttOperatingPoint.Text = langPack.GetString("Opt_SttOperatingPoint")
+        lblSttRegion.Text = langPack.GetString("Opt_SttRegion")
+        lblSttEouSilence.Text = langPack.GetString("Opt_SttEouSilence")
 
         ' Advanced panel
         lblAdvPipelineHeader.Text = langPack.GetString("Opt_AdvPipelineHeader")
@@ -310,6 +324,15 @@ Public Class FormOptions
         PopulateTransBackendCombo()
         SelectTransBackend(_config.TranslationBackend)
         chkTransEnabled.Checked = _config.TranslationEnabled
+        chkUseSpeechmaticsTranslation.Checked = _config.UseSpeechmaticsTranslation
+        chkSpeechmaticsHoldClauses.Checked = _config.SpeechmaticsHoldClauses
+        chkClauseLockOnPunctuation.Checked = _config.SpeechmaticsClauseLockOnPunctuation
+        nudClauseGraceMs.Value = ClampNud(nudClauseGraceMs, _config.SpeechmaticsClauseGraceMs)
+        nudClauseMaxMs.Value = ClampNud(nudClauseMaxMs, _config.SpeechmaticsClauseMaxMs)
+        nudClauseMaxChars.Value = ClampNud(nudClauseMaxChars, _config.SpeechmaticsClauseMaxChars)
+        nudClauseMinLockChars.Value = ClampNud(nudClauseMinLockChars, _config.SpeechmaticsClauseMinLockChars)
+        nudClauseTimerMs.Value = ClampNud(nudClauseTimerMs, _config.SpeechmaticsClauseTimerMs)
+        txtClauseSentenceEnders.Text = _config.SpeechmaticsClauseSentenceEnders
         SelectItem(cboDevice, _config.TranslationDevice)
         nudUnload.Value = _config.TranslationUnloadMinutes
         nudTransPort.Value = _config.TranslationPort
@@ -320,7 +343,14 @@ Public Class FormOptions
 
         ' STT Engine
         PopulateSttBackendCombo()
+        PopulateSpeechmaticsCombos()
         SelectSttBackend(_config.SttBackend)
+        _currentApiKeyBackend = CurrentSttKey()
+        txtSttApiKey.Text = _config.GetSttApiKey(_currentApiKeyBackend)
+        SelectComboByValue(cboSttOperatingPoint, _opKeys, _config.SpeechmaticsOperatingPoint)
+        SelectComboByValue(cboSttRegion, _regionKeys, _config.SpeechmaticsRegion)
+        nudSttEouSilence.Value = ClampNud(nudSttEouSilence, _config.SpeechmaticsEouSilenceMs)
+        UpdateSttApiKeyVisibility()
 
         ' Advanced — Pipeline
         nudParallelJobs.Value = _config.ParallelJobs
@@ -448,6 +478,15 @@ Public Class FormOptions
             End If
         End If
         _config.TranslationEnabled = chkTransEnabled.Checked
+        _config.UseSpeechmaticsTranslation = chkUseSpeechmaticsTranslation.Checked
+        _config.SpeechmaticsHoldClauses = chkSpeechmaticsHoldClauses.Checked
+        _config.SpeechmaticsClauseLockOnPunctuation = chkClauseLockOnPunctuation.Checked
+        _config.SpeechmaticsClauseGraceMs = CInt(nudClauseGraceMs.Value)
+        _config.SpeechmaticsClauseMaxMs = CInt(nudClauseMaxMs.Value)
+        _config.SpeechmaticsClauseMaxChars = CInt(nudClauseMaxChars.Value)
+        _config.SpeechmaticsClauseMinLockChars = CInt(nudClauseMinLockChars.Value)
+        _config.SpeechmaticsClauseTimerMs = CInt(nudClauseTimerMs.Value)
+        _config.SpeechmaticsClauseSentenceEnders = txtClauseSentenceEnders.Text
         If cboDevice.SelectedItem IsNot Nothing Then _config.TranslationDevice = cboDevice.SelectedItem.ToString()
         _config.TranslationUnloadMinutes = CInt(nudUnload.Value)
         _config.TranslationPort = CInt(nudTransPort.Value)
@@ -459,6 +498,17 @@ Public Class FormOptions
         If cboSttBackend.SelectedIndex >= 0 AndAlso cboSttBackend.SelectedIndex < _sttKeys.Length Then
             _config.SttBackend = _sttKeys(cboSttBackend.SelectedIndex)
         End If
+        ' Save the API key against the backend currently shown in the textbox.
+        If Not String.IsNullOrEmpty(_currentApiKeyBackend) Then
+            _config.SetSttApiKey(_currentApiKeyBackend, txtSttApiKey.Text.Trim())
+        End If
+        If cboSttOperatingPoint.SelectedIndex >= 0 Then
+            _config.SpeechmaticsOperatingPoint = _opKeys(cboSttOperatingPoint.SelectedIndex)
+        End If
+        If cboSttRegion.SelectedIndex >= 0 Then
+            _config.SpeechmaticsRegion = _regionKeys(cboSttRegion.SelectedIndex)
+        End If
+        _config.SpeechmaticsEouSilenceMs = CInt(nudSttEouSilence.Value)
 
         ' Advanced — Pipeline
         _config.ParallelJobs = CInt(nudParallelJobs.Value)
@@ -593,6 +643,11 @@ Public Class FormOptions
     ' STT backend combo — driven by SttBackendRegistry
     ' ═══════════════════════════════════════════════════════════════
     Private _sttKeys As String()
+    ' Engine-specific option value maps (parallel to combo item order).
+    Private ReadOnly _opKeys As String() = {"enhanced", "standard"}
+    Private ReadOnly _regionKeys As String() = {"eu2", "us"}
+    ' Which backend's API key is currently shown in txtSttApiKey.
+    Private _currentApiKeyBackend As String = ""
 
     Private Sub PopulateSttBackendCombo()
         Dim entries = Services.Stt.SttBackendRegistry.GetAll()
@@ -602,11 +657,67 @@ Public Class FormOptions
             _sttKeys(i) = entries(i).Key
             cboSttBackend.Items.Add(entries(i).DisplayName)
         Next
+        AddHandler cboSttBackend.SelectedIndexChanged, AddressOf SttBackendCombo_Changed
+    End Sub
+
+    Private Sub PopulateSpeechmaticsCombos()
+        Dim lp = LanguagePackService.Instance
+        cboSttOperatingPoint.Items.Clear()
+        cboSttOperatingPoint.Items.Add(lp.GetString("Opt_SttOpEnhanced"))
+        cboSttOperatingPoint.Items.Add(lp.GetString("Opt_SttOpStandard"))
+        cboSttRegion.Items.Clear()
+        cboSttRegion.Items.Add(lp.GetString("Opt_SttRegionEu"))
+        cboSttRegion.Items.Add(lp.GetString("Opt_SttRegionUs"))
+    End Sub
+
+    ''' <summary>Currently-selected backend key, or "" if none.</summary>
+    Private Function CurrentSttKey() As String
+        If _sttKeys IsNot Nothing AndAlso cboSttBackend.SelectedIndex >= 0 AndAlso
+           cboSttBackend.SelectedIndex < _sttKeys.Length Then
+            Return _sttKeys(cboSttBackend.SelectedIndex)
+        End If
+        Return ""
+    End Function
+
+    Private Shared Sub SelectComboByValue(combo As ComboBox, values As String(), value As String)
+        Dim idx = Array.IndexOf(values, If(value, "").ToLowerInvariant())
+        combo.SelectedIndex = If(idx >= 0, idx, 0)
     End Sub
 
     Private Sub SelectSttBackend(key As String)
         Dim idx = Array.IndexOf(_sttKeys, If(key, "whisper-cpp-vulkan"))
         cboSttBackend.SelectedIndex = If(idx >= 0, idx, 0)
+    End Sub
+
+    Private Sub SttBackendCombo_Changed(sender As Object, e As EventArgs)
+        ' Persist the key shown for the previously-selected backend, then load the
+        ' new backend's stored key so each engine keeps its own credential.
+        If Not String.IsNullOrEmpty(_currentApiKeyBackend) Then
+            _config.SetSttApiKey(_currentApiKeyBackend, txtSttApiKey.Text.Trim())
+        End If
+        _currentApiKeyBackend = CurrentSttKey()
+        txtSttApiKey.Text = _config.GetSttApiKey(_currentApiKeyBackend)
+        UpdateSttApiKeyVisibility()
+    End Sub
+
+    Private Sub UpdateSttApiKeyVisibility()
+        Dim entries = Services.Stt.SttBackendRegistry.GetAll()
+        Dim showApiKey = False
+        If cboSttBackend.SelectedIndex >= 0 AndAlso cboSttBackend.SelectedIndex < entries.Count Then
+            showApiKey = entries(cboSttBackend.SelectedIndex).RequiresApiKey
+        End If
+        lblSttApiKey.Visible = showApiKey
+        txtSttApiKey.Visible = showApiKey
+
+        ' Speechmatics-specific tuning (operating point + region) only applies to
+        ' the Speechmatics backend.
+        Dim showSpeechmatics = String.Equals(CurrentSttKey(), "speechmatics", StringComparison.OrdinalIgnoreCase)
+        lblSttOperatingPoint.Visible = showSpeechmatics
+        cboSttOperatingPoint.Visible = showSpeechmatics
+        lblSttRegion.Visible = showSpeechmatics
+        cboSttRegion.Visible = showSpeechmatics
+        lblSttEouSilence.Visible = showSpeechmatics
+        nudSttEouSilence.Visible = showSpeechmatics
     End Sub
 
     ' ═══════════════════════════════════════════════════════════════
@@ -754,6 +865,11 @@ Public Class FormOptions
             End If
         End Using
     End Sub
+
+    ''' <summary>Clamp an integer config value into a NumericUpDown's valid range before assigning.</summary>
+    Private Shared Function ClampNud(nud As NumericUpDown, value As Integer) As Decimal
+        Return Math.Max(nud.Minimum, Math.Min(nud.Maximum, CDec(value)))
+    End Function
 
     Private Shared Sub SelectItem(cbo As ComboBox, value As String)
         For i = 0 To cbo.Items.Count - 1

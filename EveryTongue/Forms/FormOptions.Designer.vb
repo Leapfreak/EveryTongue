@@ -91,7 +91,15 @@ Partial Class FormOptions
         Me.lblToolPathsHeader = New System.Windows.Forms.Label()
         Me.pnlHardware = New System.Windows.Forms.Panel()
         Me.cboSttBackend = New System.Windows.Forms.ComboBox()
+        Me.txtSttApiKey = New System.Windows.Forms.TextBox()
+        Me.lblSttApiKey = New System.Windows.Forms.Label()
         Me.lblSttBackend = New System.Windows.Forms.Label()
+        Me.lblSttOperatingPoint = New System.Windows.Forms.Label()
+        Me.cboSttOperatingPoint = New System.Windows.Forms.ComboBox()
+        Me.lblSttRegion = New System.Windows.Forms.Label()
+        Me.cboSttRegion = New System.Windows.Forms.ComboBox()
+        Me.lblSttEouSilence = New System.Windows.Forms.Label()
+        Me.nudSttEouSilence = New System.Windows.Forms.NumericUpDown()
         Me.lblSttEngineSep = New System.Windows.Forms.Label()
         Me.lblSttEngineHeader = New System.Windows.Forms.Label()
         Me.lblHwHeader = New System.Windows.Forms.Label()
@@ -130,6 +138,22 @@ Partial Class FormOptions
         Me.cboTransBackend = New System.Windows.Forms.ComboBox()
         Me.lblTransBackend = New System.Windows.Forms.Label()
         Me.chkTransEnabled = New System.Windows.Forms.CheckBox()
+        Me.chkUseSpeechmaticsTranslation = New System.Windows.Forms.CheckBox()
+        Me.lblClauseHeader = New System.Windows.Forms.Label()
+        Me.chkSpeechmaticsHoldClauses = New System.Windows.Forms.CheckBox()
+        Me.chkClauseLockOnPunctuation = New System.Windows.Forms.CheckBox()
+        Me.lblClauseGraceMs = New System.Windows.Forms.Label()
+        Me.nudClauseGraceMs = New System.Windows.Forms.NumericUpDown()
+        Me.lblClauseMaxMs = New System.Windows.Forms.Label()
+        Me.nudClauseMaxMs = New System.Windows.Forms.NumericUpDown()
+        Me.lblClauseMaxChars = New System.Windows.Forms.Label()
+        Me.nudClauseMaxChars = New System.Windows.Forms.NumericUpDown()
+        Me.lblClauseMinLockChars = New System.Windows.Forms.Label()
+        Me.nudClauseMinLockChars = New System.Windows.Forms.NumericUpDown()
+        Me.lblClauseTimerMs = New System.Windows.Forms.Label()
+        Me.nudClauseTimerMs = New System.Windows.Forms.NumericUpDown()
+        Me.lblClauseSentenceEnders = New System.Windows.Forms.Label()
+        Me.txtClauseSentenceEnders = New System.Windows.Forms.TextBox()
         Me.lblTranslationSep = New System.Windows.Forms.Label()
         Me.lblTranslationHeader = New System.Windows.Forms.Label()
         Me.chkBold = New System.Windows.Forms.CheckBox()
@@ -290,6 +314,12 @@ Partial Class FormOptions
         CType(Me.nudTransPort, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudFontSize, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudUnload, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudClauseGraceMs, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudClauseMaxMs, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudClauseMaxChars, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudClauseMinLockChars, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudClauseTimerMs, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudSttEouSilence, System.ComponentModel.ISupportInitialize).BeginInit()
         Me.SuspendLayout()
         '
         ' btnOk
@@ -1229,6 +1259,157 @@ Partial Class FormOptions
         Me.nudTransPort.TabIndex = 10
         Me.nudTransPort.Value = New Decimal(New Integer() {5090, 0, 0, 0})
         '
+        ' chkUseSpeechmaticsTranslation
+        '
+        Me.chkUseSpeechmaticsTranslation.AutoSize = True
+        Me.chkUseSpeechmaticsTranslation.Location = New System.Drawing.Point(12, 224)
+        Me.chkUseSpeechmaticsTranslation.Name = "chkUseSpeechmaticsTranslation"
+        Me.chkUseSpeechmaticsTranslation.Size = New System.Drawing.Size(330, 19)
+        Me.chkUseSpeechmaticsTranslation.TabIndex = 11
+        Me.chkUseSpeechmaticsTranslation.Text = "Use Speechmatics translation (when Speechmatics is the STT engine)"
+        Me.chkUseSpeechmaticsTranslation.UseVisualStyleBackColor = True
+        '
+        ' lblClauseHeader
+        '
+        Me.lblClauseHeader.AutoSize = True
+        Me.lblClauseHeader.Font = New System.Drawing.Font("Segoe UI", 9.0!, System.Drawing.FontStyle.Bold)
+        Me.lblClauseHeader.Location = New System.Drawing.Point(12, 262)
+        Me.lblClauseHeader.Name = "lblClauseHeader"
+        Me.lblClauseHeader.Size = New System.Drawing.Size(220, 15)
+        Me.lblClauseHeader.TabIndex = 12
+        Me.lblClauseHeader.Text = "Speechmatics clause buffering"
+        '
+        ' chkSpeechmaticsHoldClauses
+        '
+        Me.chkSpeechmaticsHoldClauses.AutoSize = True
+        Me.chkSpeechmaticsHoldClauses.Location = New System.Drawing.Point(12, 286)
+        Me.chkSpeechmaticsHoldClauses.Name = "chkSpeechmaticsHoldClauses"
+        Me.chkSpeechmaticsHoldClauses.Size = New System.Drawing.Size(400, 19)
+        Me.chkSpeechmaticsHoldClauses.TabIndex = 13
+        Me.chkSpeechmaticsHoldClauses.Text = "Hold & merge fragments into whole clauses before translating"
+        Me.chkSpeechmaticsHoldClauses.UseVisualStyleBackColor = True
+        '
+        ' chkClauseLockOnPunctuation
+        '
+        Me.chkClauseLockOnPunctuation.AutoSize = True
+        Me.chkClauseLockOnPunctuation.Location = New System.Drawing.Point(12, 310)
+        Me.chkClauseLockOnPunctuation.Name = "chkClauseLockOnPunctuation"
+        Me.chkClauseLockOnPunctuation.Size = New System.Drawing.Size(400, 19)
+        Me.chkClauseLockOnPunctuation.TabIndex = 14
+        Me.chkClauseLockOnPunctuation.Text = "Lock immediately on sentence-final punctuation"
+        Me.chkClauseLockOnPunctuation.UseVisualStyleBackColor = True
+        '
+        ' lblClauseGraceMs
+        '
+        Me.lblClauseGraceMs.AutoSize = True
+        Me.lblClauseGraceMs.Location = New System.Drawing.Point(12, 338)
+        Me.lblClauseGraceMs.Name = "lblClauseGraceMs"
+        Me.lblClauseGraceMs.Size = New System.Drawing.Size(60, 15)
+        Me.lblClauseGraceMs.TabIndex = 15
+        Me.lblClauseGraceMs.Text = "Grace (ms)"
+        '
+        ' nudClauseGraceMs
+        '
+        Me.nudClauseGraceMs.Location = New System.Drawing.Point(12, 356)
+        Me.nudClauseGraceMs.Maximum = New Decimal(New Integer() {10000, 0, 0, 0})
+        Me.nudClauseGraceMs.Increment = New Decimal(New Integer() {100, 0, 0, 0})
+        Me.nudClauseGraceMs.Name = "nudClauseGraceMs"
+        Me.nudClauseGraceMs.Size = New System.Drawing.Size(72, 23)
+        Me.nudClauseGraceMs.TabIndex = 16
+        Me.nudClauseGraceMs.Value = New Decimal(New Integer() {1200, 0, 0, 0})
+        '
+        ' lblClauseMaxMs
+        '
+        Me.lblClauseMaxMs.AutoSize = True
+        Me.lblClauseMaxMs.Location = New System.Drawing.Point(102, 338)
+        Me.lblClauseMaxMs.Name = "lblClauseMaxMs"
+        Me.lblClauseMaxMs.Size = New System.Drawing.Size(60, 15)
+        Me.lblClauseMaxMs.TabIndex = 17
+        Me.lblClauseMaxMs.Text = "Max (ms)"
+        '
+        ' nudClauseMaxMs
+        '
+        Me.nudClauseMaxMs.Location = New System.Drawing.Point(102, 356)
+        Me.nudClauseMaxMs.Maximum = New Decimal(New Integer() {60000, 0, 0, 0})
+        Me.nudClauseMaxMs.Increment = New Decimal(New Integer() {500, 0, 0, 0})
+        Me.nudClauseMaxMs.Name = "nudClauseMaxMs"
+        Me.nudClauseMaxMs.Size = New System.Drawing.Size(72, 23)
+        Me.nudClauseMaxMs.TabIndex = 18
+        Me.nudClauseMaxMs.Value = New Decimal(New Integer() {8000, 0, 0, 0})
+        '
+        ' lblClauseMaxChars
+        '
+        Me.lblClauseMaxChars.AutoSize = True
+        Me.lblClauseMaxChars.Location = New System.Drawing.Point(192, 338)
+        Me.lblClauseMaxChars.Name = "lblClauseMaxChars"
+        Me.lblClauseMaxChars.Size = New System.Drawing.Size(70, 15)
+        Me.lblClauseMaxChars.TabIndex = 19
+        Me.lblClauseMaxChars.Text = "Max (chars)"
+        '
+        ' nudClauseMaxChars
+        '
+        Me.nudClauseMaxChars.Location = New System.Drawing.Point(192, 356)
+        Me.nudClauseMaxChars.Maximum = New Decimal(New Integer() {2000, 0, 0, 0})
+        Me.nudClauseMaxChars.Minimum = New Decimal(New Integer() {20, 0, 0, 0})
+        Me.nudClauseMaxChars.Name = "nudClauseMaxChars"
+        Me.nudClauseMaxChars.Size = New System.Drawing.Size(72, 23)
+        Me.nudClauseMaxChars.TabIndex = 20
+        Me.nudClauseMaxChars.Value = New Decimal(New Integer() {300, 0, 0, 0})
+        '
+        ' lblClauseMinLockChars
+        '
+        Me.lblClauseMinLockChars.AutoSize = True
+        Me.lblClauseMinLockChars.Location = New System.Drawing.Point(282, 338)
+        Me.lblClauseMinLockChars.Name = "lblClauseMinLockChars"
+        Me.lblClauseMinLockChars.Size = New System.Drawing.Size(80, 15)
+        Me.lblClauseMinLockChars.TabIndex = 21
+        Me.lblClauseMinLockChars.Text = "Min lock (ch)"
+        '
+        ' nudClauseMinLockChars
+        '
+        Me.nudClauseMinLockChars.Location = New System.Drawing.Point(282, 356)
+        Me.nudClauseMinLockChars.Maximum = New Decimal(New Integer() {200, 0, 0, 0})
+        Me.nudClauseMinLockChars.Name = "nudClauseMinLockChars"
+        Me.nudClauseMinLockChars.Size = New System.Drawing.Size(72, 23)
+        Me.nudClauseMinLockChars.TabIndex = 22
+        Me.nudClauseMinLockChars.Value = New Decimal(New Integer() {12, 0, 0, 0})
+        '
+        ' lblClauseTimerMs
+        '
+        Me.lblClauseTimerMs.AutoSize = True
+        Me.lblClauseTimerMs.Location = New System.Drawing.Point(372, 338)
+        Me.lblClauseTimerMs.Name = "lblClauseTimerMs"
+        Me.lblClauseTimerMs.Size = New System.Drawing.Size(60, 15)
+        Me.lblClauseTimerMs.TabIndex = 23
+        Me.lblClauseTimerMs.Text = "Poll (ms)"
+        '
+        ' nudClauseTimerMs
+        '
+        Me.nudClauseTimerMs.Location = New System.Drawing.Point(372, 356)
+        Me.nudClauseTimerMs.Maximum = New Decimal(New Integer() {5000, 0, 0, 0})
+        Me.nudClauseTimerMs.Minimum = New Decimal(New Integer() {50, 0, 0, 0})
+        Me.nudClauseTimerMs.Increment = New Decimal(New Integer() {50, 0, 0, 0})
+        Me.nudClauseTimerMs.Name = "nudClauseTimerMs"
+        Me.nudClauseTimerMs.Size = New System.Drawing.Size(72, 23)
+        Me.nudClauseTimerMs.TabIndex = 24
+        Me.nudClauseTimerMs.Value = New Decimal(New Integer() {300, 0, 0, 0})
+        '
+        ' lblClauseSentenceEnders
+        '
+        Me.lblClauseSentenceEnders.AutoSize = True
+        Me.lblClauseSentenceEnders.Location = New System.Drawing.Point(12, 392)
+        Me.lblClauseSentenceEnders.Name = "lblClauseSentenceEnders"
+        Me.lblClauseSentenceEnders.Size = New System.Drawing.Size(110, 15)
+        Me.lblClauseSentenceEnders.TabIndex = 25
+        Me.lblClauseSentenceEnders.Text = "Sentence enders"
+        '
+        ' txtClauseSentenceEnders
+        '
+        Me.txtClauseSentenceEnders.Location = New System.Drawing.Point(12, 410)
+        Me.txtClauseSentenceEnders.Name = "txtClauseSentenceEnders"
+        Me.txtClauseSentenceEnders.Size = New System.Drawing.Size(200, 23)
+        Me.txtClauseSentenceEnders.TabIndex = 26
+        '
         ' chkFirewall
         '
         Me.chkFirewall.AutoSize = True
@@ -1563,6 +1744,22 @@ Partial Class FormOptions
         ' pnlTranslation
         '
         Me.pnlTranslation.AutoScroll = True
+        Me.pnlTranslation.Controls.Add(Me.lblClauseHeader)
+        Me.pnlTranslation.Controls.Add(Me.chkSpeechmaticsHoldClauses)
+        Me.pnlTranslation.Controls.Add(Me.chkClauseLockOnPunctuation)
+        Me.pnlTranslation.Controls.Add(Me.lblClauseGraceMs)
+        Me.pnlTranslation.Controls.Add(Me.nudClauseGraceMs)
+        Me.pnlTranslation.Controls.Add(Me.lblClauseMaxMs)
+        Me.pnlTranslation.Controls.Add(Me.nudClauseMaxMs)
+        Me.pnlTranslation.Controls.Add(Me.lblClauseMaxChars)
+        Me.pnlTranslation.Controls.Add(Me.nudClauseMaxChars)
+        Me.pnlTranslation.Controls.Add(Me.lblClauseMinLockChars)
+        Me.pnlTranslation.Controls.Add(Me.nudClauseMinLockChars)
+        Me.pnlTranslation.Controls.Add(Me.lblClauseTimerMs)
+        Me.pnlTranslation.Controls.Add(Me.nudClauseTimerMs)
+        Me.pnlTranslation.Controls.Add(Me.lblClauseSentenceEnders)
+        Me.pnlTranslation.Controls.Add(Me.txtClauseSentenceEnders)
+        Me.pnlTranslation.Controls.Add(Me.chkUseSpeechmaticsTranslation)
         Me.pnlTranslation.Controls.Add(Me.nudTransPort)
         Me.pnlTranslation.Controls.Add(Me.lblTransPort)
         Me.pnlTranslation.Controls.Add(Me.nudUnload)
@@ -1611,6 +1808,14 @@ Partial Class FormOptions
         ' pnlHardware
         '
         Me.pnlHardware.AutoScroll = True
+        Me.pnlHardware.Controls.Add(Me.nudSttEouSilence)
+        Me.pnlHardware.Controls.Add(Me.lblSttEouSilence)
+        Me.pnlHardware.Controls.Add(Me.cboSttRegion)
+        Me.pnlHardware.Controls.Add(Me.lblSttRegion)
+        Me.pnlHardware.Controls.Add(Me.cboSttOperatingPoint)
+        Me.pnlHardware.Controls.Add(Me.lblSttOperatingPoint)
+        Me.pnlHardware.Controls.Add(Me.txtSttApiKey)
+        Me.pnlHardware.Controls.Add(Me.lblSttApiKey)
         Me.pnlHardware.Controls.Add(Me.cboSttBackend)
         Me.pnlHardware.Controls.Add(Me.lblSttBackend)
         Me.pnlHardware.Controls.Add(Me.lblSttEngineSep)
@@ -1856,6 +2061,93 @@ Partial Class FormOptions
         Me.cboSttBackend.Name = "cboSttBackend"
         Me.cboSttBackend.Size = New System.Drawing.Size(350, 23)
         Me.cboSttBackend.TabIndex = 20
+        '
+        ' lblSttApiKey
+        '
+        Me.lblSttApiKey.AutoSize = True
+        Me.lblSttApiKey.Location = New System.Drawing.Point(12, 532)
+        Me.lblSttApiKey.Name = "lblSttApiKey"
+        Me.lblSttApiKey.Size = New System.Drawing.Size(77, 15)
+        Me.lblSttApiKey.TabIndex = 21
+        Me.lblSttApiKey.Text = "API Key:"
+        Me.lblSttApiKey.Visible = False
+        '
+        ' txtSttApiKey
+        '
+        Me.txtSttApiKey.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.txtSttApiKey.Location = New System.Drawing.Point(12, 550)
+        Me.txtSttApiKey.Name = "txtSttApiKey"
+        Me.txtSttApiKey.Size = New System.Drawing.Size(350, 23)
+        Me.txtSttApiKey.TabIndex = 22
+        Me.txtSttApiKey.UseSystemPasswordChar = True
+        Me.txtSttApiKey.Visible = False
+        '
+        ' lblSttOperatingPoint
+        '
+        Me.lblSttOperatingPoint.AutoSize = True
+        Me.lblSttOperatingPoint.Location = New System.Drawing.Point(12, 582)
+        Me.lblSttOperatingPoint.Name = "lblSttOperatingPoint"
+        Me.lblSttOperatingPoint.Size = New System.Drawing.Size(95, 15)
+        Me.lblSttOperatingPoint.TabIndex = 23
+        Me.lblSttOperatingPoint.Text = "Operating point:"
+        Me.lblSttOperatingPoint.Visible = False
+        '
+        ' cboSttOperatingPoint
+        '
+        Me.cboSttOperatingPoint.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.cboSttOperatingPoint.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboSttOperatingPoint.FormattingEnabled = True
+        Me.cboSttOperatingPoint.Location = New System.Drawing.Point(12, 600)
+        Me.cboSttOperatingPoint.Name = "cboSttOperatingPoint"
+        Me.cboSttOperatingPoint.Size = New System.Drawing.Size(350, 23)
+        Me.cboSttOperatingPoint.TabIndex = 24
+        Me.cboSttOperatingPoint.Visible = False
+        '
+        ' lblSttRegion
+        '
+        Me.lblSttRegion.AutoSize = True
+        Me.lblSttRegion.Location = New System.Drawing.Point(12, 632)
+        Me.lblSttRegion.Name = "lblSttRegion"
+        Me.lblSttRegion.Size = New System.Drawing.Size(50, 15)
+        Me.lblSttRegion.TabIndex = 25
+        Me.lblSttRegion.Text = "Region:"
+        Me.lblSttRegion.Visible = False
+        '
+        ' cboSttRegion
+        '
+        Me.cboSttRegion.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.cboSttRegion.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboSttRegion.FormattingEnabled = True
+        Me.cboSttRegion.Location = New System.Drawing.Point(12, 650)
+        Me.cboSttRegion.Name = "cboSttRegion"
+        Me.cboSttRegion.Size = New System.Drawing.Size(350, 23)
+        Me.cboSttRegion.TabIndex = 26
+        Me.cboSttRegion.Visible = False
+        '
+        ' lblSttEouSilence
+        '
+        Me.lblSttEouSilence.AutoSize = True
+        Me.lblSttEouSilence.Location = New System.Drawing.Point(12, 682)
+        Me.lblSttEouSilence.Name = "lblSttEouSilence"
+        Me.lblSttEouSilence.Size = New System.Drawing.Size(220, 15)
+        Me.lblSttEouSilence.TabIndex = 27
+        Me.lblSttEouSilence.Text = "End-of-utterance silence (ms)"
+        Me.lblSttEouSilence.Visible = False
+        '
+        ' nudSttEouSilence
+        '
+        Me.nudSttEouSilence.Location = New System.Drawing.Point(240, 680)
+        Me.nudSttEouSilence.Minimum = New Decimal(New Integer() {300, 0, 0, 0})
+        Me.nudSttEouSilence.Maximum = New Decimal(New Integer() {4000, 0, 0, 0})
+        Me.nudSttEouSilence.Increment = New Decimal(New Integer() {100, 0, 0, 0})
+        Me.nudSttEouSilence.Name = "nudSttEouSilence"
+        Me.nudSttEouSilence.Size = New System.Drawing.Size(80, 23)
+        Me.nudSttEouSilence.TabIndex = 28
+        Me.nudSttEouSilence.Value = New Decimal(New Integer() {800, 0, 0, 0})
+        Me.nudSttEouSilence.Visible = False
         '
         ' ══════════════════════════════════════════════════════════════
         ' ADVANCED PANEL
@@ -2918,6 +3210,12 @@ Partial Class FormOptions
         CType(Me.nudTransPort, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudFontSize, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudUnload, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudClauseGraceMs, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudClauseMaxMs, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudClauseMaxChars, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudClauseMinLockChars, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudClauseTimerMs, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudSttEouSilence, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudTranslationConcurrency, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudTtsConcurrency, System.ComponentModel.ISupportInitialize).EndInit()
         Me.ResumeLayout(False)
@@ -3048,6 +3346,24 @@ Partial Class FormOptions
     Friend WithEvents lblTranslationHeader As System.Windows.Forms.Label
     Friend WithEvents lblTranslationSep As System.Windows.Forms.Label
     Friend WithEvents chkTransEnabled As System.Windows.Forms.CheckBox
+    Friend WithEvents chkUseSpeechmaticsTranslation As System.Windows.Forms.CheckBox
+    Friend WithEvents lblClauseHeader As System.Windows.Forms.Label
+    Friend WithEvents chkSpeechmaticsHoldClauses As System.Windows.Forms.CheckBox
+    Friend WithEvents chkClauseLockOnPunctuation As System.Windows.Forms.CheckBox
+    Friend WithEvents lblClauseGraceMs As System.Windows.Forms.Label
+    Friend WithEvents nudClauseGraceMs As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblClauseMaxMs As System.Windows.Forms.Label
+    Friend WithEvents nudClauseMaxMs As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblClauseMaxChars As System.Windows.Forms.Label
+    Friend WithEvents nudClauseMaxChars As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblClauseMinLockChars As System.Windows.Forms.Label
+    Friend WithEvents nudClauseMinLockChars As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblClauseTimerMs As System.Windows.Forms.Label
+    Friend WithEvents nudClauseTimerMs As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblClauseSentenceEnders As System.Windows.Forms.Label
+    Friend WithEvents txtClauseSentenceEnders As System.Windows.Forms.TextBox
+    Friend WithEvents lblSttEouSilence As System.Windows.Forms.Label
+    Friend WithEvents nudSttEouSilence As System.Windows.Forms.NumericUpDown
     Friend WithEvents lblTransBackend As System.Windows.Forms.Label
     Friend WithEvents cboTransBackend As System.Windows.Forms.ComboBox
     Friend WithEvents lblDevice As System.Windows.Forms.Label
@@ -3091,6 +3407,12 @@ Partial Class FormOptions
     Friend WithEvents lblSttEngineSep As System.Windows.Forms.Label
     Friend WithEvents lblSttBackend As System.Windows.Forms.Label
     Friend WithEvents cboSttBackend As System.Windows.Forms.ComboBox
+    Friend WithEvents lblSttApiKey As System.Windows.Forms.Label
+    Friend WithEvents txtSttApiKey As System.Windows.Forms.TextBox
+    Friend WithEvents lblSttOperatingPoint As System.Windows.Forms.Label
+    Friend WithEvents cboSttOperatingPoint As System.Windows.Forms.ComboBox
+    Friend WithEvents lblSttRegion As System.Windows.Forms.Label
+    Friend WithEvents cboSttRegion As System.Windows.Forms.ComboBox
 
     ' Advanced panel
     Friend WithEvents pnlAdvanced As System.Windows.Forms.Panel

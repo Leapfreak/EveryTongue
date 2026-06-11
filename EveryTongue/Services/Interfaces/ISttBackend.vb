@@ -15,6 +15,12 @@ Namespace Services.Interfaces
         ' Events for real-time streaming output
         Event OutputUpdated As EventHandler(Of SttOutputEventArgs)
         Event OutputCommitted As EventHandler(Of SttOutputEventArgs)
+        ''' <summary>
+        ''' Raised when a commit arrives with inline translations from the engine
+        ''' (Speechmatics built-in translation). Engines that don't translate never
+        ''' raise this.
+        ''' </summary>
+        Event OutputCommittedTranslated As EventHandler(Of SttTranslatedCommitEventArgs)
         Event ErrorReceived As EventHandler(Of String)
 
         ' Lifecycle

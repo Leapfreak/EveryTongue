@@ -86,9 +86,9 @@ Namespace Models
 
         Public Property Processors As Integer = 1
 
-        Public Property BeamSize As Integer = 7
+        Public Property BeamSize As Integer = 5
 
-        Public Property BestOf As Integer = 5
+        Public Property BestOf As Integer = 1
 
         Public Property Temperature As Single = 0.0F
 
@@ -154,12 +154,62 @@ Namespace Models
 
         Public Property SttBackend As String = "whisper-cpp-vulkan"
 
+        ''' <summary>
+        ''' API keys for online STT engines, keyed by backend key (e.g.
+        ''' "google-cloud-stt", "speechmatics"). Each engine keeps its own key so
+        ''' switching engines doesn't clobber another's credential.
+        ''' </summary>
+        Public Property SttApiKeys As New Dictionary(Of String, String)
+
+        ''' <summary>Legacy single Google STT key — kept for back-compat migration into SttApiKeys.</summary>
+        Public Property GoogleCloudSttApiKey As String = ""
+
+        ''' <summary>Speechmatics real-time region: "eu2" (default) or "us".</summary>
+        Public Property SpeechmaticsRegion As String = "eu2"
+
+        ''' <summary>Speechmatics operating point: "enhanced" (best accuracy) or "standard" (lower latency).</summary>
+        Public Property SpeechmaticsOperatingPoint As String = "enhanced"
+
+        ''' <summary>
+        ''' Speechmatics end-of-utterance silence trigger (ms): how long a pause before
+        ''' Speechmatics declares an utterance finished and emits a commit. The root
+        ''' control for fragmentation — raise it (e.g. 1500) for pause-heavy speakers so
+        ''' Speechmatics stops splitting mid-sentence. Default 800 = Speechmatics' own default.
+        ''' </summary>
+        Public Property SpeechmaticsEouSilenceMs As Integer = 800
+
+        ''' <summary>
+        ''' Resolve the API key for an STT backend, falling back to the legacy
+        ''' Google field for "google-cloud-stt" if no per-engine key is stored.
+        ''' </summary>
+        Public Function GetSttApiKey(backendKey As String) As String
+            If backendKey Is Nothing Then Return ""
+            Dim value As String = Nothing
+            If SttApiKeys IsNot Nothing AndAlso SttApiKeys.TryGetValue(backendKey, value) AndAlso Not String.IsNullOrEmpty(value) Then
+                Return value
+            End If
+            If backendKey.Equals("google-cloud-stt", StringComparison.OrdinalIgnoreCase) Then
+                Return If(GoogleCloudSttApiKey, "")
+            End If
+            Return ""
+        End Function
+
+        ''' <summary>Store the API key for an STT backend (mirrors the legacy Google field for back-compat).</summary>
+        Public Sub SetSttApiKey(backendKey As String, value As String)
+            If String.IsNullOrEmpty(backendKey) Then Return
+            If SttApiKeys Is Nothing Then SttApiKeys = New Dictionary(Of String, String)
+            SttApiKeys(backendKey) = If(value, "")
+            If backendKey.Equals("google-cloud-stt", StringComparison.OrdinalIgnoreCase) Then
+                GoogleCloudSttApiKey = If(value, "")
+            End If
+        End Sub
+
         Public Property LiveServerPort As Integer = 5091
 
         Public Property LiveComputeType As String = "int8_float16"
-        Public Property LiveVadSilenceMs As Integer = 800
-        Public Property LiveMaxSegmentSec As Integer = 15
-        Public Property LiveInterimIntervalMs As Integer = 1500
+        Public Property LiveVadSilenceMs As Integer = 300
+        Public Property LiveMaxSegmentSec As Integer = 30
+        Public Property LiveInterimIntervalMs As Integer = 1000
 
         ''' <summary>Path to whisper-server.exe (Vulkan build) for whisper-cpp backends.</summary>
         Public Property PathWhisperServer As String = ".\whisper-server.exe"
@@ -180,6 +230,47 @@ Namespace Models
 
         Public Property TranslationBackend As String = "nllb"
         Public Property TranslationEnabled As Boolean = True
+
+        ''' <summary>
+        ''' When the STT engine is Speechmatics, use its built-in (English-pivot)
+        ''' translation for eligible languages; others fall back to the configured
+        ''' translation backend.
+        ''' </summary>
+        Public Property UseSpeechmaticsTranslation As Boolean = False
+
+        ' --- Speechmatics clause hold-and-lock (translate-and-replace, Phase 1) ---
+        ' Speechmatics-only. When on, the conference pipeline holds each
+        ' END_OF_UTTERANCE fragment and merges consecutive fragments into one
+        ' clause before translating, so pause-heavy speakers don't get their
+        ' sentences chopped into separately-translated pieces. Every threshold
+        ' below is a live-tunable dial (read fresh on each evaluation — changes
+        ' apply without restarting a room). All gated behind the master switch
+        ' AND backend == "speechmatics"; other STT pipelines are never affected.
+
+        ''' <summary>Master switch for Speechmatics clause hold-and-lock. Default OFF (zero behaviour change).</summary>
+        Public Property SpeechmaticsHoldClauses As Boolean = False
+
+        ''' <summary>Silence (ms) after the last fragment before an accumulated clause is locked and broadcast.</summary>
+        Public Property SpeechmaticsClauseGraceMs As Integer = 1200
+
+        ''' <summary>Hard cap (ms): lock a clause once it is this old, regardless of pauses (runaway guard).</summary>
+        Public Property SpeechmaticsClauseMaxMs As Integer = 8000
+
+        ''' <summary>Hard cap (chars): lock a clause once it reaches this length (runaway guard).</summary>
+        Public Property SpeechmaticsClauseMaxChars As Integer = 300
+
+        ''' <summary>When True, a fragment ending in sentence-final punctuation locks the clause immediately (lower latency).</summary>
+        Public Property SpeechmaticsClauseLockOnPunctuation As Boolean = True
+
+        ''' <summary>Minimum clause length (chars) required before punctuation can trigger an immediate lock (avoids "Yes." locking too eagerly).</summary>
+        Public Property SpeechmaticsClauseMinLockChars As Integer = 12
+
+        ''' <summary>Characters treated as sentence-final for the punctuation-lock rule (Latin + CJK + Arabic).</summary>
+        Public Property SpeechmaticsClauseSentenceEnders As String = ".?!…。？！۔؟"
+
+        ''' <summary>How often (ms) the conference controller polls accumulators for grace-window expiry.</summary>
+        Public Property SpeechmaticsClauseTimerMs As Integer = 300
+
         Public Property TranslationPort As Integer = 5090
         Public Property TranslationModelPath As String = ".\nllb-model"
         Public Property TranslationModelType As String = "nllb"

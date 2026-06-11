@@ -300,6 +300,8 @@ Public Class FormMain
                                       _config,
                                       Function() SubtitleSvc,
                                       Function() _translationService,
+                                      Function() TryCast(_serverController?.KestrelHost?.Services?.GetService(
+                                          GetType(Services.Interfaces.ITranslationService)), Services.Interfaces.ITranslationService),
                                       Function() _serverController.GetRoomManager(),
                                       AddressOf WriteDebugLog,
                                       Me)
@@ -988,7 +990,16 @@ del ""%~f0""
                 orchestrator.RegisterBackend(sidecarBackend)
 
                 ' Apply the user's selected translation backend to the orchestrator
+                ' When STT is Google Cloud and user has an API key, auto-use Google Translate
+                ' (much faster than waiting for local NLLB model to load and translate)
                 Dim configKey = If(_config.TranslationBackend, "nllb")
+                Dim sttBackend = If(_config.SttBackend, "")
+                If sttBackend.Equals("google-cloud-stt", StringComparison.OrdinalIgnoreCase) AndAlso
+                   Not String.IsNullOrEmpty(_config.GoogleCloudSttApiKey) AndAlso
+                   Not configKey.Equals("google-translate", StringComparison.OrdinalIgnoreCase) Then
+                    configKey = "google-translate"
+                    AppLogger.Log(LogEvents.TRANS_SERVER_READY, "Auto-selecting Google Translate (STT backend is google-cloud-stt)")
+                End If
                 Dim entry = Services.Translation.TranslationBackendRegistry.GetAll().FirstOrDefault(
                     Function(e) e.Key.Equals(configKey, StringComparison.OrdinalIgnoreCase))
                 Dim orchestratorName = If(entry?.BackendName, "Local")
@@ -1001,16 +1012,29 @@ del ""%~f0""
             AppLogger.Log(LogEvents.TRANS_ERROR, $"Failed to register SidecarTranslationBackend: {ex.Message}")
         End Try
 
-        Dim modelPath = _config.TranslationModelPath
-        Dim port = _config.TranslationPort
-        Dim device = _config.TranslationDevice
-        Dim glossaryPath = _config.TranslationGlossaryPath
-        Dim modelType = If(_config.TranslationModelType, "nllb")
+        ' Skip starting the NLLB sidecar when using a cloud translation backend —
+        ' no point loading a 3.3GB model if we're using Google Translate API
+        Dim activeTransBackend = If(_config.TranslationBackend, "nllb")
+        Dim sttBk = If(_config.SttBackend, "")
+        Dim usingCloudTranslation = activeTransBackend.Equals("google-translate", StringComparison.OrdinalIgnoreCase) OrElse
+            (sttBk.Equals("google-cloud-stt", StringComparison.OrdinalIgnoreCase) AndAlso
+             Not String.IsNullOrEmpty(_config.GoogleCloudSttApiKey))
 
-        AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, $"StartTranslationService: port={port}, device={device}, modelPath={modelPath}, modelType={modelType}")
-        _translationService.Start(port, modelPath, device, glossaryPath, modelType)
-        _translationStarting = False
-        AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, "Translation service starting...")
+        If usingCloudTranslation Then
+            AppLogger.Log(LogEvents.TRANS_SERVER_READY, "Skipping NLLB sidecar — using cloud translation backend")
+            _translationStarting = False
+        Else
+            Dim modelPath = _config.TranslationModelPath
+            Dim port = _config.TranslationPort
+            Dim device = _config.TranslationDevice
+            Dim glossaryPath = _config.TranslationGlossaryPath
+            Dim modelType = If(_config.TranslationModelType, "nllb")
+
+            AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, $"StartTranslationService: port={port}, device={device}, modelPath={modelPath}, modelType={modelType}")
+            _translationService.Start(port, modelPath, device, glossaryPath, modelType)
+            _translationStarting = False
+            AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, "Translation service starting...")
+        End If
     End Sub
 
     ''' <summary>

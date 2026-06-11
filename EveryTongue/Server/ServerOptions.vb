@@ -80,6 +80,18 @@ Namespace Server
         ''' <summary>Number of independent decoding attempts (best_of) for whisper transcription.</summary>
         Public Property BestOf As Integer = 1
 
+        ''' <summary>API key for the active online STT backend (Google Cloud STT, Speechmatics, …).</summary>
+        Public Property SttApiKey As String = ""
+
+        ''' <summary>Region for region-scoped online STT backends (e.g. Speechmatics "eu2"/"us").</summary>
+        Public Property SttRegion As String = "eu2"
+
+        ''' <summary>Operating point for online STT backends (e.g. Speechmatics "enhanced"/"standard").</summary>
+        Public Property SttOperatingPoint As String = "enhanced"
+
+        ''' <summary>Google Cloud API key, shared by Google Cloud STT and the Google translation backend.</summary>
+        Public Property GoogleApiKey As String = ""
+
         ''' <summary>Max concurrent translation requests through the priority queue.</summary>
         Public Property TranslationConcurrency As Integer = 3
 
