@@ -796,7 +796,11 @@ async def start_capture_endpoint(request: Request):
     # VAD-pipeline path (offline whisper engines, or an online engine's fallback
     # such as Google REST). Let the engine tweak VAD config if it wants to.
     engines.apply_vad_preset(_backend_mode, vad_config)
-    use_accumulating = (body.get("use_accumulating_pipeline", True)
+    # Default OFF: local whisper engines use the clean per-segment VadPipeline (the
+    # healthy v1.8.6 path). The separate AccumulatingPipeline is opt-in only. Engines
+    # that want audio accumulation enable it via their vad_preset (e.g. Google sets
+    # accumulate_audio=True on the VadPipeline) — they do NOT need this class.
+    use_accumulating = (body.get("use_accumulating_pipeline", False)
                         and not getattr(vad_config, "force_vad_pipeline", False))
     PipelineClass = VadPipeline
     if use_accumulating:
