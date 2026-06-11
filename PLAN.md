@@ -79,6 +79,7 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
 - Session recording & per-room transcript export
 - Plugin auto-discovery from `plugins/` folder
 - Plugin Manager UI with model management
+- **Online/Offline mode — offline-detection prompt** — when a session is in Online mode and a cloud call fails or connectivity drops, *prompt* the operator ("Looks like you're offline — switch to offline engines?") rather than silently switching. The Online/Offline mode itself is an explicit user-set switch with **no auto-fallback** (being designed in the config refactor); this prompt is a later enhancement layered on top.
 
 ---
 
