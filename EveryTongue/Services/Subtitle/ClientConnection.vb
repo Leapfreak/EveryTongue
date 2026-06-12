@@ -24,6 +24,12 @@ Namespace Services.Subtitle
         ''' <summary>Virtual member ID this client is currently speaking as (empty = self).</summary>
         Public Property SpeakingAsVirtualMemberId As String = ""
 
+        ''' <summary>Whether this client has reported its server-TTS state at all (older clients never do — treated as wanting TTS for back-compat).</summary>
+        Public Property TtsStateKnown As Boolean = False
+
+        ''' <summary>Whether this client will actually play pushed server TTS (speech toggle on + cloud voice selected).</summary>
+        Public Property WantsServerTts As Boolean = False
+
         ''' <summary>
         ''' Interlocked flag: 0 = ready to send, 1 = send in-flight.
         ''' Used for backpressure — busy clients skip non-critical updates.

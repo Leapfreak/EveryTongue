@@ -166,6 +166,18 @@ Namespace Services.Subtitle
                             End If
                         End If
 
+                    ElseIf typeStr = "ttsState" Then
+                        ' Client reports whether it will actually play pushed server
+                        ' TTS — lets FireTtsForCommit skip synthesis nobody will hear.
+                        Dim enProp As JsonElement = Nothing
+                        Dim tcInfo As ClientConnection = Nothing
+                        If root.TryGetProperty("enabled", enProp) AndAlso _clients.TryGetValue(clientId, tcInfo) Then
+                            tcInfo.TtsStateKnown = True
+                            tcInfo.WantsServerTts = (enProp.ValueKind = JsonValueKind.True)
+                            AppLogger.Log(LogEvents.TTS_SYNTHESISE,
+                                $"client {tcInfo.RemoteEndpoint} serverTts={tcInfo.WantsServerTts}")
+                        End If
+
                     ElseIf typeStr = "setInputLanguage" Then
                         Dim langProp As JsonElement = Nothing
                         If Not root.TryGetProperty("language", langProp) Then Return
@@ -619,7 +631,12 @@ Namespace Services.Subtitle
                                      Optional targetRoomId As String = Nothing)
             If TtsService Is Nothing Then Return
 
-            ' Collect languages from clients scoped to the target room
+            ' Collect languages from clients scoped to the target room that will
+            ' actually PLAY pushed TTS. Clients report their speech toggle via
+            ' "ttsState"; clients that never reported (older cached web client)
+            ' keep the legacy always-synthesise behavior for safety. Without
+            ' this gate, every commit cost a synthesis that phones with speech
+            ' off simply discarded.
             Dim clientLangs As New HashSet(Of String)()
             Dim hasSourceLangClients As Boolean = False
             For Each kvp In _clients
@@ -629,6 +646,7 @@ Namespace Services.Subtitle
                 Else
                     If Not String.IsNullOrEmpty(kvp.Value.RoomId) Then Continue For
                 End If
+                If kvp.Value.TtsStateKnown AndAlso Not kvp.Value.WantsServerTts Then Continue For
                 Dim lang = kvp.Value.Language
                 If Not String.IsNullOrEmpty(lang) Then
                     clientLangs.Add(lang)
@@ -646,11 +664,13 @@ Namespace Services.Subtitle
                 Next
             End If
 
-            ' Also generate for source-language clients (no translation needed)
-            ' For rooms: only if there are actual source-lang clients (skip on room close when all disconnected)
-            ' For desktop (no targetRoomId): fire if no clients have set a language (backward compat)
-            Dim shouldFireSourceTts = hasSourceLangClients OrElse
-                (String.IsNullOrEmpty(targetRoomId) AndAlso clientLangs.Count = 0)
+            ' Also generate source-language TTS when:
+            '  - a TTS-listening source-language client is connected, or
+            '  - the desktop stream is routing TTS to the local audio output (PA).
+            ' (The old desktop back-compat branch fired even with ZERO listeners.)
+            Dim paActive = String.IsNullOrEmpty(targetRoomId) AndAlso
+                TtsAudioOutput IsNot Nothing AndAlso TtsAudioOutput.IsRunning
+            Dim shouldFireSourceTts = hasSourceLangClients OrElse paActive
             If Not String.IsNullOrEmpty(sourceLang) AndAlso shouldFireSourceTts Then
                 ChainTtsTask(sourceLang, originalText, commitId, targetRoomId)
             End If

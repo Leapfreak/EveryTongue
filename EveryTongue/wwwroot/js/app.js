@@ -307,6 +307,7 @@ function onVoiceChange(val){
     voiceManuallySet=!!val; /* manual if they picked a specific voice, not 'Default' */
     clearTtsQueue();
   }
+  sendTtsState();
 }
 populateVoices();
 if(synth.onvoiceschanged!==undefined)synth.onvoiceschanged=populateVoices;
@@ -316,12 +317,23 @@ function closeAllPanels(){panel.style.display='none';adminPanel.style.display='n
 function togglePanel(){if(panel.style.display==='block'){panel.style.display='none'}else{closeAllPanels();panel.style.display='block'}}
 document.addEventListener('click',function(e){if(!document.body.contains(e.target))return;var hp=document.getElementById('hostPanel');var toolbar=document.getElementById('toolbar');var qr=document.getElementById('roomQrOverlay');if(!panel.contains(e.target)&&!adminPanel.contains(e.target)&&(!hp||!hp.contains(e.target))&&!toolbar.contains(e.target)&&!biblePanel.contains(e.target)&&(!qr||!qr.contains(e.target))){closeAllPanels()}})
 
+/* Tell the server whether this client will actually PLAY pushed server TTS —
+   it skips synthesising languages nobody is listening to. */
+function sendTtsState(){
+  try{
+    if(wsRef&&wsRef.readyState===1){
+      wsRef.send(JSON.stringify({type:'ttsState',enabled:useServerTts()}));
+    }
+  }catch(e){}
+}
+
 function toggleSpeak(){
   speakEnabled=!speakEnabled;
   ssSet('speak',speakEnabled);
   LOG('toggleSpeak → '+speakEnabled);
   if(speakEnabled){btnSpeak.classList.add('active');btnSpeak.innerHTML='&#128266; '+t('readAloud')}
   else{btnSpeak.classList.remove('active');btnSpeak.innerHTML='&#128264; '+t('readAloud');synth.cancel();clearTtsQueue()}
+  sendTtsState();
 }
 
 function speak(text,langHint){
@@ -594,6 +606,7 @@ function setTransLang(lang){
   ssSet('transLang',lang);
   closeAllPanels();
   if(wsRef&&wsRef.readyState===1){wsRef.send(JSON.stringify({type:'setLanguage',language:lang}))}
+  sendTtsState(); /* useServerTts() depends on voice availability for the new language */
   /* Reload Bible translations for the new language */
   bibleTranslations=[];
   bibleNavStack=[];
@@ -615,6 +628,7 @@ function connect(){
   ws.onopen=function(){LOG('WS connected');statusEl.textContent=t('connected');statusBar.className='connected';
     if(currentEl){currentEl.remove();currentEl=null}
     ws.send(JSON.stringify({type:'setLanguage',language:myTransLang||'',lastId:lastCommitId}));
+    sendTtsState();
   };
   ws.onclose=function(){LOG('WS closed');statusEl.textContent=t('disconnected');statusBar.className='disconnected';wsRef=null;setTimeout(connect,2000)};
   ws.onerror=function(){LOG('WS error');ws.close()};
