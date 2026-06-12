@@ -1,4 +1,4 @@
-# EveryTongue — TODO (updated 2026-06-13, v1.9.11)
+# EveryTongue — TODO (updated 2026-06-13, v1.9.13 — RELEASED)
 
 > **Architecture shift:** EveryTongue is evolving from a single-session desktop transcription tool into a **headless multi-room translation server**. The desktop app still has operator workspaces (Live, Transcribe, Translate, Bible), but the primary user interface is now the **phone web client**. Anyone with a phone can create rooms, manage conversations, and receive translations — no operator required. The desktop just runs the server and auto-starts engines at launch.
 
@@ -49,8 +49,11 @@ Two new online streaming STT engines via the existing plugin registries — zero
 ### Azure AI Speech Online STT Engine — COMPLETE (v1.9.12)
 Third engine added via the same plugin registries as Deepgram/Gladia — zero shared-code changes. **Azure AI Speech** (key `azure-speech`): `live-server/engines/azure_speech.py` uses the official `azure-cognitiveservices-speech` SDK (PushAudioInputStream @ 16 kHz s16 mono + continuous recognition); `recognizing` → update, `recognized` → commit, `canceled` → `_thread_error`. "auto" → continuous language identification (`SpeechServiceConnection_LanguageIdMode=Continuous`, max 10 candidate locales from the AutoDetectLanguages CSV, default en/es/fr/de/it/pt/nl/pl); explicit whisper ISO-1 codes map to BCP-47 via a curated dict + `xx → xx-XX` heuristic. SDK import is LAZY (inside the streaming thread) so the live-server boots without the package; `azure-cognitiveservices-speech` added to `live-server/requirements.txt` and to `GetMissingPythonPackages` when `azure-speech` is the selected backend (standard Download Manager flow). .NET side: registry entry (`RequiresApiKey=True`/`SidecarMode="online"`/`ModelScanPattern="-"`) + `AzureSpeechConfig` block (Region default `westeurope`, SegmentationSilenceMs, AutoDetectLanguages; `BuildStartJsonExtras` carries `azure_region`/`azure_segmentation_ms`/`azure_autodetect_languages` to /start). Untested against the live Azure endpoint (no API key on dev box).
 
-### Cloud Translation Parity, Cost & Latency — COMPLETE (v1.9.8, plan #14 a–h all done)
-Cloud backend output (Google/DeepL/Azure) now gets the same glossary fixes and profanity masking as NLLB — `GlossaryPostProcessor`/`ProfanityPostProcessor` port the Python filter semantics and run in `TranslationOrchestrator`, gated by `ITranslationBackend.AppliesFiltersInternally` (per-room filter sets honoured, global files fallback). `TranslationUsageTracker` counts billable characters per backend per month with optional budgets (warning-only, never blocks) and rolling latency averages, shown on the Options Translation page. DeepL targets now translate concurrently. See [#14](#14-pluggable-translation-backends-cloud-apis).
+### Cloud Translation Parity, Cost & Latency — COMPLETE (v1.9.8–v1.9.9, plan #14 a–h all done)
+Cloud backend output now gets the same glossary fixes and profanity masking as NLLB — `GlossaryPostProcessor`/`ProfanityPostProcessor` port the Python filter semantics and run in `TranslationOrchestrator`, gated by `ITranslationBackend.AppliesFiltersInternally` (per-room filter sets honoured, global files fallback). `TranslationUsageTracker` counts billable characters per backend per month with optional budgets (warning-only, never blocks) and rolling latency averages, shown on the Options Translation page. DeepL targets now translate concurrently. **v1.9.9:** cloud engines honoured in ALL pipelines — the Translate workspace and Transcribe job pipeline route through the orchestrator when the effective engine is cloud (previously NLLB-only dead-ends); NLLB-selected behavior byte-identical. See [#14](#14-pluggable-translation-backends-cloud-apis).
+
+### Engine Expansion — COMPLETE (v1.9.10–v1.9.13, released to GitHub as v1.9.13)
+Ten engines added, all registry-driven with per-engine keys and cross-vendor key sharing. **Translation (v1.9.10)**: DeepSeek + OpenAI (shared `OpenAiCompatibleBackend`), LibreTranslate (configurable endpoint, self-hostable), Amazon Translate (AWSSDK, composite `accessKeyId:secret` key, region in endpoint field) → 9 translation engines total (see [#14](#14-pluggable-translation-backends-cloud-apis)). **STT (v1.9.11–v1.9.12, entries above)** → 9 STT engines total. **TTS (v1.9.13)**: Azure AI Speech TTS (official Edge voice catalogue, with SLA), Google Cloud TTS, OpenAI TTS, with `TtsApiKeys`/`TtsEndpoints` plumbing and entry-declared key fallbacks (Azure key shared STT↔TTS; Google key shared STT↔Translate↔TTS; OpenAI key shared Translate↔TTS) → 6 TTS engines total (see [#6](#6-text-to-speech--server-side-engine)). UI plumbing verified surface-by-surface (Options combos/key/endpoint fields, template manager, descriptor editor, connectivity gate, Download Manager) — all registry-enumerated, zero hardcoded engine lists. **⚠ All v1.9.10–v1.9.13 cloud engines were implemented from vendor docs and are NOT yet smoke-tested against live endpoints (no API keys on the dev box) — real-key sessions on the test machine are the actual verification.** Release: GitHub v1.9.13 (installer + app zip + update manifest); setup.iss hardened (CUDA DLL and .pyc/.log excludes).
 
 ## User-Reported Issues & Tasks
 - [x] Implement stubs — most done (QR Code, Hardware Score, Diagnostics Export, File Integrity, Translate workspace). Remaining stubs: Session Wizard, Audio Level Monitor, Event Profiles, Spec Sheet Generator, Portable Mode, Feedback prompt
@@ -61,10 +64,11 @@ Cloud backend output (Google/DeepL/Azure) now gets the same glossary fixes and p
 1. ~~**Structured Logging System**~~ — DONE (v1.8.5)
 2. ~~**Config refactor runtime consumption (Phases 6–9)**~~ — DONE (v1.9.0–v1.9.4; plan doc CONFIG_CHANGES.md deleted after completion, history in git).
 3. ~~**Architecture audit backlog**~~ — DONE (v1.9.5, commits d684db2..5e30f98; ARCHITECTURE_AUDIT.md deleted after completion).
-4. **Regenerate CDN locale packs** — ~80 new string keys added in v1.9.x exist only in `locales/en.json`; the downloadable packs on the GitHub CDN need regenerating (carried over from config refactor).
-5. Audio Level Monitor — operator feedback, prevents bad audio
-6. Setup Wizard expansion — integrates QR, audio monitor, hardware score
-7. Cross-platform headless server (Linux/Docker)
+4. **Smoke-test the new cloud engines with real API keys** (test machine) — Deepgram/Gladia/Azure Speech STT, DeepSeek/OpenAI/LibreTranslate/Amazon translation, Azure/Google/OpenAI TTS were built from vendor docs only; verify auth, response shapes, and fallback behavior per engine, fix against real responses.
+5. **Regenerate CDN locale packs** — ~100 new string keys added in v1.9.x exist only in `locales/en.json`; the downloadable packs on the GitHub CDN need regenerating (carried over from config refactor).
+6. Audio Level Monitor — operator feedback, prevents bad audio
+7. Setup Wizard expansion — integrates QR, audio monitor, hardware score
+8. Cross-platform headless server (Linux/Docker)
 
 ---
 
