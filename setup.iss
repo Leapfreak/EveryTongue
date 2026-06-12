@@ -82,9 +82,11 @@ Source: "{#AppPublishDir}\test-data\*"; DestDir: "{app}\test-data"; Flags: ignor
 Source: "{#AppPublishDir}\locales\*"; DestDir: "{app}\locales"; Flags: ignoreversion skipifsourcedoesntexist
 
 ; --- Python servers (scripts only — Python runtime downloaded by Download Manager) ---
-Source: "{#AppPublishDir}\translate-server\*"; DestDir: "{app}\translate-server"; Flags: ignoreversion skipifsourcedoesntexist
-Source: "{#AppPublishDir}\live-server\*"; DestDir: "{app}\live-server"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
-Source: "{#AppPublishDir}\mms-tts-server\*"; DestDir: "{app}\mms-tts-server"; Flags: ignoreversion skipifsourcedoesntexist
+; The app runs from bin\Publish on the dev box, so the embedded Python leaves
+; __pycache__/*.pyc behind at runtime — exclude bytecode/log junk from the sweep.
+Source: "{#AppPublishDir}\translate-server\*"; DestDir: "{app}\translate-server"; Excludes: "*.pyc,*.log"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#AppPublishDir}\live-server\*"; DestDir: "{app}\live-server"; Excludes: "*.pyc,*.log"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
+Source: "{#AppPublishDir}\mms-tts-server\*"; DestDir: "{app}\mms-tts-server"; Excludes: "*.pyc,*.log"; Flags: ignoreversion skipifsourcedoesntexist
 
 ; NOTE: The following are NOT bundled — they are downloaded at runtime via the Download Manager:
 ;   - python-embed/          (Python 3.12 embedded + pip packages)
@@ -95,6 +97,9 @@ Source: "{#AppPublishDir}\mms-tts-server\*"; DestDir: "{app}\mms-tts-server"; Fl
 ;   - yt-dlp.exe             (from GitHub releases)
 ;   - ffmpeg.exe / ffprobe.exe (from GitHub releases)
 ;   - SubtitleEdit/           (from GitHub releases)
+;   - ggml-*.bin              (any other GGML whisper models the user downloaded)
+;   - faster-whisper-large-v3/ (faster-whisper CTranslate2 model from HuggingFace)
+;   - cublas*/cudart*/cudnn* DLLs (CUDA runtime for faster-whisper — see Excludes above)
 ;   - nllb-model/             (NLLB 1.3B from HuggingFace)
 ;   - nllb-3.3b-model/        (NLLB 3.3B from HuggingFace)
 ;   - tts-models/piper/       (Piper TTS + voice models)
