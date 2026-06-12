@@ -224,6 +224,30 @@ Namespace Models
         Public Property TranslationEnabled As Boolean = True
 
         ''' <summary>
+        ''' API keys for online translation engines, keyed by backend key (e.g.
+        ''' "google-translate", "deepl"). Each engine keeps its own key so
+        ''' switching engines doesn't clobber another's credential.
+        ''' </summary>
+        Public Property TranslationApiKeys As New Dictionary(Of String, String)
+
+        ''' <summary>Resolve the API key for a translation backend from the per-engine store.</summary>
+        Public Function GetTranslationApiKey(backendKey As String) As String
+            If backendKey Is Nothing Then Return ""
+            Dim value As String = Nothing
+            If TranslationApiKeys IsNot Nothing AndAlso TranslationApiKeys.TryGetValue(backendKey, value) AndAlso Not String.IsNullOrEmpty(value) Then
+                Return value
+            End If
+            Return ""
+        End Function
+
+        ''' <summary>Store the API key for a translation backend.</summary>
+        Public Sub SetTranslationApiKey(backendKey As String, value As String)
+            If String.IsNullOrEmpty(backendKey) Then Return
+            If TranslationApiKeys Is Nothing Then TranslationApiKeys = New Dictionary(Of String, String)
+            TranslationApiKeys(backendKey) = If(value, "")
+        End Sub
+
+        ''' <summary>
         ''' When the STT engine is Speechmatics, use its built-in (English-pivot)
         ''' translation for eligible languages; others fall back to the configured
         ''' translation backend.

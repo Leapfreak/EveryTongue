@@ -118,6 +118,7 @@ Public Class FormOptions
         lblClauseTimerMs.Text = langPack.GetString("Opt_ClauseTimerMs")
         lblClauseSentenceEnders.Text = langPack.GetString("Opt_ClauseSentenceEnders")
         lblTransBackend.Text = langPack.GetString("Opt_TransBackend")
+        lblTransApiKey.Text = langPack.GetString("Opt_TransApiKey")
         lblDevice.Text = langPack.GetString("Opt_TransDevice")
 
         ' TTS panel
@@ -356,6 +357,9 @@ Public Class FormOptions
         ' Translation
         PopulateTransBackendCombo()
         SelectTransBackend(_config.TranslationBackend)
+        _currentTransApiKeyBackend = CurrentTransKey()
+        txtTransApiKey.Text = _config.GetTranslationApiKey(_currentTransApiKeyBackend)
+        UpdateTransApiKeyVisibility()
         chkTransEnabled.Checked = _config.TranslationEnabled
         chkUseSpeechmaticsTranslation.Checked = _config.UseSpeechmaticsTranslation
         chkSpeechmaticsHoldClauses.Checked = _config.SpeechmaticsHoldClauses
@@ -504,6 +508,10 @@ Public Class FormOptions
             If entry.ModelType IsNot Nothing Then
                 _config.TranslationModelType = entry.ModelType
             End If
+        End If
+        ' Save the API key against the engine currently shown in the textbox.
+        If Not String.IsNullOrEmpty(_currentTransApiKeyBackend) Then
+            _config.SetTranslationApiKey(_currentTransApiKeyBackend, txtTransApiKey.Text.Trim())
         End If
         _config.TranslationEnabled = chkTransEnabled.Checked
         _config.UseSpeechmaticsTranslation = chkUseSpeechmaticsTranslation.Checked
@@ -748,6 +756,8 @@ Public Class FormOptions
     ' ═══════════════════════════════════════════════════════════════
     Private _transKeys As String()
     Private _transEntries As IReadOnlyList(Of Services.Translation.TranslationBackendRegistry.Entry)
+    ' Which engine's API key is currently shown in txtTransApiKey.
+    Private _currentTransApiKeyBackend As String = ""
 
     Private Sub PopulateTransBackendCombo()
         _transEntries = Services.Translation.TranslationBackendRegistry.GetAll()
@@ -774,11 +784,40 @@ Public Class FormOptions
         cboTransBackend.SelectedIndex = If(idx >= 0, idx, 0)
     End Sub
 
+    ''' <summary>Currently-selected translation backend key, or "" if none.</summary>
+    Private Function CurrentTransKey() As String
+        If _transKeys IsNot Nothing AndAlso cboTransBackend.SelectedIndex >= 0 AndAlso
+           cboTransBackend.SelectedIndex < _transKeys.Length Then
+            Return _transKeys(cboTransBackend.SelectedIndex)
+        End If
+        Return ""
+    End Function
+
+    Private Sub UpdateTransApiKeyVisibility()
+        Dim showApiKey = False
+        If _transEntries IsNot Nothing AndAlso cboTransBackend.SelectedIndex >= 0 AndAlso
+           cboTransBackend.SelectedIndex < _transEntries.Count Then
+            showApiKey = _transEntries(cboTransBackend.SelectedIndex).RequiresApiKey
+        End If
+        lblTransApiKey.Visible = showApiKey
+        txtTransApiKey.Visible = showApiKey
+    End Sub
+
     ''' <summary>
-    ''' When the user switches translation engine, auto-update the model path
-    ''' if it currently matches the previous engine's default path.
+    ''' When the user switches translation engine, swap the API key textbox to the
+    ''' new engine's stored key and auto-update the model path if it currently
+    ''' matches the previous engine's default path.
     ''' </summary>
     Private Sub TransBackendCombo_Changed(sender As Object, e As EventArgs)
+        ' Persist the key shown for the previously-selected engine, then load the
+        ' new engine's stored key so each engine keeps its own credential.
+        If Not String.IsNullOrEmpty(_currentTransApiKeyBackend) Then
+            _config.SetTranslationApiKey(_currentTransApiKeyBackend, txtTransApiKey.Text.Trim())
+        End If
+        _currentTransApiKeyBackend = CurrentTransKey()
+        txtTransApiKey.Text = _config.GetTranslationApiKey(_currentTransApiKeyBackend)
+        UpdateTransApiKeyVisibility()
+
         If cboTransBackend.SelectedIndex < 0 OrElse cboTransBackend.SelectedIndex >= _transEntries.Count Then Return
         Dim entry = _transEntries(cboTransBackend.SelectedIndex)
         If String.IsNullOrEmpty(entry.DefaultModelPath) Then Return

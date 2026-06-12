@@ -664,14 +664,9 @@ Partial Class FormMain
                 Try
                     Dim svc = _serverController?.KestrelHost?.Services
                     If svc IsNot Nothing Then
-                        ' Google Translate shares the Google Cloud key
-                        Dim googleKey = _config.GetSttApiKey("google-cloud-stt")
-                        If Not String.IsNullOrEmpty(googleKey) Then
-                            For Each backend In svc.GetServices(Of Services.Interfaces.ITranslationBackend)()
-                                Dim gb = TryCast(backend, Services.Translation.GoogleBackend)
-                                If gb IsNot Nothing Then gb.Configure(googleKey)
-                            Next
-                        End If
+                        ' Re-apply per-engine keys to every cloud translation backend
+                        ' (own translation key first, else the companion STT engine's key)
+                        Services.Translation.TranslationBackendRegistry.ConfigureCloudApiKeys(svc, _config)
                         ' Update ConversationAudioHandler with the active backend's key
                         Dim cah = TryCast(svc.GetService(GetType(Services.Rooms.ConversationAudioHandler)), Services.Rooms.ConversationAudioHandler)
                         If cah IsNot Nothing Then cah.SttApiKey = _config.GetSttApiKey(If(_config.SttBackend, ""))

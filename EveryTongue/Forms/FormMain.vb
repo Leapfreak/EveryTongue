@@ -1027,8 +1027,7 @@ del ""%~f0""
                     configKey = companionKey
                     AppLogger.Log(LogEvents.TRANS_SERVER_READY, $"Auto-selecting companion translation backend '{companionKey}' (STT backend is {sttBackend})")
                 End If
-                Dim entry = Services.Translation.TranslationBackendRegistry.GetAll().FirstOrDefault(
-                    Function(e) e.Key.Equals(configKey, StringComparison.OrdinalIgnoreCase))
+                Dim entry = Services.Translation.TranslationBackendRegistry.Find(configKey)
                 Dim orchestratorName = If(entry?.BackendName, "Local")
                 orchestrator.SetActiveBackend(orchestratorName)
                 AppLogger.Log(LogEvents.TRANS_SERVER_READY, $"SidecarTranslationBackend registered, active backend set to {orchestratorName} (config={configKey})")
@@ -1042,9 +1041,11 @@ del ""%~f0""
         ' Skip starting the NLLB sidecar when using a cloud translation backend —
         ' no point loading a 3.3GB model if we're using Google Translate API
         Dim activeTransBackend = If(_config.TranslationBackend, "nllb")
+        Dim activeTransEntry = Services.Translation.TranslationBackendRegistry.Find(activeTransBackend)
         Dim sttBk = If(_config.SttBackend, "")
         Dim sttCompanion = If(Services.Stt.SttBackendRegistry.Find(sttBk)?.CompanionTranslationKey, "")
-        Dim usingCloudTranslation = activeTransBackend.Equals("google-translate", StringComparison.OrdinalIgnoreCase) OrElse
+        Dim usingCloudTranslation = (activeTransEntry IsNot Nothing AndAlso
+                                     String.IsNullOrEmpty(activeTransEntry.ModelType)) OrElse
             (Not String.IsNullOrEmpty(sttCompanion) AndAlso
              Not String.IsNullOrEmpty(_config.GetSttApiKey(sttBk)))
 

@@ -324,6 +324,7 @@
   "Opt_ClauseTimerMs": "Poll (ms)",
   "Opt_ClauseSentenceEnders": "Sentence enders",
   "Opt_TransBackend": "Engine:",
+  "Opt_TransApiKey": "API Key:",
   "Opt_TransDevice": "Device:",
 
   "Opt_TtsHeader": "Text-to-Speech",

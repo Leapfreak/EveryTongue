@@ -88,7 +88,6 @@ Namespace Controllers
                     .BeamSize = _config.BeamSize,
                     .BestOf = _config.BestOf,
                     .SttApiKey = _config.GetSttApiKey(If(_config.SttBackend, "")),
-                    .GoogleApiKey = _config.GetSttApiKey("google-cloud-stt"),
                     .TranslationConcurrency = _config.TranslationConcurrency,
                     .TtsConcurrency = _config.TtsConcurrency,
                     .ConferenceTemplates = _config.ConferenceTemplates
@@ -97,6 +96,12 @@ Namespace Controllers
                 AppLogger.Log(LogEvents.SERVER_STARTING, $"StartServer: calling Start() on port {port}...")
                 _kestrelHost.Start(kestrelOptions, Sub(msg) _log($"[Server] {msg}"))
                 AppLogger.Log(LogEvents.SERVER_STARTING, $"StartServer: Start() returned, IsRunning={_kestrelHost.IsRunning}, Services IsNot Nothing={_kestrelHost.Services IsNot Nothing}")
+
+                ' Push per-engine API keys into the cloud translation backends
+                ' (own translation key first, else the companion STT engine's key)
+                If _kestrelHost.Services IsNot Nothing Then
+                    Services.Translation.TranslationBackendRegistry.ConfigureCloudApiKeys(_kestrelHost.Services, _config)
+                End If
 
                 ' Let caller wire live-specific subtitle service events
                 Dim svc = GetSubtitleService()

@@ -135,6 +135,8 @@ Partial Class FormOptions
         Me.lblDevice = New System.Windows.Forms.Label()
         Me.cboTransBackend = New System.Windows.Forms.ComboBox()
         Me.lblTransBackend = New System.Windows.Forms.Label()
+        Me.lblTransApiKey = New System.Windows.Forms.Label()
+        Me.txtTransApiKey = New System.Windows.Forms.TextBox()
         Me.chkTransEnabled = New System.Windows.Forms.CheckBox()
         Me.chkUseSpeechmaticsTranslation = New System.Windows.Forms.CheckBox()
         Me.lblClauseHeader = New System.Windows.Forms.Label()
@@ -1618,6 +1620,25 @@ Partial Class FormOptions
         Me.cboTransBackend.Size = New System.Drawing.Size(200, 23)
         Me.cboTransBackend.TabIndex = 4
         '
+        ' lblTransApiKey
+        '
+        Me.lblTransApiKey.AutoSize = True
+        Me.lblTransApiKey.Location = New System.Drawing.Point(230, 68)
+        Me.lblTransApiKey.Name = "lblTransApiKey"
+        Me.lblTransApiKey.Size = New System.Drawing.Size(77, 15)
+        Me.lblTransApiKey.TabIndex = 64
+        Me.lblTransApiKey.Text = "API Key:"
+        Me.lblTransApiKey.Visible = False
+        '
+        ' txtTransApiKey
+        '
+        Me.txtTransApiKey.Location = New System.Drawing.Point(230, 86)
+        Me.txtTransApiKey.Name = "txtTransApiKey"
+        Me.txtTransApiKey.Size = New System.Drawing.Size(310, 23)
+        Me.txtTransApiKey.TabIndex = 65
+        Me.txtTransApiKey.UseSystemPasswordChar = True
+        Me.txtTransApiKey.Visible = False
+        '
         ' lblDevice
         '
         Me.lblDevice.AutoSize = True
@@ -1752,6 +1773,8 @@ Partial Class FormOptions
         Me.pnlTranslation.Controls.Add(Me.lblDevice)
         Me.pnlTranslation.Controls.Add(Me.cboTransBackend)
         Me.pnlTranslation.Controls.Add(Me.lblTransBackend)
+        Me.pnlTranslation.Controls.Add(Me.lblTransApiKey)
+        Me.pnlTranslation.Controls.Add(Me.txtTransApiKey)
         Me.pnlTranslation.Controls.Add(Me.chkTransEnabled)
         Me.pnlTranslation.Controls.Add(Me.lblTranslationSep)
         Me.pnlTranslation.Controls.Add(Me.lblTranslationHeader)
@@ -3367,6 +3390,8 @@ Partial Class FormOptions
     Friend WithEvents nudSttEouSilence As System.Windows.Forms.NumericUpDown
     Friend WithEvents lblTransBackend As System.Windows.Forms.Label
     Friend WithEvents cboTransBackend As System.Windows.Forms.ComboBox
+    Friend WithEvents lblTransApiKey As System.Windows.Forms.Label
+    Friend WithEvents txtTransApiKey As System.Windows.Forms.TextBox
     Friend WithEvents lblDevice As System.Windows.Forms.Label
     Friend WithEvents cboDevice As System.Windows.Forms.ComboBox
     Friend WithEvents lblTransPort As System.Windows.Forms.Label

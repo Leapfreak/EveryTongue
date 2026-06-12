@@ -83,9 +83,6 @@ Namespace Server
         ''' <summary>API key for the active online STT backend (Google Cloud STT, Speechmatics, …).</summary>
         Public Property SttApiKey As String = ""
 
-        ''' <summary>Google Cloud API key, shared by Google Cloud STT and the Google translation backend.</summary>
-        Public Property GoogleApiKey As String = ""
-
         ''' <summary>Max concurrent translation requests through the priority queue.</summary>
         Public Property TranslationConcurrency As Integer = 3
 
