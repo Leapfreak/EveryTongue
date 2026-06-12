@@ -143,8 +143,16 @@ Partial Class FormMain
             cboBibleLang, cboBibleTrans, txtBibleRef, btnBibleGo,
             btnBibleBack, lblBibleNavTitle, flpBibleNav, rtbBibleText,
             lblBibleCopyright,
+            cboBibleTransTo, btnBibleSpeak,
             AddressOf GetBibleService,
             Function() WhisperToIso3(If(_config?.OutputLanguage, "en")),
+            Function() _serverController?.GetTranslationOrchestrator(),
+            Function() _serverController?.GetTtsService(),
+            Function() _serverController?.GetTtsCacheDirectory(),
+            _sttLanguages,
+            AddressOf LangDisplayName,
+            AddressOf LangCodeFromDisplay,
+            AddressOf GetString,
             AddressOf WriteDebugLog,
             _config)
         _bibleController.WireEvents()
@@ -224,12 +232,15 @@ Partial Class FormMain
             btnTransSwap, btnTranslate,
             btnTransCopy, btnTransClear,
             btnTransOutCopy, btnTransOutClear,
+            btnTransSpeak,
             lblTransStatus,
             _sttLanguages,
             AddressOf LangDisplayName,
             AddressOf LangCodeFromDisplay,
             AddressOf StartTranslationService,
             Function() _translationService,
+            Function() _serverController?.GetTtsService(),
+            Function() _serverController?.GetTtsCacheDirectory(),
             Sub(msg) AppLogger.Log(LogEvents.TRANS_REQUEST, msg),
             AddressOf GetString)
         _translateController.WireEvents()

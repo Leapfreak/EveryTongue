@@ -1,6 +1,6 @@
 # EveryTongue — Configuration Architecture Refactor
 
-> **Status:** Phases 1–3 implemented (2026-06-12) — descriptor infrastructure, per-engine STT config blocks, SttConfig god-object split, template libraries + resolver, ConferenceTemplate migrated to referenced STT templates, translate/TTS descriptors, Speaker-as-references, Online/Offline gate, Display group, Filters-as-collection. See "Implementation status" below. Phases 4–5 pending.
+> **Status:** Phases 1–4 implemented (2026-06-12; cloud-STT-in-Transcribe deferred — see Phase 4 notes). Phase 5 (UI reorg, session wizard, dead-settings purge) pending.
 > **Origin:** the config sprawl exposed while solving the "sharing Catalan speaker" (Andreu) problem — settings scattered across Hardware/Translation/Server/Rooms, dead batch-era settings, and conference templates carrying knobs the chosen engine ignores.
 
 ---
@@ -155,7 +155,15 @@ Each engine logs under its **own event range/category** so diagnostics stay isol
 - `SessionTemplate` extended: `Mode`, `DisplayTemplateId`, `FilterSetId`, `SpeakerProfileIds`. `SessionResolver.Resolve` produces a `ResolvedSession` (gate-validated engine slots + display + filters + speakers), fully logged.
 - Nothing consumes `ResolvedSession` yet — Phase 4 wires the workspaces onto it.
 
-**Not yet (deliberately):** workspace wiring/cross-engine capabilities onto `ResolvedSession` (Phase 4), clause-dial relocation into the Speechmatics template + descriptor-driven Options UI + per-group Template Manager + session wizard + locale strings for `EngineCfg_*` label keys (Phase 5), dead-settings purge (Phase 5 — note: exploration found `ParallelJobs`/`ChunkSizeSec`/`PollIntervalMs`/`ChunkTimeoutMin`/`KeepChunkFiles`/`KeepPreview`/`PathModelAudio`/`PathOutputRoot`/`TranslationDevice` are still live consumers; only `SkipDownloadIfExists`, `Hotwords`, `FreqThreshold`, `PrintRealtime`, `TranslationUnloadMinutes` are actually dead).
+**Phase 4 — DONE (2026-06-12), with one deliberate deferral:**
+- **Workspace capability declarations**: `WorkspaceCapabilities` (`Services/Config/`) encodes the workspace × capability matrix; UI/session wiring reads it instead of hardcoding per-workspace assumptions.
+- **Translate-in-Transcribe**: already existed — `PipelineRunner.TranslateSubtitlesAsync` runs in both the YouTube and local-audio-file modes whenever Output Language ≠ Input Language. Verified, no change needed.
+- **TTS in Translate (desktop)**: new Speak/Stop button on the Translate tab. Synthesises the translated output through the server's `ITtsService` (sentence-chunked, ordered) and plays via the new shared `DesktopTtsPlayer` (`Services/Audio/`, NAudio). Requires the server running; localized status messages otherwise.
+- **Bible verse translation + TTS (desktop)**: "Translate to" combo + "Read aloud" button on the Bible tab. `BibleController` translates the displayed chapter verse-by-verse via `ITranslationService` (FLORES source derived from the Bible translation's ISO-639-3 language via new `TranslationService.Iso3ToFloresLang`) and re-renders with the translation under each verse; Read aloud speaks the translated chapter when translation is active, else the original.
+- **Bible verse translation (web)**: Translate/Original toggle in the Bible read-all bar (shown only when the viewer's language differs from the Bible's). Sequentially POSTs `/api/translate` per verse and renders the translation under each verse (ES5, run-id guarded). Web Bible TTS already existed (verse ▶ buttons + Read All, browser or server TTS).
+- **DEFERRED — cloud STT in Transcribe**: the cloud engines (Google, Speechmatics) are streaming-realtime only; batch file transcription would need new batch-API engine modules (Speechmatics batch jobs API, Google long-running recognize) in `live-server/engines/` plus an upload pipeline. That is engine work, not workspace wiring — schedule alongside future engine additions. The capability is declared in `WorkspaceCapabilities` so the UI surface is ready.
+
+**Not yet (deliberately):** cloud-STT-in-Transcribe batch engines (see above), clause-dial relocation into the Speechmatics template + descriptor-driven Options UI + per-group Template Manager + session wizard + locale strings for `EngineCfg_*` label keys (Phase 5), dead-settings purge (Phase 5 — note: exploration found `ParallelJobs`/`ChunkSizeSec`/`PollIntervalMs`/`ChunkTimeoutMin`/`KeepChunkFiles`/`KeepPreview`/`PathModelAudio`/`PathOutputRoot`/`TranslationDevice` are still live consumers; only `SkipDownloadIfExists`, `Hotwords`, `FreqThreshold`, `PrintRealtime`, `TranslationUnloadMinutes` are actually dead).
 
 ---
 
@@ -164,7 +172,7 @@ Each engine logs under its **own event range/category** so diagnostics stay isol
 1. **Model + persistence scaffolding** — template libraries, session template, reference resolution + logging. Introduce `IEngineConfigDescriptor` and per-engine config classes; **split the `SttConfig` god-object** into per-engine blocks. ✅ **DONE**
 2. **Engine-aware STT / Translate / TTS templates** — migrate `ConferenceTemplate`; Speaker-as-references. ✅ **DONE**
 3. **Online/Offline gate · Display group · Filters as collection.** ✅ **DONE**
-4. **Workspace wiring** + enable the cross-engine capabilities (cloud STT in Transcribe, translate-in-Transcribe, TTS in Translate/Bible, Bible verse translation).
+4. **Workspace wiring** + enable the cross-engine capabilities (cloud STT in Transcribe, translate-in-Transcribe, TTS in Translate/Bible, Bible verse translation). ✅ **DONE** *(cloud-STT-in-Transcribe deferred to engine work)*
 5. **UI reorg** + dead-settings purge + Session wizard.
 6. *(deferred)* per-room/speaker filter selection + per-type precedence; offline-detection prompt; session recording/export slot.
 

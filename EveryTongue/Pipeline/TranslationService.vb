@@ -69,6 +69,20 @@ Namespace Pipeline
             Return _langService.FloresToIso3(floresCode)
         End Function
 
+        ''' <summary>
+        ''' Map an ISO 639-3 code (e.g. Bible translation language "eng") to its
+        ''' FLORES code ("eng_Latn") by prefix-matching the known FLORES set.
+        ''' Returns Nothing when no FLORES language matches (translation unsupported).
+        ''' </summary>
+        Public Shared Function Iso3ToFloresLang(iso3 As String) As String
+            If String.IsNullOrEmpty(iso3) Then Return Nothing
+            Dim prefix = iso3.ToLowerInvariant() & "_"
+            For Each flores In _langService.GetWhisperToFloresMap().Values
+                If flores.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then Return flores
+            Next
+            Return Nothing
+        End Function
+
         Public Shared Function CheckDependenciesInstalled() As (pythonOk As Boolean, depsOk As Boolean, modelOk As Boolean)
             Dim baseDir = AppDomain.CurrentDomain.BaseDirectory
             Dim pythonPath = Path.Combine(baseDir, "python-embed", "python.exe")

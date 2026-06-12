@@ -823,6 +823,11 @@ del ""%~f0""
             btnNavTranscribe.Text = GetString("Nav_Transcribe")
             btnNavTranslate.Text = GetString("Nav_Translate")
             btnNavBible.Text = GetString("Nav_Bible")
+
+            ' Translate workspace TTS + Bible verse translation controls
+            btnTransSpeak.Text = GetString("Trans_Speak")
+            lblBibleTransTo.Text = GetString("Bible_TranslateTo")
+            btnBibleSpeak.Text = GetString("Bible_ReadAloud")
             AppLogger.Log(LogEvents.LOCALE_LOADED, $"ApplyLocale complete: Nav_Transcribe={btnNavTranscribe.Text}, Menu_File={mnuFile.Text}")
         Catch ex As Exception
             AppLogger.Log(LogEvents.LOCALE_FALLBACK, $"ApplyLocale: {ex.Message}")

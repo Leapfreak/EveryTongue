@@ -160,6 +160,22 @@ Namespace Controllers
                 GetType(Services.Interfaces.IMetricsService)), Services.Interfaces.IMetricsService)
         End Function
 
+        Public Function GetTtsService() As Services.Interfaces.ITtsService
+            Return TryCast(_kestrelHost?.Services?.GetService(
+                GetType(Services.Interfaces.ITtsService)), Services.Interfaces.ITtsService)
+        End Function
+
+        Public Function GetTranslationOrchestrator() As Services.Interfaces.ITranslationService
+            Return TryCast(_kestrelHost?.Services?.GetService(
+                GetType(Services.Interfaces.ITranslationService)), Services.Interfaces.ITranslationService)
+        End Function
+
+        Public Function GetTtsCacheDirectory() As String
+            Dim cache = TryCast(_kestrelHost?.Services?.GetService(
+                GetType(Services.Tts.TtsCache)), Services.Tts.TtsCache)
+            Return cache?.CacheDirectory
+        End Function
+
         Public Sub CopyPhoneUrl()
             If _kestrelHost IsNot Nothing AndAlso _kestrelHost.IsRunning Then
                 Dim url = $"https://{GetLocalIpAddress()}:{_serverPort + 1}"

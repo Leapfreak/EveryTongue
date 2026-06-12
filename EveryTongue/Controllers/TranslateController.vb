@@ -19,6 +19,7 @@ Namespace Controllers
         Private ReadOnly _btnClear As Button
         Private ReadOnly _btnOutCopy As Button
         Private ReadOnly _btnOutClear As Button
+        Private ReadOnly _btnSpeak As Button
         Private ReadOnly _lblStatus As Label
 
         ' Callbacks
@@ -30,6 +31,8 @@ Namespace Controllers
         Private ReadOnly _getTranslationService As Func(Of Pipeline.TranslationService)
         Private ReadOnly _debugLog As Action(Of String)
         Private ReadOnly _getString As Func(Of String, String)
+        Private ReadOnly _ttsPlayer As Services.Audio.DesktopTtsPlayer
+        Private _isSpeaking As Boolean = False
 
         Public Sub New(config As Models.AppConfig,
                        txtInput As TextBox, txtOutput As TextBox,
@@ -37,12 +40,15 @@ Namespace Controllers
                        btnSwap As Button, btnTranslate As Button,
                        btnCopy As Button, btnClear As Button,
                        btnOutCopy As Button, btnOutClear As Button,
+                       btnSpeak As Button,
                        lblStatus As Label,
                        sttLanguages As String(),
                        langDisplayName As Func(Of String, String),
                        langCodeFromDisplay As Func(Of String, String),
                        startTranslationService As Action,
                        getTranslationService As Func(Of Pipeline.TranslationService),
+                       getTtsService As Func(Of Services.Interfaces.ITtsService),
+                       getTtsCacheDir As Func(Of String),
                        debugLog As Action(Of String),
                        getString As Func(Of String, String))
             _config = config
@@ -56,7 +62,9 @@ Namespace Controllers
             _btnClear = btnClear
             _btnOutCopy = btnOutCopy
             _btnOutClear = btnOutClear
+            _btnSpeak = btnSpeak
             _lblStatus = lblStatus
+            _ttsPlayer = New Services.Audio.DesktopTtsPlayer(getTtsService, getTtsCacheDir)
             _sttLanguages = sttLanguages
             _langDisplayName = langDisplayName
             _langCodeFromDisplay = langCodeFromDisplay
@@ -81,6 +89,61 @@ Namespace Controllers
                                               End If
                                           End Sub
             AddHandler _btnOutClear.Click, Sub(s, e) _txtOutput.Clear()
+            AddHandler _btnSpeak.Click, Sub(s, e) OnSpeakClicked()
+        End Sub
+
+        ''' <summary>Speak the translated output via server TTS (toggles to Stop while playing).</summary>
+        Private Async Sub OnSpeakClicked()
+            If _isSpeaking Then
+                _ttsPlayer.StopPlayback()
+                _isSpeaking = False
+                _btnSpeak.Text = _getString("Trans_Speak")
+                Return
+            End If
+
+            Dim outputText = _txtOutput.Text.Trim()
+            If String.IsNullOrEmpty(outputText) Then Return
+
+            If Not _ttsPlayer.IsAvailable Then
+                _lblStatus.Text = _getString("Trans_SpeakServerRequired")
+                _lblStatus.ForeColor = Drawing.Color.Red
+                Return
+            End If
+
+            Dim targetWhisper = _langCodeFromDisplay(_cboTarget.Text)
+            Dim targetFlores = Pipeline.TranslationService.WhisperToFloresLang(targetWhisper)
+            Dim iso3 = If(String.IsNullOrEmpty(targetFlores), "eng",
+                Pipeline.TranslationService.FloresToIso3(targetFlores))
+
+            _isSpeaking = True
+            _btnSpeak.Text = _getString("Trans_SpeakStop")
+            _lblStatus.Text = _getString("Trans_Synthesizing")
+            _lblStatus.ForeColor = Drawing.Color.FromArgb(0, 122, 204)
+
+            Try
+                ' Sentence-sized chunks synthesize fast and queue in order.
+                Dim chunks = SplitIntoLines(outputText).
+                    Where(Function(tl) Not tl.IsBlank).
+                    SelectMany(Function(tl) tl.Sentences).ToList()
+                Dim queued = Await _ttsPlayer.SpeakAsync(chunks, iso3)
+                If queued = 0 AndAlso _isSpeaking Then
+                    _lblStatus.Text = _getString("Trans_SpeakFailed")
+                    _lblStatus.ForeColor = Drawing.Color.Red
+                    _isSpeaking = False
+                    _btnSpeak.Text = _getString("Trans_Speak")
+                ElseIf _isSpeaking Then
+                    ' Playback continues in the background — the button stays
+                    ' "Stop" until the user presses it.
+                    _lblStatus.Text = _getString("Trans_Done")
+                    _lblStatus.ForeColor = Drawing.Color.Green
+                End If
+            Catch ex As Exception
+                _debugLog($"[TRANSLATE] Speak failed: {ex.Message}")
+                _lblStatus.Text = _getString("Trans_SpeakFailed")
+                _lblStatus.ForeColor = Drawing.Color.Red
+                _isSpeaking = False
+                _btnSpeak.Text = _getString("Trans_Speak")
+            End Try
         End Sub
 
         ''' <summary>Wire context menu handlers for the Translate textboxes.</summary>

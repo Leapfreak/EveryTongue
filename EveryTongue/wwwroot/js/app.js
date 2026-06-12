@@ -38,7 +38,7 @@ var T={connecting:'Connecting...',connected:'Connected',disconnected:'Disconnect
     bold:'Bold',font:'Font',style:'Style',voice:'Voice',speed:'Speed',color:'Text Color',
     slow:'Slow',normal:'Normal',fast:'Fast',vfast:'Very Fast',
     start:'Start',stop:'Stop',restart:'Restart',clear:'Clear',
-    saveTranscript:'Save Transcript',transLang:'Translation',remote:'Remote Control',settings:'Settings',readAloud:'Read aloud',keepScreen:'Keep screen on',scrollDir:'Scroll Direction',scrollUp:'Bottom-up (newest at bottom)',scrollDown:'Top-down (newest at top)',tags:'Tags',tagOff:'Off',tagLang:'Language',tagTime:'Time',tagBoth:'Language + Time',bible:'Bible',bibleOT:'Old Testament',bibleNT:'New Testament',bibleSearch:'Search',bibleNoResults:'No results found',bibleSelectTrans:'Select a translation',cloudVoice:'Every Tongue Voices',ttsBehind:'{0} behind \u2014 tap to skip',readAll:'Read All',readVerse:'Read',chooseLang:'Choose your language',lpPopular:'Popular',lpAll:'All Languages',searchLangs:'Search languages...',noTranslation:'No translation',browseAll:'Browse All',adminLabel:'Administrator',adminPin:'PIN',adminBad:'Invalid PIN',adminOk:'Admin access granted'};
+    saveTranscript:'Save Transcript',transLang:'Translation',remote:'Remote Control',settings:'Settings',readAloud:'Read aloud',keepScreen:'Keep screen on',scrollDir:'Scroll Direction',scrollUp:'Bottom-up (newest at bottom)',scrollDown:'Top-down (newest at top)',tags:'Tags',tagOff:'Off',tagLang:'Language',tagTime:'Time',tagBoth:'Language + Time',bible:'Bible',bibleOT:'Old Testament',bibleNT:'New Testament',bibleSearch:'Search',bibleNoResults:'No results found',bibleSelectTrans:'Select a translation',cloudVoice:'Every Tongue Voices',ttsBehind:'{0} behind \u2014 tap to skip',readAll:'Read All',readVerse:'Read',bibleTranslate:'Translate',bibleOriginal:'Original',chooseLang:'Choose your language',lpPopular:'Popular',lpAll:'All Languages',searchLangs:'Search languages...',noTranslation:'No translation',browseAll:'Browse All',adminLabel:'Administrator',adminPin:'PIN',adminBad:'Invalid PIN',adminOk:'Admin access granted'};
 /* Detect browser language and fetch matching server-side locale */
 var detectedBrowserLang='';
 (function(){
@@ -1445,7 +1445,87 @@ function addReadAllBtn(){
   stopBtn.textContent=t('stop');
   stopBtn.onclick=function(){stopBibleTts()};
   bar.appendChild(stopBtn);
+  /* Verse translation toggle — only when the user's language differs from the Bible's */
+  if(myTransLang&&bibleFloresLang()&&bibleFloresLang()!==myTransLang){
+    var txBtn=document.createElement('button');txBtn.className='bible-read-all-btn';
+    txBtn.id='btnBibleTx';
+    txBtn.textContent=bibleTxOn?t('bibleOriginal'):t('bibleTranslate');
+    txBtn.onclick=function(){toggleBibleTranslate()};
+    bar.appendChild(txBtn);
+  }
   bibleContent.insertBefore(bar,bibleContent.firstChild);
+  if(bibleTxOn)translateVisibleVerses();
+}
+
+/* ── Bible Verse Translation (server /api/translate, NLLB) ── */
+var bibleTxOn=false;
+var bibleTxRun=0;
+function bibleFloresLang(){
+  /* FLORES code of the current Bible translation's language (ISO3 prefix match), or '' */
+  var iso3='';
+  for(var i=0;i<bibleTranslations.length;i++){
+    if(bibleTranslations[i].id===currentBibleTrans){iso3=bibleTranslations[i].language||'';break}
+  }
+  if(!iso3)return '';
+  for(var j=0;j<LANGS.length;j++){
+    if(LANGS[j][0].substring(0,iso3.length+1)===iso3+'_')return LANGS[j][0];
+  }
+  return '';
+}
+function toggleBibleTranslate(){
+  bibleTxOn=!bibleTxOn;
+  bibleTxRun++;
+  LOG('bibleTranslate toggle: '+bibleTxOn);
+  var txBtn=document.getElementById('btnBibleTx');
+  if(txBtn)txBtn.textContent=bibleTxOn?t('bibleOriginal'):t('bibleTranslate');
+  if(bibleTxOn){translateVisibleVerses()}
+  else{
+    var done=bibleContent.querySelectorAll('.bible-verse-tx');
+    for(var i=0;i<done.length;i++){done[i].parentNode.removeChild(done[i])}
+  }
+}
+function translateVisibleVerses(){
+  var src=bibleFloresLang();
+  if(!src||!myTransLang||src===myTransLang)return;
+  var divs=bibleContent.querySelectorAll('.bible-verse');
+  if(divs.length===0)return;
+  bibleTxRun++;
+  var myRun=bibleTxRun;
+  var idx=0;
+  function next(){
+    if(myRun!==bibleTxRun||!bibleTxOn)return;
+    if(idx>=divs.length)return;
+    var div=divs[idx];idx++;
+    if(div.querySelector('.bible-verse-tx')){next();return}
+    /* Verse text = the text nodes only (skips number span, buttons, tx divs) */
+    var text='';
+    var nodes=div.childNodes;
+    for(var j=0;j<nodes.length;j++){if(nodes[j].nodeType===3){text+=nodes[j].textContent}}
+    text=text.trim();
+    if(!text){next();return}
+    var xhr=new XMLHttpRequest();
+    xhr.open('POST','/api/translate',true);
+    xhr.setRequestHeader('Content-Type','application/json');
+    xhr.onload=function(){
+      if(myRun!==bibleTxRun||!bibleTxOn)return;
+      if(xhr.status===200){
+        try{
+          var data=JSON.parse(xhr.responseText);
+          if(data&&data.text){
+            var tx=document.createElement('div');
+            tx.className='bible-verse-tx';
+            tx.style.cssText='color:#7fb3ff;font-style:italic;margin:2px 0 8px 18px';
+            tx.textContent=data.text;
+            div.appendChild(tx);
+          }
+        }catch(e){LOG('bibleTx parse error: '+e)}
+      }else{LOG('bibleTx http '+xhr.status)}
+      next();
+    };
+    xhr.onerror=function(){LOG('bibleTx network error');next()};
+    xhr.send(JSON.stringify({text:text,sourceLang:src,targetLang:myTransLang}));
+  }
+  next();
 }
 function stopBibleTts(){
   LOG('stopBibleTts called');

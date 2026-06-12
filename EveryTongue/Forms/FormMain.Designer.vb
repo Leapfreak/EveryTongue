@@ -144,6 +144,7 @@ Partial Class FormMain
         lblTransTo = New Label()
         cboTransTarget = New ComboBox()
         btnTranslate = New Button()
+        btnTransSpeak = New Button()
         tabPageBibleWs = New TabPage()
         pnlBibleTop = New Panel()
         lblBibleLang = New Label()
@@ -152,6 +153,9 @@ Partial Class FormMain
         cboBibleTrans = New ComboBox()
         txtBibleRef = New ComboBox()
         btnBibleGo = New Button()
+        lblBibleTransTo = New Label()
+        cboBibleTransTo = New ComboBox()
+        btnBibleSpeak = New Button()
         splitBible = New SplitContainer()
         pnlBibleNavHeader = New Panel()
         btnBibleBack = New Button()
@@ -1147,6 +1151,7 @@ Partial Class FormMain
         pnlTransTop.Controls.Add(lblTransTo)
         pnlTransTop.Controls.Add(cboTransTarget)
         pnlTransTop.Controls.Add(btnTranslate)
+        pnlTransTop.Controls.Add(btnTransSpeak)
         pnlTransTop.Dock = DockStyle.Top
         pnlTransTop.Location = New Point(8, 8)
         pnlTransTop.Name = "pnlTransTop"
@@ -1210,6 +1215,14 @@ Partial Class FormMain
         btnTranslate.Size = New Size(90, 26)
         btnTranslate.TabIndex = 5
         btnTranslate.Text = "Translate"
+        '
+        ' btnTransSpeak — synthesize the translated output via server TTS
+        '
+        btnTransSpeak.Location = New Point(644, 7)
+        btnTransSpeak.Name = "btnTransSpeak"
+        btnTransSpeak.Size = New Size(90, 26)
+        btnTransSpeak.TabIndex = 6
+        btnTransSpeak.Text = "Speak"
         '
         ' pnlTransInButtons — Copy/Clear for input text box
         '
@@ -1342,11 +1355,14 @@ Partial Class FormMain
         pnlBibleTop.Controls.Add(lblBibleTrans)
         pnlBibleTop.Controls.Add(cboBibleLang)
         pnlBibleTop.Controls.Add(lblBibleLang)
+        pnlBibleTop.Controls.Add(lblBibleTransTo)
+        pnlBibleTop.Controls.Add(cboBibleTransTo)
+        pnlBibleTop.Controls.Add(btnBibleSpeak)
         pnlBibleTop.Dock = DockStyle.Top
         pnlBibleTop.Location = New Point(0, 0)
         pnlBibleTop.Name = "pnlBibleTop"
         pnlBibleTop.Padding = New Padding(8, 6, 8, 6)
-        pnlBibleTop.Size = New Size(792, 38)
+        pnlBibleTop.Size = New Size(792, 70)
         pnlBibleTop.TabIndex = 0
         '
         ' lblBibleLang
@@ -1396,6 +1412,30 @@ Partial Class FormMain
         btnBibleGo.TabIndex = 4
         btnBibleGo.Text = "Go"
         btnBibleGo.UseVisualStyleBackColor = True
+        '
+        ' lblBibleTransTo — second row: verse translation target
+        '
+        lblBibleTransTo.AutoSize = True
+        lblBibleTransTo.Location = New Point(11, 42)
+        lblBibleTransTo.Name = "lblBibleTransTo"
+        lblBibleTransTo.Text = "Translate to:"
+        '
+        ' cboBibleTransTo
+        '
+        cboBibleTransTo.DropDownStyle = ComboBoxStyle.DropDownList
+        cboBibleTransTo.Location = New Point(95, 39)
+        cboBibleTransTo.Name = "cboBibleTransTo"
+        cboBibleTransTo.Size = New Size(185, 23)
+        cboBibleTransTo.TabIndex = 5
+        '
+        ' btnBibleSpeak — read the displayed chapter aloud via server TTS
+        '
+        btnBibleSpeak.Location = New Point(290, 38)
+        btnBibleSpeak.Name = "btnBibleSpeak"
+        btnBibleSpeak.Size = New Size(110, 25)
+        btnBibleSpeak.TabIndex = 6
+        btnBibleSpeak.Text = "Read aloud"
+        btnBibleSpeak.UseVisualStyleBackColor = True
         '
         ' splitBible
         '
@@ -1964,6 +2004,7 @@ Partial Class FormMain
     Friend WithEvents lblTransTo As Label
     Friend WithEvents cboTransTarget As ComboBox
     Friend WithEvents btnTranslate As Button
+    Friend WithEvents btnTransSpeak As Button
     Friend WithEvents splitTrans As SplitContainer
     Friend WithEvents txtTransInput As TextBox
     Friend WithEvents txtTransOutput As TextBox
@@ -1984,6 +2025,9 @@ Partial Class FormMain
     Friend WithEvents cboBibleTrans As ComboBox
     Friend WithEvents txtBibleRef As ComboBox
     Friend WithEvents btnBibleGo As Button
+    Friend WithEvents lblBibleTransTo As Label
+    Friend WithEvents cboBibleTransTo As ComboBox
+    Friend WithEvents btnBibleSpeak As Button
     Friend WithEvents splitBible As SplitContainer
     Friend WithEvents pnlBibleNavHeader As Panel
     Friend WithEvents btnBibleBack As Button
