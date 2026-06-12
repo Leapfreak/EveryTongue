@@ -705,6 +705,9 @@
   "EngineCfg_SmClauseLockOnPunctuation": "Lock on sentence punctuation",
   "EngineCfg_SmClauseMinLockChars": "Min characters before lock",
   "EngineCfg_SmClauseSentenceEnders": "Sentence-ending characters",
+  "EngineCfg_DgModel": "Deepgram model",
+  "EngineCfg_DgEndpointingMs": "Endpointing silence (ms)",
+  "EngineCfg_GlEndpointingMs": "Endpointing silence (ms)",
 
   "Web_HostConference": "Host Conference",
   "Web_SelectTemplate": "Select Template",

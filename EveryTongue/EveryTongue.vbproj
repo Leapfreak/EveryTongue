@@ -6,9 +6,9 @@
     <RootNamespace>EveryTongue</RootNamespace>
     <StartupObject>EveryTongue.Program</StartupObject>
     <UseWindowsForms>true</UseWindowsForms>
-    <Version>1.9.10</Version>
-    <AssemblyVersion>1.9.10.0</AssemblyVersion>
-    <FileVersion>1.9.10.0</FileVersion>
+    <Version>1.9.11</Version>
+    <AssemblyVersion>1.9.11.0</AssemblyVersion>
+    <FileVersion>1.9.11.0</FileVersion>
     <IsPackable>false</IsPackable>
     <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
     <NoWarn>MSB3277;NU5118</NoWarn>
@@ -120,6 +120,14 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>live-server\engines\common.py</Link>
     </Content>
+    <Content Include="..\live-server\engines\deepgram.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>live-server\engines\deepgram.py</Link>
+    </Content>
+    <Content Include="..\live-server\engines\gladia.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>live-server\engines\gladia.py</Link>
+    </Content>
     <Content Include="..\live-server\engines\google.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>live-server\engines\google.py</Link>
@@ -203,6 +211,8 @@
       <ChecksumFile Include="$(PublishDir)live-server\vad\accumulating_pipeline.py" />
       <ChecksumFile Include="$(PublishDir)live-server\engines\__init__.py" />
       <ChecksumFile Include="$(PublishDir)live-server\engines\common.py" />
+      <ChecksumFile Include="$(PublishDir)live-server\engines\deepgram.py" />
+      <ChecksumFile Include="$(PublishDir)live-server\engines\gladia.py" />
       <ChecksumFile Include="$(PublishDir)live-server\engines\google.py" />
       <ChecksumFile Include="$(PublishDir)live-server\engines\speechmatics.py" />
       <ChecksumFile Include="$(PublishDir)mms-tts-server\server.py" />

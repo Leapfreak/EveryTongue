@@ -30,6 +30,8 @@ from .common import (
 )
 
 # Register built-in online engines (order doesn't matter).
+from . import deepgram  # noqa: E402,F401
+from . import gladia  # noqa: E402,F401
 from . import google  # noqa: E402,F401
 from . import speechmatics  # noqa: E402,F401
 
