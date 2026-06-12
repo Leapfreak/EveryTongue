@@ -119,6 +119,7 @@ Public Class FormOptions
         lblClauseSentenceEnders.Text = langPack.GetString("Opt_ClauseSentenceEnders")
         lblTransBackend.Text = langPack.GetString("Opt_TransBackend")
         lblTransApiKey.Text = langPack.GetString("Opt_TransApiKey")
+        lblTransEndpoint.Text = langPack.GetString("Opt_TransEndpoint")
         lblTransBudget.Text = langPack.GetString("Opt_TransBudget")
         lblDevice.Text = langPack.GetString("Opt_TransDevice")
 
@@ -360,6 +361,7 @@ Public Class FormOptions
         SelectTransBackend(_config.TranslationBackend)
         _currentTransApiKeyBackend = CurrentTransKey()
         txtTransApiKey.Text = _config.GetTranslationApiKey(_currentTransApiKeyBackend)
+        txtTransEndpoint.Text = _config.GetTranslationEndpoint(_currentTransApiKeyBackend)
         nudTransBudget.Value = ClampNudLong(nudTransBudget, _config.GetTranslationCharBudget(_currentTransApiKeyBackend))
         UpdateTransApiKeyVisibility()
         chkTransEnabled.Checked = _config.TranslationEnabled
@@ -511,9 +513,10 @@ Public Class FormOptions
                 _config.TranslationModelType = entry.ModelType
             End If
         End If
-        ' Save the API key + monthly budget against the engine currently shown.
+        ' Save the API key + endpoint + monthly budget against the engine currently shown.
         If Not String.IsNullOrEmpty(_currentTransApiKeyBackend) Then
             _config.SetTranslationApiKey(_currentTransApiKeyBackend, txtTransApiKey.Text.Trim())
+            _config.SetTranslationEndpoint(_currentTransApiKeyBackend, txtTransEndpoint.Text.Trim())
             _config.SetTranslationCharBudget(_currentTransApiKeyBackend, CLng(nudTransBudget.Value))
         End If
         _config.TranslationEnabled = chkTransEnabled.Checked
@@ -798,12 +801,22 @@ Public Class FormOptions
 
     Private Sub UpdateTransApiKeyVisibility()
         Dim showApiKey = False
+        Dim showEndpoint = False
+        Dim defaultEndpoint = ""
         If _transEntries IsNot Nothing AndAlso cboTransBackend.SelectedIndex >= 0 AndAlso
            cboTransBackend.SelectedIndex < _transEntries.Count Then
-            showApiKey = _transEntries(cboTransBackend.SelectedIndex).RequiresApiKey
+            Dim entry = _transEntries(cboTransBackend.SelectedIndex)
+            showApiKey = entry.RequiresApiKey
+            showEndpoint = entry.RequiresEndpoint
+            defaultEndpoint = If(entry.DefaultEndpoint, "")
         End If
         lblTransApiKey.Visible = showApiKey
         txtTransApiKey.Visible = showApiKey
+        ' Per-engine endpoint/region — only engines that declare RequiresEndpoint.
+        ' The registry default shows as a placeholder when the user hasn't set one.
+        lblTransEndpoint.Visible = showEndpoint
+        txtTransEndpoint.Visible = showEndpoint
+        txtTransEndpoint.PlaceholderText = defaultEndpoint
         ' Cost awareness: usage + budget only make sense for metered cloud engines.
         lblTransBudget.Visible = showApiKey
         nudTransBudget.Visible = showApiKey
@@ -838,14 +851,16 @@ Public Class FormOptions
     ''' matches the previous engine's default path.
     ''' </summary>
     Private Sub TransBackendCombo_Changed(sender As Object, e As EventArgs)
-        ' Persist the key + budget shown for the previously-selected engine, then
-        ' load the new engine's stored values so each engine keeps its own.
+        ' Persist the key + endpoint + budget shown for the previously-selected
+        ' engine, then load the new engine's stored values so each engine keeps its own.
         If Not String.IsNullOrEmpty(_currentTransApiKeyBackend) Then
             _config.SetTranslationApiKey(_currentTransApiKeyBackend, txtTransApiKey.Text.Trim())
+            _config.SetTranslationEndpoint(_currentTransApiKeyBackend, txtTransEndpoint.Text.Trim())
             _config.SetTranslationCharBudget(_currentTransApiKeyBackend, CLng(nudTransBudget.Value))
         End If
         _currentTransApiKeyBackend = CurrentTransKey()
         txtTransApiKey.Text = _config.GetTranslationApiKey(_currentTransApiKeyBackend)
+        txtTransEndpoint.Text = _config.GetTranslationEndpoint(_currentTransApiKeyBackend)
         nudTransBudget.Value = ClampNudLong(nudTransBudget, _config.GetTranslationCharBudget(_currentTransApiKeyBackend))
         UpdateTransApiKeyVisibility()
 

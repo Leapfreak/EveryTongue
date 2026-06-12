@@ -18,6 +18,7 @@ Namespace Services.Translation
         }
 
         Protected Property ApiKey As String = ""
+        Protected Property Endpoint As String = ""
         Protected Property CharactersUsed As Long = 0
 
         Public MustOverride ReadOnly Property Name As String Implements ITranslationBackend.Name
@@ -28,7 +29,7 @@ Namespace Services.Translation
             End Get
         End Property
 
-        Public ReadOnly Property IsAvailable As Boolean Implements ITranslationBackend.IsAvailable
+        Public Overridable ReadOnly Property IsAvailable As Boolean Implements ITranslationBackend.IsAvailable
             Get
                 Return Not String.IsNullOrEmpty(ApiKey)
             End Get
@@ -44,8 +45,19 @@ Namespace Services.Translation
             End Get
         End Property
 
-        Public Sub Configure(apiKey As String)
+        Public Overridable Sub Configure(apiKey As String)
             Me.ApiKey = If(apiKey, "")
+        End Sub
+
+        ''' <summary>
+        ''' Push the per-engine endpoint (URL, or region name for engines that use
+        ''' regions) into the backend. No-op for engines that have a fixed endpoint;
+        ''' backends with RequiresEndpoint registry entries override or use the
+        ''' stored Endpoint value. Trailing slashes are trimmed so callers can
+        ''' concatenate paths safely.
+        ''' </summary>
+        Public Overridable Sub ConfigureEndpoint(url As String)
+            Me.Endpoint = If(url, "").Trim().TrimEnd("/"c)
         End Sub
 
         Public MustOverride Function TranslateAsync(text As String,
@@ -160,9 +172,6 @@ Namespace Services.Translation
     Public Class GoogleBackend
         Inherits CloudTranslationBackend
 
-        Private Shared ReadOnly _langService As Infrastructure.LanguageCodeService =
-            Infrastructure.LanguageCodeService.Instance
-
         Public Overrides ReadOnly Property Name As String
             Get
                 Return "Google"
@@ -175,7 +184,7 @@ Namespace Services.Translation
         ''' </summary>
         Private Shared Function ToGoogleCode(floresCode As String) As String
             If String.IsNullOrEmpty(floresCode) Then Return ""
-            Dim code = _langService.FloresToGoogle(floresCode)
+            Dim code = FloresToVendorIso(floresCode)
             If Not String.IsNullOrEmpty(code) Then Return code
             ' Fallback: extract ISO 639-3 prefix (e.g. "cat_Latn" -> "cat")
             Dim underscore = floresCode.IndexOf("_"c)
@@ -318,6 +327,29 @@ Namespace Services.Translation
     Module CloudTranslationHelper
         Friend Function EscapeJson(s As String) As String
             Return Pipeline.ProcessHelper.EscapeJson(s)
+        End Function
+
+        ''' <summary>
+        ''' Shared FLORES → vendor ISO mapping used by all cloud backends that
+        ''' speak ISO 639-1-style codes (Google, LibreTranslate, Amazon).
+        ''' Tries the language table's google column first (carries regional
+        ''' variants like "zh-TW"), then plain ISO 639-1. Returns "" when the
+        ''' table has no mapping — callers decide their own fallback (Google
+        ''' tries the ISO 639-3 prefix; Amazon/LibreTranslate skip the target).
+        ''' When <paramref name="stripRegion"/> is True, regional suffixes are
+        ''' removed ("zh-TW" → "zh") for vendors that only accept bare codes.
+        ''' </summary>
+        Friend Function FloresToVendorIso(floresCode As String, Optional stripRegion As Boolean = False) As String
+            If String.IsNullOrEmpty(floresCode) Then Return ""
+            Dim svc = Infrastructure.LanguageCodeService.Instance
+            Dim code = svc.FloresToGoogle(floresCode)
+            If String.IsNullOrEmpty(code) Then code = svc.FloresToIso1(floresCode)
+            If String.IsNullOrEmpty(code) Then Return ""
+            If stripRegion Then
+                Dim dash = code.IndexOf("-"c)
+                If dash > 0 Then code = code.Substring(0, dash)
+            End If
+            Return code
         End Function
     End Module
 End Namespace

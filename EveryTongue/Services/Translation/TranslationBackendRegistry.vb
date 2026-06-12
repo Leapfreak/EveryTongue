@@ -21,6 +21,10 @@ Namespace Services.Translation
             Public Property DefaultModelPath As String
             ''' <summary>Name used by TranslationOrchestrator to identify the backend (e.g. "Local", "DeepL").</summary>
             Public Property BackendName As String
+            ''' <summary>True when the engine needs a per-engine endpoint/region value (Options shows the Endpoint field).</summary>
+            Public Property RequiresEndpoint As Boolean = False
+            ''' <summary>Default endpoint URL (or region name) used when the user hasn't set one.</summary>
+            Public Property DefaultEndpoint As String = ""
             ''' <summary>Self-description of this engine's config block. Empty (BasicEngineConfigDescriptor) until the engine exposes per-session knobs.</summary>
             Public Property ConfigDescriptor As Config.IEngineConfigDescriptor
         End Class
@@ -30,7 +34,11 @@ Namespace Services.Translation
             New Entry With {.Key = "nllb-3.3b", .DisplayName = "NLLB 3.3B (offline)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-3.3b-model", .BackendName = "Local", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb-3.3b")},
             New Entry With {.Key = "google-translate", .DisplayName = "Google Translate (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "Google", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("google-translate")},
             New Entry With {.Key = "deepl", .DisplayName = "DeepL (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "DeepL", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("deepl")},
-            New Entry With {.Key = "azure-translator", .DisplayName = "Azure Translator (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "Azure", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("azure-translator")}
+            New Entry With {.Key = "azure-translator", .DisplayName = "Azure Translator (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "Azure", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("azure-translator")},
+            New Entry With {.Key = "deepseek", .DisplayName = "DeepSeek (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "DeepSeek", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("deepseek")},
+            New Entry With {.Key = "openai", .DisplayName = "OpenAI (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "OpenAI", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("openai")},
+            New Entry With {.Key = "libretranslate", .DisplayName = "LibreTranslate (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "LibreTranslate", .RequiresEndpoint = True, .DefaultEndpoint = "https://libretranslate.com", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("libretranslate")},
+            New Entry With {.Key = "amazon-translate", .DisplayName = "Amazon Translate (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "Amazon", .RequiresEndpoint = True, .DefaultEndpoint = "us-east-1", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("amazon-translate")}
         }
 
         Public Shared Function GetAll() As IReadOnlyList(Of Entry)
@@ -127,9 +135,23 @@ Namespace Services.Translation
         End Function
 
         ''' <summary>
-        ''' Push resolved API keys into every key-requiring cloud translation backend
-        ''' registered in DI. Called after the Kestrel host starts and again whenever
-        ''' the Options dialog saves, so running backends pick up key changes live.
+        ''' Resolve the endpoint (URL or region) for a translation backend: the
+        ''' user's stored value wins; when empty, fall back to the registry
+        ''' entry's DefaultEndpoint. Returns "" for engines without endpoints.
+        ''' </summary>
+        Friend Shared Function ResolveTranslationEndpoint(cfg As EveryTongue.Models.AppConfig, translationKey As String) As String
+            If cfg Is Nothing OrElse String.IsNullOrEmpty(translationKey) Then Return ""
+            Dim own = cfg.GetTranslationEndpoint(translationKey)
+            If Not String.IsNullOrEmpty(own) Then Return own
+            Return If(Find(translationKey)?.DefaultEndpoint, "")
+        End Function
+
+        ''' <summary>
+        ''' Push resolved API keys (and per-engine endpoints, for engines that
+        ''' declare RequiresEndpoint) into every key-requiring cloud translation
+        ''' backend registered in DI. Called after the Kestrel host starts and
+        ''' again whenever the Options dialog saves, so running backends pick up
+        ''' key/endpoint changes live.
         ''' </summary>
         Friend Shared Sub ConfigureCloudApiKeys(services As IServiceProvider, cfg As EveryTongue.Models.AppConfig)
             If services Is Nothing OrElse cfg Is Nothing Then Return
@@ -141,8 +163,14 @@ Namespace Services.Translation
                 If backend Is Nothing Then Continue For
                 Dim key = ResolveTranslationApiKey(cfg, entry.Key)
                 backend.Configure(key)
+                Dim endpointNote = ""
+                If entry.RequiresEndpoint Then
+                    Dim endpoint = ResolveTranslationEndpoint(cfg, entry.Key)
+                    backend.ConfigureEndpoint(endpoint)
+                    endpointNote = $", endpoint '{endpoint}'"
+                End If
                 AppLogger.Log(LogEvents.TRANS_BACKEND_ACTIVE,
-                    $"Cloud translation backend '{entry.Key}': API key {If(String.IsNullOrEmpty(key), "no key", "configured")}")
+                    $"Cloud translation backend '{entry.Key}': API key {If(String.IsNullOrEmpty(key), "no key", "configured")}{endpointNote}")
             Next
         End Sub
 

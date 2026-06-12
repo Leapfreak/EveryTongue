@@ -140,6 +140,8 @@ Partial Class FormOptions
         Me.lblTransBudget = New System.Windows.Forms.Label()
         Me.nudTransBudget = New System.Windows.Forms.NumericUpDown()
         Me.lblTransUsage = New System.Windows.Forms.Label()
+        Me.lblTransEndpoint = New System.Windows.Forms.Label()
+        Me.txtTransEndpoint = New System.Windows.Forms.TextBox()
         Me.chkTransEnabled = New System.Windows.Forms.CheckBox()
         Me.chkUseSpeechmaticsTranslation = New System.Windows.Forms.CheckBox()
         Me.lblClauseHeader = New System.Windows.Forms.Label()
@@ -1675,6 +1677,24 @@ Partial Class FormOptions
         Me.lblTransUsage.Text = "This month: 0 characters"
         Me.lblTransUsage.Visible = False
         '
+        ' lblTransEndpoint
+        '
+        Me.lblTransEndpoint.AutoSize = True
+        Me.lblTransEndpoint.Location = New System.Drawing.Point(230, 192)
+        Me.lblTransEndpoint.Name = "lblTransEndpoint"
+        Me.lblTransEndpoint.Size = New System.Drawing.Size(110, 15)
+        Me.lblTransEndpoint.TabIndex = 69
+        Me.lblTransEndpoint.Text = "Endpoint / Region:"
+        Me.lblTransEndpoint.Visible = False
+        '
+        ' txtTransEndpoint
+        '
+        Me.txtTransEndpoint.Location = New System.Drawing.Point(230, 210)
+        Me.txtTransEndpoint.Name = "txtTransEndpoint"
+        Me.txtTransEndpoint.Size = New System.Drawing.Size(310, 23)
+        Me.txtTransEndpoint.TabIndex = 70
+        Me.txtTransEndpoint.Visible = False
+        '
         ' lblDevice
         '
         Me.lblDevice.AutoSize = True
@@ -1814,6 +1834,8 @@ Partial Class FormOptions
         Me.pnlTranslation.Controls.Add(Me.lblTransBudget)
         Me.pnlTranslation.Controls.Add(Me.nudTransBudget)
         Me.pnlTranslation.Controls.Add(Me.lblTransUsage)
+        Me.pnlTranslation.Controls.Add(Me.lblTransEndpoint)
+        Me.pnlTranslation.Controls.Add(Me.txtTransEndpoint)
         Me.pnlTranslation.Controls.Add(Me.chkTransEnabled)
         Me.pnlTranslation.Controls.Add(Me.lblTranslationSep)
         Me.pnlTranslation.Controls.Add(Me.lblTranslationHeader)
@@ -3435,6 +3457,8 @@ Partial Class FormOptions
     Friend WithEvents lblTransBudget As System.Windows.Forms.Label
     Friend WithEvents nudTransBudget As System.Windows.Forms.NumericUpDown
     Friend WithEvents lblTransUsage As System.Windows.Forms.Label
+    Friend WithEvents lblTransEndpoint As System.Windows.Forms.Label
+    Friend WithEvents txtTransEndpoint As System.Windows.Forms.TextBox
     Friend WithEvents lblDevice As System.Windows.Forms.Label
     Friend WithEvents cboDevice As System.Windows.Forms.ComboBox
     Friend WithEvents lblTransPort As System.Windows.Forms.Label

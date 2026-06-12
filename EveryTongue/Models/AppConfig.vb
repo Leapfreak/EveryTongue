@@ -248,6 +248,31 @@ Namespace Models
         End Sub
 
         ''' <summary>
+        ''' Endpoints (URL, or region name for engines that use regions) for online
+        ''' translation engines, keyed by backend key (e.g. "libretranslate",
+        ''' "amazon-translate"). Empty/absent = use the registry entry's
+        ''' DefaultEndpoint. Mirrors the TranslationApiKeys per-engine pattern.
+        ''' </summary>
+        Public Property TranslationEndpoints As New Dictionary(Of String, String)
+
+        ''' <summary>Resolve the endpoint for a translation backend from the per-engine store ("" when unset).</summary>
+        Public Function GetTranslationEndpoint(backendKey As String) As String
+            If backendKey Is Nothing Then Return ""
+            Dim value As String = Nothing
+            If TranslationEndpoints IsNot Nothing AndAlso TranslationEndpoints.TryGetValue(backendKey, value) AndAlso Not String.IsNullOrEmpty(value) Then
+                Return value
+            End If
+            Return ""
+        End Function
+
+        ''' <summary>Store the endpoint for a translation backend.</summary>
+        Public Sub SetTranslationEndpoint(backendKey As String, value As String)
+            If String.IsNullOrEmpty(backendKey) Then Return
+            If TranslationEndpoints Is Nothing Then TranslationEndpoints = New Dictionary(Of String, String)
+            TranslationEndpoints(backendKey) = If(value, "")
+        End Sub
+
+        ''' <summary>
         ''' Monthly character budgets for cloud translation engines, keyed by
         ''' backend key (e.g. "deepl"). 0 or absent = no budget. Crossing a budget
         ''' logs ONE warning per backend per month — translation is never blocked.

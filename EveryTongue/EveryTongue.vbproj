@@ -6,9 +6,9 @@
     <RootNamespace>EveryTongue</RootNamespace>
     <StartupObject>EveryTongue.Program</StartupObject>
     <UseWindowsForms>true</UseWindowsForms>
-    <Version>1.9.9</Version>
-    <AssemblyVersion>1.9.9.0</AssemblyVersion>
-    <FileVersion>1.9.9.0</FileVersion>
+    <Version>1.9.10</Version>
+    <AssemblyVersion>1.9.10.0</AssemblyVersion>
+    <FileVersion>1.9.10.0</FileVersion>
     <IsPackable>false</IsPackable>
     <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
     <NoWarn>MSB3277;NU5118</NoWarn>
@@ -27,6 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="AWSSDK.Translate" Version="3.7.501.59" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.8" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
     <PackageReference Include="NAudio" Version="2.2.1" />
