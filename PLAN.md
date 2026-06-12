@@ -41,11 +41,12 @@ Replaced flat `AppLogger.Log(msg)` with numbered, categorised events. 120+ event
 
 ## Suggested Next Priorities
 1. ~~**Structured Logging System**~~ — DONE (v1.8.5)
-2. ~~**Config refactor runtime consumption (Phases 6–9)**~~ — DONE (v1.9.0–v1.9.4, see CONFIG_CHANGES.md).
-3. **Architecture audit backlog** — prioritized findings in **`ARCHITECTURE_AUDIT.md`** (P0 crash risks: async-sub exception safety + ConferenceController dictionary races; then UI blocking, JSON safety, remaining engine-independence debt).
-4. Audio Level Monitor — operator feedback, prevents bad audio
-5. Setup Wizard expansion — integrates QR, audio monitor, hardware score
-6. Cross-platform headless server (Linux/Docker)
+2. ~~**Config refactor runtime consumption (Phases 6–9)**~~ — DONE (v1.9.0–v1.9.4; plan doc CONFIG_CHANGES.md deleted after completion, history in git).
+3. ~~**Architecture audit backlog**~~ — DONE (v1.9.5, commits d684db2..5e30f98; ARCHITECTURE_AUDIT.md deleted after completion).
+4. **Regenerate CDN locale packs** — ~80 new string keys added in v1.9.x exist only in `locales/en.json`; the downloadable packs on the GitHub CDN need regenerating (carried over from config refactor).
+5. Audio Level Monitor — operator feedback, prevents bad audio
+6. Setup Wizard expansion — integrates QR, audio monitor, hardware score
+7. Cross-platform headless server (Linux/Docker)
 
 ---
 
@@ -82,6 +83,7 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
 - Plugin auto-discovery from `plugins/` folder
 - Plugin Manager UI with model management
 - **Online/Offline mode — offline-detection prompt** — when a session is in Online mode and a cloud call fails or connectivity drops, *prompt* the operator ("Looks like you're offline — switch to offline engines?") rather than silently switching. The Online/Offline mode itself is an explicit user-set switch with **no auto-fallback** (being designed in the config refactor); this prompt is a later enhancement layered on top.
+- **v2.0 legacy removals (from config refactor)** — retire the `GoogleCloudSttApiKey` read-bridge in AppConfig (kept so pre-1.8.x configs don't lose their key; all live code now uses `GetSttApiKey`); purge the confirmed-dead settings `SkipDownloadIfExists`, `Hotwords`, `FreqThreshold`, `PrintRealtime`, `TranslationUnloadMinutes` (note: `ParallelJobs`/`ChunkSizeSec`/`PollIntervalMs`/`ChunkTimeoutMin`/`KeepChunkFiles`/`KeepPreview`/`PathModelAudio`/`PathOutputRoot`/`TranslationDevice` still have live consumers — do NOT remove); decide SessionTemplate's fate (model/store kept as scaffolding for non-conference workspaces, no longer created anywhere).
 - **Cloud STT in the Transcribe workspace (batch engines)** — the vendors support it (Speechmatics Batch API `POST /v2/jobs/` can even return SRT directly; Google has batch recognize), but our `live-server/engines/` modules are realtime-streaming only. Work: a Speechmatics batch client (upload converted WAV → poll job → write returned SRT → existing translation step; bypasses chunking/VAD entirely), an engine combo on the Transcribe tab (gated by `WorkspaceCapabilities` + registry `RequiresApiKey`), job progress reporting. Google batch later (GCS upload requirements, SRT assembly from word timings). Deferred from config-refactor Phase 4 (see CONFIG_CHANGES.md).
 
 ---
