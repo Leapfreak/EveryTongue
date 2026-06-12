@@ -15,6 +15,7 @@ Namespace Services.Infrastructure
         Public Const STARTUP_FIRST_RUN As Integer = 1001
         Public Const STARTUP_DEPENDENCY_CHECK As Integer = 1002
         Public Const STARTUP_CRASH_DETECTED As Integer = 1003
+        Public Const STARTUP_INTEGRITY_FAIL As Integer = 1004
         Public Const STARTUP_SESSION_SUMMARY As Integer = 1099
 
         ' ── Config (1100–1199) ──
@@ -188,6 +189,7 @@ Namespace Services.Infrastructure
             R(STARTUP_FIRST_RUN, LogCategory.Startup, LogSeverity.Info, "First-run setup initiated")
             R(STARTUP_DEPENDENCY_CHECK, LogCategory.Startup, LogSeverity.Info, "Dependency check running")
             R(STARTUP_CRASH_DETECTED, LogCategory.Startup, LogSeverity.Warning, "Previous session did not exit cleanly")
+            R(STARTUP_INTEGRITY_FAIL, LogCategory.Startup, LogSeverity.Warning, "File failed the startup integrity check (modified or missing vs manifest)")
             R(STARTUP_SESSION_SUMMARY, LogCategory.Startup, LogSeverity.Info, "Session summary on shutdown")
 
             ' Config

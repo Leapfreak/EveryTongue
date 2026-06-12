@@ -158,12 +158,30 @@ Public Class FormMain
         ' Clean up old log files (keep last 30 days)
         Services.Infrastructure.AppLogger.CleanupOldLogFiles(30)
 
-        ' Run file integrity check at startup (log only, non-blocking)
+        ' Run file integrity check at startup (log only, non-blocking).
+        ' Log the summary + failures ONLY: the full per-file report (~40 lines on
+        ' one event id) trips the rate limiter and buries the [FAIL] line that
+        ' matters. The full report stays available via Tools → Verify File
+        ' Integrity and the diagnostics export.
         Task.Run(Sub()
                      Try
                          Dim result = Services.Infrastructure.IntegrityChecker.Check()
-                         For Each line In Services.Infrastructure.IntegrityChecker.ToReportLines(result)
-                             AppLogger.Log(LogEvents.STARTUP_DEPENDENCY_CHECK, $"{line}")
+                         If Not result.ManifestFound Then
+                             AppLogger.Log(LogEvents.STARTUP_DEPENDENCY_CHECK,
+                                 "Integrity: checksums.json not found — cannot verify files")
+                             Return
+                         End If
+                         AppLogger.Log(LogEvents.STARTUP_DEPENDENCY_CHECK,
+                             $"Integrity: manifest {result.ManifestVersion} ({result.ManifestGenerated}) — {result.PassCount} pass, {result.FailCount} fail, {result.MissingCount} missing")
+                         For Each f In result.Files
+                             Select Case f.Status
+                                 Case Services.Infrastructure.IntegrityChecker.FileStatus.Fail
+                                     AppLogger.Log(LogEvents.STARTUP_INTEGRITY_FAIL,
+                                         $"[FAIL] {f.RelativePath} (expected {f.ExpectedHash?.Substring(0, 12)}…, actual {f.ActualHash?.Substring(0, 12)}…, size {f.ExpectedSize}→{f.ActualSize})")
+                                 Case Services.Infrastructure.IntegrityChecker.FileStatus.Missing
+                                     AppLogger.Log(LogEvents.STARTUP_INTEGRITY_FAIL,
+                                         $"[MISSING] {f.RelativePath}")
+                             End Select
                          Next
                      Catch ex As Exception
                          AppLogger.Log(LogEvents.STARTUP_DEPENDENCY_CHECK, $"Check failed: {ex.Message}")
