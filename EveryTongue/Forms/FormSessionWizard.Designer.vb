@@ -65,6 +65,8 @@ Partial Class FormSessionWizard
         lblSummary = New Label()
         picQr = New PictureBox()
         lblQrUrl = New Label()
+        chkSaveTemplate = New CheckBox()
+        txtTemplateName = New TextBox()
 
         pnlSteps.SuspendLayout()
         pnlStep1.SuspendLayout()
@@ -346,6 +348,18 @@ Partial Class FormSessionWizard
         lblQrUrl.ForeColor = Drawing.Color.Gray
         lblQrUrl.Name = "lblQrUrl"
 
+        ' chkSaveTemplate — save the wizard's choices as a reusable session template
+        chkSaveTemplate.AutoSize = True
+        chkSaveTemplate.Location = New Drawing.Point(0, 230)
+        chkSaveTemplate.Name = "chkSaveTemplate"
+        chkSaveTemplate.Text = "Save as session template"
+
+        ' txtTemplateName
+        txtTemplateName.Location = New Drawing.Point(0, 255)
+        txtTemplateName.Size = New Drawing.Size(300, 23)
+        txtTemplateName.Name = "txtTemplateName"
+        txtTemplateName.Enabled = False
+
         ' pnlStep5
         pnlStep5.Dock = DockStyle.Fill
         pnlStep5.Visible = False
@@ -353,6 +367,8 @@ Partial Class FormSessionWizard
         pnlStep5.Controls.Add(lblSummary)
         pnlStep5.Controls.Add(picQr)
         pnlStep5.Controls.Add(lblQrUrl)
+        pnlStep5.Controls.Add(chkSaveTemplate)
+        pnlStep5.Controls.Add(txtTemplateName)
 
         ' ════════════════════════════════════════════════════════════════
         ' Form
@@ -434,5 +450,7 @@ Partial Class FormSessionWizard
     Friend WithEvents lblSummary As Label
     Friend WithEvents picQr As PictureBox
     Friend WithEvents lblQrUrl As Label
+    Friend WithEvents chkSaveTemplate As CheckBox
+    Friend WithEvents txtTemplateName As TextBox
 
 End Class

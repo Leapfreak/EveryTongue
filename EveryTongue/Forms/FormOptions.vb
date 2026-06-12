@@ -43,11 +43,14 @@ Public Class FormOptions
         ' Tree nav nodes
         treeNav.Nodes("general").Text = langPack.GetString("Opt_NavGeneral")
         treeNav.Nodes("paths").Text = langPack.GetString("Opt_NavPaths")
+        treeNav.Nodes("stt").Text = langPack.GetString("Opt_NavStt")
         treeNav.Nodes("server").Text = langPack.GetString("Opt_NavServer")
+        treeNav.Nodes("display").Text = langPack.GetString("Opt_NavDisplay")
         treeNav.Nodes("translation").Text = langPack.GetString("Opt_NavTranslation")
         treeNav.Nodes("tts").Text = langPack.GetString("Opt_NavTts")
         treeNav.Nodes("hardware").Text = langPack.GetString("Opt_NavHardware")
         treeNav.Nodes("advanced").Text = langPack.GetString("Opt_NavAdvanced")
+        btnManageSttTemplatesOpt.Text = langPack.GetString("Opt_ManageSttTemplates")
 
         ' General panel
         lblAppearanceHeader.Text = langPack.GetString("Opt_AppearanceHeader")
@@ -113,7 +116,6 @@ Public Class FormOptions
         lblClauseSentenceEnders.Text = langPack.GetString("Opt_ClauseSentenceEnders")
         lblTransBackend.Text = langPack.GetString("Opt_TransBackend")
         lblDevice.Text = langPack.GetString("Opt_TransDevice")
-        lblUnload.Text = langPack.GetString("Opt_TransUnload")
 
         ' TTS panel
         lblTtsHeader.Text = langPack.GetString("Opt_TtsHeader")
@@ -146,7 +148,6 @@ Public Class FormOptions
         lblChunkTimeout.Text = langPack.GetString("Opt_ChunkTimeout")
         chkKeepChunks.Text = langPack.GetString("Opt_KeepChunks")
         chkKeepPreview.Text = langPack.GetString("Opt_KeepPreview")
-        chkSkipDownload.Text = langPack.GetString("Opt_SkipDownload")
         lblAdvOutputHeader.Text = langPack.GetString("Opt_AdvOutputHeader")
         chkOutTxt.Text = langPack.GetString("Opt_OutPlainText")
         lblAdvWhisperHeader.Text = langPack.GetString("Opt_AdvWhisperHeader")
@@ -165,9 +166,7 @@ Public Class FormOptions
         lblLogProbThresh.Text = langPack.GetString("Opt_LogProbThresh")
         lblNoSpeechThresh.Text = langPack.GetString("Opt_NoSpeechThresh")
         lblVadThresh.Text = langPack.GetString("Opt_VadThresh")
-        lblFreqThresh.Text = langPack.GetString("Opt_FreqThresh")
         lblInitialPrompt.Text = langPack.GetString("Opt_InitialPrompt")
-        lblHotwords.Text = langPack.GetString("Opt_Hotwords")
         lblAdvFlagsHeader.Text = langPack.GetString("Opt_AdvFlagsHeader")
         chkSplitOnWord.Text = langPack.GetString("Opt_SplitOnWord")
         chkNoGpu.Text = langPack.GetString("Opt_NoGpu")
@@ -178,7 +177,6 @@ Public Class FormOptions
         chkNoTimestamps.Text = langPack.GetString("Opt_NoTimestamps")
         chkPrintProgress.Text = langPack.GetString("Opt_PrintProgress")
         chkPrintColours.Text = langPack.GetString("Opt_PrintColours")
-        chkPrintRealtime.Text = langPack.GetString("Opt_PrintRealtime")
         lblAdvLiveHeader.Text = langPack.GetString("Opt_AdvLiveHeader")
         lblComputeType.Text = langPack.GetString("Opt_ComputeType")
         lblLiveVadSilence.Text = langPack.GetString("Opt_LiveVadSilence")
@@ -204,6 +202,14 @@ Public Class FormOptions
         ' Color pickers
         AddHandler btnBgColor.Click, Sub(s, e) PickColor(btnBgColor)
         AddHandler btnFgColor.Click, Sub(s, e) PickColor(btnFgColor)
+
+        ' STT template library manager
+        AddHandler btnManageSttTemplatesOpt.Click, Sub(s, e)
+                                                       Using frm As New FormEngineTemplates(_config)
+                                                           frm.Icon = Me.Icon
+                                                           frm.ShowDialog(Me)
+                                                       End Using
+                                                   End Sub
 
         ' Browse buttons — file pickers
         AddHandler btnBrowseWhisper.Click, Sub(s, e) BrowseFile(txtWhisper)
@@ -255,7 +261,9 @@ Public Class FormOptions
     Private Sub TreeNav_AfterSelect(sender As Object, e As TreeViewEventArgs)
         pnlGeneral.Visible = (e.Node.Name = "general")
         pnlPaths.Visible = (e.Node.Name = "paths")
+        pnlStt.Visible = (e.Node.Name = "stt")
         pnlServer.Visible = (e.Node.Name = "server")
+        pnlDisplay.Visible = (e.Node.Name = "display")
         pnlTranslation.Visible = (e.Node.Name = "translation")
         pnlTts.Visible = (e.Node.Name = "tts")
         pnlHardware.Visible = (e.Node.Name = "hardware")
@@ -334,7 +342,6 @@ Public Class FormOptions
         nudClauseTimerMs.Value = ClampNud(nudClauseTimerMs, _config.SpeechmaticsClauseTimerMs)
         txtClauseSentenceEnders.Text = _config.SpeechmaticsClauseSentenceEnders
         SelectItem(cboDevice, _config.TranslationDevice)
-        nudUnload.Value = _config.TranslationUnloadMinutes
         nudTransPort.Value = _config.TranslationPort
 
         ' TTS
@@ -359,7 +366,6 @@ Public Class FormOptions
         nudChunkTimeout.Value = _config.ChunkTimeoutMin
         chkKeepChunks.Checked = _config.KeepChunkFiles
         chkKeepPreview.Checked = _config.KeepPreview
-        chkSkipDownload.Checked = _config.SkipDownloadIfExists
 
         ' Advanced — Output formats
         chkOutSrt.Checked = _config.OutputSrt
@@ -385,9 +391,7 @@ Public Class FormOptions
         nudLogProbThresh.Value = CDec(_config.LogProbThreshold)
         nudNoSpeechThresh.Value = CDec(_config.NoSpeechThreshold)
         nudVadThresh.Value = CDec(_config.VadThreshold)
-        nudFreqThresh.Value = _config.FreqThreshold
         txtInitialPrompt.Text = _config.InitialPrompt
-        txtHotwords.Text = _config.Hotwords
 
         ' Advanced — Whisper flags
         chkSplitOnWord.Checked = _config.SplitOnWord
@@ -399,7 +403,6 @@ Public Class FormOptions
         chkNoTimestamps.Checked = _config.NoTimestamps
         chkPrintProgress.Checked = _config.PrintProgress
         chkPrintColours.Checked = _config.PrintColours
-        chkPrintRealtime.Checked = _config.PrintRealtime
 
         ' Advanced — Bible
         chkShowBibleCopyright.Checked = _config.ShowBibleCopyright
@@ -488,7 +491,6 @@ Public Class FormOptions
         _config.SpeechmaticsClauseTimerMs = CInt(nudClauseTimerMs.Value)
         _config.SpeechmaticsClauseSentenceEnders = txtClauseSentenceEnders.Text
         If cboDevice.SelectedItem IsNot Nothing Then _config.TranslationDevice = cboDevice.SelectedItem.ToString()
-        _config.TranslationUnloadMinutes = CInt(nudUnload.Value)
         _config.TranslationPort = CInt(nudTransPort.Value)
 
         ' TTS
@@ -517,7 +519,6 @@ Public Class FormOptions
         _config.ChunkTimeoutMin = CInt(nudChunkTimeout.Value)
         _config.KeepChunkFiles = chkKeepChunks.Checked
         _config.KeepPreview = chkKeepPreview.Checked
-        _config.SkipDownloadIfExists = chkSkipDownload.Checked
 
         ' Advanced — Output formats
         _config.OutputSrt = chkOutSrt.Checked
@@ -543,9 +544,7 @@ Public Class FormOptions
         _config.LogProbThreshold = CSng(nudLogProbThresh.Value)
         _config.NoSpeechThreshold = CSng(nudNoSpeechThresh.Value)
         _config.VadThreshold = CSng(nudVadThresh.Value)
-        _config.FreqThreshold = CInt(nudFreqThresh.Value)
         _config.InitialPrompt = txtInitialPrompt.Text
-        _config.Hotwords = txtHotwords.Text
 
         ' Advanced — Whisper flags
         _config.SplitOnWord = chkSplitOnWord.Checked
@@ -557,7 +556,6 @@ Public Class FormOptions
         _config.NoTimestamps = chkNoTimestamps.Checked
         _config.PrintProgress = chkPrintProgress.Checked
         _config.PrintColours = chkPrintColours.Checked
-        _config.PrintRealtime = chkPrintRealtime.Checked
 
         ' Advanced — Bible
         _config.ShowBibleCopyright = chkShowBibleCopyright.Checked

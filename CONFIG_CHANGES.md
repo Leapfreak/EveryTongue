@@ -1,6 +1,6 @@
 # EveryTongue — Configuration Architecture Refactor
 
-> **Status:** Phases 1–4 implemented (2026-06-12; cloud-STT-in-Transcribe deferred — see Phase 4 notes). Phase 5 (UI reorg, session wizard, dead-settings purge) pending.
+> **Status:** Phases 1–5 implemented in full (2026-06-12). Phases 6–9 (runtime consumption — see plan below) are NEXT: they turn the built-but-unconsumed scaffolding (speakers, gate, display, filters, session convergence) into live behavior. Parked separately: cloud-STT-in-Transcribe batch engines (PLAN.md → Future Work).
 > **Origin:** the config sprawl exposed while solving the "sharing Catalan speaker" (Andreu) problem — settings scattered across Hardware/Translation/Server/Rooms, dead batch-era settings, and conference templates carrying knobs the chosen engine ignores.
 
 ---
@@ -163,7 +163,19 @@ Each engine logs under its **own event range/category** so diagnostics stay isol
 - **Bible verse translation (web)**: Translate/Original toggle in the Bible read-all bar (shown only when the viewer's language differs from the Bible's). Sequentially POSTs `/api/translate` per verse and renders the translation under each verse (ES5, run-id guarded). Web Bible TTS already existed (verse ▶ buttons + Read All, browser or server TTS).
 - **DEFERRED — cloud STT in Transcribe**: the cloud engines (Google, Speechmatics) are streaming-realtime only; batch file transcription would need new batch-API engine modules (Speechmatics batch jobs API, Google long-running recognize) in `live-server/engines/` plus an upload pipeline. That is engine work, not workspace wiring — schedule alongside future engine additions. The capability is declared in `WorkspaceCapabilities` so the UI surface is ready.
 
-**Not yet (deliberately):** cloud-STT-in-Transcribe batch engines (see above), clause-dial relocation into the Speechmatics template + descriptor-driven Options UI + per-group Template Manager + session wizard + locale strings for `EngineCfg_*` label keys (Phase 5), dead-settings purge (Phase 5 — note: exploration found `ParallelJobs`/`ChunkSizeSec`/`PollIntervalMs`/`ChunkTimeoutMin`/`KeepChunkFiles`/`KeepPreview`/`PathModelAudio`/`PathOutputRoot`/`TranslationDevice` are still live consumers; only `SkipDownloadIfExists`, `Hotwords`, `FreqThreshold`, `PrintRealtime`, `TranslationUnloadMinutes` are actually dead).
+**Phase 5 — structural parts DONE (2026-06-12):**
+- **Dead-settings purge**: removed `SkipDownloadIfExists`, `Hotwords`, `FreqThreshold`, `PrintRealtime`, `TranslationUnloadMinutes` from `AppConfig`, FormOptions (controls + load/save) and en.json. The others on the original purge list were verified live consumers and kept (see Phase 1 notes).
+- **Descriptor-driven STT Template Manager** (`FormEngineTemplates`): CRUD over the STT library. Knob editors are rendered from the bound engine's `IEngineConfigDescriptor` at runtime (the one sanctioned use of runtime-generated controls — the field set depends on the engine), so **adding an engine never edits this form**. Only edited values are stored (empty paths omitted → machine baseline still applies). Deleting a template referenced by conference templates warns with the reference count.
+- **Shared STT templates in conference templates**: `FormTemplateManager` gained an "STT Template" picker — "(this template's own settings)" (the 1:1 write-through, as before) or a named library template. Choosing a shared template disables the embedded knob editors, references it by id (never overwrites it), and syncs the engine key. **This delivers the original Andreu scenario**: one "Speechmatics — sharing" template referenced by many conference templates, edited once.
+- **`EngineCfg_*` locale strings** added to en.json (all descriptor field labels) + `EngTpl_*`/`Tmpl_SttTemplate*` form strings.
+
+**Phase 5 — completion round (2026-06-12, user-approved decisions):**
+- **HYBRID clause dials**: the Speechmatics clause hold-and-lock dials are now template-pinnable — `SpeechmaticsConfig` carries them as Advanced descriptor fields. A room whose STT template explicitly stores any clause field uses those values, FIXED for the session (`_pinnedClauseDials` in ConferenceController, logged at room start); rooms without pinned dials keep today's live Options tuning (`CurrentThresholds(roomId)` reads AppConfig fresh). The template editor only stores advanced fields when "Include advanced settings" is checked (auto-checked when a template already pins some), so templates don't accidentally pin dials. Clause timer (poll resolution) stays machine-global in Options.
+- **Options reorg**: new **Speech-to-Text** nav page (engine, API key, Speechmatics region/operating-point/EOU — moved out of Hardware, which now holds only readiness scoring) with a "Manage STT Templates…" button; new **Display** nav page (subtitle colors/font — moved out of Server, renamed from "Server & Subtitles" to "Server"). Nav order: General · Tool Paths · Speech-to-Text · Translation · Text-to-Speech · Display · Server · Hardware · Advanced.
+- **Session wizard → session templates**: the wizard's final step gained "Save as session template" + name. It creates a Display template from the appearance step, engine-choice STT/translate templates (no knobs — machine baseline applies), and a SessionTemplate referencing them by id.
+
+**Remaining (parked):**
+- cloud-STT-in-Transcribe batch engines (PLAN.md → Future Work; see Phase 4 notes), clause-dial relocation into the Speechmatics template + descriptor-driven Options UI + per-group Template Manager + session wizard + locale strings for `EngineCfg_*` label keys (Phase 5), dead-settings purge (Phase 5 — note: exploration found `ParallelJobs`/`ChunkSizeSec`/`PollIntervalMs`/`ChunkTimeoutMin`/`KeepChunkFiles`/`KeepPreview`/`PathModelAudio`/`PathOutputRoot`/`TranslationDevice` are still live consumers; only `SkipDownloadIfExists`, `Hotwords`, `FreqThreshold`, `PrintRealtime`, `TranslationUnloadMinutes` are actually dead).
 
 ---
 
@@ -173,8 +185,149 @@ Each engine logs under its **own event range/category** so diagnostics stay isol
 2. **Engine-aware STT / Translate / TTS templates** — migrate `ConferenceTemplate`; Speaker-as-references. ✅ **DONE**
 3. **Online/Offline gate · Display group · Filters as collection.** ✅ **DONE**
 4. **Workspace wiring** + enable the cross-engine capabilities (cloud STT in Transcribe, translate-in-Transcribe, TTS in Translate/Bible, Bible verse translation). ✅ **DONE** *(cloud-STT-in-Transcribe deferred to engine work)*
-5. **UI reorg** + dead-settings purge + Session wizard.
-6. *(deferred)* per-room/speaker filter selection + per-type precedence; offline-detection prompt; session recording/export slot.
+5. **UI reorg** + dead-settings purge + Session wizard. ✅ **Structural parts DONE** — purge, descriptor-driven STT Template Manager, shared-template picker, EngineCfg_* strings. *Open: cosmetic Options reorg (STT out of Hardware, subtitle appearance → Display), clause-dial relocation (kept live-tunable in Options on purpose), session wizard — layout decisions to be directed by the user in the WinForms Designer.*
+6. **Speakers + Online/Offline gate at runtime** — see "Runtime consumption plan" below. 
+7. **Display consumption** — see below.
+8. **Filter consumption** — see below.
+9. **Session convergence + per-group managers + legacy retirement** — see below.
+10. *(still deferred)* per-type filter precedence; offline-detection prompt (PLAN.md); session recording/export slot.
+
+---
+
+# Runtime consumption plan (Phases 6–9)
+
+> Everything below wires ALREADY-BUILT scaffolding into live behavior. No new
+> config-model concepts are introduced. The production path is **conference
+> rooms** (phone web client + desktop server), so consumption centers there.
+> Each phase is independently shippable and testable; order is by user value.
+
+## Guiding decision — ConferenceTemplate IS the conference session (recommended)
+
+Two session concepts exist: `ConferenceTemplate` (proven hosting unit: name,
+hosting code, audio device, visibility, STT template ref) and `SessionTemplate`
+(generic slot references, currently created only by the wizard). Running both
+as parallel "session" notions invites drift. **Recommendation: evolve
+ConferenceTemplate into the conference-flavored session** by adding the missing
+slot references (`Mode`, `DisplayTemplateId`, `FilterSetId`,
+`SpeakerProfileIds`) — it already follows the reference-not-embed model since
+Phase 2. `SessionTemplate` remains the wizard/desktop-session shape and a
+future shape for non-conference workspaces; Phase 9 decides whether to merge or
+retire it. *(If you'd rather make SessionTemplate the one true session and have
+ConferenceTemplate reference it, say so before Phase 6 starts — it changes the
+field placement below but not the work shape.)*
+
+## Phase 6 — Speakers + Online/Offline gate (the Andreu core)
+
+**Goal:** mid-service speaker switching: the host picks "Andreu" on the phone
+panel and the room restarts onto his preferred STT template; flipping the room
+to Offline re-resolves through his offline slot. No auto-fallback ever.
+
+1. **Speaker manager UI** (`FormSpeakerProfiles`, opened from FormTemplateManager
+   and the Options STT page): CRUD over `SpeakerProfile` — name + four reference
+   combos (online STT template, offline STT template, translate template, TTS
+   template; "(none)" allowed) + glossary-set ref (combo populated from filter
+   sets; disabled until Phase 8). Pure reference picking — no descriptor
+   rendering needed.
+2. **ConferenceTemplate gains** `Mode As ConnectivityMode` (default Online) and
+   `SpeakerProfileIds As List(Of String)`; FormTemplateManager gets a Mode combo
+   and a speaker checklist (order = display order).
+3. **Room runtime state**: `Room` gains `ActiveSpeakerId` + `Mode`;
+   `/api/rooms/{id}` responses include the speaker list (id+name) and mode so
+   the host panel can render them.
+4. **Host panel (app.js, ES5)**: speaker dropdown + Online/Offline toggle in the
+   existing pipeline panel. Both post to `/api/control/pipeline`
+   (`{speakerId}` / `{mode}`), which routes to ConferenceController.
+5. **ConferenceController**: `SwitchSpeaker(roomId, speakerId)` →
+   `ConnectivityGate.SelectSpeakerSttTemplateId(speaker, roomMode)` → resolve
+   that engine template (existing resolver path) → restart backend (reuse
+   `RestartConferenceBackend` machinery; flushes buffers, locks clauses — all
+   already there). Empty slot for the current mode → log `CONFIG_GATE_DECISION`
+   + host-panel toast, **no fallback**. `SetMode(roomId, mode)` re-runs the same
+   resolution for the active speaker.
+6. **Gate enforcement on create**: room creation resolves through
+   `ConnectivityGate.GateTemplate` using the template's Mode (today it's
+   ungated); blocked → clear host-panel error.
+7. **Logging**: speaker switch + gate decisions land under the existing
+   Config/Conference event ranges; add `CONF_SPEAKER_SWITCHED` event.
+
+*Touches:* new FormSpeakerProfiles (+Designer), FormTemplateManager,
+ConferenceTemplate, RoomModels, EndpointRegistration, ConferenceController,
+app.js, en.json. *Risk:* restart-path regressions — mitigated because speaker
+switch reuses the existing restart machinery. *Test:* two speakers with
+different engines (Speechmatics vs Vulkan); switch mid-session; flip offline
+and confirm the Speechmatics speaker blocks with a logged gate decision.
+
+## Phase 7 — Display consumption (both renderers)
+
+**Goal:** a room's projected/viewer appearance and offered languages come from
+its Display template; the app-global `Subtitle*` settings remain the fallback.
+
+1. **Display template manager** (`FormDisplayTemplates`: name, colors, font,
+   offered-languages checklist, layout combo) opened from the Options Display
+   page; ConferenceTemplate gains `DisplayTemplateId` + picker.
+2. **Server**: room creation resolves `SessionResolver.ResolveDisplay` →
+   stored per room; a `/api/rooms/{id}/display` (or fields on the existing room
+   payload) exposes it.
+3. **Web client (app.js, ES5)**: room view applies per-room colors/font via a
+   style block; **offered languages** filter the language picker for that room
+   (empty list = all — current behavior).
+4. **Desktop projected view**: `SubtitleService.BgColor/FgColor` switch to the
+   active room's resolved display when one is set.
+
+*Touches:* new FormDisplayTemplates, FormTemplateManager, ConferenceTemplate,
+SubtitleService/ServerOptions, EndpointRegistration, app.js, en.json.
+*Test:* two rooms with different display templates side-by-side on two phones;
+per-device font-size preference must still override (viewer-level stays local).
+
+## Phase 8 — Filter consumption (per-session sets)
+
+**Goal:** a room can use a named FilterSet instead of the global files.
+
+1. **FilterSet manager**: extend FormFilterEditor with a set selector (sets
+   from `TemplateLibraryStore.GetFilterSets()` + "(global)"); editing a named
+   set edits its own files (stored under `%AppData%\EveryTongue\filters\{id}\`).
+2. **live-server** (per-room sidecar — easy): `/start` gains
+   `hallucinations_path`; ConferenceController passes the room's resolved
+   `FilterSet.HallucinationsPath`.
+3. **translate-server** (shared sidecar — the real work): `/translate` gains
+   optional `glossary_path`/`profanity_path`; server caches loaded sets keyed
+   by path (mtime-invalidated). .NET passes the room's resolved paths on every
+   room-scoped translate call.
+4. **References**: ConferenceTemplate gains `FilterSetId` + picker; speaker
+   `GlossarySetId` activates (speaker override > room set > global), which
+   delivers the deferred "per-speaker glossary" in its simplest form.
+
+*Touches:* FormFilterEditor, both Python servers, TranslationService /
+orchestrator call sites, ConferenceController, ConferenceTemplate, en.json.
+*Risk:* highest of the four (Python + shared-sidecar caching); ship behind
+"(global)" default so nothing changes until a set is selected.
+*Test:* room A with a custom glossary set, room B global, simultaneously; check
+filter-hit logs attribute the right set.
+
+## Phase 9 — Convergence + cleanup
+
+1. **Wizard/SessionTemplate convergence** per the guiding decision: either the
+   wizard emits a ConferenceTemplate (+ Display ref) and `SessionTemplate` is
+   retired, or SessionTemplate stays for non-conference workspaces — decide
+   with Phase 6 experience in hand.
+2. **Per-group template managers**: generalize FormEngineTemplates to take a
+   group + registry adapter so Translate/TTS get managers the day their engines
+   grow per-session knobs (zero value before then).
+3. **Legacy retirement**: `GoogleCloudSttApiKey` bridge removal (one release
+   after v1.9.x has migrated keys), ConferenceTemplate legacy embedded knobs
+   (`BeamSize` etc.) dropped from JSON once all configs are migrated.
+4. **CDN locale pack regeneration** for all v1.9.x keys (operational, not code).
+
+## Suggested sequencing & sizing
+
+| Phase | Value | Size | Depends on |
+|---|---|---|---|
+| 6 Speakers+Gate | the original problem | L (1 full session) | nothing |
+| 7 Display | high visual payoff | M | nothing |
+| 8 Filters | medium; per-speaker glossary | L (Python) | 6 (speaker refs) for the speaker-override part |
+| 9 Convergence | hygiene | S–M | 6 (decision input) |
+
+Phases 6 and 7 are independent — either can go first. Recommended: 6 → 7 → 8 → 9.
 
 ---
 

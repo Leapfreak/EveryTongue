@@ -131,8 +131,6 @@ Partial Class FormOptions
         Me.lblTtsPref3 = New System.Windows.Forms.Label()
         Me.cboTtsPref3 = New System.Windows.Forms.ComboBox()
         Me.lblTtsNote = New System.Windows.Forms.Label()
-        Me.nudUnload = New System.Windows.Forms.NumericUpDown()
-        Me.lblUnload = New System.Windows.Forms.Label()
         Me.cboDevice = New System.Windows.Forms.ComboBox()
         Me.lblDevice = New System.Windows.Forms.Label()
         Me.cboTransBackend = New System.Windows.Forms.ComboBox()
@@ -181,6 +179,10 @@ Partial Class FormOptions
         Me.lblTemplatesHeader = New System.Windows.Forms.Label()
         Me.lblTemplatesSep = New System.Windows.Forms.Label()
         Me.btnManageTemplates = New System.Windows.Forms.Button()
+        ' ── Speech-to-Text / Display pages ──
+        Me.pnlStt = New System.Windows.Forms.Panel()
+        Me.pnlDisplay = New System.Windows.Forms.Panel()
+        Me.btnManageSttTemplatesOpt = New System.Windows.Forms.Button()
         ' ── Advanced panel controls ──
         Me.pnlAdvanced = New System.Windows.Forms.Panel()
         Me.lblAdvPipelineHeader = New System.Windows.Forms.Label()
@@ -195,7 +197,6 @@ Partial Class FormOptions
         Me.lblChunkTimeout = New System.Windows.Forms.Label()
         Me.chkKeepChunks = New System.Windows.Forms.CheckBox()
         Me.chkKeepPreview = New System.Windows.Forms.CheckBox()
-        Me.chkSkipDownload = New System.Windows.Forms.CheckBox()
         Me.lblAdvLivePipelineHeader = New System.Windows.Forms.Label()
         Me.lblAdvLivePipelineSep = New System.Windows.Forms.Label()
         Me.lblTranslationConcurrency = New System.Windows.Forms.Label()
@@ -242,12 +243,8 @@ Partial Class FormOptions
         Me.lblNoSpeechThresh = New System.Windows.Forms.Label()
         Me.nudVadThresh = New System.Windows.Forms.NumericUpDown()
         Me.lblVadThresh = New System.Windows.Forms.Label()
-        Me.nudFreqThresh = New System.Windows.Forms.NumericUpDown()
-        Me.lblFreqThresh = New System.Windows.Forms.Label()
         Me.txtInitialPrompt = New System.Windows.Forms.TextBox()
         Me.lblInitialPrompt = New System.Windows.Forms.Label()
-        Me.txtHotwords = New System.Windows.Forms.TextBox()
-        Me.lblHotwords = New System.Windows.Forms.Label()
         Me.lblAdvFlagsHeader = New System.Windows.Forms.Label()
         Me.lblAdvFlagsSep = New System.Windows.Forms.Label()
         Me.chkSplitOnWord = New System.Windows.Forms.CheckBox()
@@ -259,7 +256,6 @@ Partial Class FormOptions
         Me.chkNoTimestamps = New System.Windows.Forms.CheckBox()
         Me.chkPrintProgress = New System.Windows.Forms.CheckBox()
         Me.chkPrintColours = New System.Windows.Forms.CheckBox()
-        Me.chkPrintRealtime = New System.Windows.Forms.CheckBox()
         Me.lblAdvLiveHeader = New System.Windows.Forms.Label()
         Me.lblAdvLiveSep = New System.Windows.Forms.Label()
         Me.cboComputeType = New System.Windows.Forms.ComboBox()
@@ -305,7 +301,6 @@ Partial Class FormOptions
         CType(Me.nudLogProbThresh, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudNoSpeechThresh, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudVadThresh, System.ComponentModel.ISupportInitialize).BeginInit()
-        CType(Me.nudFreqThresh, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudLiveVadSilence, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudLiveMaxSeg, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudLiveInterim, System.ComponentModel.ISupportInitialize).BeginInit()
@@ -313,7 +308,6 @@ Partial Class FormOptions
         CType(Me.nudLivePort, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudTransPort, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudFontSize, System.ComponentModel.ISupportInitialize).BeginInit()
-        CType(Me.nudUnload, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudClauseGraceMs, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudClauseMaxMs, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudClauseMaxChars, System.ComponentModel.ISupportInitialize).BeginInit()
@@ -373,7 +367,7 @@ Partial Class FormOptions
         Me.treeNav.ItemHeight = 28
         Me.treeNav.Location = New System.Drawing.Point(0, 0)
         Me.treeNav.Name = "treeNav"
-        Me.treeNav.Nodes.AddRange(New System.Windows.Forms.TreeNode() {New System.Windows.Forms.TreeNode("General") With {.Name = "general"}, New System.Windows.Forms.TreeNode("Tool Paths") With {.Name = "paths"}, New System.Windows.Forms.TreeNode("Server & Subtitles") With {.Name = "server"}, New System.Windows.Forms.TreeNode("Translation") With {.Name = "translation"}, New System.Windows.Forms.TreeNode("Text-to-Speech") With {.Name = "tts"}, New System.Windows.Forms.TreeNode("Hardware") With {.Name = "hardware"}, New System.Windows.Forms.TreeNode("Advanced") With {.Name = "advanced"}})
+        Me.treeNav.Nodes.AddRange(New System.Windows.Forms.TreeNode() {New System.Windows.Forms.TreeNode("General") With {.Name = "general"}, New System.Windows.Forms.TreeNode("Tool Paths") With {.Name = "paths"}, New System.Windows.Forms.TreeNode("Speech-to-Text") With {.Name = "stt"}, New System.Windows.Forms.TreeNode("Translation") With {.Name = "translation"}, New System.Windows.Forms.TreeNode("Text-to-Speech") With {.Name = "tts"}, New System.Windows.Forms.TreeNode("Display") With {.Name = "display"}, New System.Windows.Forms.TreeNode("Server") With {.Name = "server"}, New System.Windows.Forms.TreeNode("Hardware") With {.Name = "hardware"}, New System.Windows.Forms.TreeNode("Advanced") With {.Name = "advanced"}})
         Me.treeNav.ShowLines = False
         Me.treeNav.ShowPlusMinus = False
         Me.treeNav.ShowRootLines = False
@@ -384,7 +378,9 @@ Partial Class FormOptions
         '
         Me.pnlPages.Controls.Add(Me.pnlGeneral)
         Me.pnlPages.Controls.Add(Me.pnlPaths)
+        Me.pnlPages.Controls.Add(Me.pnlStt)
         Me.pnlPages.Controls.Add(Me.pnlServer)
+        Me.pnlPages.Controls.Add(Me.pnlDisplay)
         Me.pnlPages.Controls.Add(Me.pnlTranslation)
         Me.pnlPages.Controls.Add(Me.pnlTts)
         Me.pnlPages.Controls.Add(Me.pnlHardware)
@@ -1155,17 +1151,17 @@ Partial Class FormOptions
         Me.pnlServer.Controls.Add(Me.btnManageTemplates)
         Me.pnlServer.Controls.Add(Me.lblTemplatesSep)
         Me.pnlServer.Controls.Add(Me.lblTemplatesHeader)
-        Me.pnlServer.Controls.Add(Me.chkBold)
-        Me.pnlServer.Controls.Add(Me.nudFontSize)
-        Me.pnlServer.Controls.Add(Me.lblFontSize)
-        Me.pnlServer.Controls.Add(Me.cboFont)
-        Me.pnlServer.Controls.Add(Me.lblFont)
-        Me.pnlServer.Controls.Add(Me.btnFgColor)
-        Me.pnlServer.Controls.Add(Me.lblFgColor)
-        Me.pnlServer.Controls.Add(Me.btnBgColor)
-        Me.pnlServer.Controls.Add(Me.lblBgColor)
-        Me.pnlServer.Controls.Add(Me.lblSubtitleAppearanceSep)
-        Me.pnlServer.Controls.Add(Me.lblSubtitleAppearanceHeader)
+        Me.pnlDisplay.Controls.Add(Me.chkBold)
+        Me.pnlDisplay.Controls.Add(Me.nudFontSize)
+        Me.pnlDisplay.Controls.Add(Me.lblFontSize)
+        Me.pnlDisplay.Controls.Add(Me.cboFont)
+        Me.pnlDisplay.Controls.Add(Me.lblFont)
+        Me.pnlDisplay.Controls.Add(Me.btnFgColor)
+        Me.pnlDisplay.Controls.Add(Me.lblFgColor)
+        Me.pnlDisplay.Controls.Add(Me.btnBgColor)
+        Me.pnlDisplay.Controls.Add(Me.lblBgColor)
+        Me.pnlDisplay.Controls.Add(Me.lblSubtitleAppearanceSep)
+        Me.pnlDisplay.Controls.Add(Me.lblSubtitleAppearanceHeader)
         Me.pnlServer.Controls.Add(Me.txtPin)
         Me.pnlServer.Controls.Add(Me.lblPin)
         Me.pnlServer.Controls.Add(Me.chkFirewall)
@@ -1441,7 +1437,7 @@ Partial Class FormOptions
         '
         Me.lblSubtitleAppearanceHeader.AutoSize = True
         Me.lblSubtitleAppearanceHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
-        Me.lblSubtitleAppearanceHeader.Location = New System.Drawing.Point(8, 204)
+        Me.lblSubtitleAppearanceHeader.Location = New System.Drawing.Point(8, 12)
         Me.lblSubtitleAppearanceHeader.Name = "lblSubtitleAppearanceHeader"
         Me.lblSubtitleAppearanceHeader.Size = New System.Drawing.Size(163, 20)
         Me.lblSubtitleAppearanceHeader.TabIndex = 11
@@ -1452,7 +1448,7 @@ Partial Class FormOptions
         Me.lblSubtitleAppearanceSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.lblSubtitleAppearanceSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
-        Me.lblSubtitleAppearanceSep.Location = New System.Drawing.Point(8, 226)
+        Me.lblSubtitleAppearanceSep.Location = New System.Drawing.Point(8, 34)
         Me.lblSubtitleAppearanceSep.Name = "lblSubtitleAppearanceSep"
         Me.lblSubtitleAppearanceSep.Size = New System.Drawing.Size(520, 1)
         Me.lblSubtitleAppearanceSep.TabIndex = 12
@@ -1460,7 +1456,7 @@ Partial Class FormOptions
         ' lblBgColor
         '
         Me.lblBgColor.AutoSize = True
-        Me.lblBgColor.Location = New System.Drawing.Point(12, 234)
+        Me.lblBgColor.Location = New System.Drawing.Point(12, 42)
         Me.lblBgColor.Name = "lblBgColor"
         Me.lblBgColor.Size = New System.Drawing.Size(76, 15)
         Me.lblBgColor.TabIndex = 13
@@ -1471,7 +1467,7 @@ Partial Class FormOptions
         Me.btnBgColor.BackColor = System.Drawing.Color.Black
         Me.btnBgColor.FlatAppearance.BorderColor = System.Drawing.Color.Gray
         Me.btnBgColor.FlatStyle = System.Windows.Forms.FlatStyle.Flat
-        Me.btnBgColor.Location = New System.Drawing.Point(12, 252)
+        Me.btnBgColor.Location = New System.Drawing.Point(12, 60)
         Me.btnBgColor.Name = "btnBgColor"
         Me.btnBgColor.Size = New System.Drawing.Size(80, 23)
         Me.btnBgColor.TabIndex = 14
@@ -1480,7 +1476,7 @@ Partial Class FormOptions
         ' lblFgColor
         '
         Me.lblFgColor.AutoSize = True
-        Me.lblFgColor.Location = New System.Drawing.Point(110, 234)
+        Me.lblFgColor.Location = New System.Drawing.Point(110, 42)
         Me.lblFgColor.Name = "lblFgColor"
         Me.lblFgColor.Size = New System.Drawing.Size(62, 15)
         Me.lblFgColor.TabIndex = 15
@@ -1491,7 +1487,7 @@ Partial Class FormOptions
         Me.btnFgColor.BackColor = System.Drawing.Color.White
         Me.btnFgColor.FlatAppearance.BorderColor = System.Drawing.Color.Gray
         Me.btnFgColor.FlatStyle = System.Windows.Forms.FlatStyle.Flat
-        Me.btnFgColor.Location = New System.Drawing.Point(110, 252)
+        Me.btnFgColor.Location = New System.Drawing.Point(110, 60)
         Me.btnFgColor.Name = "btnFgColor"
         Me.btnFgColor.Size = New System.Drawing.Size(80, 23)
         Me.btnFgColor.TabIndex = 16
@@ -1500,7 +1496,7 @@ Partial Class FormOptions
         ' lblFont
         '
         Me.lblFont.AutoSize = True
-        Me.lblFont.Location = New System.Drawing.Point(210, 234)
+        Me.lblFont.Location = New System.Drawing.Point(210, 42)
         Me.lblFont.Name = "lblFont"
         Me.lblFont.Size = New System.Drawing.Size(34, 15)
         Me.lblFont.TabIndex = 17
@@ -1510,7 +1506,7 @@ Partial Class FormOptions
         '
         Me.cboFont.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
         Me.cboFont.FormattingEnabled = True
-        Me.cboFont.Location = New System.Drawing.Point(210, 252)
+        Me.cboFont.Location = New System.Drawing.Point(210, 60)
         Me.cboFont.Name = "cboFont"
         Me.cboFont.Size = New System.Drawing.Size(180, 23)
         Me.cboFont.TabIndex = 18
@@ -1518,7 +1514,7 @@ Partial Class FormOptions
         ' lblFontSize
         '
         Me.lblFontSize.AutoSize = True
-        Me.lblFontSize.Location = New System.Drawing.Point(410, 234)
+        Me.lblFontSize.Location = New System.Drawing.Point(410, 42)
         Me.lblFontSize.Name = "lblFontSize"
         Me.lblFontSize.Size = New System.Drawing.Size(30, 15)
         Me.lblFontSize.TabIndex = 19
@@ -1526,7 +1522,7 @@ Partial Class FormOptions
         '
         ' nudFontSize
         '
-        Me.nudFontSize.Location = New System.Drawing.Point(410, 252)
+        Me.nudFontSize.Location = New System.Drawing.Point(410, 60)
         Me.nudFontSize.Maximum = New Decimal(New Integer() {72, 0, 0, 0})
         Me.nudFontSize.Minimum = New Decimal(New Integer() {8, 0, 0, 0})
         Me.nudFontSize.Name = "nudFontSize"
@@ -1537,7 +1533,7 @@ Partial Class FormOptions
         ' chkBold
         '
         Me.chkBold.AutoSize = True
-        Me.chkBold.Location = New System.Drawing.Point(480, 254)
+        Me.chkBold.Location = New System.Drawing.Point(480, 62)
         Me.chkBold.Name = "chkBold"
         Me.chkBold.Size = New System.Drawing.Size(50, 19)
         Me.chkBold.TabIndex = 21
@@ -1548,7 +1544,7 @@ Partial Class FormOptions
         '
         Me.lblTemplatesHeader.AutoSize = True
         Me.lblTemplatesHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
-        Me.lblTemplatesHeader.Location = New System.Drawing.Point(8, 300)
+        Me.lblTemplatesHeader.Location = New System.Drawing.Point(8, 204)
         Me.lblTemplatesHeader.Name = "lblTemplatesHeader"
         Me.lblTemplatesHeader.Size = New System.Drawing.Size(170, 20)
         Me.lblTemplatesHeader.TabIndex = 22
@@ -1557,14 +1553,14 @@ Partial Class FormOptions
         ' lblTemplatesSep
         '
         Me.lblTemplatesSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
-        Me.lblTemplatesSep.Location = New System.Drawing.Point(8, 324)
+        Me.lblTemplatesSep.Location = New System.Drawing.Point(8, 228)
         Me.lblTemplatesSep.Name = "lblTemplatesSep"
         Me.lblTemplatesSep.Size = New System.Drawing.Size(540, 2)
         Me.lblTemplatesSep.TabIndex = 23
         '
         ' btnManageTemplates
         '
-        Me.btnManageTemplates.Location = New System.Drawing.Point(12, 334)
+        Me.btnManageTemplates.Location = New System.Drawing.Point(12, 238)
         Me.btnManageTemplates.Name = "btnManageTemplates"
         Me.btnManageTemplates.Size = New System.Drawing.Size(180, 30)
         Me.btnManageTemplates.TabIndex = 24
@@ -1638,23 +1634,9 @@ Partial Class FormOptions
         Me.cboDevice.Size = New System.Drawing.Size(90, 23)
         Me.cboDevice.TabIndex = 6
         '
-        ' lblUnload
         '
-        Me.lblUnload.AutoSize = True
-        Me.lblUnload.Location = New System.Drawing.Point(120, 118)
-        Me.lblUnload.Name = "lblUnload"
-        Me.lblUnload.Size = New System.Drawing.Size(81, 15)
-        Me.lblUnload.TabIndex = 7
-        Me.lblUnload.Text = "Unload (min):"
         '
-        ' nudUnload
         '
-        Me.nudUnload.Location = New System.Drawing.Point(120, 136)
-        Me.nudUnload.Maximum = New Decimal(New Integer() {1440, 0, 0, 0})
-        Me.nudUnload.Name = "nudUnload"
-        Me.nudUnload.Size = New System.Drawing.Size(60, 23)
-        Me.nudUnload.TabIndex = 8
-        Me.nudUnload.Value = New Decimal(New Integer() {10, 0, 0, 0})
         '
         ' lblTtsHeader
         '
@@ -1762,8 +1744,6 @@ Partial Class FormOptions
         Me.pnlTranslation.Controls.Add(Me.chkUseSpeechmaticsTranslation)
         Me.pnlTranslation.Controls.Add(Me.nudTransPort)
         Me.pnlTranslation.Controls.Add(Me.lblTransPort)
-        Me.pnlTranslation.Controls.Add(Me.nudUnload)
-        Me.pnlTranslation.Controls.Add(Me.lblUnload)
         Me.pnlTranslation.Controls.Add(Me.cboDevice)
         Me.pnlTranslation.Controls.Add(Me.lblDevice)
         Me.pnlTranslation.Controls.Add(Me.cboTransBackend)
@@ -1808,18 +1788,18 @@ Partial Class FormOptions
         ' pnlHardware
         '
         Me.pnlHardware.AutoScroll = True
-        Me.pnlHardware.Controls.Add(Me.nudSttEouSilence)
-        Me.pnlHardware.Controls.Add(Me.lblSttEouSilence)
-        Me.pnlHardware.Controls.Add(Me.cboSttRegion)
-        Me.pnlHardware.Controls.Add(Me.lblSttRegion)
-        Me.pnlHardware.Controls.Add(Me.cboSttOperatingPoint)
-        Me.pnlHardware.Controls.Add(Me.lblSttOperatingPoint)
-        Me.pnlHardware.Controls.Add(Me.txtSttApiKey)
-        Me.pnlHardware.Controls.Add(Me.lblSttApiKey)
-        Me.pnlHardware.Controls.Add(Me.cboSttBackend)
-        Me.pnlHardware.Controls.Add(Me.lblSttBackend)
-        Me.pnlHardware.Controls.Add(Me.lblSttEngineSep)
-        Me.pnlHardware.Controls.Add(Me.lblSttEngineHeader)
+        Me.pnlStt.Controls.Add(Me.nudSttEouSilence)
+        Me.pnlStt.Controls.Add(Me.lblSttEouSilence)
+        Me.pnlStt.Controls.Add(Me.cboSttRegion)
+        Me.pnlStt.Controls.Add(Me.lblSttRegion)
+        Me.pnlStt.Controls.Add(Me.cboSttOperatingPoint)
+        Me.pnlStt.Controls.Add(Me.lblSttOperatingPoint)
+        Me.pnlStt.Controls.Add(Me.txtSttApiKey)
+        Me.pnlStt.Controls.Add(Me.lblSttApiKey)
+        Me.pnlStt.Controls.Add(Me.cboSttBackend)
+        Me.pnlStt.Controls.Add(Me.lblSttBackend)
+        Me.pnlStt.Controls.Add(Me.lblSttEngineSep)
+        Me.pnlStt.Controls.Add(Me.lblSttEngineHeader)
         Me.pnlHardware.Controls.Add(Me.btnHwRescan)
         Me.pnlHardware.Controls.Add(Me.txtHwRecs)
         Me.pnlHardware.Controls.Add(Me.lblHwRecsSep)
@@ -2026,7 +2006,7 @@ Partial Class FormOptions
         '
         Me.lblSttEngineHeader.AutoSize = True
         Me.lblSttEngineHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
-        Me.lblSttEngineHeader.Location = New System.Drawing.Point(8, 452)
+        Me.lblSttEngineHeader.Location = New System.Drawing.Point(8, 12)
         Me.lblSttEngineHeader.Name = "lblSttEngineHeader"
         Me.lblSttEngineHeader.Size = New System.Drawing.Size(102, 20)
         Me.lblSttEngineHeader.TabIndex = 17
@@ -2037,7 +2017,7 @@ Partial Class FormOptions
         Me.lblSttEngineSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.lblSttEngineSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
-        Me.lblSttEngineSep.Location = New System.Drawing.Point(8, 474)
+        Me.lblSttEngineSep.Location = New System.Drawing.Point(8, 34)
         Me.lblSttEngineSep.Name = "lblSttEngineSep"
         Me.lblSttEngineSep.Size = New System.Drawing.Size(520, 1)
         Me.lblSttEngineSep.TabIndex = 18
@@ -2045,7 +2025,7 @@ Partial Class FormOptions
         ' lblSttBackend
         '
         Me.lblSttBackend.AutoSize = True
-        Me.lblSttBackend.Location = New System.Drawing.Point(12, 484)
+        Me.lblSttBackend.Location = New System.Drawing.Point(12, 44)
         Me.lblSttBackend.Name = "lblSttBackend"
         Me.lblSttBackend.Size = New System.Drawing.Size(77, 15)
         Me.lblSttBackend.TabIndex = 19
@@ -2057,7 +2037,7 @@ Partial Class FormOptions
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.cboSttBackend.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
         Me.cboSttBackend.FormattingEnabled = True
-        Me.cboSttBackend.Location = New System.Drawing.Point(12, 502)
+        Me.cboSttBackend.Location = New System.Drawing.Point(12, 62)
         Me.cboSttBackend.Name = "cboSttBackend"
         Me.cboSttBackend.Size = New System.Drawing.Size(350, 23)
         Me.cboSttBackend.TabIndex = 20
@@ -2065,7 +2045,7 @@ Partial Class FormOptions
         ' lblSttApiKey
         '
         Me.lblSttApiKey.AutoSize = True
-        Me.lblSttApiKey.Location = New System.Drawing.Point(12, 532)
+        Me.lblSttApiKey.Location = New System.Drawing.Point(12, 92)
         Me.lblSttApiKey.Name = "lblSttApiKey"
         Me.lblSttApiKey.Size = New System.Drawing.Size(77, 15)
         Me.lblSttApiKey.TabIndex = 21
@@ -2076,7 +2056,7 @@ Partial Class FormOptions
         '
         Me.txtSttApiKey.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
-        Me.txtSttApiKey.Location = New System.Drawing.Point(12, 550)
+        Me.txtSttApiKey.Location = New System.Drawing.Point(12, 110)
         Me.txtSttApiKey.Name = "txtSttApiKey"
         Me.txtSttApiKey.Size = New System.Drawing.Size(350, 23)
         Me.txtSttApiKey.TabIndex = 22
@@ -2086,7 +2066,7 @@ Partial Class FormOptions
         ' lblSttOperatingPoint
         '
         Me.lblSttOperatingPoint.AutoSize = True
-        Me.lblSttOperatingPoint.Location = New System.Drawing.Point(12, 582)
+        Me.lblSttOperatingPoint.Location = New System.Drawing.Point(12, 142)
         Me.lblSttOperatingPoint.Name = "lblSttOperatingPoint"
         Me.lblSttOperatingPoint.Size = New System.Drawing.Size(95, 15)
         Me.lblSttOperatingPoint.TabIndex = 23
@@ -2099,7 +2079,7 @@ Partial Class FormOptions
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.cboSttOperatingPoint.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
         Me.cboSttOperatingPoint.FormattingEnabled = True
-        Me.cboSttOperatingPoint.Location = New System.Drawing.Point(12, 600)
+        Me.cboSttOperatingPoint.Location = New System.Drawing.Point(12, 160)
         Me.cboSttOperatingPoint.Name = "cboSttOperatingPoint"
         Me.cboSttOperatingPoint.Size = New System.Drawing.Size(350, 23)
         Me.cboSttOperatingPoint.TabIndex = 24
@@ -2108,7 +2088,7 @@ Partial Class FormOptions
         ' lblSttRegion
         '
         Me.lblSttRegion.AutoSize = True
-        Me.lblSttRegion.Location = New System.Drawing.Point(12, 632)
+        Me.lblSttRegion.Location = New System.Drawing.Point(12, 192)
         Me.lblSttRegion.Name = "lblSttRegion"
         Me.lblSttRegion.Size = New System.Drawing.Size(50, 15)
         Me.lblSttRegion.TabIndex = 25
@@ -2121,7 +2101,7 @@ Partial Class FormOptions
             Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
         Me.cboSttRegion.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
         Me.cboSttRegion.FormattingEnabled = True
-        Me.cboSttRegion.Location = New System.Drawing.Point(12, 650)
+        Me.cboSttRegion.Location = New System.Drawing.Point(12, 210)
         Me.cboSttRegion.Name = "cboSttRegion"
         Me.cboSttRegion.Size = New System.Drawing.Size(350, 23)
         Me.cboSttRegion.TabIndex = 26
@@ -2130,7 +2110,7 @@ Partial Class FormOptions
         ' lblSttEouSilence
         '
         Me.lblSttEouSilence.AutoSize = True
-        Me.lblSttEouSilence.Location = New System.Drawing.Point(12, 682)
+        Me.lblSttEouSilence.Location = New System.Drawing.Point(12, 242)
         Me.lblSttEouSilence.Name = "lblSttEouSilence"
         Me.lblSttEouSilence.Size = New System.Drawing.Size(220, 15)
         Me.lblSttEouSilence.TabIndex = 27
@@ -2139,7 +2119,7 @@ Partial Class FormOptions
         '
         ' nudSttEouSilence
         '
-        Me.nudSttEouSilence.Location = New System.Drawing.Point(240, 680)
+        Me.nudSttEouSilence.Location = New System.Drawing.Point(240, 240)
         Me.nudSttEouSilence.Minimum = New Decimal(New Integer() {300, 0, 0, 0})
         Me.nudSttEouSilence.Maximum = New Decimal(New Integer() {4000, 0, 0, 0})
         Me.nudSttEouSilence.Increment = New Decimal(New Integer() {100, 0, 0, 0})
@@ -2148,6 +2128,44 @@ Partial Class FormOptions
         Me.nudSttEouSilence.TabIndex = 28
         Me.nudSttEouSilence.Value = New Decimal(New Integer() {800, 0, 0, 0})
         Me.nudSttEouSilence.Visible = False
+        '
+        ' ══════════════════════════════════════════════════════════════
+        ' SPEECH-TO-TEXT PANEL (engine baseline; moved out of Hardware)
+        ' ══════════════════════════════════════════════════════════════
+        '
+        ' pnlStt
+        '
+        Me.pnlStt.AutoScroll = True
+        Me.pnlStt.Controls.Add(Me.btnManageSttTemplatesOpt)
+        Me.pnlStt.Dock = System.Windows.Forms.DockStyle.Fill
+        Me.pnlStt.Location = New System.Drawing.Point(0, 0)
+        Me.pnlStt.Name = "pnlStt"
+        Me.pnlStt.Size = New System.Drawing.Size(564, 469)
+        Me.pnlStt.TabIndex = 0
+        Me.pnlStt.Visible = False
+        '
+        ' btnManageSttTemplatesOpt
+        '
+        Me.btnManageSttTemplatesOpt.Location = New System.Drawing.Point(12, 282)
+        Me.btnManageSttTemplatesOpt.Name = "btnManageSttTemplatesOpt"
+        Me.btnManageSttTemplatesOpt.Size = New System.Drawing.Size(190, 28)
+        Me.btnManageSttTemplatesOpt.TabIndex = 30
+        Me.btnManageSttTemplatesOpt.Text = "Manage STT Templates..."
+        Me.btnManageSttTemplatesOpt.UseVisualStyleBackColor = True
+        '
+        ' ══════════════════════════════════════════════════════════════
+        ' DISPLAY PANEL (subtitle appearance; moved out of Server)
+        ' ══════════════════════════════════════════════════════════════
+        '
+        ' pnlDisplay
+        '
+        Me.pnlDisplay.AutoScroll = True
+        Me.pnlDisplay.Dock = System.Windows.Forms.DockStyle.Fill
+        Me.pnlDisplay.Location = New System.Drawing.Point(0, 0)
+        Me.pnlDisplay.Name = "pnlDisplay"
+        Me.pnlDisplay.Size = New System.Drawing.Size(564, 469)
+        Me.pnlDisplay.TabIndex = 0
+        Me.pnlDisplay.Visible = False
         '
         ' ══════════════════════════════════════════════════════════════
         ' ADVANCED PANEL
@@ -2168,7 +2186,6 @@ Partial Class FormOptions
         Me.pnlAdvanced.Controls.Add(Me.nudChunkTimeout)
         Me.pnlAdvanced.Controls.Add(Me.chkKeepChunks)
         Me.pnlAdvanced.Controls.Add(Me.chkKeepPreview)
-        Me.pnlAdvanced.Controls.Add(Me.chkSkipDownload)
         Me.pnlAdvanced.Controls.Add(Me.lblAdvLivePipelineHeader)
         Me.pnlAdvanced.Controls.Add(Me.lblAdvLivePipelineSep)
         Me.pnlAdvanced.Controls.Add(Me.lblTranslationConcurrency)
@@ -2215,12 +2232,8 @@ Partial Class FormOptions
         Me.pnlAdvanced.Controls.Add(Me.nudNoSpeechThresh)
         Me.pnlAdvanced.Controls.Add(Me.lblVadThresh)
         Me.pnlAdvanced.Controls.Add(Me.nudVadThresh)
-        Me.pnlAdvanced.Controls.Add(Me.lblFreqThresh)
-        Me.pnlAdvanced.Controls.Add(Me.nudFreqThresh)
         Me.pnlAdvanced.Controls.Add(Me.lblInitialPrompt)
         Me.pnlAdvanced.Controls.Add(Me.txtInitialPrompt)
-        Me.pnlAdvanced.Controls.Add(Me.lblHotwords)
-        Me.pnlAdvanced.Controls.Add(Me.txtHotwords)
         Me.pnlAdvanced.Controls.Add(Me.lblAdvFlagsHeader)
         Me.pnlAdvanced.Controls.Add(Me.lblAdvFlagsSep)
         Me.pnlAdvanced.Controls.Add(Me.chkSplitOnWord)
@@ -2232,7 +2245,6 @@ Partial Class FormOptions
         Me.pnlAdvanced.Controls.Add(Me.chkNoTimestamps)
         Me.pnlAdvanced.Controls.Add(Me.chkPrintProgress)
         Me.pnlAdvanced.Controls.Add(Me.chkPrintColours)
-        Me.pnlAdvanced.Controls.Add(Me.chkPrintRealtime)
         Me.pnlAdvanced.Controls.Add(Me.lblAdvLiveHeader)
         Me.pnlAdvanced.Controls.Add(Me.lblAdvLiveSep)
         Me.pnlAdvanced.Controls.Add(Me.lblComputeType)
@@ -2371,15 +2383,7 @@ Partial Class FormOptions
         Me.chkKeepPreview.Text = "Keep preview files"
         Me.chkKeepPreview.UseVisualStyleBackColor = True
         '
-        ' chkSkipDownload
         '
-        Me.chkSkipDownload.AutoSize = True
-        Me.chkSkipDownload.Location = New System.Drawing.Point(330, 98)
-        Me.chkSkipDownload.Name = "chkSkipDownload"
-        Me.chkSkipDownload.Size = New System.Drawing.Size(150, 19)
-        Me.chkSkipDownload.TabIndex = 12
-        Me.chkSkipDownload.Text = "Skip download if exists"
-        Me.chkSkipDownload.UseVisualStyleBackColor = True
         '
         ' ── Section 2: Live Pipeline ──
         '
@@ -2840,22 +2844,9 @@ Partial Class FormOptions
         Me.nudVadThresh.Size = New System.Drawing.Size(60, 23)
         Me.nudVadThresh.TabIndex = 52
         '
-        ' lblFreqThresh
         '
-        Me.lblFreqThresh.AutoSize = True
-        Me.lblFreqThresh.Location = New System.Drawing.Point(280, 441)
-        Me.lblFreqThresh.Name = "lblFreqThresh"
-        Me.lblFreqThresh.Size = New System.Drawing.Size(116, 15)
-        Me.lblFreqThresh.TabIndex = 53
-        Me.lblFreqThresh.Text = "Frequency threshold:"
         '
-        ' nudFreqThresh
         '
-        Me.nudFreqThresh.Location = New System.Drawing.Point(400, 439)
-        Me.nudFreqThresh.Maximum = New Decimal(New Integer() {1000, 0, 0, 0})
-        Me.nudFreqThresh.Name = "nudFreqThresh"
-        Me.nudFreqThresh.Size = New System.Drawing.Size(60, 23)
-        Me.nudFreqThresh.TabIndex = 54
         '
         ' Row 9: Initial prompt — Y=467
         '
@@ -2875,23 +2866,10 @@ Partial Class FormOptions
         Me.txtInitialPrompt.Size = New System.Drawing.Size(400, 23)
         Me.txtInitialPrompt.TabIndex = 56
         '
-        ' Row 10: Hotwords — Y=495
         '
-        ' lblHotwords
         '
-        Me.lblHotwords.AutoSize = True
-        Me.lblHotwords.Location = New System.Drawing.Point(12, 497)
-        Me.lblHotwords.Name = "lblHotwords"
-        Me.lblHotwords.Size = New System.Drawing.Size(62, 15)
-        Me.lblHotwords.TabIndex = 57
-        Me.lblHotwords.Text = "Hotwords:"
         '
-        ' txtHotwords
         '
-        Me.txtHotwords.Location = New System.Drawing.Point(130, 495)
-        Me.txtHotwords.Name = "txtHotwords"
-        Me.txtHotwords.Size = New System.Drawing.Size(400, 23)
-        Me.txtHotwords.TabIndex = 58
         '
         ' ── Section 4: STT Flags ──
         '
@@ -3005,15 +2983,7 @@ Partial Class FormOptions
         Me.chkPrintColours.Text = "Print colours"
         Me.chkPrintColours.UseVisualStyleBackColor = True
         '
-        ' chkPrintRealtime — row 4
         '
-        Me.chkPrintRealtime.AutoSize = True
-        Me.chkPrintRealtime.Location = New System.Drawing.Point(12, 633)
-        Me.chkPrintRealtime.Name = "chkPrintRealtime"
-        Me.chkPrintRealtime.Size = New System.Drawing.Size(100, 19)
-        Me.chkPrintRealtime.TabIndex = 70
-        Me.chkPrintRealtime.Text = "Print realtime"
-        Me.chkPrintRealtime.UseVisualStyleBackColor = True
         '
         ' ── Section 5: Live Transcription ──
         '
@@ -3201,7 +3171,6 @@ Partial Class FormOptions
         CType(Me.nudLogProbThresh, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudNoSpeechThresh, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudVadThresh, System.ComponentModel.ISupportInitialize).EndInit()
-        CType(Me.nudFreqThresh, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudLiveVadSilence, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudLiveMaxSeg, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudLiveInterim, System.ComponentModel.ISupportInitialize).EndInit()
@@ -3209,7 +3178,6 @@ Partial Class FormOptions
         CType(Me.nudLivePort, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudTransPort, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudFontSize, System.ComponentModel.ISupportInitialize).EndInit()
-        CType(Me.nudUnload, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudClauseGraceMs, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudClauseMaxMs, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudClauseMaxChars, System.ComponentModel.ISupportInitialize).EndInit()
@@ -3368,8 +3336,6 @@ Partial Class FormOptions
     Friend WithEvents cboTransBackend As System.Windows.Forms.ComboBox
     Friend WithEvents lblDevice As System.Windows.Forms.Label
     Friend WithEvents cboDevice As System.Windows.Forms.ComboBox
-    Friend WithEvents lblUnload As System.Windows.Forms.Label
-    Friend WithEvents nudUnload As System.Windows.Forms.NumericUpDown
     Friend WithEvents lblTransPort As System.Windows.Forms.Label
     Friend WithEvents nudTransPort As System.Windows.Forms.NumericUpDown
 
@@ -3416,6 +3382,9 @@ Partial Class FormOptions
 
     ' Advanced panel
     Friend WithEvents pnlAdvanced As System.Windows.Forms.Panel
+    Friend WithEvents pnlStt As System.Windows.Forms.Panel
+    Friend WithEvents pnlDisplay As System.Windows.Forms.Panel
+    Friend WithEvents btnManageSttTemplatesOpt As System.Windows.Forms.Button
     Friend WithEvents lblAdvPipelineHeader As System.Windows.Forms.Label
     Friend WithEvents lblAdvPipelineSep As System.Windows.Forms.Label
     Friend WithEvents nudParallelJobs As System.Windows.Forms.NumericUpDown
@@ -3428,7 +3397,6 @@ Partial Class FormOptions
     Friend WithEvents lblChunkTimeout As System.Windows.Forms.Label
     Friend WithEvents chkKeepChunks As System.Windows.Forms.CheckBox
     Friend WithEvents chkKeepPreview As System.Windows.Forms.CheckBox
-    Friend WithEvents chkSkipDownload As System.Windows.Forms.CheckBox
     Friend WithEvents lblAdvOutputHeader As System.Windows.Forms.Label
     Friend WithEvents lblAdvOutputSep As System.Windows.Forms.Label
     Friend WithEvents chkOutSrt As System.Windows.Forms.CheckBox
@@ -3469,12 +3437,8 @@ Partial Class FormOptions
     Friend WithEvents lblNoSpeechThresh As System.Windows.Forms.Label
     Friend WithEvents nudVadThresh As System.Windows.Forms.NumericUpDown
     Friend WithEvents lblVadThresh As System.Windows.Forms.Label
-    Friend WithEvents nudFreqThresh As System.Windows.Forms.NumericUpDown
-    Friend WithEvents lblFreqThresh As System.Windows.Forms.Label
     Friend WithEvents txtInitialPrompt As System.Windows.Forms.TextBox
     Friend WithEvents lblInitialPrompt As System.Windows.Forms.Label
-    Friend WithEvents txtHotwords As System.Windows.Forms.TextBox
-    Friend WithEvents lblHotwords As System.Windows.Forms.Label
     Friend WithEvents lblAdvFlagsHeader As System.Windows.Forms.Label
     Friend WithEvents lblAdvFlagsSep As System.Windows.Forms.Label
     Friend WithEvents chkSplitOnWord As System.Windows.Forms.CheckBox
@@ -3486,7 +3450,6 @@ Partial Class FormOptions
     Friend WithEvents chkNoTimestamps As System.Windows.Forms.CheckBox
     Friend WithEvents chkPrintProgress As System.Windows.Forms.CheckBox
     Friend WithEvents chkPrintColours As System.Windows.Forms.CheckBox
-    Friend WithEvents chkPrintRealtime As System.Windows.Forms.CheckBox
     Friend WithEvents lblAdvLiveHeader As System.Windows.Forms.Label
     Friend WithEvents lblAdvLiveSep As System.Windows.Forms.Label
     Friend WithEvents cboComputeType As System.Windows.Forms.ComboBox

@@ -54,7 +54,6 @@ Namespace Models
 
         Public Property KeepPreview As Boolean = True
 
-        Public Property SkipDownloadIfExists As Boolean = False
 
         Public Property Theme As ThemeMode = ThemeMode.Light
 
@@ -118,7 +117,6 @@ Namespace Models
 
         Public Property Tinydiarize As Boolean = False
 
-        Public Property PrintRealtime As Boolean = False
 
         Public Property NoTimestamps As Boolean = False
 
@@ -130,13 +128,11 @@ Namespace Models
 
         Public Property InitialPrompt As String = ""
 
-        Public Property Hotwords As String = ""
 
         Public Property TranslateToEnglish As Boolean = False
 
         Public Property VadThreshold As Single = 0.6F
 
-        Public Property FreqThreshold As Integer = 100
 
         ' --- Subtitle Server ---
 
@@ -275,7 +271,6 @@ Namespace Models
         Public Property TranslationModelPath As String = ".\nllb-model"
         Public Property TranslationModelType As String = "nllb"
         Public Property TranslationDevice As String = "cuda"
-        Public Property TranslationUnloadMinutes As Integer = 10
         Public Property TranslationGlossaryPath As String = ".\translate-server\glossary.json"
         Public Property TranslationConcurrency As Integer = 3
 

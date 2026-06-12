@@ -56,6 +56,10 @@ Public Class FormSessionWizard
         AddHandler nudWizFontSize.ValueChanged, Sub(s, e) UpdatePreview()
         AddHandler chkWizBold.CheckedChanged, Sub(s, e) UpdatePreview()
 
+        ' Save-as-template controls (final step)
+        chkSaveTemplate.Text = Services.Infrastructure.LanguagePackService.Instance.GetString("SW_SaveTemplate")
+        AddHandler chkSaveTemplate.CheckedChanged, Sub(s, e) txtTemplateName.Enabled = chkSaveTemplate.Checked
+
         ' Wire color-picker events
         AddHandler btnWizBg.Click, Sub(s, e) PickColor(btnWizBg)
         AddHandler btnWizFg.Click, Sub(s, e) PickColor(btnWizFg)
@@ -385,6 +389,60 @@ Public Class FormSessionWizard
         _config.SubtitleFontBold = chkWizBold.Checked
 
         ConfigManager.Save(_config)
+        SaveSessionTemplateIfRequested()
+    End Sub
+
+    ''' <summary>
+    ''' Persist the wizard's choices as a reusable session template: the display
+    ''' settings become a Display template, the configured engines become
+    ''' engine-choice templates (no knobs — machine baseline applies), and a
+    ''' SessionTemplate references them all by id.
+    ''' </summary>
+    Private Sub SaveSessionTemplateIfRequested()
+        If Not chkSaveTemplate.Checked Then Return
+        Dim name = txtTemplateName.Text.Trim()
+        If name.Length = 0 Then Return
+        Try
+            Dim store = Services.Config.TemplateLibraryStore.Instance
+
+            Dim disp As New Models.Templates.DisplayTemplate With {
+                .Name = name,
+                .BgColor = Drawing.ColorTranslator.ToHtml(btnWizBg.BackColor),
+                .FgColor = Drawing.ColorTranslator.ToHtml(btnWizFg.BackColor),
+                .FontFamily = If(cboWizFont.SelectedItem?.ToString(), "Segoe UI"),
+                .FontSize = CSng(nudWizFontSize.Value),
+                .FontBold = chkWizBold.Checked
+            }
+            store.UpsertDisplayTemplate(disp)
+
+            Dim sttTpl As New Models.Templates.EngineTemplate With {
+                .Name = name,
+                .EngineKey = If(_config.SttBackend, "whisper-cpp-vulkan")
+            }
+            store.UpsertEngineTemplate(Services.Config.TemplateLibraryStore.GroupStt, sttTpl)
+
+            Dim translateId = ""
+            If chkEnableTrans.Checked Then
+                Dim trTpl As New Models.Templates.EngineTemplate With {
+                    .Name = name,
+                    .EngineKey = If(_config.TranslationBackend, "nllb")
+                }
+                store.UpsertEngineTemplate(Services.Config.TemplateLibraryStore.GroupTranslate, trTpl)
+                translateId = trTpl.Id
+            End If
+
+            Dim session As New Models.Templates.SessionTemplate With {
+                .Name = name,
+                .SttTemplateId = sttTpl.Id,
+                .TranslateTemplateId = translateId,
+                .DisplayTemplateId = disp.Id
+            }
+            store.UpsertSessionTemplate(session)
+            AppLogger.Log(LogEvents.CONFIG_TEMPLATE_LIB_SAVED,
+                $"Session wizard saved session template '{name}' ({session.Id}): stt={sttTpl.Id}, translate={translateId}, display={disp.Id}")
+        Catch ex As Exception
+            AppLogger.Log(LogEvents.CONFIG_TEMPLATE_LIB_ERROR, $"Wizard session-template save failed: {ex.Message}")
+        End Try
     End Sub
 
     ' ═══════════════════════════════════════════════════════════════

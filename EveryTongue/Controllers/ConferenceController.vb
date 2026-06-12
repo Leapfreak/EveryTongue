@@ -28,6 +28,10 @@ Namespace Controllers
         ' Speechmatics-only clause hold-and-lock accumulators (one per room). Gated
         ' behind AppConfig.SpeechmaticsHoldClauses + backend == "speechmatics".
         Private ReadOnly _clauseAccumulators As New Dictionary(Of String, SpeechmaticsClauseAccumulator)()
+        ' HYBRID clause dials: rooms whose STT template explicitly stores clause
+        ' fields get their resolved block pinned here (fixed for the session);
+        ' rooms without an entry keep reading the live app-global dials.
+        Private ReadOnly _pinnedClauseDials As New Dictionary(Of String, Configs.SpeechmaticsConfig)()
         Private _nextConferencePort As Integer = 5101
         Private _nextWhisperServerPort As Integer = 8179  ' 8178 is used by ConversationAudioHandler
         Private _bufferFlushTimer As System.Threading.Timer
@@ -173,6 +177,7 @@ Namespace Controllers
             }
 
             ApplySpeechmaticsTranslation(sttConfig, sttConfig.Language)
+            StorePinnedClauseDials(roomId, engineTpl, sttConfig)
             EnsureActiveLanguagesSubscription()
 
             Dim backend = SttBackendRegistry.CreateBackend(backendKey)
@@ -321,6 +326,7 @@ Namespace Controllers
             _nextWhisperServerPort += 1
 
             ApplySpeechmaticsTranslation(sttConfig, cfgLang)
+            StorePinnedClauseDials(roomId, engineTpl, sttConfig)
 
             Dim newBackend = SttBackendRegistry.CreateBackend(If(template?.SttBackendKey, _config.SttBackend))
             AddHandler newBackend.OutputCommitted, Sub(s, e)
@@ -402,6 +408,7 @@ Namespace Controllers
             ' Lock any pending Speechmatics clause before stopping.
             ForceLockClause(roomId)
             _clauseAccumulators.Remove(roomId)
+            _pinnedClauseDials.Remove(roomId)
 
             ' Flush any remaining buffered text before stopping
             Dim buffer As SentenceBuffer = Nothing
@@ -768,14 +775,51 @@ Namespace Controllers
             Return If(_config.SttBackend, "")
         End Function
 
-        ''' <summary>Whether clause hold-and-lock applies to this room (master switch + Speechmatics backend).</summary>
+        ''' <summary>
+        ''' Pin a room's clause dials when its STT template explicitly stores any
+        ''' clause field; otherwise the room keeps live app-global dials.
+        ''' </summary>
+        Private Sub StorePinnedClauseDials(roomId As String, engineTpl As Models.Templates.EngineTemplate, sttConfig As SttSessionConfig)
+            _pinnedClauseDials.Remove(roomId)
+            Dim sm = sttConfig.Block(Of Configs.SpeechmaticsConfig)()
+            If sm Is Nothing OrElse engineTpl Is Nothing OrElse Not engineTpl.Config.HasValue Then Return
+            If engineTpl.Config.Value.ValueKind <> System.Text.Json.JsonValueKind.Object Then Return
+            For Each prop In engineTpl.Config.Value.EnumerateObject()
+                If prop.Name.Equals("HoldClauses", StringComparison.OrdinalIgnoreCase) OrElse
+                   prop.Name.StartsWith("Clause", StringComparison.OrdinalIgnoreCase) Then
+                    _pinnedClauseDials(roomId) = sm
+                    AppLogger.Log(LogEvents.CONFIG_TEMPLATE_RESOLVED,
+                        $"[Conference:{roomId}] clause dials pinned by template '{engineTpl.Name}' (hold={sm.HoldClauses}, grace={sm.ClauseGraceMs}ms)")
+                    Return
+                End If
+            Next
+        End Sub
+
+        ''' <summary>Whether clause hold-and-lock applies to this room (pinned template value, else live master switch; Speechmatics only).</summary>
         Private Function IsHoldEnabled(roomId As String) As Boolean
+            Dim pinned As Configs.SpeechmaticsConfig = Nothing
+            If _pinnedClauseDials.TryGetValue(roomId, pinned) Then Return pinned.HoldClauses
             Return _config.SpeechmaticsHoldClauses AndAlso
                    RoomBackendKey(roomId).Equals("speechmatics", StringComparison.OrdinalIgnoreCase)
         End Function
 
-        ''' <summary>Live snapshot of the clause dials, read fresh from config each call (Options changes apply immediately).</summary>
-        Private Function CurrentThresholds() As SpeechmaticsClauseAccumulator.Thresholds
+        ''' <summary>
+        ''' Clause dials for a room: the template-pinned values when the room's STT
+        ''' template set them, otherwise a live read of the app-global dials
+        ''' (Options changes apply immediately to unpinned rooms).
+        ''' </summary>
+        Private Function CurrentThresholds(roomId As String) As SpeechmaticsClauseAccumulator.Thresholds
+            Dim pinned As Configs.SpeechmaticsConfig = Nothing
+            If _pinnedClauseDials.TryGetValue(roomId, pinned) Then
+                Return New SpeechmaticsClauseAccumulator.Thresholds With {
+                    .GraceMs = pinned.ClauseGraceMs,
+                    .MaxMs = pinned.ClauseMaxMs,
+                    .MaxChars = pinned.ClauseMaxChars,
+                    .LockOnPunctuation = pinned.ClauseLockOnPunctuation,
+                    .MinLockChars = pinned.ClauseMinLockChars,
+                    .SentenceEnders = pinned.ClauseSentenceEnders
+                }
+            End If
             Return New SpeechmaticsClauseAccumulator.Thresholds With {
                 .GraceMs = _config.SpeechmaticsClauseGraceMs,
                 .MaxMs = _config.SpeechmaticsClauseMaxMs,
@@ -794,7 +838,7 @@ Namespace Controllers
                 acc = New SpeechmaticsClauseAccumulator()
                 _clauseAccumulators(roomId) = acc
             End If
-            Dim locked = acc.Add(text, detectedLang, CurrentThresholds())
+            Dim locked = acc.Add(text, detectedLang, CurrentThresholds(roomId))
 
             ' Per-fragment trace: the gap before this fragment is the raw signal for
             ' tuning GraceMs (gaps the speaker took mid-clause vs. between clauses).
@@ -807,9 +851,8 @@ Namespace Controllers
         ''' <summary>Lock-on-timeout for all clause accumulators (grace-window expiry). Called from the timer.</summary>
         Private Sub FlushExpiredClauses()
             If _clauseAccumulators.Count = 0 Then Return
-            Dim t = CurrentThresholds()
             For Each kvp In _clauseAccumulators.ToList()
-                Dim locked = kvp.Value.TryLockExpired(t)
+                Dim locked = kvp.Value.TryLockExpired(CurrentThresholds(kvp.Key))
                 If locked IsNot Nothing Then OnClauseLocked(kvp.Key, locked)
             Next
         End Sub
@@ -831,7 +874,7 @@ Namespace Controllers
         ''' </summary>
         Private Sub OnClauseLocked(roomId As String, locked As LockResult)
             If locked Is Nothing Then Return
-            Dim t = CurrentThresholds()
+            Dim t = CurrentThresholds(roomId)
             Dim gaps = If(locked.Gaps IsNot Nothing AndAlso locked.Gaps.Count > 0, String.Join(",", locked.Gaps), "")
             Dim maxGap = If(locked.Gaps IsNot Nothing AndAlso locked.Gaps.Count > 0, locked.Gaps.Max(), 0)
             AppLogger.Log(LogEvents.CONF_CLAUSE_LOCK,

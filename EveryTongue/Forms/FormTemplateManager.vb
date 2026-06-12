@@ -38,6 +38,8 @@ Public Class FormTemplateManager
         lblVisibility.Text = lp.GetString("Tmpl_Visibility")
         lblAudioDevice.Text = lp.GetString("Tmpl_AudioDevice")
         lblModelPath.Text = lp.GetString("Tmpl_ModelPath")
+        lblSttTemplate.Text = lp.GetString("Tmpl_SttTemplate")
+        btnManageSttTemplates.Text = lp.GetString("Tmpl_ManageSttTemplates")
         colName.Text = lp.GetString("Tmpl_Name")
         colHostingCode.Text = lp.GetString("Tmpl_HostingCode")
         colLanguage.Text = lp.GetString("Tmpl_SourceLang")
@@ -199,12 +201,24 @@ Public Class FormTemplateManager
             _config.ConferenceTemplates.Add(_editingTemplate)
         End If
 
-        ' Write through to the STT template library (1:1, same Id) — the live
-        ' pipeline resolves engine knobs from there, not from the legacy embeds.
-        _editingTemplate.SttTemplateId = _editingTemplate.Id
-        Services.Config.TemplateLibraryStore.Instance.UpsertEngineTemplate(
-            Services.Config.TemplateLibraryStore.GroupStt,
-            Services.Config.ConferenceTemplateMigration.BuildSttTemplate(_editingTemplate, _config.SttBackend))
+        Dim sharedId = SelectedSttTemplateId()
+        If sharedId = "" Then
+            ' Own settings: write through to the 1:1 STT library template (same
+            ' Id) — the live pipeline resolves engine knobs from there.
+            _editingTemplate.SttTemplateId = _editingTemplate.Id
+            Services.Config.TemplateLibraryStore.Instance.UpsertEngineTemplate(
+                Services.Config.TemplateLibraryStore.GroupStt,
+                Services.Config.ConferenceTemplateMigration.BuildSttTemplate(_editingTemplate, _config.SttBackend))
+        Else
+            ' Shared library template: reference it, never overwrite it with
+            ' this conference template's embedded knobs.
+            _editingTemplate.SttTemplateId = sharedId
+            Dim sharedTpl = Services.Config.TemplateLibraryStore.Instance.GetEngineTemplate(
+                Services.Config.TemplateLibraryStore.GroupStt, sharedId)
+            If sharedTpl IsNot Nothing AndAlso Not String.IsNullOrEmpty(sharedTpl.EngineKey) Then
+                _editingTemplate.SttBackendKey = sharedTpl.EngineKey
+            End If
+        End If
 
         SaveAndSync()
         ShowDetail(False)
@@ -325,7 +339,79 @@ Public Class FormTemplateManager
 
         Dim visIdx = cboVisibility.Items.IndexOf(t.DefaultVisibility)
         cboVisibility.SelectedIndex = If(visIdx >= 0, visIdx, 0)
+
+        PopulateSttTemplateCombo(t)
     End Sub
+
+    ''' <summary>
+    ''' "(this template's own settings)" + the shared STT library templates.
+    ''' The 1:1 template that mirrors this conference template (same Id) IS the
+    ''' own-settings storage, so it is excluded from the shared list.
+    ''' </summary>
+    Private Sub PopulateSttTemplateCombo(t As ConferenceTemplate)
+        cboSttTemplate.Items.Clear()
+        cboSttTemplate.Items.Add(New SttTemplateItem(
+            LanguagePackService.Instance.GetString("Tmpl_SttTemplateOwn"), ""))
+        For Each tpl In Services.Config.TemplateLibraryStore.Instance.GetEngineTemplates(
+                Services.Config.TemplateLibraryStore.GroupStt)
+            If tpl.Id = t.Id Then Continue For
+            cboSttTemplate.Items.Add(New SttTemplateItem($"{tpl.Name} [{tpl.EngineKey}]", tpl.Id))
+        Next
+
+        Dim selectId = If(t.SttTemplateId, "")
+        If selectId = t.Id Then selectId = "" ' own 1:1 template = own settings
+        Dim found = 0
+        For i = 1 To cboSttTemplate.Items.Count - 1
+            If DirectCast(cboSttTemplate.Items(i), SttTemplateItem).Id = selectId Then
+                found = i
+                Exit For
+            End If
+        Next
+        cboSttTemplate.SelectedIndex = found
+        UpdateKnobEnabledState()
+    End Sub
+
+    ''' <summary>The embedded engine knobs only apply when no shared STT template is referenced.</summary>
+    Private Sub UpdateKnobEnabledState()
+        Dim ownSettings = SelectedSttTemplateId() = ""
+        cboSttEngine.Enabled = ownSettings
+        nudBeamSize.Enabled = ownSettings
+        nudMaxSegment.Enabled = ownSettings
+        nudVadSilence.Enabled = ownSettings
+        cboModel.Enabled = ownSettings
+    End Sub
+
+    Private Function SelectedSttTemplateId() As String
+        Dim item = TryCast(cboSttTemplate.SelectedItem, SttTemplateItem)
+        Return If(item?.Id, "")
+    End Function
+
+    Private Sub cboSttTemplate_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cboSttTemplate.SelectedIndexChanged
+        UpdateKnobEnabledState()
+    End Sub
+
+    Private Sub btnManageSttTemplates_Click(sender As Object, e As EventArgs) Handles btnManageSttTemplates.Click
+        Using frm As New FormEngineTemplates(_config)
+            frm.Icon = Me.Icon
+            frm.ShowDialog(Me)
+        End Using
+        If _editingTemplate IsNot Nothing Then PopulateSttTemplateCombo(_editingTemplate)
+    End Sub
+
+    ''' <summary>Item for the STT template dropdown — displays name, stores library id ("" = own settings).</summary>
+    Private Class SttTemplateItem
+        Public ReadOnly Property DisplayName As String
+        Public ReadOnly Property Id As String
+
+        Public Sub New(displayName As String, id As String)
+            Me.DisplayName = displayName
+            Me.Id = If(id, "")
+        End Sub
+
+        Public Overrides Function ToString() As String
+            Return DisplayName
+        End Function
+    End Class
 
     Private Sub SaveDetailToTemplate(t As ConferenceTemplate)
         t.Name = txtName.Text.Trim()

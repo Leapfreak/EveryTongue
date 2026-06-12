@@ -41,9 +41,10 @@ Replaced flat `AppLogger.Log(msg)` with numbered, categorised events. 120+ event
 
 ## Suggested Next Priorities
 1. ~~**Structured Logging System**~~ — DONE (v1.8.5)
-2. Audio Level Monitor — operator feedback, prevents bad audio
-3. Setup Wizard expansion — integrates QR, audio monitor, hardware score
-4. Cross-platform headless server (Linux/Docker)
+2. **Config refactor runtime consumption (Phases 6–9)** — speakers + online/offline gate at runtime (mid-service speaker switching), display templates, per-session filter sets, session convergence. **Full plan in `CONFIG_CHANGES.md` → "Runtime consumption plan".** (Refactor phases 1–5 complete, v1.9.0–v1.9.2.)
+3. Audio Level Monitor — operator feedback, prevents bad audio
+4. Setup Wizard expansion — integrates QR, audio monitor, hardware score
+5. Cross-platform headless server (Linux/Docker)
 
 ---
 
@@ -80,6 +81,7 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
 - Plugin auto-discovery from `plugins/` folder
 - Plugin Manager UI with model management
 - **Online/Offline mode — offline-detection prompt** — when a session is in Online mode and a cloud call fails or connectivity drops, *prompt* the operator ("Looks like you're offline — switch to offline engines?") rather than silently switching. The Online/Offline mode itself is an explicit user-set switch with **no auto-fallback** (being designed in the config refactor); this prompt is a later enhancement layered on top.
+- **Cloud STT in the Transcribe workspace (batch engines)** — the vendors support it (Speechmatics Batch API `POST /v2/jobs/` can even return SRT directly; Google has batch recognize), but our `live-server/engines/` modules are realtime-streaming only. Work: a Speechmatics batch client (upload converted WAV → poll job → write returned SRT → existing translation step; bypasses chunking/VAD entirely), an engine combo on the Transcribe tab (gated by `WorkspaceCapabilities` + registry `RequiresApiKey`), job progress reporting. Google batch later (GCS upload requirements, SRT assembly from word timings). Deferred from config-refactor Phase 4 (see CONFIG_CHANGES.md).
 
 ---
 

@@ -49,6 +49,9 @@ Partial Class FormTemplateManager
         Me.btnRefreshDevices = New System.Windows.Forms.Button()
         Me.lblModelPath = New System.Windows.Forms.Label()
         Me.cboModel = New System.Windows.Forms.ComboBox()
+        Me.lblSttTemplate = New System.Windows.Forms.Label()
+        Me.cboSttTemplate = New System.Windows.Forms.ComboBox()
+        Me.btnManageSttTemplates = New System.Windows.Forms.Button()
         Me.btnSave = New System.Windows.Forms.Button()
         Me.btnCancelEdit = New System.Windows.Forms.Button()
         Me.grpDetail.SuspendLayout()
@@ -133,6 +136,9 @@ Partial Class FormTemplateManager
         '
         Me.grpDetail.Controls.Add(Me.btnCancelEdit)
         Me.grpDetail.Controls.Add(Me.btnSave)
+        Me.grpDetail.Controls.Add(Me.btnManageSttTemplates)
+        Me.grpDetail.Controls.Add(Me.cboSttTemplate)
+        Me.grpDetail.Controls.Add(Me.lblSttTemplate)
         Me.grpDetail.Controls.Add(Me.cboModel)
         Me.grpDetail.Controls.Add(Me.lblModelPath)
         Me.grpDetail.Controls.Add(Me.btnRefreshDevices)
@@ -158,7 +164,7 @@ Partial Class FormTemplateManager
         Me.grpDetail.Controls.Add(Me.lblName)
         Me.grpDetail.Location = New System.Drawing.Point(12, 180)
         Me.grpDetail.Name = "grpDetail"
-        Me.grpDetail.Size = New System.Drawing.Size(556, 282)
+        Me.grpDetail.Size = New System.Drawing.Size(556, 314)
         Me.grpDetail.TabIndex = 5
         Me.grpDetail.TabStop = False
         Me.grpDetail.Text = "Template Details"
@@ -366,9 +372,35 @@ Partial Class FormTemplateManager
         Me.cboModel.Size = New System.Drawing.Size(400, 23)
         Me.cboModel.TabIndex = 23
         '
+        ' lblSttTemplate — reference into the STT template library
+        '
+        Me.lblSttTemplate.AutoSize = True
+        Me.lblSttTemplate.Location = New System.Drawing.Point(12, 223)
+        Me.lblSttTemplate.Name = "lblSttTemplate"
+        Me.lblSttTemplate.Size = New System.Drawing.Size(76, 15)
+        Me.lblSttTemplate.TabIndex = 27
+        Me.lblSttTemplate.Text = "STT Template"
+        '
+        ' cboSttTemplate
+        '
+        Me.cboSttTemplate.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboSttTemplate.Location = New System.Drawing.Point(130, 220)
+        Me.cboSttTemplate.Name = "cboSttTemplate"
+        Me.cboSttTemplate.Size = New System.Drawing.Size(304, 23)
+        Me.cboSttTemplate.TabIndex = 28
+        '
+        ' btnManageSttTemplates
+        '
+        Me.btnManageSttTemplates.Location = New System.Drawing.Point(440, 219)
+        Me.btnManageSttTemplates.Name = "btnManageSttTemplates"
+        Me.btnManageSttTemplates.Size = New System.Drawing.Size(90, 25)
+        Me.btnManageSttTemplates.TabIndex = 29
+        Me.btnManageSttTemplates.Text = "Manage..."
+        Me.btnManageSttTemplates.UseVisualStyleBackColor = True
+        '
         ' btnSave
         '
-        Me.btnSave.Location = New System.Drawing.Point(350, 232)
+        Me.btnSave.Location = New System.Drawing.Point(350, 264)
         Me.btnSave.Name = "btnSave"
         Me.btnSave.Size = New System.Drawing.Size(90, 30)
         Me.btnSave.TabIndex = 24
@@ -377,7 +409,7 @@ Partial Class FormTemplateManager
         '
         ' btnCancelEdit
         '
-        Me.btnCancelEdit.Location = New System.Drawing.Point(446, 232)
+        Me.btnCancelEdit.Location = New System.Drawing.Point(446, 264)
         Me.btnCancelEdit.Name = "btnCancelEdit"
         Me.btnCancelEdit.Size = New System.Drawing.Size(90, 30)
         Me.btnCancelEdit.TabIndex = 25
@@ -389,7 +421,7 @@ Partial Class FormTemplateManager
         Me.AcceptButton = Me.btnClose
         Me.AutoScaleDimensions = New System.Drawing.SizeF(7.0!, 15.0!)
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
-        Me.ClientSize = New System.Drawing.Size(580, 500)
+        Me.ClientSize = New System.Drawing.Size(580, 532)
         Me.Controls.Add(Me.grpDetail)
         Me.Controls.Add(Me.btnClose)
         Me.Controls.Add(Me.btnDelete)
@@ -444,6 +476,9 @@ Partial Class FormTemplateManager
     Friend WithEvents btnRefreshDevices As System.Windows.Forms.Button
     Friend WithEvents lblModelPath As System.Windows.Forms.Label
     Friend WithEvents cboModel As System.Windows.Forms.ComboBox
+    Friend WithEvents lblSttTemplate As System.Windows.Forms.Label
+    Friend WithEvents cboSttTemplate As System.Windows.Forms.ComboBox
+    Friend WithEvents btnManageSttTemplates As System.Windows.Forms.Button
     Friend WithEvents btnSave As System.Windows.Forms.Button
     Friend WithEvents btnCancelEdit As System.Windows.Forms.Button
 
