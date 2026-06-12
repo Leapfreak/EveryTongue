@@ -1,6 +1,7 @@
 Imports EveryTongue.Models
 Imports EveryTongue.Pipeline
 Imports EveryTongue.Server
+Imports EveryTongue.Services.Config
 Imports EveryTongue.Services.Infrastructure
 Imports EveryTongue.Services.Interfaces
 Imports EveryTongue.Services.Models
@@ -149,35 +150,29 @@ Namespace Controllers
             Dim port = _nextConferencePort
             _nextConferencePort += 1
 
-            Dim backendKey = If(template.SttBackendKey, _config.SttBackend)
-            Dim defaultModel = If(backendKey.Equals("faster-whisper", StringComparison.OrdinalIgnoreCase),
-                _config.PathFasterWhisperModel, _config.PathWhisperCppModel)
+            ' Prefer the referenced STT library template; legacy embedded knobs are
+            ' the fallback for configs that haven't migrated.
+            Dim engineTpl = TemplateLibraryStore.Instance.GetEngineTemplate(
+                TemplateLibraryStore.GroupStt, If(template.SttTemplateId, ""))
+            Dim backendKey = If(engineTpl IsNot Nothing AndAlso Not String.IsNullOrEmpty(engineTpl.EngineKey),
+                                engineTpl.EngineKey, If(template.SttBackendKey, _config.SttBackend))
 
-            Dim sttConfig As New SttConfig() With {
-                .DeviceIndex = If(template.AudioDeviceId >= 0, template.AudioDeviceId, 0),
-                .Language = If(template.SourceLanguage, "auto"),
-                .ModelPath = If(Not String.IsNullOrEmpty(template.ModelPath), template.ModelPath, defaultModel),
-                .ComputeType = _config.LiveComputeType,
-                .UseGpu = Not _config.NoGpu,
-                .BeamSize = template.BeamSize,
-                .BestOf = _config.BestOf,
-                .VadSilenceMs = template.VadSilenceMs,
-                .MaxSegmentSec = template.MaxSegmentSec,
-                .InterimIntervalMs = _config.LiveInterimIntervalMs,
-                .InitialPrompt = If(template.InitialPrompt, ""),
-                .TranslateToEnglish = False,
-                .ServerPort = port,
-                .WhisperServerPath = Models.AppConfig.ResolvePath(_config.PathWhisperServer),
-                .WhisperServerPort = _nextWhisperServerPort,
-                .SileroVadModelPath = Models.AppConfig.ResolvePath(_config.PathSileroVadModel),
-                .ApiKey = _config.GetSttApiKey(backendKey),
-                .Region = If(_config.SpeechmaticsRegion, "eu2"),
-                .OperatingPoint = If(_config.SpeechmaticsOperatingPoint, "enhanced"),
-                .EouSilenceMs = _config.SpeechmaticsEouSilenceMs
-            }
+            Dim tplOverrides = BuildSttOverrides(template, engineTpl, Nothing)
+            tplOverrides("WhisperServerPort") = _nextWhisperServerPort
             _nextWhisperServerPort += 1
 
-            ApplySpeechmaticsTranslation(sttConfig, backendKey, sttConfig.Language)
+            Dim sttConfig As New SttSessionConfig With {
+                .EngineKey = backendKey,
+                .DeviceIndex = If(template.AudioDeviceId >= 0, template.AudioDeviceId, 0),
+                .Language = If(template.SourceLanguage, "auto"),
+                .TranslateToEnglish = False,
+                .ServerPort = port,
+                .ApiKey = _config.GetSttApiKey(backendKey),
+                .EngineConfig = EngineConfigResolver.ResolveStt(
+                    backendKey, _config, template:=engineTpl, fieldOverrides:=tplOverrides, contextLabel:=$"[Conference:{roomId}]")
+            }
+
+            ApplySpeechmaticsTranslation(sttConfig, sttConfig.Language)
             EnsureActiveLanguagesSubscription()
 
             Dim backend = SttBackendRegistry.CreateBackend(backendKey)
@@ -203,7 +198,7 @@ Namespace Controllers
 
             _sttBackends(roomId) = backend
             _roomTemplateIds(roomId) = templateId
-            _log($"[Conference] Starting backend for room {roomId} (template={template.Name}, port={port}, lang={sttConfig.Language}, model={sttConfig.ModelPath}, backend={backendKey}, beam={sttConfig.BeamSize}, best_of={sttConfig.BestOf})")
+            _log($"[Conference] Starting backend for room {roomId} (template={template.Name}, port={port}, lang={sttConfig.Language}, backend={backendKey})")
             backend.Start(sttConfig)
 
             If backend.IsRunning Then
@@ -303,65 +298,29 @@ Namespace Controllers
                 cfgLang = template.SourceLanguage
             End If
 
-            Dim restartBackendKey = If(template?.SttBackendKey, _config.SttBackend)
-            Dim cfgModel As String = If(restartBackendKey.Equals("faster-whisper", StringComparison.OrdinalIgnoreCase),
-                _config.PathFasterWhisperModel, _config.PathWhisperCppModel)
-            If hasTpl AndAlso Not String.IsNullOrEmpty(template.ModelPath) Then cfgModel = template.ModelPath
+            Dim engineTpl = TemplateLibraryStore.Instance.GetEngineTemplate(
+                TemplateLibraryStore.GroupStt, If(template?.SttTemplateId, ""))
+            Dim restartBackendKey = If(engineTpl IsNot Nothing AndAlso Not String.IsNullOrEmpty(engineTpl.EngineKey),
+                                       engineTpl.EngineKey, If(template?.SttBackendKey, _config.SttBackend))
 
-            Dim cfgBeam As Integer = _config.BeamSize
-            If configOverrides.ContainsKey("beamSize") Then
-                cfgBeam = CInt(configOverrides("beamSize"))
-            ElseIf hasTpl Then
-                cfgBeam = template.BeamSize
-            End If
+            ' Precedence per knob: web override → STT template → app-global baseline.
+            Dim ovr = BuildSttOverrides(template, engineTpl, configOverrides)
+            ovr("WhisperServerPort") = _nextWhisperServerPort
 
-            Dim cfgVad As Integer = _config.LiveVadSilenceMs
-            If configOverrides.ContainsKey("vadSilenceMs") Then
-                cfgVad = CInt(configOverrides("vadSilenceMs"))
-            ElseIf hasTpl Then
-                cfgVad = template.VadSilenceMs
-            End If
-
-            Dim cfgMaxSeg As Integer = _config.LiveMaxSegmentSec
-            If configOverrides.ContainsKey("maxSegmentSec") Then
-                cfgMaxSeg = CInt(configOverrides("maxSegmentSec"))
-            ElseIf hasTpl Then
-                cfgMaxSeg = template.MaxSegmentSec
-            End If
-
-            Dim cfgPrompt As String = ""
-            If configOverrides.ContainsKey("initialPrompt") Then
-                cfgPrompt = CStr(configOverrides("initialPrompt"))
-            ElseIf hasTpl AndAlso Not String.IsNullOrEmpty(template.InitialPrompt) Then
-                cfgPrompt = template.InitialPrompt
-            End If
-
-            Dim sttConfig As New SttConfig() With {
+            Dim sttConfig As New SttSessionConfig With {
+                .EngineKey = restartBackendKey,
                 .DeviceIndex = cfgDevice,
                 .Language = cfgLang,
-                .ModelPath = cfgModel,
-                .ComputeType = _config.LiveComputeType,
-                .UseGpu = Not _config.NoGpu,
-                .BeamSize = cfgBeam,
-                .BestOf = _config.BestOf,
-                .VadSilenceMs = cfgVad,
-                .MaxSegmentSec = cfgMaxSeg,
-                .InterimIntervalMs = _config.LiveInterimIntervalMs,
-                .InitialPrompt = cfgPrompt,
                 .TranslateToEnglish = False,
                 .ServerPort = _nextConferencePort,
-                .WhisperServerPath = Models.AppConfig.ResolvePath(_config.PathWhisperServer),
-                .WhisperServerPort = _nextWhisperServerPort,
-                .SileroVadModelPath = Models.AppConfig.ResolvePath(_config.PathSileroVadModel),
                 .ApiKey = _config.GetSttApiKey(restartBackendKey),
-                .Region = If(_config.SpeechmaticsRegion, "eu2"),
-                .OperatingPoint = If(_config.SpeechmaticsOperatingPoint, "enhanced"),
-                .EouSilenceMs = _config.SpeechmaticsEouSilenceMs
+                .EngineConfig = EngineConfigResolver.ResolveStt(
+                    restartBackendKey, _config, template:=engineTpl, fieldOverrides:=ovr, contextLabel:=$"[Conference:{roomId}]")
             }
             _nextConferencePort += 1
             _nextWhisperServerPort += 1
 
-            ApplySpeechmaticsTranslation(sttConfig, If(template?.SttBackendKey, _config.SttBackend), cfgLang)
+            ApplySpeechmaticsTranslation(sttConfig, cfgLang)
 
             Dim newBackend = SttBackendRegistry.CreateBackend(If(template?.SttBackendKey, _config.SttBackend))
             AddHandler newBackend.OutputCommitted, Sub(s, e)
@@ -385,6 +344,42 @@ Namespace Controllers
             _log($"[Pipeline:{roomId}] Restarting backend (port={sttConfig.ServerPort})")
             newBackend.Start(sttConfig)
         End Sub
+
+        ''' <summary>
+        ''' Assemble loose field overrides for STT resolution. When the conference
+        ''' template has no resolvable STT library template, its legacy embedded
+        ''' knobs (or the app globals) stand in for the template layer; web host
+        ''' panel overrides always win.
+        ''' </summary>
+        Private Function BuildSttOverrides(template As ConferenceTemplate,
+                                           engineTpl As Models.Templates.EngineTemplate,
+                                           webOverrides As Dictionary(Of String, Object)) As Dictionary(Of String, Object)
+            Dim ovr As New Dictionary(Of String, Object)
+
+            If engineTpl Is Nothing Then
+                If template IsNot Nothing Then
+                    ovr("BeamSize") = template.BeamSize
+                    ovr("VadSilenceMs") = template.VadSilenceMs
+                    ovr("MaxSegmentSec") = template.MaxSegmentSec
+                    ovr("InitialPrompt") = If(template.InitialPrompt, "")
+                    If Not String.IsNullOrEmpty(template.ModelPath) Then ovr("ModelPath") = template.ModelPath
+                Else
+                    ovr("BeamSize") = _config.BeamSize
+                    ovr("VadSilenceMs") = _config.LiveVadSilenceMs
+                    ovr("MaxSegmentSec") = _config.LiveMaxSegmentSec
+                    ovr("InitialPrompt") = ""
+                End If
+            End If
+
+            If webOverrides IsNot Nothing Then
+                If webOverrides.ContainsKey("beamSize") Then ovr("BeamSize") = CInt(webOverrides("beamSize"))
+                If webOverrides.ContainsKey("vadSilenceMs") Then ovr("VadSilenceMs") = CInt(webOverrides("vadSilenceMs"))
+                If webOverrides.ContainsKey("maxSegmentSec") Then ovr("MaxSegmentSec") = CInt(webOverrides("maxSegmentSec"))
+                If webOverrides.ContainsKey("initialPrompt") Then ovr("InitialPrompt") = CStr(webOverrides("initialPrompt"))
+            End If
+
+            Return ovr
+        End Function
 
         ''' <summary>
         ''' Resets the conference pipeline for a room — stops the current backend
@@ -683,13 +678,15 @@ Namespace Controllers
 
         Private _activeLangSubscribed As Boolean = False
 
-        ''' <summary>Configure a Speechmatics SttConfig to translate inline, if enabled.</summary>
-        Private Sub ApplySpeechmaticsTranslation(sttConfig As SttConfig, backendKey As String, sourceWhisperLang As String)
+        ''' <summary>Configure a Speechmatics session to translate inline, if enabled.</summary>
+        Private Sub ApplySpeechmaticsTranslation(sttConfig As SttSessionConfig, sourceWhisperLang As String)
             If Not _config.UseSpeechmaticsTranslation Then Return
-            If backendKey Is Nothing OrElse Not backendKey.Equals("speechmatics", StringComparison.OrdinalIgnoreCase) Then Return
-            sttConfig.EnableTranslation = True
+            ' Only a Speechmatics session carries a SpeechmaticsConfig block.
+            Dim sm = sttConfig.Block(Of Configs.SpeechmaticsConfig)()
+            If sm Is Nothing Then Return
+            sm.EnableTranslation = True
             Dim active = _getSubtitleSvc()?.GetActiveTranslationLanguages()
-            sttConfig.TranslationTargets = SpeechmaticsTranslation.ComputeTargets(
+            sm.TranslationTargets = SpeechmaticsTranslation.ComputeTargets(
                 SpeechmaticsSourceFlores(sourceWhisperLang), active).SmCodes
         End Sub
 

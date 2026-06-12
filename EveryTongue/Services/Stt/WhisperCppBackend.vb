@@ -75,26 +75,28 @@ Namespace Services.Stt
         Public Event OutputCommittedTranslated As EventHandler(Of SttTranslatedCommitEventArgs) Implements ISttBackend.OutputCommittedTranslated
         Public Event ErrorReceived As EventHandler(Of String) Implements ISttBackend.ErrorReceived
 
-        Public Sub Start(config As SttConfig) Implements ISttBackend.Start
+        Public Sub Start(config As SttSessionConfig) Implements ISttBackend.Start
+            Dim ec = If(config.Block(Of Configs.WhisperCppConfig)(), New Configs.WhisperCppConfig())
+
             ' Configure the runner for whisper-cpp backend
             _runner.Backend = If(_useGpu, "whisper-cpp-vulkan", "whisper-cpp-cpu")
-            _runner.WhisperServerPath = config.WhisperServerPath
-            _runner.WhisperServerPort = config.WhisperServerPort
-            _runner.SileroVadModelPath = config.SileroVadModelPath
+            _runner.WhisperServerPath = ec.WhisperServerPath
+            _runner.WhisperServerPort = ec.WhisperServerPort
+            _runner.SileroVadModelPath = ec.SileroVadModelPath
             _runner.NoGpu = Not _useGpu
 
             Dim appConfig As New AppConfig() With {
                 .LiveServerPort = config.ServerPort,
-                .PathWhisperCppModel = config.ModelPath,
-                .PathWhisperServer = config.WhisperServerPath,
-                .WhisperServerPort = config.WhisperServerPort,
+                .PathWhisperCppModel = ec.ModelPath,
+                .PathWhisperServer = ec.WhisperServerPath,
+                .WhisperServerPort = ec.WhisperServerPort,
                 .NoGpu = Not _useGpu,
-                .BeamSize = config.BeamSize,
-                .BestOf = config.BestOf,
-                .LiveVadSilenceMs = config.VadSilenceMs,
-                .LiveMaxSegmentSec = config.MaxSegmentSec,
-                .LiveInterimIntervalMs = config.InterimIntervalMs,
-                .InitialPrompt = config.InitialPrompt
+                .BeamSize = ec.BeamSize,
+                .BestOf = ec.BestOf,
+                .LiveVadSilenceMs = ec.VadSilenceMs,
+                .LiveMaxSegmentSec = ec.MaxSegmentSec,
+                .LiveInterimIntervalMs = ec.InterimIntervalMs,
+                .InitialPrompt = ec.InitialPrompt
             }
             _runner.Start(appConfig, config.DeviceIndex, config.Language, config.TranslateToEnglish)
         End Sub

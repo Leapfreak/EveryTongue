@@ -174,6 +174,8 @@ Public Class FormTemplateManager
         If MessageBox.Show(msg, lp.GetString("Tmpl_Delete"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) <> DialogResult.Yes Then Return
 
         _config.ConferenceTemplates.RemoveAll(Function(t) t.Id = id)
+        Services.Config.TemplateLibraryStore.Instance.DeleteEngineTemplate(
+            Services.Config.TemplateLibraryStore.GroupStt, id)
         SaveAndSync()
         RefreshList()
     End Sub
@@ -196,6 +198,13 @@ Public Class FormTemplateManager
         If _isNewTemplate Then
             _config.ConferenceTemplates.Add(_editingTemplate)
         End If
+
+        ' Write through to the STT template library (1:1, same Id) — the live
+        ' pipeline resolves engine knobs from there, not from the legacy embeds.
+        _editingTemplate.SttTemplateId = _editingTemplate.Id
+        Services.Config.TemplateLibraryStore.Instance.UpsertEngineTemplate(
+            Services.Config.TemplateLibraryStore.GroupStt,
+            Services.Config.ConferenceTemplateMigration.BuildSttTemplate(_editingTemplate, _config.SttBackend))
 
         SaveAndSync()
         ShowDetail(False)

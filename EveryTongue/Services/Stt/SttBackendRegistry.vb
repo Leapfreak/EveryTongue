@@ -17,15 +17,17 @@ Namespace Services.Stt
             Public Property RequiresApiKey As Boolean
             ''' <summary>Factory function that creates an ISttBackend instance for this entry.</summary>
             Public Property Factory As Func(Of Interfaces.ISttBackend)
+            ''' <summary>Self-description of this engine's config block (fields, defaults, serialization).</summary>
+            Public Property ConfigDescriptor As Config.IEngineConfigDescriptor
         End Class
 
         Private Shared ReadOnly _backends As New List(Of Entry) From {
-            New Entry With {.Key = "whisper-cpp-vulkan", .DisplayName = "whisper.cpp Vulkan (offline)", .RequiresInternet = False, .UseGpu = True, .Factory = Function() New WhisperCppBackend(useGpu:=True)},
-            New Entry With {.Key = "whisper-cpp-cuda", .DisplayName = "whisper.cpp CUDA (offline)", .RequiresInternet = False, .UseGpu = True, .Factory = Function() New WhisperCppBackend(useGpu:=True)},
-            New Entry With {.Key = "whisper-cpp-cpu", .DisplayName = "whisper.cpp CPU (offline)", .RequiresInternet = False, .UseGpu = False, .Factory = Function() New WhisperCppBackend(useGpu:=False)},
-            New Entry With {.Key = "faster-whisper", .DisplayName = "faster-whisper CUDA (offline)", .RequiresInternet = False, .UseGpu = True, .Factory = Function() New FasterWhisperBackend()},
-            New Entry With {.Key = "google-cloud-stt", .DisplayName = "Google Cloud STT (online)", .RequiresInternet = True, .UseGpu = False, .RequiresApiKey = True, .Factory = Function() New CloudStreamingSttBackend("google-cloud-stt", "Google Cloud STT (online)")},
-            New Entry With {.Key = "speechmatics", .DisplayName = "Speechmatics (online)", .RequiresInternet = True, .UseGpu = False, .RequiresApiKey = True, .Factory = Function() New CloudStreamingSttBackend("speechmatics", "Speechmatics (online)")}
+            New Entry With {.Key = "whisper-cpp-vulkan", .DisplayName = "whisper.cpp Vulkan (offline)", .RequiresInternet = False, .UseGpu = True, .Factory = Function() New WhisperCppBackend(useGpu:=True), .ConfigDescriptor = New Configs.WhisperCppConfigDescriptor("whisper-cpp-vulkan")},
+            New Entry With {.Key = "whisper-cpp-cuda", .DisplayName = "whisper.cpp CUDA (offline)", .RequiresInternet = False, .UseGpu = True, .Factory = Function() New WhisperCppBackend(useGpu:=True), .ConfigDescriptor = New Configs.WhisperCppConfigDescriptor("whisper-cpp-cuda")},
+            New Entry With {.Key = "whisper-cpp-cpu", .DisplayName = "whisper.cpp CPU (offline)", .RequiresInternet = False, .UseGpu = False, .Factory = Function() New WhisperCppBackend(useGpu:=False), .ConfigDescriptor = New Configs.WhisperCppConfigDescriptor("whisper-cpp-cpu")},
+            New Entry With {.Key = "faster-whisper", .DisplayName = "faster-whisper CUDA (offline)", .RequiresInternet = False, .UseGpu = True, .Factory = Function() New FasterWhisperBackend(), .ConfigDescriptor = New Configs.FasterWhisperConfigDescriptor()},
+            New Entry With {.Key = "google-cloud-stt", .DisplayName = "Google Cloud STT (online)", .RequiresInternet = True, .UseGpu = False, .RequiresApiKey = True, .Factory = Function() New CloudStreamingSttBackend("google-cloud-stt", "Google Cloud STT (online)"), .ConfigDescriptor = New Configs.GoogleSttConfigDescriptor()},
+            New Entry With {.Key = "speechmatics", .DisplayName = "Speechmatics (online)", .RequiresInternet = True, .UseGpu = False, .RequiresApiKey = True, .Factory = Function() New CloudStreamingSttBackend("speechmatics", "Speechmatics (online)"), .ConfigDescriptor = New Configs.SpeechmaticsConfigDescriptor()}
         }
 
         Public Shared Function GetAll() As IReadOnlyList(Of Entry)

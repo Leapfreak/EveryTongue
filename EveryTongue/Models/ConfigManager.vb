@@ -40,6 +40,9 @@ Namespace Models
             If cfg.PathWhisper IsNot Nothing AndAlso cfg.PathWhisper.EndsWith("\whisper\whisper-cli.exe") Then
                 cfg.PathWhisper = cfg.PathWhisper.Replace("\whisper\whisper-cli.exe", "\whisper-cli.exe")
             End If
+
+            ' Migrate conference templates' embedded engine knobs into the STT template library (idempotent)
+            Services.Config.ConferenceTemplateMigration.Migrate(cfg)
         End Sub
 
         Public Shared Sub Save(config As AppConfig)

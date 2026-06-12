@@ -7,6 +7,13 @@ Namespace Models
         Public Property SourceLanguage As String = "auto"
         Public Property SttBackendKey As String = "whisper-cpp-vulkan"
         Public Property TranslationBackendKey As String = "nllb"
+        ''' <summary>
+        ''' Reference into the STT template library (TemplateLibraryStore, group "stt").
+        ''' The engine knobs below are legacy embeds kept for config.json back-compat;
+        ''' they are migrated into the referenced template on load and only used as
+        ''' a fallback when the reference can't be resolved.
+        ''' </summary>
+        Public Property SttTemplateId As String = ""
         Public Property BeamSize As Integer = 7
         Public Property MaxSegmentSec As Integer = 15
         Public Property VadSilenceMs As Integer = 800

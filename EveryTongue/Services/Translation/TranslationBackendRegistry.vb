@@ -18,12 +18,14 @@ Namespace Services.Translation
             Public Property DefaultModelPath As String
             ''' <summary>Name used by TranslationOrchestrator to identify the backend (e.g. "Local", "DeepL").</summary>
             Public Property BackendName As String
+            ''' <summary>Self-description of this engine's config block. Empty (BasicEngineConfigDescriptor) until the engine exposes per-session knobs.</summary>
+            Public Property ConfigDescriptor As Config.IEngineConfigDescriptor
         End Class
 
         Private Shared ReadOnly _backends As New List(Of Entry) From {
-            New Entry With {.Key = "nllb", .DisplayName = "NLLB 1.3B (offline)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-model", .BackendName = "Local"},
-            New Entry With {.Key = "nllb-3.3b", .DisplayName = "NLLB 3.3B (offline)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-3.3b-model", .BackendName = "Local"},
-            New Entry With {.Key = "google-translate", .DisplayName = "Google Translate (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "Google"}
+            New Entry With {.Key = "nllb", .DisplayName = "NLLB 1.3B (offline)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-model", .BackendName = "Local", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb")},
+            New Entry With {.Key = "nllb-3.3b", .DisplayName = "NLLB 3.3B (offline)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-3.3b-model", .BackendName = "Local", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb-3.3b")},
+            New Entry With {.Key = "google-translate", .DisplayName = "Google Translate (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "Google", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("google-translate")}
         }
 
         Public Shared Function GetAll() As IReadOnlyList(Of Entry)

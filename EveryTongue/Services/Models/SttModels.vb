@@ -18,54 +18,9 @@ Namespace Services.Models
         End Sub
     End Class
 
-    ''' <summary>
-    ''' Engine-agnostic configuration for an STT session.
-    ''' </summary>
-    Public Class SttConfig
-        Public Property DeviceIndex As Integer = 0
-        Public Property Language As String = "auto"
-        Public Property ModelPath As String = ""
-        Public Property ComputeType As String = "int8_float16"
-        Public Property UseGpu As Boolean = True
-        Public Property BeamSize As Integer = 7
-        Public Property BestOf As Integer = 5
-        Public Property VadSilenceMs As Integer = 800
-        Public Property MaxSegmentSec As Integer = 15
-        Public Property InterimIntervalMs As Integer = 1000
-        Public Property InitialPrompt As String = ""
-        Public Property TranslateToEnglish As Boolean = False
-        Public Property ServerPort As Integer = 5100
-
-        ''' <summary>Backend key: "whisper-cpp-vulkan", "whisper-cpp-cuda", "whisper-cpp-cpu".</summary>
-        Public Property Backend As String = "whisper-cpp-vulkan"
-
-        ''' <summary>Path to whisper-server.exe (whisper-cpp backends only).</summary>
-        Public Property WhisperServerPath As String = ""
-
-        ''' <summary>Port for whisper-server.exe inference endpoint.</summary>
-        Public Property WhisperServerPort As Integer = 8178
-
-        ''' <summary>Path to Silero VAD GGML model for whisper-server built-in VAD.</summary>
-        Public Property SileroVadModelPath As String = ""
-
-        ''' <summary>API key for cloud STT backends (e.g. Google Cloud STT, Speechmatics).</summary>
-        Public Property ApiKey As String = ""
-
-        ''' <summary>Region for cloud STT backends that are region-scoped (e.g. Speechmatics "eu2"/"us").</summary>
-        Public Property Region As String = ""
-
-        ''' <summary>Operating point / quality tier for cloud STT backends (e.g. Speechmatics "enhanced"/"standard").</summary>
-        Public Property OperatingPoint As String = ""
-
-        ''' <summary>End-of-utterance silence trigger (ms) for streaming engines that endpoint server-side (Speechmatics). 0 = engine default.</summary>
-        Public Property EouSilenceMs As Integer = 0
-
-        ''' <summary>Whether the STT engine should translate inline (Speechmatics built-in translation).</summary>
-        Public Property EnableTranslation As Boolean = False
-
-        ''' <summary>Speechmatics translation target codes (engine-native, e.g. "es","de","cmn"). Max 5.</summary>
-        Public Property TranslationTargets As New List(Of String)
-    End Class
+    ''' NOTE: the old SttConfig god-object (whisper + cloud fields co-mingled)
+    ''' lived here. It was split into SttSessionConfig (engine-agnostic session
+    ''' fields) + per-engine config blocks in Services/Stt/Configs/.
 
     ''' <summary>
     ''' Event args for an STT commit that already carries inline translations from

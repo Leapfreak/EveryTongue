@@ -24,6 +24,14 @@ Namespace Services.Infrastructure
         Public Const CONFIG_LOAD_FAILED As Integer = 1103
         Public Const CONFIG_SAVE_FAILED As Integer = 1104
         Public Const CONFIG_MIGRATED As Integer = 1105
+        Public Const CONFIG_TEMPLATE_LIB_LOADED As Integer = 1106
+        Public Const CONFIG_TEMPLATE_LIB_SAVED As Integer = 1107
+        Public Const CONFIG_TEMPLATE_LIB_ERROR As Integer = 1108
+        Public Const CONFIG_ENGINE_RESOLVED As Integer = 1109
+        Public Const CONFIG_TEMPLATE_RESOLVED As Integer = 1110
+        Public Const CONFIG_OVERRIDE_APPLIED As Integer = 1111
+        Public Const CONFIG_ENGINE_VALIDATION As Integer = 1112
+        Public Const CONFIG_GATE_DECISION As Integer = 1113
 
         ' ── Server (1200–1299) ──
         Public Const SERVER_STARTING As Integer = 1200
@@ -188,6 +196,14 @@ Namespace Services.Infrastructure
             R(CONFIG_LOAD_FAILED, LogCategory.Config, LogSeverity.[Error], "Configuration load failed")
             R(CONFIG_SAVE_FAILED, LogCategory.Config, LogSeverity.[Error], "Configuration save failed")
             R(CONFIG_MIGRATED, LogCategory.Config, LogSeverity.Info, "Configuration migrated from older version")
+            R(CONFIG_TEMPLATE_LIB_LOADED, LogCategory.Config, LogSeverity.Info, "Template library loaded from disk")
+            R(CONFIG_TEMPLATE_LIB_SAVED, LogCategory.Config, LogSeverity.Debug, "Template library saved to disk")
+            R(CONFIG_TEMPLATE_LIB_ERROR, LogCategory.Config, LogSeverity.[Error], "Template library load/save failed")
+            R(CONFIG_ENGINE_RESOLVED, LogCategory.Config, LogSeverity.Debug, "Engine config block resolved (defaults + machine baseline)")
+            R(CONFIG_TEMPLATE_RESOLVED, LogCategory.Config, LogSeverity.Info, "Named template applied to a session slot")
+            R(CONFIG_OVERRIDE_APPLIED, LogCategory.Config, LogSeverity.Debug, "Per-session config overrides applied")
+            R(CONFIG_ENGINE_VALIDATION, LogCategory.Config, LogSeverity.Warning, "Engine config validation warning")
+            R(CONFIG_GATE_DECISION, LogCategory.Config, LogSeverity.Info, "Online/Offline gate decision (engine eligibility)")
 
             ' Server
             R(SERVER_STARTING, LogCategory.Server, LogSeverity.Info, "Kestrel web server starting")

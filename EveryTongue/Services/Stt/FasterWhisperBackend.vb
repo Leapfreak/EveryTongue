@@ -72,20 +72,22 @@ Namespace Services.Stt
         Public Event OutputCommittedTranslated As EventHandler(Of SttTranslatedCommitEventArgs) Implements ISttBackend.OutputCommittedTranslated
         Public Event ErrorReceived As EventHandler(Of String) Implements ISttBackend.ErrorReceived
 
-        Public Sub Start(config As SttConfig) Implements ISttBackend.Start
+        Public Sub Start(config As SttSessionConfig) Implements ISttBackend.Start
+            Dim ec = If(config.Block(Of Configs.FasterWhisperConfig)(), New Configs.FasterWhisperConfig())
+
             _runner.Backend = "faster-whisper"
 
             Dim appConfig As New AppConfig() With {
                 .LiveServerPort = config.ServerPort,
-                .PathFasterWhisperModel = config.ModelPath,
+                .PathFasterWhisperModel = ec.ModelPath,
                 .NoGpu = False,
-                .BeamSize = config.BeamSize,
-                .BestOf = config.BestOf,
-                .LiveVadSilenceMs = config.VadSilenceMs,
-                .LiveMaxSegmentSec = config.MaxSegmentSec,
-                .LiveInterimIntervalMs = config.InterimIntervalMs,
-                .LiveComputeType = config.ComputeType,
-                .InitialPrompt = config.InitialPrompt
+                .BeamSize = ec.BeamSize,
+                .BestOf = ec.BestOf,
+                .LiveVadSilenceMs = ec.VadSilenceMs,
+                .LiveMaxSegmentSec = ec.MaxSegmentSec,
+                .LiveInterimIntervalMs = ec.InterimIntervalMs,
+                .LiveComputeType = ec.ComputeType,
+                .InitialPrompt = ec.InitialPrompt
             }
             _runner.Start(appConfig, config.DeviceIndex, config.Language, config.TranslateToEnglish)
         End Sub

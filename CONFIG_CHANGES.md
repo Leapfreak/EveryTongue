@@ -1,6 +1,6 @@
 # EveryTongue — Configuration Architecture Refactor
 
-> **Status:** Plan / design. Not yet implemented.
+> **Status:** Phases 1–3 implemented (2026-06-12) — descriptor infrastructure, per-engine STT config blocks, SttConfig god-object split, template libraries + resolver, ConferenceTemplate migrated to referenced STT templates, translate/TTS descriptors, Speaker-as-references, Online/Offline gate, Display group, Filters-as-collection. See "Implementation status" below. Phases 4–5 pending.
 > **Origin:** the config sprawl exposed while solving the "sharing Catalan speaker" (Andreu) problem — settings scattered across Hardware/Translation/Server/Rooms, dead batch-era settings, and conference templates carrying knobs the chosen engine ignores.
 
 ---
@@ -129,11 +129,41 @@ Each engine logs under its **own event range/category** so diagnostics stay isol
 
 ---
 
+## Implementation status
+
+**Phase 1 — DONE (2026-06-12):**
+- `Services/Config/` — `IEngineConfigDescriptor` + `IEngineConfigBlock` + `EngineConfigField` (types/ranges/UI hints) + generic `EngineConfigDescriptorBase(Of T)` (reflection-driven JSON apply, overrides, range validation).
+- Per-engine STT blocks in `Services/Stt/Configs/`: `WhisperCppConfig` (shared by vulkan/cuda/cpu), `FasterWhisperConfig`, `GoogleSttConfig`, `SpeechmaticsConfig` — each owns only its fields and its machine-baseline fill (`ApplyMachineBaseline`). Cloud blocks implement `ICloudSttEngineConfig.ConfigureRunner`, so `CloudStreamingSttBackend` is now fully engine-agnostic (no Speechmatics fields in shared code).
+- **`SttConfig` god-object deleted.** `ISttBackend.Start` now takes `SttSessionConfig` (engine key, device, language, port, resolved API key + typed `EngineConfig` block).
+- `SttBackendRegistry.Entry` gained `ConfigDescriptor`; all 6 entries registered.
+- Template scaffolding: `Models/Templates/EngineTemplate` (one template = one engine + opaque config JSON, deserialized only by that engine's descriptor), `SessionTemplate` (slot references + per-slot overrides), `TemplateLibraryStore` (per-group JSON files under `%AppData%\EveryTongue\templates\`).
+- `EngineConfigResolver` — resolution order `engine defaults → machine baseline → named template → per-session overrides`, every step logged (new Config events 1106–1112 in `LogEvents`).
+- `ConferenceController` rewired through the resolver; engine-key branches removed from it (model-path selection moved into each engine's baseline; Speechmatics inline-translation gate is now a typed-block check). Wire format to the Python live-server unchanged.
+
+**Phase 2 — DONE (2026-06-12):**
+- **ConferenceTemplate → referenced STT templates.** `ConferenceTemplate.SttTemplateId` references the STT library; legacy embedded knobs (`BeamSize`/`VadSilenceMs`/`MaxSegmentSec`/`InitialPrompt`/`ModelPath`) are kept only for config.json back-compat and as a resolution fallback. Idempotent migration runs in `ConfigManager.ApplyDefaults` (`ConferenceTemplateMigration`) — 1:1, the library template reuses the conference template's Id. Empty `ModelPath` is omitted from the stored block so machine defaults still apply, and the block is filtered to the bound engine's declared fields (a Speechmatics-bound template stores no whisper knobs).
+- `ConferenceController` resolves from the referenced template (`web override → STT template → machine baseline → engine defaults`); shared `BuildSttOverrides` keeps create/restart precedence identical to pre-refactor behavior.
+- `FormTemplateManager` writes through to the library template on save (1:1 era — sharing one STT template across conference templates comes with the Phase 5 UI) and deletes it with the conference template.
+- `TranslationBackendRegistry` + `TtsBackendRegistry` entries gained `ConfigDescriptor` (`BasicEngineConfigDescriptor` — empty block, engines currently expose no per-session knobs; an engine that grows knobs gets its own block class beside the engine).
+- Speaker-as-references: `SpeakerProfile` (online/offline STT + translate + TTS template refs + glossary set ref) persisted by `TemplateLibraryStore` (`speaker-profiles.json`). Nothing consumes it yet — wired in with the session wizard.
+- `EngineConfigResolver.BuildTemplateConfig` — builds partial template blocks (only provided keys, only the engine's declared fields).
+
+**Phase 3 — DONE (2026-06-12):**
+- **Online/Offline gate**: `ConnectivityMode` enum on `SessionTemplate` (explicit switch, default Online). `ConnectivityGate` filters eligible engines per group from the registries' `RequiresInternet` flag, gate-checks engine templates (`GateTemplate` → logs `CONFIG_GATE_DECISION` 1113 and blocks, **no auto-fallback**), and picks a speaker's online vs offline STT slot (`SelectSpeakerSttTemplateId`, no cross-mode fallback).
+- **Display group**: `DisplayTemplate` (bg/fg colour, font family/size/bold, offered languages, layout hint) in the library (`display-templates.json`). Viewer-level per-device prefs deliberately excluded. `SessionResolver.ResolveDisplay` falls back to the app-global `Subtitle*` settings when unreferenced.
+- **Filters as collection**: `FilterSet` (glossary/profanity/hallucinations paths; empty path = global default file) in the library (`filter-sets.json`). `SessionResolver.ResolveFilterSet` always returns concrete paths (global files when unreferenced). Per-type precedence still deferred (Phase 6).
+- `SessionTemplate` extended: `Mode`, `DisplayTemplateId`, `FilterSetId`, `SpeakerProfileIds`. `SessionResolver.Resolve` produces a `ResolvedSession` (gate-validated engine slots + display + filters + speakers), fully logged.
+- Nothing consumes `ResolvedSession` yet — Phase 4 wires the workspaces onto it.
+
+**Not yet (deliberately):** workspace wiring/cross-engine capabilities onto `ResolvedSession` (Phase 4), clause-dial relocation into the Speechmatics template + descriptor-driven Options UI + per-group Template Manager + session wizard + locale strings for `EngineCfg_*` label keys (Phase 5), dead-settings purge (Phase 5 — note: exploration found `ParallelJobs`/`ChunkSizeSec`/`PollIntervalMs`/`ChunkTimeoutMin`/`KeepChunkFiles`/`KeepPreview`/`PathModelAudio`/`PathOutputRoot`/`TranslationDevice` are still live consumers; only `SkipDownloadIfExists`, `Hotwords`, `FreqThreshold`, `PrintRealtime`, `TranslationUnloadMinutes` are actually dead).
+
+---
+
 ## Suggested phasing
 
-1. **Model + persistence scaffolding** — template libraries, session template, reference resolution + logging. Introduce `IEngineConfigDescriptor` and per-engine config classes; **split the `SttConfig` god-object** into per-engine blocks.
-2. **Engine-aware STT / Translate / TTS templates** — migrate `ConferenceTemplate`; Speaker-as-references.
-3. **Online/Offline gate · Display group · Filters as collection.**
+1. **Model + persistence scaffolding** — template libraries, session template, reference resolution + logging. Introduce `IEngineConfigDescriptor` and per-engine config classes; **split the `SttConfig` god-object** into per-engine blocks. ✅ **DONE**
+2. **Engine-aware STT / Translate / TTS templates** — migrate `ConferenceTemplate`; Speaker-as-references. ✅ **DONE**
+3. **Online/Offline gate · Display group · Filters as collection.** ✅ **DONE**
 4. **Workspace wiring** + enable the cross-engine capabilities (cloud STT in Transcribe, translate-in-Transcribe, TTS in Translate/Bible, Bible verse translation).
 5. **UI reorg** + dead-settings purge + Session wizard.
 6. *(deferred)* per-room/speaker filter selection + per-type precedence; offline-detection prompt; session recording/export slot.

@@ -24,7 +24,7 @@ Namespace Services.Interfaces
         Event ErrorReceived As EventHandler(Of String)
 
         ' Lifecycle
-        Sub Start(config As SttConfig)
+        Sub Start(config As SttSessionConfig)
         Sub [Stop]()
 
         ' Runtime config updates (language, VAD, etc.)

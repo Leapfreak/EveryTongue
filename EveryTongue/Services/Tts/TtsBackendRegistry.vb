@@ -11,12 +11,14 @@ Namespace Services.Tts
             Public Property Key As String
             Public Property DisplayName As String
             Public Property RequiresInternet As Boolean
+            ''' <summary>Self-description of this engine's config block. Empty (BasicEngineConfigDescriptor) until the engine exposes per-session knobs.</summary>
+            Public Property ConfigDescriptor As Config.IEngineConfigDescriptor
         End Class
 
         Private Shared ReadOnly _backends As New List(Of Entry) From {
-            New Entry With {.Key = "piper", .DisplayName = "Piper (offline)", .RequiresInternet = False},
-            New Entry With {.Key = "mms-tts", .DisplayName = "MMS-TTS (offline)", .RequiresInternet = False},
-            New Entry With {.Key = "edgetts", .DisplayName = "Edge TTS (online)", .RequiresInternet = True}
+            New Entry With {.Key = "piper", .DisplayName = "Piper (offline)", .RequiresInternet = False, .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("piper")},
+            New Entry With {.Key = "mms-tts", .DisplayName = "MMS-TTS (offline)", .RequiresInternet = False, .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("mms-tts")},
+            New Entry With {.Key = "edgetts", .DisplayName = "Edge TTS (online)", .RequiresInternet = True, .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("edgetts")}
         }
 
         Public Shared Function GetAll() As IReadOnlyList(Of Entry)

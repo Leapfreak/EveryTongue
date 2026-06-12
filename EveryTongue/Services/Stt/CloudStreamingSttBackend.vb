@@ -84,25 +84,20 @@ Namespace Services.Stt
         Public Event OutputCommittedTranslated As EventHandler(Of SttTranslatedCommitEventArgs) Implements ISttBackend.OutputCommittedTranslated
         Public Event ErrorReceived As EventHandler(Of String) Implements ISttBackend.ErrorReceived
 
-        Public Sub Start(config As SttConfig) Implements ISttBackend.Start
+        Public Sub Start(config As SttSessionConfig) Implements ISttBackend.Start
             _runner.Backend = _backendKey
             _runner.SttApiKey = config.ApiKey
-            _runner.SttRegion = config.Region
-            _runner.SttOperatingPoint = config.OperatingPoint
-            _runner.SttEouSilenceMs = config.EouSilenceMs
-            _runner.SttEnableTranslation = config.EnableTranslation
-            _runner.SttTranslationTargets = If(config.TranslationTargets, New List(Of String))
 
             Dim appConfig As New AppConfig() With {
                 .LiveServerPort = config.ServerPort,
-                .NoGpu = False,
-                .BeamSize = config.BeamSize,
-                .BestOf = config.BestOf,
-                .LiveVadSilenceMs = config.VadSilenceMs,
-                .LiveMaxSegmentSec = config.MaxSegmentSec,
-                .LiveInterimIntervalMs = config.InterimIntervalMs,
-                .InitialPrompt = config.InitialPrompt
+                .NoGpu = False
             }
+
+            ' The engine's own config block pushes its settings onto the runner,
+            ' so this shared backend never knows any engine's fields.
+            Dim engineCfg = TryCast(config.EngineConfig, Configs.ICloudSttEngineConfig)
+            engineCfg?.ConfigureRunner(_runner, appConfig)
+
             _runner.Start(appConfig, config.DeviceIndex, config.Language, config.TranslateToEnglish)
         End Sub
 
