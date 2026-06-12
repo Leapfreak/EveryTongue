@@ -29,6 +29,7 @@ Namespace Controllers
         Private ReadOnly _sttLanguages As String()
         Private ReadOnly _startTranslationService As Action
         Private ReadOnly _getTranslationService As Func(Of Pipeline.TranslationService)
+        Private ReadOnly _getTranslationOrchestrator As Func(Of Services.Interfaces.ITranslationService)
         Private ReadOnly _debugLog As Action(Of String)
         Private ReadOnly _getString As Func(Of String, String)
         Private ReadOnly _ttsPlayer As Services.Audio.DesktopTtsPlayer
@@ -47,6 +48,7 @@ Namespace Controllers
                        langCodeFromDisplay As Func(Of String, String),
                        startTranslationService As Action,
                        getTranslationService As Func(Of Pipeline.TranslationService),
+                       getTranslationOrchestrator As Func(Of Services.Interfaces.ITranslationService),
                        getTtsService As Func(Of Services.Interfaces.ITtsService),
                        getTtsCacheDir As Func(Of String),
                        debugLog As Action(Of String),
@@ -70,6 +72,7 @@ Namespace Controllers
             _langCodeFromDisplay = langCodeFromDisplay
             _startTranslationService = startTranslationService
             _getTranslationService = getTranslationService
+            _getTranslationOrchestrator = getTranslationOrchestrator
             _debugLog = debugLog
             _getString = getString
         End Sub
@@ -225,7 +228,20 @@ Namespace Controllers
             _btnTranslate.Enabled = False
             _txtOutput.Text = ""
 
-            If Not Await EnsureTranslationServiceAsync() Then
+            ' Cloud engine routing: when the configured translation engine is a
+            ' cloud backend (registry metadata — no engine-key literals here) and
+            ' it is available on the orchestrator, translate through the
+            ' orchestrator: API keys, fallback chain, glossary/profanity
+            ' post-processing and usage counting all live there. The local NLLB
+            ' engine keeps the existing direct sidecar path (byte-identical), and
+            ' is also the fallback when the server is down (orchestrator Nothing).
+            Dim orchestrator = _getTranslationOrchestrator?.Invoke()
+            Dim useOrchestrator = Services.Translation.TranslationBackendRegistry.
+                TryActivateConfiguredCloudBackend(orchestrator, _config)
+            If useOrchestrator Then
+                Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_REQUEST,
+                    $"Translate workspace routing via orchestrator backend={orchestrator.ActiveBackend} {sourceLang}→{targetLang}")
+            ElseIf Not Await EnsureTranslationServiceAsync() Then
                 _btnTranslate.Enabled = True
                 Return
             End If
@@ -254,34 +270,63 @@ Namespace Controllers
                             segNum += 1
                             _lblStatus.Text = String.Format(_getString("Trans_TranslatingProgress"), segNum, totalSegments)
 
-                            Dim bodyObj As New Dictionary(Of String, Object) From {
-                                {"text", sentence},
-                                {"source_lang", sourceLang},
-                                {"target_langs", New String() {targetLang}}
-                            }
-                            Dim bodyJson = System.Text.Json.JsonSerializer.Serialize(bodyObj)
-                            Dim content As New System.Net.Http.StringContent(
-                                bodyJson, System.Text.Encoding.UTF8, "application/json")
+                            Dim translatedSentence As String = Nothing
 
-                            Dim response = Await client.PostAsync(url, content)
-                            If response.IsSuccessStatusCode Then
-                                Dim json = Await response.Content.ReadAsStringAsync()
-                                Dim doc = System.Text.Json.JsonDocument.Parse(json)
-                                Dim root = doc.RootElement
-
-                                Dim translationsEl As System.Text.Json.JsonElement
-                                Dim resultEl As System.Text.Json.JsonElement
-                                If root.TryGetProperty("translations", translationsEl) Then
-                                    If translationsEl.TryGetProperty(targetLang, resultEl) Then
-                                        If lineResult.Length > 0 Then lineResult.Append(" ")
-                                        lineResult.Append(resultEl.GetString())
-                                    End If
+                            If useOrchestrator Then
+                                ' Cloud path: per-sentence through the orchestrator
+                                ' (NLLB-style single-sentence requests; filters:=Nothing
+                                ' so the global glossary/profanity files apply).
+                                Using cts As New Threading.CancellationTokenSource(TimeSpan.FromSeconds(60))
+                                    Dim tx = Await orchestrator.TranslateAsync(
+                                        sentence, sourceLang,
+                                        New List(Of String) From {targetLang},
+                                        cts.Token,
+                                        Services.Scheduling.TranslationPriority.Workspace,
+                                        filters:=Nothing)
+                                    If tx IsNot Nothing Then tx.TryGetValue(targetLang, translatedSentence)
+                                End Using
+                                If translatedSentence Is Nothing Then
+                                    ' Cloud backend AND the orchestrator's local fallback failed
+                                    _lblStatus.Text = String.Format(_getString("Trans_CloudFailed"), orchestrator.ActiveBackend)
+                                    _lblStatus.ForeColor = Drawing.Color.Red
+                                    _txtOutput.Text = output.ToString()
+                                    Return
                                 End If
                             Else
-                                _lblStatus.Text = String.Format(_getString("Trans_TransError"), response.StatusCode)
-                                _lblStatus.ForeColor = Drawing.Color.Red
-                                _txtOutput.Text = output.ToString()
-                                Return
+                                ' Local NLLB path: direct sidecar HTTP (unchanged behavior)
+                                Dim bodyObj As New Dictionary(Of String, Object) From {
+                                    {"text", sentence},
+                                    {"source_lang", sourceLang},
+                                    {"target_langs", New String() {targetLang}}
+                                }
+                                Dim bodyJson = System.Text.Json.JsonSerializer.Serialize(bodyObj)
+                                Dim content As New System.Net.Http.StringContent(
+                                    bodyJson, System.Text.Encoding.UTF8, "application/json")
+
+                                Dim response = Await client.PostAsync(url, content)
+                                If response.IsSuccessStatusCode Then
+                                    Dim json = Await response.Content.ReadAsStringAsync()
+                                    Dim doc = System.Text.Json.JsonDocument.Parse(json)
+                                    Dim root = doc.RootElement
+
+                                    Dim translationsEl As System.Text.Json.JsonElement
+                                    Dim resultEl As System.Text.Json.JsonElement
+                                    If root.TryGetProperty("translations", translationsEl) Then
+                                        If translationsEl.TryGetProperty(targetLang, resultEl) Then
+                                            translatedSentence = resultEl.GetString()
+                                        End If
+                                    End If
+                                Else
+                                    _lblStatus.Text = String.Format(_getString("Trans_TransError"), response.StatusCode)
+                                    _lblStatus.ForeColor = Drawing.Color.Red
+                                    _txtOutput.Text = output.ToString()
+                                    Return
+                                End If
+                            End If
+
+                            If translatedSentence IsNot Nothing Then
+                                If lineResult.Length > 0 Then lineResult.Append(" ")
+                                lineResult.Append(translatedSentence)
                             End If
                         Next
 

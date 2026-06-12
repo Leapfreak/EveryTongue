@@ -60,6 +60,7 @@ Namespace Controllers
         Private ReadOnly _langDisplayName As Func(Of String, String)
         Private ReadOnly _langCodeFromDisplay As Func(Of String, String)
         Private ReadOnly _notify As Action(Of String, String, MessageBoxIcon)
+        Private ReadOnly _getTranslationOrchestrator As Func(Of Services.Interfaces.ITranslationService)
 
         ' State
         Private _isRunning As Boolean = False
@@ -98,7 +99,8 @@ Namespace Controllers
                        appendLog As Action(Of String, String, Drawing.Color),
                        getString As Func(Of String, String),
                        log As Action(Of String),
-                       notify As Action(Of String, String, MessageBoxIcon))
+                       notify As Action(Of String, String, MessageBoxIcon),
+                       getTranslationOrchestrator As Func(Of Services.Interfaces.ITranslationService))
             _config = config
             _cboMode = cboMode
             _cboModel = cboModel
@@ -145,6 +147,7 @@ Namespace Controllers
             _getString = getString
             _log = log
             _notify = notify
+            _getTranslationOrchestrator = getTranslationOrchestrator
         End Sub
 
         ''' <summary>Wire event handlers. Call once during form init.</summary>
@@ -281,7 +284,8 @@ Namespace Controllers
             Application.DoEvents()
 
             Dim progress = CreateProgress()
-            Dim runner As New PipelineRunner(_config, progress, _cts.Token)
+            Dim runner As New PipelineRunner(_config, progress, _cts.Token,
+                                             translator:=_getTranslationOrchestrator?.Invoke())
             AddHandler runner.LogMessage, Sub(s, entry) LogToUnified(entry.Message, entry.Level)
 
             Try
@@ -348,7 +352,8 @@ Namespace Controllers
             Application.DoEvents()
 
             Dim progress = CreateProgress()
-            Dim runner As New PipelineRunner(_config, progress, _cts.Token)
+            Dim runner As New PipelineRunner(_config, progress, _cts.Token,
+                                             translator:=_getTranslationOrchestrator?.Invoke())
             AddHandler runner.LogMessage, Sub(s, entry) LogToUnified(entry.Message, entry.Level)
 
             Try

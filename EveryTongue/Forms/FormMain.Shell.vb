@@ -239,6 +239,7 @@ Partial Class FormMain
             AddressOf LangCodeFromDisplay,
             AddressOf StartTranslationService,
             Function() _translationService,
+            Function() _serverController?.GetTranslationOrchestrator(),
             Function() _serverController?.GetTtsService(),
             Function() _serverController?.GetTtsCacheDirectory(),
             Sub(msg) AppLogger.Log(LogEvents.TRANS_REQUEST, msg),

@@ -82,6 +82,51 @@ Namespace Services.Translation
         End Function
 
         ''' <summary>
+        ''' Resolve the EFFECTIVE translation engine key from config: the user's
+        ''' selected engine, unless the configured STT engine declares a companion
+        ''' translation backend and an STT API key is present (one cloud key powers
+        ''' both STT and translation, and the companion is much faster than the
+        ''' local model). Single source of truth — FormMain.StartTranslationService
+        ''' and the desktop pipes (Translate workspace, Transcribe job) all use this.
+        ''' </summary>
+        Friend Shared Function ResolveEffectiveBackendKey(cfg As EveryTongue.Models.AppConfig) As String
+            Dim configKey = If(cfg?.TranslationBackend, "nllb")
+            Dim sttKey = If(cfg?.SttBackend, "")
+            Dim companionKey = If(Stt.SttBackendRegistry.Find(sttKey)?.CompanionTranslationKey, "")
+            If Not String.IsNullOrEmpty(companionKey) AndAlso
+               Not String.IsNullOrEmpty(cfg.GetSttApiKey(sttKey)) Then
+                Return companionKey
+            End If
+            Return configKey
+        End Function
+
+        ''' <summary>
+        ''' When the effective configured engine is a CLOUD backend that is
+        ''' registered and available (has an API key) on the orchestrator, make it
+        ''' the orchestrator's active backend (syncs config → orchestrator, which
+        ''' covers cloud-only machines where the NLLB sidecar never starts) and
+        ''' return True — the caller should route through the orchestrator.
+        ''' Returns False when the effective engine is the local sidecar, the
+        ''' orchestrator is unavailable (server down), or the cloud backend has no
+        ''' key — the caller keeps its existing local/NLLB path.
+        ''' </summary>
+        Friend Shared Function TryActivateConfiguredCloudBackend(svc As Interfaces.ITranslationService,
+                                                                 cfg As EveryTongue.Models.AppConfig) As Boolean
+            If svc Is Nothing OrElse cfg Is Nothing Then Return False
+            Dim entry = Find(ResolveEffectiveBackendKey(cfg))
+            If entry Is Nothing OrElse Not entry.RequiresInternet Then Return False
+            Dim info = svc.GetAllBackends().FirstOrDefault(
+                Function(b) If(b.Name, "").Equals(If(entry.BackendName, ""), StringComparison.OrdinalIgnoreCase))
+            If info Is Nothing OrElse Not info.IsAvailable Then Return False
+            If Not info.IsActive Then
+                svc.SetActiveBackend(entry.BackendName)
+                AppLogger.Log(LogEvents.TRANS_BACKEND_ACTIVE,
+                    $"Synced orchestrator active backend to configured engine '{entry.Key}' ({entry.BackendName})")
+            End If
+            Return True
+        End Function
+
+        ''' <summary>
         ''' Push resolved API keys into every key-requiring cloud translation backend
         ''' registered in DI. Called after the Kestrel host starts and again whenever
         ''' the Options dialog saves, so running backends pick up key changes live.

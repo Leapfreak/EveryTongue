@@ -13,13 +13,20 @@ Namespace Pipeline
         Private ReadOnly _config As AppConfig
         Private ReadOnly _progress As IProgress(Of PipelineProgress)
         Private ReadOnly _ct As CancellationToken
+        Private ReadOnly _translator As Services.Interfaces.ITranslationService
 
         Public Event LogMessage As EventHandler(Of LogEntry)
 
-        Public Sub New(config As AppConfig, progress As IProgress(Of PipelineProgress), ct As CancellationToken)
+        ''' <param name="translator">Optional translation orchestrator from the running
+        ''' Kestrel host. When the configured engine is a cloud backend, subtitle
+        ''' translation routes through it; Nothing (server down) or local NLLB keeps
+        ''' the direct sidecar path.</param>
+        Public Sub New(config As AppConfig, progress As IProgress(Of PipelineProgress), ct As CancellationToken,
+                       Optional translator As Services.Interfaces.ITranslationService = Nothing)
             _config = config
             _progress = progress
             _ct = ct
+            _translator = translator
         End Sub
 
         Private Sub Log(message As String, Optional level As LogLevel = LogLevel.Info)
@@ -743,21 +750,34 @@ Namespace Pipeline
             Dim tgtLang = TranslationService.WhisperToFloresLang(_config.OutputLanguage)
             Dim port = _config.TranslationPort
 
-            Log($"=== {stepLabel}: Translating subtitles ({srcLang} -> {tgtLang}) ===")
+            ' Cloud engine routing: when the configured translation engine is a
+            ' cloud backend (registry metadata) and it is available on the
+            ' orchestrator, route per-entry translations through the orchestrator
+            ' (API keys, fallback chain, glossary/profanity post-processing and
+            ' usage counting come from there). The local NLLB engine keeps the
+            ' existing direct sidecar HTTP path, byte-identical to before.
+            Dim useOrchestrator = Services.Translation.TranslationBackendRegistry.
+                TryActivateConfiguredCloudBackend(_translator, _config)
 
-            ' Check translation sidecar is reachable
-            Using probe As New HttpClient() With {.Timeout = TimeSpan.FromSeconds(5)}
-                Try
-                    Dim resp = Await probe.GetAsync($"http://127.0.0.1:{port}/health", _ct)
-                    If Not resp.IsSuccessStatusCode Then
-                        Log("Translation server not available — subtitles will not be translated.", LogLevel.Err)
+            If useOrchestrator Then
+                Log($"=== {stepLabel}: Translating subtitles via {_translator.ActiveBackend} ({srcLang} -> {tgtLang}) ===")
+            Else
+                Log($"=== {stepLabel}: Translating subtitles ({srcLang} -> {tgtLang}) ===")
+
+                ' Check translation sidecar is reachable
+                Using probe As New HttpClient() With {.Timeout = TimeSpan.FromSeconds(5)}
+                    Try
+                        Dim resp = Await probe.GetAsync($"http://127.0.0.1:{port}/health", _ct)
+                        If Not resp.IsSuccessStatusCode Then
+                            Log("Translation server not available — subtitles will not be translated.", LogLevel.Err)
+                            Return
+                        End If
+                    Catch ex As Exception
+                        Log("Translation server not running — subtitles will not be translated. Start translation from Options or ensure it auto-starts.", LogLevel.Err)
                         Return
-                    End If
-                Catch ex As Exception
-                    Log("Translation server not running — subtitles will not be translated. Start translation from Options or ensure it auto-starts.", LogLevel.Err)
-                    Return
-                End Try
-            End Using
+                    End Try
+                End Using
+            End If
 
             Dim lines = File.ReadAllLines(srtPath, Encoding.UTF8)
             Dim entries = SrtMerger.ParseSrt(lines)
@@ -766,35 +786,53 @@ Namespace Pipeline
                 Return
             End If
 
-            Using client As New HttpClient() With {.Timeout = TimeSpan.FromSeconds(30)}
+            ' HttpClient only needed for the direct sidecar path
+            Using client As HttpClient = If(useOrchestrator, Nothing, New HttpClient() With {.Timeout = TimeSpan.FromSeconds(30)})
                 Dim translated = 0
                 For Each entry In entries
                     _ct.ThrowIfCancellationRequested()
                     Try
-                        Dim reqBody As New With {
-                            .text = entry.Text,
-                            .source_lang = srcLang,
-                            .target_langs = New String() {tgtLang},
-                            .no_cache = False
-                        }
-                        Dim json = JsonSerializer.Serialize(reqBody)
-                        Dim content As New StringContent(json, Encoding.UTF8, "application/json")
-                        Dim resp = Await client.PostAsync($"http://127.0.0.1:{port}/translate", content, _ct)
-
-                        If resp.IsSuccessStatusCode Then
-                            Dim body = Await resp.Content.ReadAsStringAsync()
-                            Using doc = JsonDocument.Parse(body)
-                                Dim translations As JsonElement
-                                If doc.RootElement.TryGetProperty("translations", translations) Then
-                                    Dim translatedText As JsonElement
-                                    If translations.TryGetProperty(tgtLang, translatedText) Then
-                                        entry.Text = translatedText.GetString()
-                                        translated += 1
-                                    End If
-                                End If
-                            End Using
+                        If useOrchestrator Then
+                            ' Cloud path: same per-entry sequencing as the sidecar path
+                            Dim tx = Await _translator.TranslateAsync(
+                                entry.Text, srcLang,
+                                New List(Of String) From {tgtLang}, _ct,
+                                Services.Scheduling.TranslationPriority.Workspace,
+                                filters:=Nothing)
+                            Dim translatedText As String = Nothing
+                            If tx IsNot Nothing AndAlso tx.TryGetValue(tgtLang, translatedText) AndAlso
+                               translatedText IsNot Nothing Then
+                                entry.Text = translatedText
+                                translated += 1
+                            Else
+                                Log($"  Translation failed for entry {entry.Index}: no result from {_translator.ActiveBackend}", LogLevel.Err)
+                            End If
                         Else
-                            Log($"  Translation failed for entry {entry.Index}: HTTP {CInt(resp.StatusCode)}", LogLevel.Err)
+                            Dim reqBody As New With {
+                                .text = entry.Text,
+                                .source_lang = srcLang,
+                                .target_langs = New String() {tgtLang},
+                                .no_cache = False
+                            }
+                            Dim json = JsonSerializer.Serialize(reqBody)
+                            Dim content As New StringContent(json, Encoding.UTF8, "application/json")
+                            Dim resp = Await client.PostAsync($"http://127.0.0.1:{port}/translate", content, _ct)
+
+                            If resp.IsSuccessStatusCode Then
+                                Dim body = Await resp.Content.ReadAsStringAsync()
+                                Using doc = JsonDocument.Parse(body)
+                                    Dim translations As JsonElement
+                                    If doc.RootElement.TryGetProperty("translations", translations) Then
+                                        Dim translatedText As JsonElement
+                                        If translations.TryGetProperty(tgtLang, translatedText) Then
+                                            entry.Text = translatedText.GetString()
+                                            translated += 1
+                                        End If
+                                    End If
+                                End Using
+                            Else
+                                Log($"  Translation failed for entry {entry.Index}: HTTP {CInt(resp.StatusCode)}", LogLevel.Err)
+                            End If
                         End If
                     Catch ex As OperationCanceledException
                         Throw

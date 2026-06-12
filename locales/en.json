@@ -542,6 +542,7 @@
   "Trans_TranslatingProgress": "Translating {0}/{1}...",
   "Trans_TransError": "Error: {0}",
   "Trans_Done": "Done",
+  "Trans_CloudFailed": "Translation via {0} failed — check the API key and internet connection",
   "Trans_ConnectionFailed": "Translation server connection failed — try again",
   "Trans_Timeout": "Request timed out",
   "Trans_StartingEngine": "Starting translation engine...",

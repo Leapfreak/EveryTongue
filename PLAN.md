@@ -1,4 +1,4 @@
-# EveryTongue — TODO (updated 2026-06-13, v1.9.8)
+# EveryTongue — TODO (updated 2026-06-13, v1.9.9)
 
 > **Architecture shift:** EveryTongue is evolving from a single-session desktop transcription tool into a **headless multi-room translation server**. The desktop app still has operator workspaces (Live, Transcribe, Translate, Bible), but the primary user interface is now the **phone web client**. Anyone with a phone can create rooms, manage conversations, and receive translations — no operator required. The desktop just runs the server and auto-starts engines at launch.
 
@@ -1110,6 +1110,8 @@ For languages not yet in the UI (e.g., before Feature #9 adds Polish/Romanian), 
 **(g) Latency Considerations — DONE (v1.9.8):** Stopwatch around every cloud backend call at the orchestrator seam feeds per-backend in-memory rolling averages in the usage tracker; the average shows in the Options usage label. The existing `TRANS_RESULT` line in `ConferenceController.TranslateTargetsAsync` already carries per-translate elapsed ms. Cross-target parallelism: DeepL's per-target loop now issues bounded concurrent requests (SemaphoreSlim(4) + Task.WhenAll, result order preserved); Google was already parallel and Azure already sends all targets in one call. Vendor multi-text batching is N/A for the streaming pipeline (one commit text per request — there is never a batch of texts to send).
 
 **SidecarTranslationBackend DI note — resolved:** not a gap; it is registered dynamically by design (`FormMain` calls `orchestrator.RegisterBackend` once the Python sidecar starts, since the backend wraps the FormMain-owned legacy `TranslationService` which only becomes available at sidecar startup; nothing resolves it through DI).
+
+**Cloud engines honoured in ALL desktop pipelines — DONE (v1.9.9):** the Translate workspace (`TranslateController.RunTranslateAsync`) and the Transcribe job subtitle translation (`PipelineRunner.TranslateSubtitlesAsync`) now route through the `TranslationOrchestrator` (via `ServerController.GetTranslationOrchestrator()`) whenever the EFFECTIVE configured engine is a cloud backend — keys, fallback chain, glossary/profanity post-processing, usage counting and latency tracking all come from the orchestrator. New registry helpers: `TranslationBackendRegistry.ResolveEffectiveBackendKey` (user selection + STT companion auto-select, single source of truth shared with `FormMain.StartTranslationService`) and `TryActivateConfiguredCloudBackend` (syncs config → orchestrator active backend, covers cloud-only machines where the NLLB sidecar never starts). NLLB selected → behavior unchanged (same direct sidecar HTTP calls, same sentence splitting, FLORES codes); server down → graceful NLLB-direct fallback with existing localized statuses. Rooms/conference/Bible/benchmark already used the orchestrator.
 
 ---
 

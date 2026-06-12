@@ -209,7 +209,8 @@ Public Class FormMain
             }),
             AddressOf GetString,
             AddressOf WriteDebugLog,
-            Sub(msg, title, icon) MessageBox.Show(Me, msg, title, MessageBoxButtons.OK, icon))
+            Sub(msg, title, icon) MessageBox.Show(Me, msg, title, MessageBoxButtons.OK, icon),
+            Function() _serverController?.GetTranslationOrchestrator())
         _transcribeController.WireEvents()
 
         ' Populate dropdowns
@@ -1018,14 +1019,9 @@ del ""%~f0""
                 ' When the STT engine declares a companion translation backend (shares
                 ' the same API key) and the user has a key, auto-use that backend
                 ' (much faster than waiting for the local NLLB model to load and translate)
-                Dim configKey = If(_config.TranslationBackend, "nllb")
-                Dim sttBackend = If(_config.SttBackend, "")
-                Dim companionKey = If(Services.Stt.SttBackendRegistry.Find(sttBackend)?.CompanionTranslationKey, "")
-                If Not String.IsNullOrEmpty(companionKey) AndAlso
-                   Not String.IsNullOrEmpty(_config.GetSttApiKey(sttBackend)) AndAlso
-                   Not configKey.Equals(companionKey, StringComparison.OrdinalIgnoreCase) Then
-                    configKey = companionKey
-                    AppLogger.Log(LogEvents.TRANS_SERVER_READY, $"Auto-selecting companion translation backend '{companionKey}' (STT backend is {sttBackend})")
+                Dim configKey = Services.Translation.TranslationBackendRegistry.ResolveEffectiveBackendKey(_config)
+                If Not configKey.Equals(If(_config.TranslationBackend, "nllb"), StringComparison.OrdinalIgnoreCase) Then
+                    AppLogger.Log(LogEvents.TRANS_SERVER_READY, $"Auto-selecting companion translation backend '{configKey}' (STT backend is {If(_config.SttBackend, "")})")
                 End If
                 Dim entry = Services.Translation.TranslationBackendRegistry.Find(configKey)
                 Dim orchestratorName = If(entry?.BackendName, "Local")
@@ -1040,14 +1036,10 @@ del ""%~f0""
 
         ' Skip starting the NLLB sidecar when using a cloud translation backend —
         ' no point loading a 3.3GB model if we're using Google Translate API
-        Dim activeTransBackend = If(_config.TranslationBackend, "nllb")
-        Dim activeTransEntry = Services.Translation.TranslationBackendRegistry.Find(activeTransBackend)
-        Dim sttBk = If(_config.SttBackend, "")
-        Dim sttCompanion = If(Services.Stt.SttBackendRegistry.Find(sttBk)?.CompanionTranslationKey, "")
-        Dim usingCloudTranslation = (activeTransEntry IsNot Nothing AndAlso
-                                     String.IsNullOrEmpty(activeTransEntry.ModelType)) OrElse
-            (Not String.IsNullOrEmpty(sttCompanion) AndAlso
-             Not String.IsNullOrEmpty(_config.GetSttApiKey(sttBk)))
+        Dim effectiveKey = Services.Translation.TranslationBackendRegistry.ResolveEffectiveBackendKey(_config)
+        Dim effectiveEntry = Services.Translation.TranslationBackendRegistry.Find(effectiveKey)
+        Dim usingCloudTranslation = effectiveEntry IsNot Nothing AndAlso
+                                    String.IsNullOrEmpty(effectiveEntry.ModelType)
 
         If usingCloudTranslation Then
             AppLogger.Log(LogEvents.TRANS_SERVER_READY, "Skipping NLLB sidecar — using cloud translation backend")
