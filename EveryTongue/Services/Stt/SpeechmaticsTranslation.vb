@@ -1,4 +1,7 @@
+Imports EveryTongue.Models
+Imports EveryTongue.Pipeline
 Imports EveryTongue.Services.Infrastructure
+Imports EveryTongue.Services.Models
 
 Namespace Services.Stt
 
@@ -93,6 +96,33 @@ Namespace Services.Stt
                 End If
             Next
             Return (smCodes, covered)
+        End Function
+
+        ''' <summary>
+        ''' Configure a session for Speechmatics inline translation, if enabled.
+        ''' Engine-owned: gates on the user toggle, finds the engine's own config
+        ''' block on the session (a non-Speechmatics session has none → no-op),
+        ''' and computes the engine-native target codes. Callers stay blind to
+        ''' the engine's fields.
+        ''' </summary>
+        Public Sub ConfigureSession(sttConfig As SttSessionConfig, cfg As AppConfig,
+                                    sourceWhisperLang As String, activeLangs As List(Of String))
+            If cfg Is Nothing OrElse Not cfg.UseSpeechmaticsTranslation Then Return
+            ' Only a Speechmatics session carries a SpeechmaticsConfig block.
+            Dim sm = sttConfig.Block(Of Configs.SpeechmaticsConfig)()
+            If sm Is Nothing Then Return
+            sm.EnableTranslation = True
+            sm.TranslationTargets = ComputeTargets(SourceFlores(sourceWhisperLang), activeLangs).SmCodes
+        End Sub
+
+        ''' <summary>
+        ''' FLORES source for target computation — Speechmatics treats an
+        ''' unset/"auto" source language as English.
+        ''' </summary>
+        Public Function SourceFlores(sourceWhisperLang As String) As String
+            Dim lang = If(String.IsNullOrEmpty(sourceWhisperLang) OrElse sourceWhisperLang = "auto", "en", sourceWhisperLang)
+            Dim flores = TranslationService.WhisperToFloresLang(lang.ToLowerInvariant())
+            Return If(String.IsNullOrEmpty(flores), "eng_Latn", flores)
         End Function
 
     End Module

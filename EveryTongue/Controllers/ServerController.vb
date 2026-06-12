@@ -88,8 +88,6 @@ Namespace Controllers
                     .BeamSize = _config.BeamSize,
                     .BestOf = _config.BestOf,
                     .SttApiKey = _config.GetSttApiKey(If(_config.SttBackend, "")),
-                    .SttRegion = If(_config.SpeechmaticsRegion, "eu2"),
-                    .SttOperatingPoint = If(_config.SpeechmaticsOperatingPoint, "enhanced"),
                     .GoogleApiKey = _config.GetSttApiKey("google-cloud-stt"),
                     .TranslationConcurrency = _config.TranslationConcurrency,
                     .TtsConcurrency = _config.TtsConcurrency,

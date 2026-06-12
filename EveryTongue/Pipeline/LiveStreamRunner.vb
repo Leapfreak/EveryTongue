@@ -159,20 +159,13 @@ Namespace Pipeline
         ''' <summary>Per-session hallucination filter file ("" = the live-server's default).</summary>
         Public Property FiltersHallucinationsPath As String = ""
 
-        ''' <summary>Region for region-scoped online backends (e.g. Speechmatics "eu2"/"us").</summary>
-        Public Property SttRegion As String = ""
-
-        ''' <summary>Operating point / quality tier for online backends (e.g. Speechmatics "enhanced"/"standard").</summary>
-        Public Property SttOperatingPoint As String = ""
-
-        ''' <summary>End-of-utterance silence trigger (ms) for server-side endpointing engines (Speechmatics). 0 = engine default.</summary>
-        Public Property SttEouSilenceMs As Integer = 0
-
-        ''' <summary>Whether the online engine should translate inline (Speechmatics built-in translation).</summary>
-        Public Property SttEnableTranslation As Boolean = False
-
-        ''' <summary>Speechmatics translation target codes (engine-native, e.g. "es","de"). Max 5.</summary>
-        Public Property SttTranslationTargets As New List(Of String)
+        ''' <summary>
+        ''' Engine-specific extra /start JSON fields as a leading-comma fragment,
+        ''' produced by the engine's config block (ICloudSttEngineConfig.
+        ''' BuildStartJsonExtras). Appended verbatim — the runner never knows
+        ''' which engine's fields these are. "" for engines with no extras.
+        ''' </summary>
+        Public Property CloudEngineStartExtras As String = ""
 
         ''' <summary>
         ''' Start the live-server Python process and begin capturing.
@@ -204,24 +197,27 @@ Namespace Pipeline
 
                 Dim serverScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "live-server", "server.py")
 
-                ' Build extra args for backend selection
+                ' Build extra args for backend selection. The registry's
+                ' SidecarMode metadata decides the hosting mode — no per-engine
+                ' key matching in this shared runner.
                 Dim extraArgs = ""
                 Dim backendKey = If(Backend, "whisper-cpp-vulkan")
-                If IsOnlineBackend(backendKey) Then
-                    ' Online engine — pass the backend key straight through; the
-                    ' sidecar looks it up in its engine registry. No local model.
-                    extraArgs = $"--backend {backendKey}"
-                ElseIf backendKey.Equals("faster-whisper", StringComparison.OrdinalIgnoreCase) Then
-                    extraArgs = "--backend faster-whisper"
-                ElseIf backendKey.StartsWith("whisper-cpp", StringComparison.OrdinalIgnoreCase) Then
-                    Dim wsPath = AppConfig.ResolvePath(If(WhisperServerPath, ""))
-                    extraArgs = $"--backend whisper-cpp --whisper-server-path ""{wsPath}"" --whisper-server-port {WhisperServerPort}"
-                    Dim vadPath = AppConfig.ResolvePath(If(SileroVadModelPath, ""))
-                    If Not String.IsNullOrEmpty(vadPath) AndAlso IO.File.Exists(vadPath) Then
-                        extraArgs &= $" --vad-model-path ""{vadPath}"""
-                    End If
-                    If NoGpu Then extraArgs &= " --no-gpu"
-                End If
+                Select Case SidecarModeFor(backendKey)
+                    Case "online"
+                        ' Online engine — pass the backend key straight through; the
+                        ' sidecar looks it up in its engine registry. No local model.
+                        extraArgs = $"--backend {backendKey}"
+                    Case "faster-whisper"
+                        extraArgs = "--backend faster-whisper"
+                    Case Else ' "whisper-cpp" (safe default for unknown keys)
+                        Dim wsPath = AppConfig.ResolvePath(If(WhisperServerPath, ""))
+                        extraArgs = $"--backend whisper-cpp --whisper-server-path ""{wsPath}"" --whisper-server-port {WhisperServerPort}"
+                        Dim vadPath = AppConfig.ResolvePath(If(SileroVadModelPath, ""))
+                        If Not String.IsNullOrEmpty(vadPath) AndAlso IO.File.Exists(vadPath) Then
+                            extraArgs &= $" --vad-model-path ""{vadPath}"""
+                        End If
+                        If NoGpu Then extraArgs &= " --no-gpu"
+                End Select
 
                 Dim logLevel = Models.ConfigManager.Load().LogLevel.ToString().ToLowerInvariant()
                 extraArgs &= $" --log-level {logLevel}"
@@ -268,16 +264,17 @@ Namespace Pipeline
 
         Private Sub StartCapture(config As AppConfig, deviceIndex As Integer, inputLanguage As String, translateToEnglish As Boolean)
             Try
-                ' Resolve model path based on backend
+                ' Resolve model path based on the backend's sidecar mode
                 Dim backendKey = If(Backend, "whisper-cpp-vulkan")
                 Dim modelPath As String
-                If IsOnlineBackend(backendKey) Then
-                    modelPath = ""
-                ElseIf backendKey.Equals("faster-whisper", StringComparison.OrdinalIgnoreCase) Then
-                    modelPath = AppConfig.ResolvePath(config.PathFasterWhisperModel)
-                Else
-                    modelPath = AppConfig.ResolvePath(config.PathWhisperCppModel)
-                End If
+                Select Case SidecarModeFor(backendKey)
+                    Case "online"
+                        modelPath = ""
+                    Case "faster-whisper"
+                        modelPath = AppConfig.ResolvePath(config.PathFasterWhisperModel)
+                    Case Else
+                        modelPath = AppConfig.ResolvePath(config.PathWhisperCppModel)
+                End Select
 
                 Dim jsonBody = $"{{""device_index"":{deviceIndex}," &
                     $"""language"":""{inputLanguage}""," &
@@ -298,18 +295,15 @@ Namespace Pipeline
                     jsonBody &= $",""hallucinations_path"":""{EscapeJsonUnquoted(FiltersHallucinationsPath)}"""
                 End If
 
-                ' Add API key + engine-specific options for online backends (not logged in plaintext)
+                ' Add API key for online backends (not logged in plaintext)
                 If IsOnlineBackend(backendKey) AndAlso Not String.IsNullOrEmpty(SttApiKey) Then
                     jsonBody &= $",""stt_api_key"":""{EscapeJsonUnquoted(SttApiKey)}"""
                 End If
-                If backendKey.Equals("speechmatics", StringComparison.OrdinalIgnoreCase) Then
-                    jsonBody &= $",""speechmatics_region"":""{EscapeJsonUnquoted(SttRegion)}"""
-                    jsonBody &= $",""speechmatics_operating_point"":""{EscapeJsonUnquoted(SttOperatingPoint)}"""
-                    If SttEouSilenceMs > 0 Then
-                        jsonBody &= $",""speechmatics_eou_silence_s"":{(SttEouSilenceMs / 1000.0).ToString(Globalization.CultureInfo.InvariantCulture)}"
-                    End If
-                    jsonBody &= $",""enable_translation"":{If(SttEnableTranslation, "true", "false")}"
-                    jsonBody &= $",""translation_targets"":{SerializeStringArray(SttTranslationTargets)}"
+
+                ' Engine-specific /start fields, pre-built by the engine's config
+                ' block (leading-comma fragment, appended verbatim).
+                If Not String.IsNullOrEmpty(CloudEngineStartExtras) Then
+                    jsonBody &= CloudEngineStartExtras
                 End If
 
                 jsonBody &= "}"
@@ -452,43 +446,27 @@ Namespace Pipeline
         End Function
 
         ''' <summary>
-        ''' An "online" backend is a registered cloud engine that needs an API key
-        ''' and has no local model (e.g. Google Cloud STT, Speechmatics). Determined
-        ''' from the STT registry so new engines work without editing this class.
+        ''' The backend's sidecar hosting mode ("whisper-cpp", "faster-whisper" or
+        ''' "online") from registry metadata. Unknown keys default to "whisper-cpp"
+        ''' so new engines work without editing this class.
+        ''' </summary>
+        Private Shared Function SidecarModeFor(backendKey As String) As String
+            Dim entry = Services.Stt.SttBackendRegistry.Find(backendKey)
+            Return If(entry?.SidecarMode, "whisper-cpp")
+        End Function
+
+        ''' <summary>
+        ''' An "online" backend is a registered cloud engine hosted by the
+        ''' sidecar's engine registry (no local model), per registry metadata.
         ''' </summary>
         Private Shared Function IsOnlineBackend(backendKey As String) As Boolean
-            Dim entry = Services.Stt.SttBackendRegistry.Find(backendKey)
-            Return entry IsNot Nothing AndAlso entry.RequiresApiKey
+            Return SidecarModeFor(backendKey).Equals("online", StringComparison.OrdinalIgnoreCase)
         End Function
 
         Private Shared Function EscapeJsonUnquoted(s As String) As String
             If String.IsNullOrEmpty(s) Then Return ""
             Dim quoted = ProcessHelper.EscapeJson(s)
             Return quoted.Substring(1, quoted.Length - 2)
-        End Function
-
-        ''' <summary>Serialize a string list to a JSON array (quoted, escaped).</summary>
-        Private Shared Function SerializeStringArray(items As List(Of String)) As String
-            If items Is Nothing OrElse items.Count = 0 Then Return "[]"
-            Dim sb As New StringBuilder("[")
-            For i = 0 To items.Count - 1
-                If i > 0 Then sb.Append(","c)
-                sb.Append(ProcessHelper.EscapeJson(If(items(i), "")))
-            Next
-            sb.Append("]"c)
-            Return sb.ToString()
-        End Function
-
-        ''' <summary>
-        ''' Push a new set of Speechmatics translation targets to the running engine.
-        ''' Speechmatics restarts its session to apply them (brief audio gap).
-        ''' </summary>
-        Public Async Function UpdateTranslationTargetsAsync(targets As List(Of String)) As Task
-            SttTranslationTargets = If(targets, New List(Of String))
-            Dim params As New Dictionary(Of String, Object) From {
-                {"translation_targets", SttTranslationTargets}
-            }
-            Await UpdateConfigAsync(params)
         End Function
 
     End Class

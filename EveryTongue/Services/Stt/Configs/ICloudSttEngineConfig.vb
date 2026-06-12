@@ -15,6 +15,14 @@ Namespace Services.Stt.Configs
         ''' transport config before the session starts.
         ''' </summary>
         Sub ConfigureRunner(runner As LiveStreamRunner, runnerConfig As AppConfig)
+
+        ''' <summary>
+        ''' This engine's extra /start JSON fields as a leading-comma fragment
+        ''' (e.g. ',"speechmatics_region":"eu2"'), or "" when the engine adds
+        ''' nothing. Appended verbatim to the live-server /start body so the
+        ''' shared runner never knows any engine's field names.
+        ''' </summary>
+        Function BuildStartJsonExtras() As String
     End Interface
 
 End Namespace

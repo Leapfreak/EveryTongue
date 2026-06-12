@@ -195,7 +195,8 @@ Namespace Controllers
                     backendKey, _config, template:=engineTpl, fieldOverrides:=tplOverrides, contextLabel:=$"[Conference:{roomId}]")
             }
 
-            ApplySpeechmaticsTranslation(sttConfig, sttConfig.Language)
+            SpeechmaticsTranslation.ConfigureSession(sttConfig, _config, sttConfig.Language,
+                                                     _getSubtitleSvc()?.GetActiveTranslationLanguages())
             StorePinnedClauseDials(roomId, engineTpl, sttConfig)
             ResolveRoomFilters(roomId, template)
             Dim createFs As Models.Templates.FilterSet = Nothing
@@ -333,7 +334,8 @@ Namespace Controllers
             _nextConferencePort += 1
             _nextWhisperServerPort += 1
 
-            ApplySpeechmaticsTranslation(sttConfig, cfgLang)
+            SpeechmaticsTranslation.ConfigureSession(sttConfig, _config, cfgLang,
+                                                     _getSubtitleSvc()?.GetActiveTranslationLanguages())
             StorePinnedClauseDials(roomId, engineTpl, sttConfig)
             ResolveRoomFilters(roomId, template)
             Dim restartFs As Models.Templates.FilterSet = Nothing
@@ -705,23 +707,11 @@ Namespace Controllers
             BroadcastTranslated(subtitleSvc, roomId, args.Text, sourceShort, sourceLang, merged)
         End Function
 
-        ' ─── Speechmatics inline translation wiring ──────────────────────
+        ' ─── Inline translation retargeting (engine-blind) ───────────────
 
         Private _activeLangSubscribed As Boolean = False
 
-        ''' <summary>Configure a Speechmatics session to translate inline, if enabled.</summary>
-        Private Sub ApplySpeechmaticsTranslation(sttConfig As SttSessionConfig, sourceWhisperLang As String)
-            If Not _config.UseSpeechmaticsTranslation Then Return
-            ' Only a Speechmatics session carries a SpeechmaticsConfig block.
-            Dim sm = sttConfig.Block(Of Configs.SpeechmaticsConfig)()
-            If sm Is Nothing Then Return
-            sm.EnableTranslation = True
-            Dim active = _getSubtitleSvc()?.GetActiveTranslationLanguages()
-            sm.TranslationTargets = SpeechmaticsTranslation.ComputeTargets(
-                SpeechmaticsSourceFlores(sourceWhisperLang), active).SmCodes
-        End Sub
-
-        ''' <summary>Subscribe once to active-language changes so we can re-target Speechmatics sessions.</summary>
+        ''' <summary>Subscribe once to active-language changes so we can re-target inline-translating sessions.</summary>
         Private Sub EnsureActiveLanguagesSubscription()
             If _activeLangSubscribed Then Return
             Dim svc = _getSubtitleSvc()
@@ -735,24 +725,20 @@ Namespace Controllers
             Dim svc = _getSubtitleSvc()
             If svc Is Nothing Then Return
             For Each kvp In _sttBackends.ToList()
-                Dim cloud = TryCast(kvp.Value, CloudStreamingSttBackend)
-                If cloud Is Nothing OrElse Not cloud.BackendKey.Equals("speechmatics", StringComparison.OrdinalIgnoreCase) Then Continue For
-                Dim srcFlores = SpeechmaticsSourceFlores(RoomSourceWhisperLang(kvp.Key))
+                ' Capability interface — no engine keys here; the backend itself
+                ' knows whether its session translates inline.
+                Dim retargetable = TryCast(kvp.Value, IRetargetableSttBackend)
+                If retargetable Is Nothing OrElse Not retargetable.SupportsInlineTranslation Then Continue For
+                Dim srcFlores = SpeechmaticsTranslation.SourceFlores(RoomSourceWhisperLang(kvp.Key))
                 Dim computed = SpeechmaticsTranslation.ComputeTargets(srcFlores, svc.GetActiveTranslationLanguages())
-                If Not SameTargets(cloud.TranslationTargets, computed.SmCodes) Then
-                    _log($"[Conference:{kvp.Key}] Speechmatics targets → [{String.Join(",", computed.SmCodes)}]; restarting session")
-                    Dim backend = cloud
+                If Not SameTargets(retargetable.CurrentTranslationTargets, computed.SmCodes) Then
+                    _log($"[Conference:{kvp.Key}] inline translation targets → [{String.Join(",", computed.SmCodes)}]; restarting session")
+                    Dim backend = retargetable
                     Dim targets = computed.SmCodes
                     Task.Run(Function() backend.UpdateTranslationTargetsAsync(targets))
                 End If
             Next
         End Sub
-
-        ''' <summary>Speechmatics treats an unset/auto source language as English.</summary>
-        Private Function SpeechmaticsSourceFlores(sourceWhisperLang As String) As String
-            Dim lang = If(String.IsNullOrEmpty(sourceWhisperLang) OrElse sourceWhisperLang = "auto", "en", sourceWhisperLang)
-            Return WhisperToNllbCode(lang)
-        End Function
 
         Private Function RoomSourceWhisperLang(roomId As String) As String
             Dim tplId As String = Nothing

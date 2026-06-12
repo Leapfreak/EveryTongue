@@ -83,12 +83,6 @@ Namespace Server
         ''' <summary>API key for the active online STT backend (Google Cloud STT, Speechmatics, …).</summary>
         Public Property SttApiKey As String = ""
 
-        ''' <summary>Region for region-scoped online STT backends (e.g. Speechmatics "eu2"/"us").</summary>
-        Public Property SttRegion As String = "eu2"
-
-        ''' <summary>Operating point for online STT backends (e.g. Speechmatics "enhanced"/"standard").</summary>
-        Public Property SttOperatingPoint As String = "enhanced"
-
         ''' <summary>Google Cloud API key, shared by Google Cloud STT and the Google translation backend.</summary>
         Public Property GoogleApiKey As String = ""
 

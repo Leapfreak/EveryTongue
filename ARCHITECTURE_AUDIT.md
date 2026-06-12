@@ -51,17 +51,21 @@ these are the places still bypassing them:
   a valued workflow (hybrid pinning shipped in v1.9.2). Revisit only with a
   design that keeps live tuning (e.g. engine-owned accumulator service behind
   an ISttBackend capability interface).
-- [ ] **C2. Speechmatics inline-translation wiring in ConferenceController** —
-  `ApplySpeechmaticsTranslation` / `OnActiveLanguagesChanged` gate on engine key
-  and `_config.UseSpeechmaticsTranslation`. Fix: an optional capability
-  interface (e.g. `IInlineTranslationSttBackend`) implemented by
-  CloudStreamingSttBackend; controller drives it blindly.
-- [ ] **C3. LiveStreamRunner engine branches** — sidecar args
-  (`faster-whisper`/`whisper-cpp*`) and the Speechmatics JSON block + the 5
-  `Stt*` Speechmatics-only properties on the shared runner. Fix: engine blocks
-  already implement `ICloudSttEngineConfig.ConfigureRunner` — extend that seam
-  to contribute /start JSON fields (e.g. `ContributeStartJson`), and move
-  sidecar-arg choice behind registry metadata.
+- [x] **C2. Speechmatics inline-translation wiring in ConferenceController** —
+  DONE: session wiring moved to `SpeechmaticsTranslation.ConfigureSession`
+  (gate + block cast + target computation, incl. `SourceFlores`); retargeting
+  goes through new `IRetargetableSttBackend` capability interface implemented
+  by CloudStreamingSttBackend. No engine-key literals left in the controller's
+  inline-translation path (clause-hold path C1 untouched, still gated).
+- [x] **C3. LiveStreamRunner engine branches** — DONE:
+  `ICloudSttEngineConfig.BuildStartJsonExtras()` lets each engine block emit
+  its own /start JSON fragment (byte-identical output for Speechmatics);
+  runner's 4 Speechmatics-only `Stt*` properties deleted (generic `SttApiKey`
+  kept), replaced by `CloudEngineStartExtras`; sidecar-arg + model-path choice
+  now driven by `SttBackendRegistry.Entry.SidecarMode` metadata ("whisper-cpp"
+  default for unknown keys). Note: a speechmatics session without a config
+  block now emits no speechmatics fields (previously emitted empty defaults) —
+  unreachable in practice since EngineConfigResolver always supplies the block.
 - [ ] **C4. Model scanning hardcoded in FormTemplateManager** — `*.bin` for
   whisper-cpp vs `config.json`-dir for others. Fix: descriptor-declared scan
   pattern (e.g. `ModelScan` metadata on the registry entry/descriptor).
@@ -74,9 +78,13 @@ these are the places still bypassing them:
 - [ ] **C6. live-server faster-whisper/whisper-cpp branches** — offline engines
   bypass the `engines/` registry that online engines use. Fix: move them into
   `engines/` modules (design debt, not regression).
-- [ ] **C7. ServerOptions engine fields** (`SttRegion`, `SttOperatingPoint`,
-  `GoogleApiKey`) — shared options type carrying engine knobs. Shrinks
-  naturally as C2/C5 land.
+- [x] **C7. ServerOptions engine fields** — DONE: `SttRegion`/`SttOperatingPoint`
+  deleted (nothing read them after C3) along with their ServerController
+  assignments; KestrelHost's GoogleApiKey wiring block deleted — GoogleBackend
+  now self-configures via an `IOptions(Of ServerOptions)` DI constructor.
+  Note: the `GoogleApiKey` field itself stays on ServerOptions as the transport
+  for the key (read only by GoogleBackend); FormMain.Shell still re-Configures
+  GoogleBackend on Options save (live key updates).
 
 ## P3 — Hygiene
 

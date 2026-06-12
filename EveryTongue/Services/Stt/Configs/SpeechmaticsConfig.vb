@@ -50,12 +50,44 @@ Namespace Services.Stt.Configs
         End Sub
 
         Public Sub ConfigureRunner(runner As LiveStreamRunner, runnerConfig As AppConfig) Implements ICloudSttEngineConfig.ConfigureRunner
-            runner.SttRegion = Region
-            runner.SttOperatingPoint = OperatingPoint
-            runner.SttEouSilenceMs = EouSilenceMs
-            runner.SttEnableTranslation = EnableTranslation
-            runner.SttTranslationTargets = If(TranslationTargets, New List(Of String))
+            ' Speechmatics has nothing generic to push onto the runner — all of
+            ' its session settings travel as /start JSON via BuildStartJsonExtras.
         End Sub
+
+        ''' <summary>
+        ''' Speechmatics' extra /start JSON fields, byte-for-byte what the runner
+        ''' used to emit from its (removed) Speechmatics-only properties.
+        ''' </summary>
+        Public Function BuildStartJsonExtras() As String Implements ICloudSttEngineConfig.BuildStartJsonExtras
+            Dim sb As New Text.StringBuilder()
+            sb.Append($",""speechmatics_region"":""{EscapeJsonUnquoted(Region)}""")
+            sb.Append($",""speechmatics_operating_point"":""{EscapeJsonUnquoted(OperatingPoint)}""")
+            If EouSilenceMs > 0 Then
+                sb.Append($",""speechmatics_eou_silence_s"":{(EouSilenceMs / 1000.0).ToString(Globalization.CultureInfo.InvariantCulture)}")
+            End If
+            sb.Append($",""enable_translation"":{If(EnableTranslation, "true", "false")}")
+            sb.Append($",""translation_targets"":{SerializeStringArray(TranslationTargets)}")
+            Return sb.ToString()
+        End Function
+
+        ''' <summary>JSON-escape a string value WITHOUT surrounding quotes (same output as the runner's old helper).</summary>
+        Private Shared Function EscapeJsonUnquoted(s As String) As String
+            If String.IsNullOrEmpty(s) Then Return ""
+            Dim quoted = ProcessHelper.EscapeJson(s)
+            Return quoted.Substring(1, quoted.Length - 2)
+        End Function
+
+        ''' <summary>Serialize a string list to a JSON array (quoted, escaped).</summary>
+        Private Shared Function SerializeStringArray(items As List(Of String)) As String
+            If items Is Nothing OrElse items.Count = 0 Then Return "[]"
+            Dim sb As New Text.StringBuilder("[")
+            For i = 0 To items.Count - 1
+                If i > 0 Then sb.Append(","c)
+                sb.Append(ProcessHelper.EscapeJson(If(items(i), "")))
+            Next
+            sb.Append("]"c)
+            Return sb.ToString()
+        End Function
     End Class
 
     Public Class SpeechmaticsConfigDescriptor

@@ -131,6 +131,19 @@ Namespace Services.Translation
         Private Shared ReadOnly _langService As Infrastructure.LanguageCodeService =
             Infrastructure.LanguageCodeService.Instance
 
+        Public Sub New()
+        End Sub
+
+        ''' <summary>
+        ''' DI constructor — self-configures from the shared Google Cloud API key
+        ''' (the same credential also powers Google Cloud STT), so the host needs
+        ''' no Google-specific wiring.
+        ''' </summary>
+        Public Sub New(serverOptions As Microsoft.Extensions.Options.IOptions(Of Server.ServerOptions))
+            Dim key = serverOptions?.Value?.GoogleApiKey
+            If Not String.IsNullOrEmpty(key) Then Configure(key)
+        End Sub
+
         Public Overrides ReadOnly Property Name As String
             Get
                 Return "Google"

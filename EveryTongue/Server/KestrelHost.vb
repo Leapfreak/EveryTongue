@@ -200,17 +200,8 @@ Namespace Server
                 convAudioHandler.SttApiKey = options.SttApiKey
             End If
 
-            ' Configure the Google translation backend with the shared Google Cloud
-            ' API key (the same credential also powers Google Cloud STT).
-            If Not String.IsNullOrEmpty(options.GoogleApiKey) Then
-                Dim translationBackends = app.Services.GetServices(Of ITranslationBackend)()
-                For Each backend In translationBackends
-                    Dim googleBackend = TryCast(backend, GoogleBackend)
-                    If googleBackend IsNot Nothing Then
-                        googleBackend.Configure(options.GoogleApiKey)
-                    End If
-                Next
-            End If
+            ' (GoogleBackend self-configures its API key from IOptions(Of ServerOptions)
+            ' in its DI constructor — no engine-specific wiring here.)
 
             ' Start MMS-TTS sidecar if deps are installed (optional tier-2 offline TTS)
             Dim backends = app.Services.GetServices(Of ITtsBackend)()

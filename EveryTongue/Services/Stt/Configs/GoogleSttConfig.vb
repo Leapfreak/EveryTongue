@@ -32,6 +32,11 @@ Namespace Services.Stt.Configs
             runnerConfig.LiveInterimIntervalMs = InterimIntervalMs
             runnerConfig.InitialPrompt = InitialPrompt
         End Sub
+
+        Public Function BuildStartJsonExtras() As String Implements ICloudSttEngineConfig.BuildStartJsonExtras
+            ' Google contributes no engine-specific /start fields.
+            Return ""
+        End Function
     End Class
 
     Public Class GoogleSttConfigDescriptor
