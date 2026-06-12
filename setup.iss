@@ -57,7 +57,8 @@ Source: "{#AppPublishDir}\EveryTongue.exe"; DestDir: "{app}"; Flags: ignoreversi
 Source: "{#AppPublishDir}\EveryTongue.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppPublishDir}\EveryTongue.deps.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AppPublishDir}\EveryTongue.runtimeconfig.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#AppPublishDir}\*.dll"; DestDir: "{app}"; Flags: ignoreversion
+; CUDA runtime DLLs are Download Manager dependencies, not app files — never bundle
+Source: "{#AppPublishDir}\*.dll"; DestDir: "{app}"; Excludes: "cublas*.dll,cublasLt*.dll,cudart*.dll,cudnn*.dll,cufft*.dll,nvrtc*.dll,zlibwapi.dll"; Flags: ignoreversion
 Source: "{#AppPublishDir}\checksums.json"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#AppPublishDir}\component-versions.json"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
