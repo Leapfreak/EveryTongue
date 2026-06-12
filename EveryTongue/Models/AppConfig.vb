@@ -157,8 +157,13 @@ Namespace Models
         ''' </summary>
         Public Property SttApiKeys As New Dictionary(Of String, String)
 
-        ''' <summary>Legacy single Google STT key — kept for back-compat migration into SttApiKeys.</summary>
-        Public Property GoogleCloudSttApiKey As String = ""
+        ''' <summary>
+        ''' Legacy single Google STT key — deserialize-only. Read from pre-1.8.x
+        ''' configs and migrated once into SttApiKeys by ConfigManager.ApplyDefaults,
+        ''' which then clears it to Nothing so it is never written back out.
+        ''' </summary>
+        <JsonIgnore(Condition:=JsonIgnoreCondition.WhenWritingDefault)>
+        Public Property GoogleCloudSttApiKey As String = Nothing
 
         ''' <summary>Speechmatics real-time region: "eu2" (default) or "us".</summary>
         Public Property SpeechmaticsRegion As String = "eu2"
@@ -174,30 +179,21 @@ Namespace Models
         ''' </summary>
         Public Property SpeechmaticsEouSilenceMs As Integer = 800
 
-        ''' <summary>
-        ''' Resolve the API key for an STT backend, falling back to the legacy
-        ''' Google field for "google-cloud-stt" if no per-engine key is stored.
-        ''' </summary>
+        ''' <summary>Resolve the API key for an STT backend from the per-engine store.</summary>
         Public Function GetSttApiKey(backendKey As String) As String
             If backendKey Is Nothing Then Return ""
             Dim value As String = Nothing
             If SttApiKeys IsNot Nothing AndAlso SttApiKeys.TryGetValue(backendKey, value) AndAlso Not String.IsNullOrEmpty(value) Then
                 Return value
             End If
-            If backendKey.Equals("google-cloud-stt", StringComparison.OrdinalIgnoreCase) Then
-                Return If(GoogleCloudSttApiKey, "")
-            End If
             Return ""
         End Function
 
-        ''' <summary>Store the API key for an STT backend (mirrors the legacy Google field for back-compat).</summary>
+        ''' <summary>Store the API key for an STT backend.</summary>
         Public Sub SetSttApiKey(backendKey As String, value As String)
             If String.IsNullOrEmpty(backendKey) Then Return
             If SttApiKeys Is Nothing Then SttApiKeys = New Dictionary(Of String, String)
             SttApiKeys(backendKey) = If(value, "")
-            If backendKey.Equals("google-cloud-stt", StringComparison.OrdinalIgnoreCase) Then
-                GoogleCloudSttApiKey = If(value, "")
-            End If
         End Sub
 
         Public Property LiveServerPort As Integer = 5091

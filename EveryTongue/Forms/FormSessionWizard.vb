@@ -389,7 +389,7 @@ Public Class FormSessionWizard
         _config.SubtitleFontBold = chkWizBold.Checked
 
         ConfigManager.Save(_config)
-        SaveSessionTemplateIfRequested()
+        SaveConferenceTemplateIfRequested()
     End Sub
 
     ''' <summary>
@@ -399,7 +399,7 @@ Public Class FormSessionWizard
     ''' template, and a random hosting code is generated (editable later in
     ''' Conference Templates). Visible immediately in the phone lobby.
     ''' </summary>
-    Private Sub SaveSessionTemplateIfRequested()
+    Private Sub SaveConferenceTemplateIfRequested()
         If Not chkSaveTemplate.Checked Then Return
         Dim name = txtTemplateName.Text.Trim()
         If name.Length = 0 Then Return

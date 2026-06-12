@@ -8,7 +8,9 @@ Namespace Services.Config
     ''' <summary>
     ''' Persistence for the preset libraries: one JSON file per config group
     ''' under %AppData%\EveryTongue\templates\ (separate from the flat
-    ''' config.json), plus the session-template list. Thread-safe singleton.
+    ''' config.json). Thread-safe singleton. Note: a legacy
+    ''' session-templates.json from pre-1.9.6 versions may remain on disk;
+    ''' it is no longer read or written (ConferenceTemplate is the session unit).
     ''' </summary>
     Public NotInheritable Class TemplateLibraryStore
 
@@ -35,7 +37,6 @@ Namespace Services.Config
 
         Private ReadOnly _lock As New Object()
         Private ReadOnly _engineTemplates As New Dictionary(Of String, List(Of EngineTemplate))
-        Private _sessionTemplates As New List(Of SessionTemplate)
         Private _speakerProfiles As New List(Of SpeakerProfile)
         Private _displayTemplates As New List(Of DisplayTemplate)
         Private _filterSets As New List(Of FilterSet)
@@ -55,12 +56,6 @@ Namespace Services.Config
         Private Shared Function GroupFile(group As String) As String
             Return Path.Combine(TemplatesDir, $"{group}-templates.json")
         End Function
-
-        Private Shared ReadOnly Property SessionsFile As String
-            Get
-                Return Path.Combine(TemplatesDir, "session-templates.json")
-            End Get
-        End Property
 
         Private Shared ReadOnly Property SpeakersFile As String
             Get
@@ -87,13 +82,12 @@ Namespace Services.Config
             For Each group In {GroupStt, GroupTranslate, GroupTts}
                 _engineTemplates(group) = LoadFile(Of List(Of EngineTemplate))(GroupFile(group), New List(Of EngineTemplate))
             Next
-            _sessionTemplates = LoadFile(Of List(Of SessionTemplate))(SessionsFile, New List(Of SessionTemplate))
             _speakerProfiles = LoadFile(Of List(Of SpeakerProfile))(SpeakersFile, New List(Of SpeakerProfile))
             _displayTemplates = LoadFile(Of List(Of DisplayTemplate))(DisplayFile, New List(Of DisplayTemplate))
             _filterSets = LoadFile(Of List(Of FilterSet))(FiltersFile, New List(Of FilterSet))
             _loaded = True
             AppLogger.Log(LogEvents.CONFIG_TEMPLATE_LIB_LOADED,
-                $"Template library loaded: stt={_engineTemplates(GroupStt).Count}, translate={_engineTemplates(GroupTranslate).Count}, tts={_engineTemplates(GroupTts).Count}, sessions={_sessionTemplates.Count}, speakers={_speakerProfiles.Count}, display={_displayTemplates.Count}, filters={_filterSets.Count}")
+                $"Template library loaded: stt={_engineTemplates(GroupStt).Count}, translate={_engineTemplates(GroupTranslate).Count}, tts={_engineTemplates(GroupTts).Count}, speakers={_speakerProfiles.Count}, display={_displayTemplates.Count}, filters={_filterSets.Count}")
         End Sub
 
         Private Shared Function LoadFile(Of T As Class)(filePath As String, fallback As T) As T
@@ -158,40 +152,6 @@ Namespace Services.Config
                 If Not _engineTemplates.TryGetValue(group, list) Then Return
                 If list.RemoveAll(Function(t) t.Id = id) > 0 Then
                     SaveFile(GroupFile(group), list)
-                End If
-            End SyncLock
-        End Sub
-
-        ' ─── Session templates ────────────────────────────────────────
-
-        Public Function GetSessionTemplates() As List(Of SessionTemplate)
-            SyncLock _lock
-                EnsureLoaded()
-                Return New List(Of SessionTemplate)(_sessionTemplates)
-            End SyncLock
-        End Function
-
-        Public Function GetSessionTemplate(id As String) As SessionTemplate
-            SyncLock _lock
-                EnsureLoaded()
-                Return _sessionTemplates.FirstOrDefault(Function(t) t.Id = id)
-            End SyncLock
-        End Function
-
-        Public Sub UpsertSessionTemplate(template As SessionTemplate)
-            SyncLock _lock
-                EnsureLoaded()
-                _sessionTemplates.RemoveAll(Function(t) t.Id = template.Id)
-                _sessionTemplates.Add(template)
-                SaveFile(SessionsFile, _sessionTemplates)
-            End SyncLock
-        End Sub
-
-        Public Sub DeleteSessionTemplate(id As String)
-            SyncLock _lock
-                EnsureLoaded()
-                If _sessionTemplates.RemoveAll(Function(t) t.Id = id) > 0 Then
-                    SaveFile(SessionsFile, _sessionTemplates)
                 End If
             End SyncLock
         End Sub

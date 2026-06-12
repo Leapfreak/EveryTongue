@@ -41,6 +41,20 @@ Namespace Models
                 cfg.PathWhisper = cfg.PathWhisper.Replace("\whisper\whisper-cli.exe", "\whisper-cli.exe")
             End If
 
+            ' One-time migration: legacy single Google STT key (pre-1.8.x) → per-engine SttApiKeys.
+            ' The legacy property is deserialize-only (JsonIgnore WhenWritingDefault), so clearing
+            ' it to Nothing here means it disappears from config.json on the next save.
+            If Not String.IsNullOrEmpty(cfg.GoogleCloudSttApiKey) Then
+                If cfg.SttApiKeys Is Nothing Then cfg.SttApiKeys = New Dictionary(Of String, String)
+                Dim existing As String = Nothing
+                If Not (cfg.SttApiKeys.TryGetValue("google-cloud-stt", existing) AndAlso Not String.IsNullOrEmpty(existing)) Then
+                    cfg.SttApiKeys("google-cloud-stt") = cfg.GoogleCloudSttApiKey
+                    AppLogger.Log(LogEvents.CONFIG_MIGRATED, "Migrated legacy GoogleCloudSttApiKey into SttApiKeys[""google-cloud-stt""]")
+                End If
+            End If
+            ' Always normalise to Nothing (covers ""), so JsonIgnore(WhenWritingDefault) drops it on save.
+            cfg.GoogleCloudSttApiKey = Nothing
+
             ' Migrate conference templates' embedded engine knobs into the STT template library (idempotent)
             Services.Config.ConferenceTemplateMigration.Migrate(cfg)
         End Sub
