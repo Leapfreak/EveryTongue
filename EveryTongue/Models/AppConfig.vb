@@ -248,6 +248,31 @@ Namespace Models
         End Sub
 
         ''' <summary>
+        ''' Monthly character budgets for cloud translation engines, keyed by
+        ''' backend key (e.g. "deepl"). 0 or absent = no budget. Crossing a budget
+        ''' logs ONE warning per backend per month — translation is never blocked.
+        ''' </summary>
+        Public Property TranslationMonthlyCharBudgets As New Dictionary(Of String, Long)
+
+        ''' <summary>Resolve the monthly character budget for a translation backend (0 = no budget).</summary>
+        Public Function GetTranslationCharBudget(backendKey As String) As Long
+            If String.IsNullOrEmpty(backendKey) Then Return 0
+            Dim value As Long
+            If TranslationMonthlyCharBudgets IsNot Nothing AndAlso
+               TranslationMonthlyCharBudgets.TryGetValue(backendKey, value) Then
+                Return Math.Max(0L, value)
+            End If
+            Return 0
+        End Function
+
+        ''' <summary>Store the monthly character budget for a translation backend (0 = no budget).</summary>
+        Public Sub SetTranslationCharBudget(backendKey As String, value As Long)
+            If String.IsNullOrEmpty(backendKey) Then Return
+            If TranslationMonthlyCharBudgets Is Nothing Then TranslationMonthlyCharBudgets = New Dictionary(Of String, Long)
+            TranslationMonthlyCharBudgets(backendKey) = Math.Max(0L, value)
+        End Sub
+
+        ''' <summary>
         ''' When the STT engine is Speechmatics, use its built-in (English-pivot)
         ''' translation for eligible languages; others fall back to the configured
         ''' translation backend.

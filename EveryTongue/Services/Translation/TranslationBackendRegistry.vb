@@ -57,6 +57,15 @@ Namespace Services.Translation
         End Function
 
         ''' <summary>
+        ''' Look up a registry entry by the orchestrator backend name (e.g. "DeepL"
+        ''' → the "deepl" entry). Returns Nothing if not found.
+        ''' </summary>
+        Public Shared Function FindByBackendName(backendName As String) As Entry
+            Return _backends.FirstOrDefault(
+                Function(e) If(e.BackendName, "").Equals(If(backendName, ""), StringComparison.OrdinalIgnoreCase))
+        End Function
+
+        ''' <summary>
         ''' Resolve the API key for a translation backend: the engine's own stored
         ''' key wins; when empty, fall back to the key of the STT engine that
         ''' declares this backend as its companion (e.g. one Google Cloud key

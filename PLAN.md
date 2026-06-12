@@ -122,7 +122,7 @@ Implementation plan for making Every Tongue field-deployable by a non-technical 
 | [11C](#11c-device-compatibility--suitability-scoring) | Device Compatibility & Suitability Scoring | New | 4 |
 | [12](#12-hardware-readiness-score) | Hardware Readiness Score | **Done** | 1 |
 | [13](#13-recommended-specifications-generator) | Recommended Specifications Generator | Moved to [Documentation](#documentation) | — |
-| [14](#14-pluggable-translation-backends) | Pluggable Translation Backends (Cloud APIs) | Partial (a-e done) | 4 |
+| [14](#14-pluggable-translation-backends) | Pluggable Translation Backends (Cloud APIs) | COMPLETE (a-h) | 4 |
 | [15](#15-server-infrastructure-upgrade--kestrel) | Server Infrastructure Upgrade (Kestrel) | **Done** | 3 |
 | [16](#16-bible-integration) | Bible Integration | **Done** (a-g), partial (h) | 4 |
 | [17](#17-text-chat-in-rooms) | Text Chat in Rooms | **Done** (in conversation rooms) | 2 |
@@ -1096,15 +1096,17 @@ For languages not yet in the UI (e.g., before Feature #9 adds Polish/Romanian), 
 
 ## 14. Pluggable Translation Backends (Cloud APIs)
 
-**Status:** Partially implemented (a-e done, f-h remaining).
+**Status:** COMPLETE (a–h done, v1.9.8). Vendor multi-text batch APIs intentionally N/A — the streaming pipeline submits one short commit per request, so there is no multi-text batch to send; cross-target parallelism is implemented instead.
 
 **Done:** `ITranslationBackend` interface, `TranslationOrchestrator` with fallback chain, `DeepLBackend`/`GoogleBackend`/`AzureBackend` in `CloudTranslationBackend.vb`, `SidecarTranslationBackend`, `TranslationBackendRegistry` with Options UI, `language-codes.json` (161 languages) with `LanguageCodeService`, per-language backend overrides via `LanguageOverrides`. **v1.9.7:** DeepL + Azure Translator registered in the backend registry (selectable in Options); per-engine `TranslationApiKeys` store with Options key field (shown only for `RequiresApiKey` engines); one generic `ConfigureCloudApiKeys` pass keys all cloud backends at server start + Options save (GoogleBackend's IOptions special case removed); Google STT key still powers Google Translate via `CompanionTranslationKey` fallback.
 
-**Remaining:**
-- **(f) Cost Awareness** — usage tracking, budget limits, cost display
-- **(g) Latency Considerations** — batching for cloud APIs, latency indicators
-- **(h) Glossary Integration** — apply local glossary post-processing to cloud backend output
-- SidecarTranslationBackend not yet registered in DI (needs legacy TranslationService instance)
+**(h) Glossary Integration — DONE:** `Services/Translation/GlossaryPostProcessor.vb` is a faithful .NET port of the Python `Glossary` class (case-insensitive substring trigger on source text, per-target `{wrong: right}` fixes, punctuation-aware plain/word-boundary replacement, mtime-keyed file cache, per-request filter set with fallback to global glossary). Applied in `TranslationOrchestrator.ApplyLocalFilters` to any backend with `ITranslationBackend.AppliesFiltersInternally = False` (all cloud backends); the sidecar is skipped because Python already applies filters. Global glossary path flows via `ServerOptions.GlossaryFilePath`. **v1.9.8:** profanity parity follow-up done — `ProfanityPostProcessor.vb` mirrors the Python `_filter_profanity` (target-FLORES-keyed word lists, legacy string + `{word, enabled}` formats, one case-insensitive `\b(...)\b` regex per language, matches masked as `[...]`, mtime-keyed cache, per-request set with global fallback via `ServerOptions.ProfanityFilePath`), applied right after the glossary in `ApplyLocalFilters`.
+
+**(f) Cost Awareness — DONE (v1.9.8):** `Services/Translation/TranslationUsageTracker.vb` counts characters submitted to cloud backends (source length × target count — what vendors bill) per backend key per calendar month, persisted to `%AppData%\EveryTongue\translation-usage.json` with debounced writes (dirty flag + 30s timer + flush on shutdown; the translate path never touches disk). Counted at the orchestrator cloud seam (`InvokeBackendAsync`, gated on `RequiresInternet`, backend name → registry key via `TranslationBackendRegistry.FindByBackendName`). Budgets in `AppConfig.TranslationMonthlyCharBudgets` (0/absent = no budget); crossing a budget logs ONE `TRANS_BUDGET_EXCEEDED` (4011) warning per backend per month — translation is never blocked. Options Translation page shows a per-engine usage label ("This month: N characters / budget N (avg N ms)") and a budget field, visible only for `RequiresApiKey` engines, saved per engine like the API key.
+
+**(g) Latency Considerations — DONE (v1.9.8):** Stopwatch around every cloud backend call at the orchestrator seam feeds per-backend in-memory rolling averages in the usage tracker; the average shows in the Options usage label. The existing `TRANS_RESULT` line in `ConferenceController.TranslateTargetsAsync` already carries per-translate elapsed ms. Cross-target parallelism: DeepL's per-target loop now issues bounded concurrent requests (SemaphoreSlim(4) + Task.WhenAll, result order preserved); Google was already parallel and Azure already sends all targets in one call. Vendor multi-text batching is N/A for the streaming pipeline (one commit text per request — there is never a batch of texts to send).
+
+**SidecarTranslationBackend DI note — resolved:** not a gap; it is registered dynamically by design (`FormMain` calls `orchestrator.RegisterBackend` once the Python sidecar starts, since the backend wraps the FormMain-owned legacy `TranslationService` which only becomes available at sidecar startup; nothing resolves it through DI).
 
 ---
 

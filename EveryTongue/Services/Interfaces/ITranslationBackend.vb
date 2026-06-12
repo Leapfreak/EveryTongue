@@ -11,6 +11,14 @@ Namespace Services.Interfaces
         ReadOnly Property RequiresInternet As Boolean
         ReadOnly Property IsAvailable As Boolean
 
+        ''' <summary>
+        ''' True when the backend applies glossary/profanity filters to its own
+        ''' output (the local sidecar applies them inside translate-server/server.py).
+        ''' When False, the orchestrator applies local glossary post-processing
+        ''' (GlossaryPostProcessor) so cloud results get the same fixups as NLLB.
+        ''' </summary>
+        ReadOnly Property AppliesFiltersInternally As Boolean
+
         Function TranslateAsync(text As String,
                                 sourceLang As String,
                                 targetLangs As IReadOnlyList(Of String),

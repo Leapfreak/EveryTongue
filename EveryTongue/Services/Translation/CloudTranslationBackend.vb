@@ -34,6 +34,16 @@ Namespace Services.Translation
             End Get
         End Property
 
+        ''' <summary>
+        ''' Cloud APIs return raw vendor output — the orchestrator applies local
+        ''' glossary post-processing so cloud results match the NLLB sidecar.
+        ''' </summary>
+        Public ReadOnly Property AppliesFiltersInternally As Boolean Implements ITranslationBackend.AppliesFiltersInternally
+            Get
+                Return False
+            End Get
+        End Property
+
         Public Sub Configure(apiKey As String)
             Me.ApiKey = If(apiKey, "")
         End Sub
@@ -74,32 +84,54 @@ Namespace Services.Translation
         ) As Task(Of Dictionary(Of String, String))
             If Not IsAvailable Then Return New Dictionary(Of String, String)()
 
+            ' Streaming commits arrive as one short text per request, so the only
+            ' parallelism available is across target languages — issue the
+            ' per-target requests concurrently (bounded) instead of sequentially.
+            ' Results land in a per-index array so dictionary order matches the
+            ' caller's target order.
+            Dim translatedByIndex(targetLangs.Count - 1) As String
+            Dim gate As New SemaphoreSlim(4)
+            Dim tasks As New List(Of Task)()
+
+            For i = 0 To targetLangs.Count - 1
+                Dim idx = i                       ' capture for closure
+                Dim targetLang = targetLangs(i)
+                tasks.Add(Task.Run(Async Function()
+                    Await gate.WaitAsync(ct)
+                    Try
+                        Dim content As New FormUrlEncodedContent(New Dictionary(Of String, String) From {
+                            {"auth_key", ApiKey},
+                            {"text", text},
+                            {"source_lang", sourceLang.ToUpper()},
+                            {"target_lang", targetLang.ToUpper()}
+                        })
+                        Dim response = Await HttpClient.PostAsync(
+                            "https://api-free.deepl.com/v2/translate", content, ct)
+                        If response.IsSuccessStatusCode Then
+                            Dim body = Await response.Content.ReadAsStringAsync()
+                            Using doc = JsonDocument.Parse(body)
+                                translatedByIndex(idx) = doc.RootElement.
+                                    GetProperty("translations")(0).
+                                    GetProperty("text").GetString()
+                            End Using
+                        End If
+                    Catch ex As OperationCanceledException
+                    Catch ex As Exception
+                        Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR, $"DeepLBackend.TranslateAsync: target={targetLang} - {ex.Message}")
+                    Finally
+                        gate.Release()
+                    End Try
+                End Function))
+            Next
+
+            Await Task.WhenAll(tasks)
+
             Dim results As New Dictionary(Of String, String)()
-            For Each targetLang In targetLangs
-                Try
-                    Dim content As New FormUrlEncodedContent(New Dictionary(Of String, String) From {
-                        {"auth_key", ApiKey},
-                        {"text", text},
-                        {"source_lang", sourceLang.ToUpper()},
-                        {"target_lang", targetLang.ToUpper()}
-                    })
-                    Dim response = Await HttpClient.PostAsync(
-                        "https://api-free.deepl.com/v2/translate", content, ct)
-                    If response.IsSuccessStatusCode Then
-                        Dim body = Await response.Content.ReadAsStringAsync()
-                        Using doc = JsonDocument.Parse(body)
-                            Dim translated = doc.RootElement.
-                                GetProperty("translations")(0).
-                                GetProperty("text").GetString()
-                            results(targetLang) = translated
-                            CharactersUsed += text.Length
-                        End Using
-                    End If
-                Catch ex As OperationCanceledException
-                    Exit For
-                Catch ex As Exception
-                    Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR, $"DeepLBackend.TranslateAsync: target={targetLang} - {ex.Message}")
-                End Try
+            For i = 0 To targetLangs.Count - 1
+                If translatedByIndex(i) IsNot Nothing Then
+                    results(targetLangs(i)) = translatedByIndex(i)
+                    CharactersUsed += text.Length
+                End If
             Next
             Return results
         End Function

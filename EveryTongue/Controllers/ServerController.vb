@@ -89,6 +89,9 @@ Namespace Controllers
                     .BestOf = _config.BestOf,
                     .SttApiKey = _config.GetSttApiKey(If(_config.SttBackend, "")),
                     .TranslationConcurrency = _config.TranslationConcurrency,
+                    .GlossaryFilePath = Models.AppConfig.ResolvePath(
+                        If(_config.TranslationGlossaryPath, ".\translate-server\glossary.json")),
+                    .ProfanityFilePath = Models.AppConfig.ResolvePath(".\translate-server\profanity.json"),
                     .TtsConcurrency = _config.TtsConcurrency,
                     .ConferenceTemplates = _config.ConferenceTemplates
                 }
@@ -102,6 +105,11 @@ Namespace Controllers
                 If _kestrelHost.Services IsNot Nothing Then
                     Services.Translation.TranslationBackendRegistry.ConfigureCloudApiKeys(_kestrelHost.Services, _config)
                 End If
+
+                ' Cloud usage tracker reads budgets live from config so Options
+                ' changes apply without a server restart.
+                Services.Translation.TranslationUsageTracker.BudgetProvider =
+                    Function(backendKey) _config.GetTranslationCharBudget(backendKey)
 
                 ' Let caller wire live-specific subtitle service events
                 Dim svc = GetSubtitleService()

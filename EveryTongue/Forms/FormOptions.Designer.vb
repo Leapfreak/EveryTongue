@@ -137,6 +137,9 @@ Partial Class FormOptions
         Me.lblTransBackend = New System.Windows.Forms.Label()
         Me.lblTransApiKey = New System.Windows.Forms.Label()
         Me.txtTransApiKey = New System.Windows.Forms.TextBox()
+        Me.lblTransBudget = New System.Windows.Forms.Label()
+        Me.nudTransBudget = New System.Windows.Forms.NumericUpDown()
+        Me.lblTransUsage = New System.Windows.Forms.Label()
         Me.chkTransEnabled = New System.Windows.Forms.CheckBox()
         Me.chkUseSpeechmaticsTranslation = New System.Windows.Forms.CheckBox()
         Me.lblClauseHeader = New System.Windows.Forms.Label()
@@ -312,6 +315,7 @@ Partial Class FormOptions
         CType(Me.nudPort, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudLivePort, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudTransPort, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudTransBudget, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudFontSize, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudClauseGraceMs, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudClauseMaxMs, System.ComponentModel.ISupportInitialize).BeginInit()
@@ -1639,6 +1643,38 @@ Partial Class FormOptions
         Me.txtTransApiKey.UseSystemPasswordChar = True
         Me.txtTransApiKey.Visible = False
         '
+        ' lblTransBudget
+        '
+        Me.lblTransBudget.AutoSize = True
+        Me.lblTransBudget.Location = New System.Drawing.Point(230, 118)
+        Me.lblTransBudget.Name = "lblTransBudget"
+        Me.lblTransBudget.Size = New System.Drawing.Size(220, 15)
+        Me.lblTransBudget.TabIndex = 66
+        Me.lblTransBudget.Text = "Monthly character budget (0 = no budget):"
+        Me.lblTransBudget.Visible = False
+        '
+        ' nudTransBudget
+        '
+        Me.nudTransBudget.Increment = New Decimal(New Integer() {100000, 0, 0, 0})
+        Me.nudTransBudget.Location = New System.Drawing.Point(230, 136)
+        Me.nudTransBudget.Maximum = New Decimal(New Integer() {-727379968, 232, 0, 0})
+        Me.nudTransBudget.Name = "nudTransBudget"
+        Me.nudTransBudget.Size = New System.Drawing.Size(150, 23)
+        Me.nudTransBudget.TabIndex = 67
+        Me.nudTransBudget.ThousandsSeparator = True
+        Me.nudTransBudget.Visible = False
+        '
+        ' lblTransUsage
+        '
+        Me.lblTransUsage.AutoSize = True
+        Me.lblTransUsage.ForeColor = System.Drawing.SystemColors.GrayText
+        Me.lblTransUsage.Location = New System.Drawing.Point(230, 168)
+        Me.lblTransUsage.Name = "lblTransUsage"
+        Me.lblTransUsage.Size = New System.Drawing.Size(180, 15)
+        Me.lblTransUsage.TabIndex = 68
+        Me.lblTransUsage.Text = "This month: 0 characters"
+        Me.lblTransUsage.Visible = False
+        '
         ' lblDevice
         '
         Me.lblDevice.AutoSize = True
@@ -1775,6 +1811,9 @@ Partial Class FormOptions
         Me.pnlTranslation.Controls.Add(Me.lblTransBackend)
         Me.pnlTranslation.Controls.Add(Me.lblTransApiKey)
         Me.pnlTranslation.Controls.Add(Me.txtTransApiKey)
+        Me.pnlTranslation.Controls.Add(Me.lblTransBudget)
+        Me.pnlTranslation.Controls.Add(Me.nudTransBudget)
+        Me.pnlTranslation.Controls.Add(Me.lblTransUsage)
         Me.pnlTranslation.Controls.Add(Me.chkTransEnabled)
         Me.pnlTranslation.Controls.Add(Me.lblTranslationSep)
         Me.pnlTranslation.Controls.Add(Me.lblTranslationHeader)
@@ -3233,6 +3272,7 @@ Partial Class FormOptions
         CType(Me.nudPort, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudLivePort, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudTransPort, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudTransBudget, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudFontSize, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudClauseGraceMs, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudClauseMaxMs, System.ComponentModel.ISupportInitialize).EndInit()
@@ -3392,6 +3432,9 @@ Partial Class FormOptions
     Friend WithEvents cboTransBackend As System.Windows.Forms.ComboBox
     Friend WithEvents lblTransApiKey As System.Windows.Forms.Label
     Friend WithEvents txtTransApiKey As System.Windows.Forms.TextBox
+    Friend WithEvents lblTransBudget As System.Windows.Forms.Label
+    Friend WithEvents nudTransBudget As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblTransUsage As System.Windows.Forms.Label
     Friend WithEvents lblDevice As System.Windows.Forms.Label
     Friend WithEvents cboDevice As System.Windows.Forms.ComboBox
     Friend WithEvents lblTransPort As System.Windows.Forms.Label

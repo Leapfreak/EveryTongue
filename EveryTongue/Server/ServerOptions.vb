@@ -86,6 +86,20 @@ Namespace Server
         ''' <summary>Max concurrent translation requests through the priority queue.</summary>
         Public Property TranslationConcurrency As Integer = 3
 
+        ''' <summary>
+        ''' Resolved absolute path to the GLOBAL glossary.json (AppConfig.TranslationGlossaryPath).
+        ''' Used by the orchestrator for local glossary post-processing of cloud
+        ''' translation output when no per-session filter set is supplied.
+        ''' </summary>
+        Public Property GlossaryFilePath As String = ""
+
+        ''' <summary>
+        ''' Resolved absolute path to the GLOBAL profanity.json. Used by the
+        ''' orchestrator for local profanity post-processing of cloud translation
+        ''' output when no per-session filter set is supplied.
+        ''' </summary>
+        Public Property ProfanityFilePath As String = ""
+
         ''' <summary>Max concurrent TTS synthesis requests through the priority queue.</summary>
         Public Property TtsConcurrency As Integer = 3
 

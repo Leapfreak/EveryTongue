@@ -325,6 +325,10 @@
   "Opt_ClauseSentenceEnders": "Sentence enders",
   "Opt_TransBackend": "Engine:",
   "Opt_TransApiKey": "API Key:",
+  "Opt_TransBudget": "Monthly character budget (0 = no budget):",
+  "Opt_TransUsage": "This month: {0:N0} characters",
+  "Opt_TransUsageBudget": " / budget {0:N0}",
+  "Opt_TransUsageLatency": " (avg {0:N0} ms)",
   "Opt_TransDevice": "Device:",
 
   "Opt_TtsHeader": "Text-to-Speech",

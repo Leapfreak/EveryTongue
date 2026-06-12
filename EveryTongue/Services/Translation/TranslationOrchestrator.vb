@@ -20,6 +20,8 @@ Namespace Services.Translation
         Private _activeBackendName As String = "Local"
         Private _fallbackBackendName As String = "Local"
         Private _latencyProfile As LatencyProfile
+        Private ReadOnly _globalGlossaryPath As String
+        Private ReadOnly _globalProfanityPath As String
 
         ''' <summary>
         ''' Per-language backend overrides. Key = target language code, Value = backend name.
@@ -45,6 +47,8 @@ Namespace Services.Translation
                 _backends(backend.Name) = backend
             Next
             _logger = logger
+            _globalGlossaryPath = If(options?.GlossaryFilePath, "")
+            _globalProfanityPath = If(options?.ProfanityFilePath, "")
             Dim concurrency = Math.Max(1, If(options?.TranslationConcurrency, 3))
             _queue = New PriorityWorkQueue(Of Dictionary(Of String, String))(
                 concurrency, starvationMs:=5000)
@@ -196,8 +200,8 @@ Namespace Services.Translation
             Dim backend As ITranslationBackend = Nothing
             If _backends.TryGetValue(primaryBackend, backend) AndAlso backend.IsAvailable Then
                 Try
-                    Dim result = Await backend.TranslateAsync(text, sourceLang, targetLangs, ct, noCache, filters)
-                    If result.Count > 0 Then Return result
+                    Dim result = Await InvokeBackendAsync(backend, text, sourceLang, targetLangs, ct, noCache, filters)
+                    If result.Count > 0 Then Return ApplyLocalFilters(backend, text, sourceLang, result, filters)
                 Catch ex As OperationCanceledException
                     Throw
                 Catch ex As Exception
@@ -213,7 +217,8 @@ Namespace Services.Translation
             If Not primaryBackend.Equals(_fallbackBackendName, StringComparison.OrdinalIgnoreCase) Then
                 If _backends.TryGetValue(_fallbackBackendName, backend) AndAlso backend.IsAvailable Then
                     Try
-                        Return Await backend.TranslateAsync(text, sourceLang, targetLangs, ct, noCache, filters)
+                        Dim fallbackResult = Await InvokeBackendAsync(backend, text, sourceLang, targetLangs, ct, noCache, filters)
+                        Return ApplyLocalFilters(backend, text, sourceLang, fallbackResult, filters)
                     Catch ex As OperationCanceledException
                         Throw
                     Catch ex As Exception
@@ -224,6 +229,60 @@ Namespace Services.Translation
             End If
 
             Return New Dictionary(Of String, String)()
+        End Function
+
+        ''' <summary>
+        ''' Invoke a backend, recording cost (characters submitted) and latency for
+        ''' CLOUD backends (RequiresInternet). Vendors bill source characters per
+        ''' target language, so a multi-target request counts text.Length × targets.
+        ''' Usage is counted at submission; latency is recorded around the call.
+        ''' The local sidecar is passed straight through (no vendor cost).
+        ''' </summary>
+        Private Async Function InvokeBackendAsync(backend As ITranslationBackend,
+                                                  text As String,
+                                                  sourceLang As String,
+                                                  targetLangs As IReadOnlyList(Of String),
+                                                  ct As CancellationToken,
+                                                  noCache As Boolean,
+                                                  filters As TranslationFilterPaths
+        ) As Task(Of Dictionary(Of String, String))
+            If Not backend.RequiresInternet Then
+                Return Await backend.TranslateAsync(text, sourceLang, targetLangs, ct, noCache, filters)
+            End If
+
+            ' Map the orchestrator backend name to the registry engine key
+            ' (registry metadata — no engine-key literals here).
+            Dim usageKey = If(TranslationBackendRegistry.FindByBackendName(backend.Name)?.Key, backend.Name)
+            TranslationUsageTracker.RecordUsage(usageKey, CLng(If(text, "").Length) * targetLangs.Count)
+
+            Dim sw = Diagnostics.Stopwatch.StartNew()
+            Try
+                Return Await backend.TranslateAsync(text, sourceLang, targetLangs, ct, noCache, filters)
+            Finally
+                sw.Stop()
+                TranslationUsageTracker.RecordLatency(usageKey, sw.ElapsedMilliseconds)
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' Apply local glossary + profanity post-processing to a backend's output
+        ''' when the backend does not run filters itself (cloud backends). The local
+        ''' sidecar applies glossary/profanity in Python, so it is skipped here —
+        ''' applying twice would corrupt its output. Per-request filter set wins;
+        ''' otherwise the global files are used (same resolution as the sidecar,
+        ''' and same order: glossary first, then profanity).
+        ''' </summary>
+        Private Function ApplyLocalFilters(backend As ITranslationBackend,
+                                           sourceText As String,
+                                           sourceLang As String,
+                                           translations As Dictionary(Of String, String),
+                                           filters As TranslationFilterPaths) As Dictionary(Of String, String)
+            If backend.AppliesFiltersInternally Then Return translations
+            Dim afterGlossary = GlossaryPostProcessor.Apply(
+                sourceText, sourceLang, translations,
+                If(filters?.GlossaryPath, ""), _globalGlossaryPath)
+            Return ProfanityPostProcessor.Apply(
+                afterGlossary, If(filters?.ProfanityPath, ""), _globalProfanityPath)
         End Function
     End Class
 End Namespace

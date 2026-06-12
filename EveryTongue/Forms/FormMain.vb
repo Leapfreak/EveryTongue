@@ -1160,6 +1160,9 @@ del ""%~f0""
         ' Stop conference backends
         _conferenceController?.StopAllConferenceBackends()
 
+        ' Persist any pending cloud translation usage before shutdown
+        Try : Services.Translation.TranslationUsageTracker.Flush() : Catch : End Try
+
         ' Emit session summary before shutdown
         AppLogger.EmitSessionSummary()
 

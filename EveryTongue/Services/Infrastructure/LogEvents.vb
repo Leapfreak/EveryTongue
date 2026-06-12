@@ -75,6 +75,7 @@ Namespace Services.Infrastructure
         Public Const TRANS_CLOUD_REQUEST As Integer = 4008
         Public Const TRANS_BACKEND_FALLBACK As Integer = 4009
         Public Const TRANS_BACKEND_ACTIVE As Integer = 4010
+        Public Const TRANS_BUDGET_EXCEEDED As Integer = 4011
 
         ' ── TTS (4100–4199) ──
         Public Const TTS_SYNTHESISE As Integer = 4100
@@ -251,6 +252,7 @@ Namespace Services.Infrastructure
             R(TRANS_CLOUD_REQUEST, LogCategory.Translation, LogSeverity.Debug, "Cloud translation API request")
             R(TRANS_BACKEND_FALLBACK, LogCategory.Translation, LogSeverity.Warning, "Translation backend failed/unavailable — fell back to the local sidecar")
             R(TRANS_BACKEND_ACTIVE, LogCategory.Translation, LogSeverity.Info, "Active translation backend changed")
+            R(TRANS_BUDGET_EXCEEDED, LogCategory.Translation, LogSeverity.Warning, "Cloud translation monthly character budget exceeded (translation continues)")
 
             ' TTS
             R(TTS_SYNTHESISE, LogCategory.Tts, LogSeverity.Debug, "TTS synthesis requested")

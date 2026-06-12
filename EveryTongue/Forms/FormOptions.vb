@@ -119,6 +119,7 @@ Public Class FormOptions
         lblClauseSentenceEnders.Text = langPack.GetString("Opt_ClauseSentenceEnders")
         lblTransBackend.Text = langPack.GetString("Opt_TransBackend")
         lblTransApiKey.Text = langPack.GetString("Opt_TransApiKey")
+        lblTransBudget.Text = langPack.GetString("Opt_TransBudget")
         lblDevice.Text = langPack.GetString("Opt_TransDevice")
 
         ' TTS panel
@@ -359,6 +360,7 @@ Public Class FormOptions
         SelectTransBackend(_config.TranslationBackend)
         _currentTransApiKeyBackend = CurrentTransKey()
         txtTransApiKey.Text = _config.GetTranslationApiKey(_currentTransApiKeyBackend)
+        nudTransBudget.Value = ClampNudLong(nudTransBudget, _config.GetTranslationCharBudget(_currentTransApiKeyBackend))
         UpdateTransApiKeyVisibility()
         chkTransEnabled.Checked = _config.TranslationEnabled
         chkUseSpeechmaticsTranslation.Checked = _config.UseSpeechmaticsTranslation
@@ -509,9 +511,10 @@ Public Class FormOptions
                 _config.TranslationModelType = entry.ModelType
             End If
         End If
-        ' Save the API key against the engine currently shown in the textbox.
+        ' Save the API key + monthly budget against the engine currently shown.
         If Not String.IsNullOrEmpty(_currentTransApiKeyBackend) Then
             _config.SetTranslationApiKey(_currentTransApiKeyBackend, txtTransApiKey.Text.Trim())
+            _config.SetTranslationCharBudget(_currentTransApiKeyBackend, CLng(nudTransBudget.Value))
         End If
         _config.TranslationEnabled = chkTransEnabled.Checked
         _config.UseSpeechmaticsTranslation = chkUseSpeechmaticsTranslation.Checked
@@ -801,6 +804,32 @@ Public Class FormOptions
         End If
         lblTransApiKey.Visible = showApiKey
         txtTransApiKey.Visible = showApiKey
+        ' Cost awareness: usage + budget only make sense for metered cloud engines.
+        lblTransBudget.Visible = showApiKey
+        nudTransBudget.Visible = showApiKey
+        lblTransUsage.Visible = showApiKey
+        If showApiKey Then UpdateTransUsageDisplay()
+    End Sub
+
+    ''' <summary>
+    ''' Refresh the read-only usage label for the selected cloud engine:
+    ''' characters submitted this month, configured budget, and the average
+    ''' cloud-call latency measured this session.
+    ''' </summary>
+    Private Sub UpdateTransUsageDisplay()
+        Dim langPack = LanguagePackService.Instance
+        Dim key = _currentTransApiKeyBackend
+        Dim chars = Services.Translation.TranslationUsageTracker.GetMonthUsage(key)
+        Dim textValue = String.Format(langPack.GetString("Opt_TransUsage"), chars)
+        Dim budget = _config.GetTranslationCharBudget(key)
+        If budget > 0 Then
+            textValue &= String.Format(langPack.GetString("Opt_TransUsageBudget"), budget)
+        End If
+        Dim avgMs = Services.Translation.TranslationUsageTracker.GetAverageLatencyMs(key)
+        If avgMs > 0 Then
+            textValue &= String.Format(langPack.GetString("Opt_TransUsageLatency"), avgMs)
+        End If
+        lblTransUsage.Text = textValue
     End Sub
 
     ''' <summary>
@@ -809,13 +838,15 @@ Public Class FormOptions
     ''' matches the previous engine's default path.
     ''' </summary>
     Private Sub TransBackendCombo_Changed(sender As Object, e As EventArgs)
-        ' Persist the key shown for the previously-selected engine, then load the
-        ' new engine's stored key so each engine keeps its own credential.
+        ' Persist the key + budget shown for the previously-selected engine, then
+        ' load the new engine's stored values so each engine keeps its own.
         If Not String.IsNullOrEmpty(_currentTransApiKeyBackend) Then
             _config.SetTranslationApiKey(_currentTransApiKeyBackend, txtTransApiKey.Text.Trim())
+            _config.SetTranslationCharBudget(_currentTransApiKeyBackend, CLng(nudTransBudget.Value))
         End If
         _currentTransApiKeyBackend = CurrentTransKey()
         txtTransApiKey.Text = _config.GetTranslationApiKey(_currentTransApiKeyBackend)
+        nudTransBudget.Value = ClampNudLong(nudTransBudget, _config.GetTranslationCharBudget(_currentTransApiKeyBackend))
         UpdateTransApiKeyVisibility()
 
         If cboTransBackend.SelectedIndex < 0 OrElse cboTransBackend.SelectedIndex >= _transEntries.Count Then Return
@@ -930,6 +961,10 @@ Public Class FormOptions
 
     ''' <summary>Clamp an integer config value into a NumericUpDown's valid range before assigning.</summary>
     Private Shared Function ClampNud(nud As NumericUpDown, value As Integer) As Decimal
+        Return Math.Max(nud.Minimum, Math.Min(nud.Maximum, CDec(value)))
+    End Function
+
+    Private Shared Function ClampNudLong(nud As NumericUpDown, value As Long) As Decimal
         Return Math.Max(nud.Minimum, Math.Min(nud.Maximum, CDec(value)))
     End Function
 

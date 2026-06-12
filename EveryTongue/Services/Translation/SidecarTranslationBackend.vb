@@ -35,6 +35,13 @@ Namespace Services.Translation
             End Get
         End Property
 
+        ''' <summary>The Python sidecar applies glossary/profanity filters itself.</summary>
+        Public ReadOnly Property AppliesFiltersInternally As Boolean Implements ITranslationBackend.AppliesFiltersInternally
+            Get
+                Return True
+            End Get
+        End Property
+
         Public Async Function TranslateAsync(text As String,
                                              sourceLang As String,
                                              targetLangs As IReadOnlyList(Of String),
