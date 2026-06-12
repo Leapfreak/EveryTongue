@@ -1,4 +1,4 @@
-# EveryTongue — TODO (updated 2026-06-07, v1.8.4)
+# EveryTongue — TODO (updated 2026-06-13, v1.9.7)
 
 > **Architecture shift:** EveryTongue is evolving from a single-session desktop transcription tool into a **headless multi-room translation server**. The desktop app still has operator workspaces (Live, Transcribe, Translate, Bible), but the primary user interface is now the **phone web client**. Anyone with a phone can create rooms, manage conversations, and receive translations — no operator required. The desktop just runs the server and auto-starts engines at launch.
 
@@ -33,6 +33,15 @@ Log nav button for full-screen Log workspace with bottom toolbar (copy/clear/sea
 
 ### Structured Logging System — COMPLETE (v1.8.5)
 Replaced flat `AppLogger.Log(msg)` with numbered, categorised events. 120+ event IDs across 20 categories. All 285+ legacy calls migrated. DataGridView log viewer with category/level filtering, FormLogConfig dialog with Minimal/Normal/Verbose presets. Python sidecar logs parsed by level with per-server base event IDs. Session summary on shutdown. Rate limiter collapses repeated events.
+
+### Config Architecture Refactor — COMPLETE (v1.9.0–v1.9.4)
+All 9 phases: engine independence (per-engine config blocks, descriptors, `EngineConfigResolver`), template libraries (engine/speaker/display/filter-set), ConferenceTemplate-as-session with Online/Offline gate (no auto-fallback), runtime consumption (speakers, display templates, per-session filter sets), wizard convergence. Plan doc CONFIG_CHANGES.md deleted after completion — history in git.
+
+### Architecture Audit — COMPLETE (v1.9.5)
+Three-lens audit (engine independence, layering, correctness), all items fixed: async-sub exception containment, ConcurrentDictionary room state, Bible workspace async, safe JSON payloads, Speechmatics knowledge extracted from shared code (clause coordinator, `BuildStartJsonExtras`, registry metadata for model scan/paths/companion-translation), EndpointRegistration split into per-area Partial Module files, live-server local engines routed through the engines registry. ARCHITECTURE_AUDIT.md deleted after completion — history in commits d684db2..5e30f98.
+
+### Legacy Removals + Per-Engine API Keys — COMPLETE (v1.9.6–v1.9.7)
+`GoogleCloudSttApiKey` flat field retired via one-time migration into `SttApiKeys`; SessionTemplate retired (ConferenceTemplate-as-session won). `AppConfig.TranslationApiKeys` per-engine store mirrors the STT pattern; DeepL + Azure Translator registered and selectable; one generic `ConfigureCloudApiKeys` pass keys all cloud translation backends at server start and on Options save; shared Google key preserved via `CompanionTranslationKey` fallback (dedicated translation key overrides).
 
 ## User-Reported Issues & Tasks
 - [x] Implement stubs — most done (QR Code, Hardware Score, Diagnostics Export, File Integrity, Translate workspace). Remaining stubs: Session Wizard, Audio Level Monitor, Event Profiles, Spec Sheet Generator, Portable Mode, Feedback prompt
@@ -1089,7 +1098,7 @@ For languages not yet in the UI (e.g., before Feature #9 adds Polish/Romanian), 
 
 **Status:** Partially implemented (a-e done, f-h remaining).
 
-**Done:** `ITranslationBackend` interface, `TranslationOrchestrator` with fallback chain, `DeepLBackend`/`GoogleBackend`/`AzureBackend` in `CloudTranslationBackend.vb`, `SidecarTranslationBackend`, `TranslationBackendRegistry` with Options UI, `language-codes.json` (161 languages) with `LanguageCodeService`, per-language backend overrides via `LanguageOverrides`.
+**Done:** `ITranslationBackend` interface, `TranslationOrchestrator` with fallback chain, `DeepLBackend`/`GoogleBackend`/`AzureBackend` in `CloudTranslationBackend.vb`, `SidecarTranslationBackend`, `TranslationBackendRegistry` with Options UI, `language-codes.json` (161 languages) with `LanguageCodeService`, per-language backend overrides via `LanguageOverrides`. **v1.9.7:** DeepL + Azure Translator registered in the backend registry (selectable in Options); per-engine `TranslationApiKeys` store with Options key field (shown only for `RequiresApiKey` engines); one generic `ConfigureCloudApiKeys` pass keys all cloud backends at server start + Options save (GoogleBackend's IOptions special case removed); Google STT key still powers Google Translate via `CompanionTranslationKey` fallback.
 
 **Remaining:**
 - **(f) Cost Awareness** — usage tracking, budget limits, cost display
