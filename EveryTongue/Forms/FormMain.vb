@@ -208,7 +208,8 @@ Public Class FormMain
                 .Level = Services.Infrastructure.LogSeverity.Info, .Source = source, .Message = msg, .Color = clr
             }),
             AddressOf GetString,
-            AddressOf WriteDebugLog)
+            AddressOf WriteDebugLog,
+            Sub(msg, title, icon) MessageBox.Show(Me, msg, title, MessageBoxButtons.OK, icon))
         _transcribeController.WireEvents()
 
         ' Populate dropdowns
@@ -244,7 +245,8 @@ Public Class FormMain
         _serverController = New Controllers.ServerController(
             _config,
             AddressOf UpdateShellStatus,
-            AddressOf WriteDebugLog)
+            AddressOf WriteDebugLog,
+            Sub(msg, title, icon) MessageBox.Show(Me, msg, title, MessageBoxButtons.OK, icon))
 
         ' Run path verification at startup (log only, non-blocking)
         Dim sc = _serverController

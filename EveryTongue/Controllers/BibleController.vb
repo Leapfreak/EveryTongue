@@ -50,6 +50,11 @@ Namespace Controllers
         Private _txRunId As Integer = 0
         Private _isReading As Boolean = False
 
+        ' Guards against stale async completions overwriting newer navigation
+        ' (e.g. Refresh re-selects the language while a load is still in flight).
+        Private _transLoadId As Integer = 0
+        Private _booksLoadId As Integer = 0
+
         Public Sub New(cboBibleLang As ComboBox,
                        cboBibleTrans As ComboBox,
                        txtBibleRef As ComboBox,
@@ -261,7 +266,7 @@ Namespace Controllers
             AddHandler ctxCopyChapter.Click, Sub(s, e) CopyChapter()
         End Sub
 
-        Private Sub CopyVerseWithReference()
+        Private Async Sub CopyVerseWithReference()
             Try
                 Dim trans = TryCast(_cboBibleTrans.SelectedItem, BibleTranslation)
                 If trans Is Nothing OrElse _bibleViewChapter < 1 Then Return
@@ -271,8 +276,8 @@ Namespace Controllers
                 Dim bookName = GetCurrentBookName()
                 If String.IsNullOrEmpty(bookName) Then Return
 
-                Dim chapter = bibleSvc.GetChapterAsync(trans.Id, GetCurrentBookShortName(),
-                    _bibleViewChapter, CancellationToken.None).GetAwaiter().GetResult()
+                Dim chapter = Await bibleSvc.GetChapterAsync(trans.Id, GetCurrentBookShortName(),
+                    _bibleViewChapter, CancellationToken.None)
                 If chapter Is Nothing OrElse chapter.Verses Is Nothing Then Return
 
                 Dim vStart = If(_bibleViewVerseStart > 0, _bibleViewVerseStart, 1)
@@ -295,7 +300,7 @@ Namespace Controllers
             End Try
         End Sub
 
-        Private Sub CopyChapter()
+        Private Async Sub CopyChapter()
             Try
                 Dim trans = TryCast(_cboBibleTrans.SelectedItem, BibleTranslation)
                 If trans Is Nothing OrElse _bibleViewChapter < 1 Then Return
@@ -305,8 +310,8 @@ Namespace Controllers
                 Dim bookName = GetCurrentBookName()
                 If String.IsNullOrEmpty(bookName) Then Return
 
-                Dim chapter = bibleSvc.GetChapterAsync(trans.Id, GetCurrentBookShortName(),
-                    _bibleViewChapter, CancellationToken.None).GetAwaiter().GetResult()
+                Dim chapter = Await bibleSvc.GetChapterAsync(trans.Id, GetCurrentBookShortName(),
+                    _bibleViewChapter, CancellationToken.None)
                 If chapter Is Nothing OrElse chapter.Verses Is Nothing Then Return
 
                 Dim sb As New System.Text.StringBuilder()
@@ -338,55 +343,66 @@ Namespace Controllers
         ''' Populate the Bible tab language combo with available languages.
         ''' Call after the server starts.
         ''' </summary>
-        Public Sub Initialize()
+        Public Async Sub Initialize()
             Try
-                Dim bibleSvc = _getBibleService()
-                If bibleSvc Is Nothing Then Return
-
-                Dim allTrans = bibleSvc.GetTranslationsAsync("", CancellationToken.None).GetAwaiter().GetResult()
-                Dim langs = allTrans.Select(Function(t) t.Language).Distinct().OrderBy(Function(l) l).ToList()
-
-                _cboBibleLang.Items.Clear()
-                For Each lang In langs
-                    _cboBibleLang.Items.Add(lang)
-                Next
-
-                Dim defaultLang = _getDefaultLang()
-                If String.IsNullOrEmpty(defaultLang) OrElse defaultLang = "auto" Then defaultLang = "eng"
-                Dim idx = _cboBibleLang.Items.IndexOf(defaultLang)
-                If idx >= 0 Then
-                    _cboBibleLang.SelectedIndex = idx
-                ElseIf _cboBibleLang.Items.Count > 0 Then
-                    _cboBibleLang.SelectedIndex = 0
-                End If
-
-                If _cboTranslateTo.Items.Count = 0 Then PopulateTranslateTargets()
+                Await InitializeCoreAsync()
             Catch ex As Exception
                 _log($"[ERROR] BibleController.Initialize: {ex.Message}")
             End Try
         End Sub
 
-        ''' <summary>Refresh after downloading new Bibles.</summary>
-        Public Sub Refresh()
-            Dim currentLang = _cboBibleLang.SelectedItem?.ToString()
-            Initialize()
-            If currentLang IsNot Nothing Then
-                Dim idx = _cboBibleLang.Items.IndexOf(currentLang)
-                If idx >= 0 Then _cboBibleLang.SelectedIndex = idx
+        Private Async Function InitializeCoreAsync() As Task
+            Dim bibleSvc = _getBibleService()
+            If bibleSvc Is Nothing Then Return
+
+            Dim allTrans = Await bibleSvc.GetTranslationsAsync("", CancellationToken.None)
+            Dim langs = allTrans.Select(Function(t) t.Language).Distinct().OrderBy(Function(l) l).ToList()
+
+            _cboBibleLang.Items.Clear()
+            For Each lang In langs
+                _cboBibleLang.Items.Add(lang)
+            Next
+
+            Dim defaultLang = _getDefaultLang()
+            If String.IsNullOrEmpty(defaultLang) OrElse defaultLang = "auto" Then defaultLang = "eng"
+            Dim idx = _cboBibleLang.Items.IndexOf(defaultLang)
+            If idx >= 0 Then
+                _cboBibleLang.SelectedIndex = idx
+            ElseIf _cboBibleLang.Items.Count > 0 Then
+                _cboBibleLang.SelectedIndex = 0
             End If
+
+            If _cboTranslateTo.Items.Count = 0 Then PopulateTranslateTargets()
+        End Function
+
+        ''' <summary>Refresh after downloading new Bibles.</summary>
+        Public Async Sub Refresh()
+            Try
+                Dim currentLang = _cboBibleLang.SelectedItem?.ToString()
+                Await InitializeCoreAsync()
+                If currentLang IsNot Nothing Then
+                    Dim idx = _cboBibleLang.Items.IndexOf(currentLang)
+                    If idx >= 0 Then _cboBibleLang.SelectedIndex = idx
+                End If
+            Catch ex As Exception
+                _log($"[ERROR] BibleController.Refresh: {ex.Message}")
+            End Try
         End Sub
 
-        Private Sub LoadBibleTranslations()
-            _cboBibleTrans.Items.Clear()
-            _flpBibleNav.Controls.Clear()
-            ClearBibleText()
-            If _cboBibleLang.SelectedItem Is Nothing Then Return
+        Private Async Sub LoadBibleTranslations()
             Try
+                _transLoadId += 1
+                Dim loadId = _transLoadId
+                _cboBibleTrans.Items.Clear()
+                _flpBibleNav.Controls.Clear()
+                ClearBibleText()
+                If _cboBibleLang.SelectedItem Is Nothing Then Return
                 Dim lang = _cboBibleLang.SelectedItem.ToString()
                 Dim bibleSvc = _getBibleService()
                 If bibleSvc Is Nothing Then Return
 
-                Dim trans = bibleSvc.GetTranslationsAsync(lang, CancellationToken.None).GetAwaiter().GetResult()
+                Dim trans = Await bibleSvc.GetTranslationsAsync(lang, CancellationToken.None)
+                If loadId <> _transLoadId Then Return ' superseded by a newer language selection
                 For Each t In trans
                     _cboBibleTrans.Items.Add(t)
                 Next
@@ -397,47 +413,56 @@ Namespace Controllers
             End Try
         End Sub
 
-        Private Sub OnTranslationChanged()
-            Dim savedBookNum = _bibleViewBookNumber
-            Dim savedChapter = _bibleViewChapter
-            Dim savedVStart = _bibleViewVerseStart
-            Dim savedVEnd = _bibleViewVerseEnd
+        Private Async Sub OnTranslationChanged()
+            Try
+                Dim savedBookNum = _bibleViewBookNumber
+                Dim savedChapter = _bibleViewChapter
+                Dim savedVStart = _bibleViewVerseStart
+                Dim savedVEnd = _bibleViewVerseEnd
 
-            ShowBookButtons()
+                Await ShowBookButtonsCoreAsync()
 
-            ' Restore position in the new translation
-            If savedBookNum > 0 AndAlso savedChapter > 0 AndAlso _bibleBooks IsNot Nothing Then
-                Dim matchedBook = _bibleBooks.FirstOrDefault(Function(b) b.Number = savedBookNum)
-                If matchedBook IsNot Nothing Then
-                    If savedChapter <= matchedBook.Chapters Then
+                ' Restore position in the new translation
+                If savedBookNum > 0 AndAlso savedChapter > 0 AndAlso _bibleBooks IsNot Nothing Then
+                    Dim matchedBook = _bibleBooks.FirstOrDefault(Function(b) b.Number = savedBookNum)
+                    If matchedBook IsNot Nothing Then
                         ShowChapterButtons(matchedBook)
-                        LoadChapterAt(matchedBook, savedChapter, savedVStart, savedVEnd)
-                    Else
-                        ShowChapterButtons(matchedBook)
+                        If savedChapter <= matchedBook.Chapters Then
+                            Await LoadChapterCoreAsync(matchedBook, savedChapter, savedVStart, savedVEnd)
+                        End If
                     End If
                 End If
-            End If
+            Catch ex As Exception
+                _log($"[ERROR] BibleController.OnTranslationChanged: {ex.Message}")
+            End Try
         End Sub
 
-        Private Sub ShowBookButtons()
-            _flpBibleNav.SuspendLayout()
-            _flpBibleNav.Controls.Clear()
-            ClearBibleText()
-            _btnBibleBack.Visible = False
-            _lblBibleNavTitle.Text = Services.Infrastructure.LanguagePackService.Instance.GetString("Bible_Books")
-            If _cboBibleTrans.SelectedItem Is Nothing Then
-                _flpBibleNav.ResumeLayout()
-                Return
-            End If
+        Private Async Sub ShowBookButtons()
             Try
+                Await ShowBookButtonsCoreAsync()
+            Catch ex As Exception
+                _log($"[ERROR] BibleController.ShowBookButtons: {ex.Message}")
+            End Try
+        End Sub
+
+        Private Async Function ShowBookButtonsCoreAsync() As Task
+            _booksLoadId += 1
+            Dim loadId = _booksLoadId
+            _flpBibleNav.SuspendLayout()
+            Try
+                _flpBibleNav.Controls.Clear()
+                ClearBibleText()
+                _btnBibleBack.Visible = False
+                _lblBibleNavTitle.Text = Services.Infrastructure.LanguagePackService.Instance.GetString("Bible_Books")
+                If _cboBibleTrans.SelectedItem Is Nothing Then Return
+
                 Dim trans = DirectCast(_cboBibleTrans.SelectedItem, BibleTranslation)
                 Dim bibleSvc = _getBibleService()
-                If bibleSvc Is Nothing Then
-                    _flpBibleNav.ResumeLayout()
-                    Return
-                End If
+                If bibleSvc Is Nothing Then Return
 
-                _bibleBooks = bibleSvc.GetBooksAsync(trans.Id, CancellationToken.None).GetAwaiter().GetResult()
+                Dim books = Await bibleSvc.GetBooksAsync(trans.Id, CancellationToken.None)
+                If loadId <> _booksLoadId Then Return ' superseded by newer navigation
+                _bibleBooks = books
                 For Each book In _bibleBooks
                     Dim bk = book
                     Dim btn As New Button() With {
@@ -452,11 +477,10 @@ Namespace Controllers
                     AddHandler btn.Click, Sub(s, e) ShowChapterButtons(bk)
                     _flpBibleNav.Controls.Add(btn)
                 Next
-            Catch ex As Exception
-                _log($"[ERROR] BibleController.ShowBookButtons: {ex.Message}")
+            Finally
+                _flpBibleNav.ResumeLayout()
             End Try
-            _flpBibleNav.ResumeLayout()
-        End Sub
+        End Function
 
         Private Sub ShowChapterButtons(book As BibleBook)
             _flpBibleNav.SuspendLayout()
@@ -481,26 +505,31 @@ Namespace Controllers
             _flpBibleNav.ResumeLayout()
         End Sub
 
-        Private Sub LoadChapterAt(book As BibleBook, chapterNum As Integer,
-                                  Optional highlightStart As Integer = 0, Optional highlightEnd As Integer = 0)
+        Private Async Sub LoadChapterAt(book As BibleBook, chapterNum As Integer,
+                                        Optional highlightStart As Integer = 0, Optional highlightEnd As Integer = 0)
             Try
-                Dim trans = DirectCast(_cboBibleTrans.SelectedItem, BibleTranslation)
-                Dim bibleSvc = _getBibleService()
-                If bibleSvc Is Nothing Then Return
-
-                Dim chapter = bibleSvc.GetChapterAsync(trans.Id, book.ShortName, chapterNum, CancellationToken.None).GetAwaiter().GetResult()
-                If chapter Is Nothing OrElse chapter.Verses Is Nothing Then Return
-
-                _bibleViewBookNumber = book.Number
-                _bibleViewChapter = chapterNum
-                _bibleViewVerseStart = highlightStart
-                _bibleViewVerseEnd = highlightEnd
-
-                DisplayVerses(book.LongName, chapterNum, chapter.Verses, highlightStart, highlightEnd)
+                Await LoadChapterCoreAsync(book, chapterNum, highlightStart, highlightEnd)
             Catch ex As Exception
                 _log($"[ERROR] BibleController.LoadChapter: {ex.Message}")
             End Try
         End Sub
+
+        Private Async Function LoadChapterCoreAsync(book As BibleBook, chapterNum As Integer,
+                                                    highlightStart As Integer, highlightEnd As Integer) As Task
+            Dim trans = DirectCast(_cboBibleTrans.SelectedItem, BibleTranslation)
+            Dim bibleSvc = _getBibleService()
+            If bibleSvc Is Nothing Then Return
+
+            Dim chapter = Await bibleSvc.GetChapterAsync(trans.Id, book.ShortName, chapterNum, CancellationToken.None)
+            If chapter Is Nothing OrElse chapter.Verses Is Nothing Then Return
+
+            _bibleViewBookNumber = book.Number
+            _bibleViewChapter = chapterNum
+            _bibleViewVerseStart = highlightStart
+            _bibleViewVerseEnd = highlightEnd
+
+            DisplayVerses(book.LongName, chapterNum, chapter.Verses, highlightStart, highlightEnd)
+        End Function
 
         Private Sub DisplayVerses(title As String, chapterNum As Integer, verses As List(Of BibleVerse),
                                   Optional highlightStart As Integer = 0, Optional highlightEnd As Integer = 0)
@@ -558,23 +587,23 @@ Namespace Controllers
             End If
         End Sub
 
-        Private Sub GoToReference()
-            Dim refText = _txtBibleRef.Text.Trim()
-            If String.IsNullOrEmpty(refText) Then Return
+        Private Async Sub GoToReference()
             Try
+                Dim refText = _txtBibleRef.Text.Trim()
+                If String.IsNullOrEmpty(refText) Then Return
                 Dim trans = TryCast(_cboBibleTrans.SelectedItem, BibleTranslation)
                 If trans Is Nothing Then Return
                 Dim bibleSvc = _getBibleService()
                 If bibleSvc Is Nothing Then Return
 
-                Dim parsed = bibleSvc.ParseReferenceAsync(refText, "en", trans.Id, CancellationToken.None).GetAwaiter().GetResult()
+                Dim parsed = Await bibleSvc.ParseReferenceAsync(refText, "en", trans.Id, CancellationToken.None)
                 If parsed Is Nothing OrElse Not parsed.IsValid Then
                     ClearBibleText()
                     _rtbBibleText.AppendText(String.Format(Services.Infrastructure.LanguagePackService.Instance.GetString("Bible_NotFound"), refText))
                     Return
                 End If
 
-                Dim chapter = bibleSvc.GetChapterAsync(trans.Id, parsed.Book, parsed.Chapter, CancellationToken.None).GetAwaiter().GetResult()
+                Dim chapter = Await bibleSvc.GetChapterAsync(trans.Id, parsed.Book, parsed.Chapter, CancellationToken.None)
                 If chapter Is Nothing OrElse chapter.Verses Is Nothing OrElse chapter.Verses.Count = 0 Then
                     ClearBibleText()
                     _rtbBibleText.AppendText(String.Format(Services.Infrastructure.LanguagePackService.Instance.GetString("Bible_NoVerses"), refText))

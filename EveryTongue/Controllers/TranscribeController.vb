@@ -59,6 +59,7 @@ Namespace Controllers
         Private ReadOnly _sttLanguages As String()
         Private ReadOnly _langDisplayName As Func(Of String, String)
         Private ReadOnly _langCodeFromDisplay As Func(Of String, String)
+        Private ReadOnly _notify As Action(Of String, String, MessageBoxIcon)
 
         ' State
         Private _isRunning As Boolean = False
@@ -96,7 +97,8 @@ Namespace Controllers
                        showLogPanel As Action,
                        appendLog As Action(Of String, String, Drawing.Color),
                        getString As Func(Of String, String),
-                       log As Action(Of String))
+                       log As Action(Of String),
+                       notify As Action(Of String, String, MessageBoxIcon))
             _config = config
             _cboMode = cboMode
             _cboModel = cboModel
@@ -142,6 +144,7 @@ Namespace Controllers
             _appendLog = appendLog
             _getString = getString
             _log = log
+            _notify = notify
         End Sub
 
         ''' <summary>Wire event handlers. Call once during form init.</summary>
@@ -309,12 +312,12 @@ Namespace Controllers
                         ex.Message & vbCrLf & vbCrLf & _getString("Msg_OpenDownloadManager"),
                         _getString("Msg_DepsMissing"))
                 Else
-                    MessageBox.Show(ex.Message, _getString("Msg_PipelineError"), MessageBoxButtons.OK, MessageBoxIcon.Error)
+                    _notify?.Invoke(ex.Message, _getString("Msg_PipelineError"), MessageBoxIcon.Error)
                 End If
             Catch ex As Exception
                 _lblStepStatus.Text = _getString("Transcribe_Error")
                 LogToUnified($"UNEXPECTED ERROR: {ex.Message}", PipelineRunner.LogLevel.Err)
-                MessageBox.Show(ex.Message, _getString("Msg_UnexpectedError"), MessageBoxButtons.OK, MessageBoxIcon.Error)
+                _notify?.Invoke(ex.Message, _getString("Msg_UnexpectedError"), MessageBoxIcon.Error)
             Finally
                 _isRunning = False
                 SetUiRunning(False)
@@ -373,12 +376,12 @@ Namespace Controllers
                         ex.Message & vbCrLf & vbCrLf & _getString("Msg_OpenDownloadManager"),
                         _getString("Msg_DepsMissing"))
                 Else
-                    MessageBox.Show(ex.Message, _getString("Msg_PipelineError"), MessageBoxButtons.OK, MessageBoxIcon.Error)
+                    _notify?.Invoke(ex.Message, _getString("Msg_PipelineError"), MessageBoxIcon.Error)
                 End If
             Catch ex As Exception
                 _lblStepStatus.Text = _getString("Transcribe_Error")
                 LogToUnified($"UNEXPECTED ERROR: {ex.Message}", PipelineRunner.LogLevel.Err)
-                MessageBox.Show(ex.Message, _getString("Msg_UnexpectedError"), MessageBoxButtons.OK, MessageBoxIcon.Error)
+                _notify?.Invoke(ex.Message, _getString("Msg_UnexpectedError"), MessageBoxIcon.Error)
             Finally
                 _isRunning = False
                 SetUiRunning(False)
@@ -467,12 +470,12 @@ Namespace Controllers
         Private Sub OpenSubtitleEdit()
             Dim srtPath = FindOutputSrt()
             If srtPath Is Nothing Then
-                MessageBox.Show(_getString("Msg_NoSrtFound"), "Subtitle Edit", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                _notify?.Invoke(_getString("Msg_NoSrtFound"), "Subtitle Edit", MessageBoxIcon.Warning)
                 Return
             End If
             Dim subtitleEditPath = AppConfig.ResolvePath(_config.PathSubtitleEdit)
             If Not File.Exists(subtitleEditPath) Then
-                MessageBox.Show($"{_getString("Msg_SubtitleEditNotFound")} {subtitleEditPath}", "Subtitle Edit", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                _notify?.Invoke($"{_getString("Msg_SubtitleEditNotFound")} {subtitleEditPath}", "Subtitle Edit", MessageBoxIcon.Warning)
                 Return
             End If
             Process.Start(subtitleEditPath, $"""{srtPath}""")

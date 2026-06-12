@@ -211,7 +211,7 @@ Namespace Services.Subtitle
                                                  ' Send tts response to requesting client only
                                                  Dim info As ClientConnection = Nothing
                                                  If _clients.TryGetValue(capturedId, info) Then
-                                                     Dim json = $"{{""type"":""tts"",""id"":-1,""url"":{EscapeJson(url)},""lang"":{EscapeJson(ttsLang)}}}"
+                                                     Dim json = JsonSerializer.Serialize(New With {.type = "tts", .id = -1, .url = url, .lang = ttsLang})
                                                      Dim buf = Encoding.UTF8.GetBytes(json)
                                                      TrySendToClient(info, buf)
                                                  End If
@@ -242,7 +242,7 @@ Namespace Services.Subtitle
             _currentLine = text
 
             ' Pre-encode once, send to all non-translation clients in the default (no-room) scope
-            Dim json = $"{{""type"":""update"",""text"":{EscapeJson(text)}}}"
+            Dim json = JsonSerializer.Serialize(New With {.type = "update", .text = text})
             Dim buffer = Encoding.UTF8.GetBytes(json)
             Dim deadKeys As New List(Of String)
 
@@ -277,10 +277,10 @@ Namespace Services.Subtitle
             EnqueueWithCap(entry)
 
             ' Detect Bible references in committed text
-            Dim refsJson = DetectAndSerializeRefs(text, entry)
+            Dim refs = DetectRefs(text, entry)
 
             Dim ts = entry.Timestamp.ToString("HH:mm:ss")
-            Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)},""lang"":{EscapeJson(lang)},""time"":{EscapeJson(ts)},""id"":{commitId}{refsJson}}}"
+            Dim json = SerializeCommit(text, lang, ts, commitId, refs)
             Dim buffer = Encoding.UTF8.GetBytes(json)
             Dim deadKeys As New List(Of String)
 
@@ -330,7 +330,7 @@ Namespace Services.Subtitle
             EnqueueWithCap(entry)
 
             ' Detect Bible references in original text
-            Dim refsJson = DetectAndSerializeRefs(originalText, entry)
+            Dim refs = DetectRefs(originalText, entry)
 
             Dim ts = entry.Timestamp.ToString("HH:mm:ss")
             Dim deadKeys As New List(Of String)
@@ -373,7 +373,7 @@ Namespace Services.Subtitle
                     Dim langTag As String = ""
                     If langTags IsNot Nothing Then langTags.TryGetValue(tag, langTag)
                     If langTag Is Nothing Then langTag = tag
-                    Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)},""lang"":{EscapeJson(langTag)},""time"":{EscapeJson(ts)},""id"":{entry.Id}{refsJson}}}"
+                    Dim json = SerializeCommit(text, langTag, ts, entry.Id, refs)
                     Dim buffer = Encoding.UTF8.GetBytes(json)
                     If Not TrySendToClient(kvp.Value, buffer) Then
                         deadKeys.Add(kvp.Key)
@@ -419,7 +419,7 @@ Namespace Services.Subtitle
                     If langTags IsNot Nothing Then langTags.TryGetValue(lang, tagValue)
                     If tagValue Is Nothing Then tagValue = lang
                     Dim entryId = If(_lastCommittedEntry IsNot Nothing, _lastCommittedEntry.Id, 0)
-                    Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(translated)},""lang"":{EscapeJson(tagValue)},""time"":{EscapeJson(ts)},""id"":{entryId}}}"
+                    Dim json = SerializeCommit(translated, tagValue, ts, entryId, Nothing)
                     Dim buffer = Encoding.UTF8.GetBytes(json)
                     If Not TrySendToClient(kvp.Value, buffer) Then
                         deadKeys.Add(kvp.Key)
@@ -457,7 +457,7 @@ Namespace Services.Subtitle
 
         Public Sub BroadcastSystemMessage(text As String) Implements ISubtitleService.BroadcastSystemMessage
             If Not IsRunning Then Return
-            Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)}}}"
+            Dim json = JsonSerializer.Serialize(New With {.type = "commit", .text = text})
             ' Only send system messages to non-room clients
             Dim buffer = Encoding.UTF8.GetBytes(json)
             Dim deadKeys As New List(Of String)
@@ -494,8 +494,8 @@ Namespace Services.Subtitle
                         Dim text = GetTextForClient(client, entry.OriginalText, entry.Translations)
                         Dim clientLang = GetLangForClient(client, entry.SourceLang, entry.Translations, entry.LangTags)
                         Dim ts = entry.Timestamp.ToString("HH:mm:ss")
-                        Dim refsJson = SerializeStoredRefs(entry)
-                        Dim json = $"{{""type"":""commit"",""text"":{EscapeJson(text)},""lang"":{EscapeJson(clientLang)},""time"":{EscapeJson(ts)},""id"":{entry.Id}{refsJson}}}"
+                        Dim refs = BuildRefDtos(entry.BibleRefs)
+                        Dim json = SerializeCommit(text, clientLang, ts, entry.Id, refs)
                         Dim buf = Encoding.UTF8.GetBytes(json)
                         If client.WebSocket.State = WebSocketState.Open Then
                             Await client.WebSocket.SendAsync(
@@ -507,7 +507,7 @@ Namespace Services.Subtitle
 
                     ' Send current in-progress line if any
                     If _currentLine.Length > 0 AndAlso client.WebSocket.State = WebSocketState.Open Then
-                        Dim json = $"{{""type"":""update"",""text"":{EscapeJson(_currentLine)}}}"
+                        Dim json = JsonSerializer.Serialize(New With {.type = "update", .text = _currentLine})
                         Dim buf = Encoding.UTF8.GetBytes(json)
                         Await client.WebSocket.SendAsync(
                             New ArraySegment(Of Byte)(buf),
@@ -581,44 +581,63 @@ Namespace Services.Subtitle
         End Sub
 
         ''' <summary>
-        ''' Detect Bible references in text and return a JSON fragment like: ,"refs":[...]
+        ''' Wire payload for a detected Bible reference. Property names are
+        ''' lower-case on purpose — the web client (app.js) reads them as-is.
+        ''' </summary>
+        Private NotInheritable Class RefDto
+            Public Property book As String
+            Public Property chapter As Integer
+            Public Property verseStart As Integer
+            Public Property verseEnd As Integer
+            Public Property matched As String
+            Public Property start As Integer
+            Public Property len As Integer
+        End Class
+
+        ''' <summary>
+        ''' Detect Bible references in text and return them as wire DTOs (Nothing when none).
         ''' Also stores refs on the CommittedEntry for replay.
         ''' </summary>
-        Private Function DetectAndSerializeRefs(text As String, entry As CommittedEntry) As String
-            If BibleService Is Nothing Then Return ""
+        Private Function DetectRefs(text As String, entry As CommittedEntry) As List(Of RefDto)
+            If BibleService Is Nothing Then Return Nothing
             Try
                 Dim refs = BibleService.DetectReferencesInText(text)
-                If refs Is Nothing OrElse refs.Count = 0 Then Return ""
+                If refs Is Nothing OrElse refs.Count = 0 Then Return Nothing
                 entry.BibleRefs = refs.ToList()
-                Dim sb As New StringBuilder(",""refs"":[")
-                For i = 0 To refs.Count - 1
-                    If i > 0 Then sb.Append(",")
-                    Dim r = refs(i)
-                    sb.Append($"{{""book"":{EscapeJson(r.Reference.Book)},""chapter"":{r.Reference.Chapter},""verseStart"":{r.Reference.VerseStart},""verseEnd"":{r.Reference.VerseEnd},""matched"":{EscapeJson(r.MatchedText)},""start"":{r.StartIndex},""len"":{r.Length}}}")
-                Next
-                sb.Append("]")
-                Return sb.ToString()
+                Return BuildRefDtos(entry.BibleRefs)
             Catch ex As Exception
                 AppLogger.Log(LogEvents.BIBLE_ERROR, $"Bible reference detection failed: {ex.Message}")
-                Return ""
+                Return Nothing
             End Try
         End Function
 
-        Private Function SerializeStoredRefs(entry As CommittedEntry) As String
-            If entry.BibleRefs Is Nothing OrElse entry.BibleRefs.Count = 0 Then Return ""
-            Try
-                Dim sb As New StringBuilder(",""refs"":[")
-                For i = 0 To entry.BibleRefs.Count - 1
-                    If i > 0 Then sb.Append(",")
-                    Dim r = entry.BibleRefs(i)
-                    sb.Append($"{{""book"":{EscapeJson(r.Reference.Book)},""chapter"":{r.Reference.Chapter},""verseStart"":{r.Reference.VerseStart},""verseEnd"":{r.Reference.VerseEnd},""matched"":{EscapeJson(r.MatchedText)},""start"":{r.StartIndex},""len"":{r.Length}}}")
-                Next
-                sb.Append("]")
-                Return sb.ToString()
-            Catch ex As Exception
-                AppLogger.Log(LogEvents.BIBLE_ERROR, $"Serializing stored Bible refs failed: {ex.Message}")
-                Return ""
-            End Try
+        Private Shared Function BuildRefDtos(refs As List(Of Models.DetectedReference)) As List(Of RefDto)
+            If refs Is Nothing OrElse refs.Count = 0 Then Return Nothing
+            Dim result As New List(Of RefDto)(refs.Count)
+            For Each r In refs
+                result.Add(New RefDto With {
+                    .book = r.Reference.Book,
+                    .chapter = r.Reference.Chapter,
+                    .verseStart = r.Reference.VerseStart,
+                    .verseEnd = r.Reference.VerseEnd,
+                    .matched = r.MatchedText,
+                    .start = r.StartIndex,
+                    .len = r.Length
+                })
+            Next
+            Return result
+        End Function
+
+        ''' <summary>
+        ''' Serialize a commit payload, including refs only when present
+        ''' (clients treat a missing refs property as "no references").
+        ''' </summary>
+        Private Shared Function SerializeCommit(text As String, lang As String, time As String,
+                                                id As Integer, refs As List(Of RefDto)) As String
+            If refs IsNot Nothing AndAlso refs.Count > 0 Then
+                Return JsonSerializer.Serialize(New With {.type = "commit", .text = text, .lang = lang, .time = time, .id = id, .refs = refs})
+            End If
+            Return JsonSerializer.Serialize(New With {.type = "commit", .text = text, .lang = lang, .time = time, .id = id})
         End Function
 
         ''' <summary>
@@ -714,7 +733,7 @@ Namespace Services.Subtitle
         ''' </summary>
         Private Sub NotifyTtsReady(commitId As Integer, language As String, url As String,
                                    Optional targetRoomId As String = Nothing)
-            Dim json = $"{{""type"":""tts"",""id"":{commitId},""url"":{EscapeJson(url)},""lang"":{EscapeJson(language)}}}"
+            Dim json = JsonSerializer.Serialize(New With {.type = "tts", .id = commitId, .url = url, .lang = language})
             Dim buffer = Encoding.UTF8.GetBytes(json)
             Dim deadKeys As New List(Of String)
 

@@ -24,19 +24,20 @@
 
 ## P1 — Responsiveness + boundaries
 
-- [ ] **B1. BibleController blocks the UI thread** — 8× `GetAwaiter().GetResult()`
+- [x] **B1. BibleController blocks the UI thread** — 8× `GetAwaiter().GetResult()`
   on SQLite/service calls in navigation paths (Initialize, LoadBibleTranslations,
   ShowBookButtons, LoadChapterAt, GoToReference, CopyVerse/Chapter). Bible
   verse translation (Phase 4) made these paths hotter. Fix: make the handlers
   Async Subs (with Try/Catch per A1) awaiting the service.
-- [ ] **B2. Controllers showing MessageBox** — ServerController (2×),
+- [x] **B2. Controllers showing MessageBox** — ServerController (2×),
   TranscribeController (4×) call MessageBox directly; ConferenceController is
   clean (callback-injected). Fix: inject a notify callback or return results.
-- [ ] **B3. SubtitleService hand-rolled JSON** — 10+ string-concat payload sites
+- [x] **B3. SubtitleService hand-rolled JSON** — 10+ string-concat payload sites
   with `EscapeJson` (one typo breaks every phone). EndpointRegistration already
   uses the safe `WriteAsJsonAsync(New With {...})` pattern. Fix: build payloads
   with `JsonSerializer.Serialize(New With {...})`. Same pattern (smaller) in
-  LiveStreamRunner /start body + TranslationService request bodies.
+  LiveStreamRunner /start body + TranslationService request bodies (those two
+  NOT yet converted — SubtitleService only).
 
 ## P2 — Engine independence (remaining violations, by severity)
 

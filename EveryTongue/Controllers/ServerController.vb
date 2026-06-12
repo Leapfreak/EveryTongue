@@ -16,6 +16,7 @@ Namespace Controllers
         Private ReadOnly _config As AppConfig
         Private ReadOnly _updateShellStatus As Action
         Private ReadOnly _log As Action(Of String)
+        Private ReadOnly _notify As Action(Of String, String, MessageBoxIcon)
 
         ' State
         Private _kestrelHost As KestrelHost
@@ -40,10 +41,12 @@ Namespace Controllers
         End Property
 
         Public Sub New(config As AppConfig,
-                       updateShellStatus As Action, log As Action(Of String))
+                       updateShellStatus As Action, log As Action(Of String),
+                       notify As Action(Of String, String, MessageBoxIcon))
             _config = config
             _updateShellStatus = updateShellStatus
             _log = log
+            _notify = notify
         End Sub
 
         ''' <summary>
@@ -231,11 +234,11 @@ Namespace Controllers
 
             Dim lps = Services.Infrastructure.LanguagePackService.Instance
             If result.AllOk Then
-                MessageBox.Show(lps.GetString("Server_AllPathsOk") & Environment.NewLine & Environment.NewLine & result.Report,
-                    lps.GetString("Msg_PathVerification"), MessageBoxButtons.OK, MessageBoxIcon.Information)
+                _notify?.Invoke(lps.GetString("Server_AllPathsOk") & Environment.NewLine & Environment.NewLine & result.Report,
+                    lps.GetString("Msg_PathVerification"), MessageBoxIcon.Information)
             Else
-                MessageBox.Show(lps.GetString("Server_PathsMissing") & Environment.NewLine & Environment.NewLine & result.Report,
-                    lps.GetString("Msg_PathVerification"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                _notify?.Invoke(lps.GetString("Server_PathsMissing") & Environment.NewLine & Environment.NewLine & result.Report,
+                    lps.GetString("Msg_PathVerification"), MessageBoxIcon.Warning)
             End If
         End Sub
 
