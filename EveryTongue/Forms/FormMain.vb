@@ -1000,7 +1000,7 @@ del ""%~f0""
                 Dim configKey = If(_config.TranslationBackend, "nllb")
                 Dim sttBackend = If(_config.SttBackend, "")
                 If sttBackend.Equals("google-cloud-stt", StringComparison.OrdinalIgnoreCase) AndAlso
-                   Not String.IsNullOrEmpty(_config.GoogleCloudSttApiKey) AndAlso
+                   Not String.IsNullOrEmpty(_config.GetSttApiKey("google-cloud-stt")) AndAlso
                    Not configKey.Equals("google-translate", StringComparison.OrdinalIgnoreCase) Then
                     configKey = "google-translate"
                     AppLogger.Log(LogEvents.TRANS_SERVER_READY, "Auto-selecting Google Translate (STT backend is google-cloud-stt)")
@@ -1023,7 +1023,7 @@ del ""%~f0""
         Dim sttBk = If(_config.SttBackend, "")
         Dim usingCloudTranslation = activeTransBackend.Equals("google-translate", StringComparison.OrdinalIgnoreCase) OrElse
             (sttBk.Equals("google-cloud-stt", StringComparison.OrdinalIgnoreCase) AndAlso
-             Not String.IsNullOrEmpty(_config.GoogleCloudSttApiKey))
+             Not String.IsNullOrEmpty(_config.GetSttApiKey("google-cloud-stt")))
 
         If usingCloudTranslation Then
             AppLogger.Log(LogEvents.TRANS_SERVER_READY, "Skipping NLLB sidecar — using cloud translation backend")

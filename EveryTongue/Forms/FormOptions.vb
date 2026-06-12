@@ -52,6 +52,8 @@ Public Class FormOptions
         treeNav.Nodes("advanced").Text = langPack.GetString("Opt_NavAdvanced")
         btnManageSttTemplatesOpt.Text = langPack.GetString("Opt_ManageSttTemplates")
         btnManageDisplayTplOpt.Text = langPack.GetString("Opt_ManageDisplayTemplates")
+        btnManageTransTplOpt.Text = langPack.GetString("Opt_ManageTransTemplates")
+        btnManageTtsTplOpt.Text = langPack.GetString("Opt_ManageTtsTemplates")
 
         ' General panel
         lblAppearanceHeader.Text = langPack.GetString("Opt_AppearanceHeader")
@@ -219,6 +221,20 @@ Public Class FormOptions
                                                          frm.ShowDialog(Me)
                                                      End Using
                                                  End Sub
+
+        ' Translation / TTS template library managers
+        AddHandler btnManageTransTplOpt.Click, Sub(s, e)
+                                                   Using frm As New FormEngineTemplates(_config, Services.Config.TemplateLibraryStore.GroupTranslate)
+                                                       frm.Icon = Me.Icon
+                                                       frm.ShowDialog(Me)
+                                                   End Using
+                                               End Sub
+        AddHandler btnManageTtsTplOpt.Click, Sub(s, e)
+                                                 Using frm As New FormEngineTemplates(_config, Services.Config.TemplateLibraryStore.GroupTts)
+                                                     frm.Icon = Me.Icon
+                                                     frm.ShowDialog(Me)
+                                                 End Using
+                                             End Sub
 
         ' Browse buttons — file pickers
         AddHandler btnBrowseWhisper.Click, Sub(s, e) BrowseFile(txtWhisper)

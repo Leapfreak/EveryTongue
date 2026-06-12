@@ -45,6 +45,8 @@ Public Class FormTemplateManager
         btnManageSpeakers.Text = lp.GetString("Tmpl_ManageSttTemplates")
         lblDisplayTpl.Text = lp.GetString("Tmpl_DisplayTemplate")
         btnManageDisplay.Text = lp.GetString("Tmpl_ManageSttTemplates")
+        lblFilterSet.Text = lp.GetString("Tmpl_FilterSet")
+        btnManageFilterSets.Text = lp.GetString("Tmpl_ManageSttTemplates")
         cboMode.Items.Clear()
         cboMode.Items.Add(lp.GetString("Tmpl_ModeOnline"))
         cboMode.Items.Add(lp.GetString("Tmpl_ModeOffline"))
@@ -354,6 +356,28 @@ Public Class FormTemplateManager
         cboMode.SelectedIndex = If(t.Mode = Models.Templates.ConnectivityMode.Offline, 1, 0)
         PopulateSpeakerChecklist(t)
         PopulateDisplayCombo(t)
+        PopulateFilterSetCombo(t)
+    End Sub
+
+    ''' <summary>"(global)" + the named filter sets.</summary>
+    Private Sub PopulateFilterSetCombo(t As ConferenceTemplate)
+        cboFilterSet.Items.Clear()
+        cboFilterSet.Items.Add(New SttTemplateItem(
+            LanguagePackService.Instance.GetString("Spk_GlossaryGlobal"), ""))
+        Dim found = 0
+        For Each fs In Services.Config.TemplateLibraryStore.Instance.GetFilterSets()
+            cboFilterSet.Items.Add(New SttTemplateItem(fs.Name, fs.Id))
+            If fs.Id = If(t.FilterSetId, "") Then found = cboFilterSet.Items.Count - 1
+        Next
+        cboFilterSet.SelectedIndex = found
+    End Sub
+
+    Private Sub btnManageFilterSets_Click(sender As Object, e As EventArgs) Handles btnManageFilterSets.Click
+        Using frm As New FormFilterSets()
+            frm.Icon = Me.Icon
+            frm.ShowDialog(Me)
+        End Using
+        If _editingTemplate IsNot Nothing Then PopulateFilterSetCombo(_editingTemplate)
     End Sub
 
     ''' <summary>"(app default)" + the Display template library.</summary>
@@ -496,6 +520,8 @@ Public Class FormTemplateManager
         Next
         Dim dispItem = TryCast(cboDisplayTpl.SelectedItem, SttTemplateItem)
         t.DisplayTemplateId = If(dispItem?.Id, "")
+        Dim fsItem = TryCast(cboFilterSet.SelectedItem, SttTemplateItem)
+        t.FilterSetId = If(fsItem?.Id, "")
     End Sub
 
     Private Sub SaveAndSync()

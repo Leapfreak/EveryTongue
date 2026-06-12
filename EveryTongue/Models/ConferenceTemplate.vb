@@ -28,6 +28,8 @@ Namespace Models
         Public Property SpeakerProfileIds As New List(Of String)
         ''' <summary>Display template reference ("" = app-global subtitle appearance).</summary>
         Public Property DisplayTemplateId As String = ""
+        ''' <summary>Filter set reference ("" = the global glossary/profanity/hallucination files).</summary>
+        Public Property FilterSetId As String = ""
     End Class
 
 End Namespace

@@ -258,7 +258,9 @@ Namespace Pipeline
 
         Public Async Function TranslateAsync(text As String, sourceLang As String, targetLangs As List(Of String),
                                               Optional noCache As Boolean = False,
-                                              Optional timeoutSeconds As Integer = 35) As Task(Of Dictionary(Of String, String))
+                                              Optional timeoutSeconds As Integer = 35,
+                                              Optional glossaryPath As String = "",
+                                              Optional profanityPath As String = "") As Task(Of Dictionary(Of String, String))
             If Not _host.IsProcessRunning OrElse Not _modelLoaded OrElse targetLangs.Count = 0 Then
                 Return New Dictionary(Of String, String)()
             End If
@@ -272,7 +274,10 @@ Namespace Pipeline
                 targetsJson.Append("]")
 
                 Dim noCacheJson = If(noCache, ",""no_cache"":true", "")
-                Dim json = $"{{""text"":{ProcessHelper.EscapeJson(text)},""source_lang"":""{sourceLang}"",""target_langs"":{targetsJson}{noCacheJson}}}"
+                Dim filtersJson = ""
+                If Not String.IsNullOrEmpty(glossaryPath) Then filtersJson &= $",""glossary_path"":{ProcessHelper.EscapeJson(glossaryPath)}"
+                If Not String.IsNullOrEmpty(profanityPath) Then filtersJson &= $",""profanity_path"":{ProcessHelper.EscapeJson(profanityPath)}"
+                Dim json = $"{{""text"":{ProcessHelper.EscapeJson(text)},""source_lang"":""{sourceLang}"",""target_langs"":{targetsJson}{noCacheJson}{filtersJson}}}"
                 Dim content As New StringContent(json, Encoding.UTF8, "application/json")
 
                 Using cts As New CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds))
@@ -303,7 +308,9 @@ Namespace Pipeline
         ''' </summary>
         Public Async Function ApplyGlossaryAsync(sourceText As String, sourceLang As String,
                                                  translations As Dictionary(Of String, String),
-                                                 Optional timeoutSeconds As Integer = 10) As Task(Of Dictionary(Of String, String))
+                                                 Optional timeoutSeconds As Integer = 10,
+                                                 Optional glossaryPath As String = "",
+                                                 Optional profanityPath As String = "") As Task(Of Dictionary(Of String, String))
             If translations Is Nothing OrElse translations.Count = 0 Then
                 Return If(translations, New Dictionary(Of String, String)())
             End If
@@ -319,7 +326,10 @@ Namespace Pipeline
                 Next
                 txJson.Append("}")
 
-                Dim json = $"{{""source_text"":{ProcessHelper.EscapeJson(sourceText)},""source_lang"":""{sourceLang}"",""translations"":{txJson}}}"
+                Dim filtersJson = ""
+                If Not String.IsNullOrEmpty(glossaryPath) Then filtersJson &= $",""glossary_path"":{ProcessHelper.EscapeJson(glossaryPath)}"
+                If Not String.IsNullOrEmpty(profanityPath) Then filtersJson &= $",""profanity_path"":{ProcessHelper.EscapeJson(profanityPath)}"
+                Dim json = $"{{""source_text"":{ProcessHelper.EscapeJson(sourceText)},""source_lang"":""{sourceLang}"",""translations"":{txJson}{filtersJson}}}"
                 Dim content As New StringContent(json, Encoding.UTF8, "application/json")
                 Using cts As New CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds))
                     Dim response = Await _httpClient.PostAsync($"http://127.0.0.1:{_port}/glossary/apply", content, cts.Token)

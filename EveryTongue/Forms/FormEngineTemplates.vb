@@ -6,23 +6,25 @@ Imports EveryTongue.Services.Infrastructure
 Imports EveryTongue.Services.Stt
 
 ''' <summary>
-''' Manager for the STT template library (TemplateLibraryStore, group "stt").
+''' Manager for an engine-template library group (STT / Translate / TTS).
 ''' One template = one engine + only that engine's knobs; the knob editors are
 ''' rendered from the engine's IEngineConfigDescriptor, so adding an engine
 ''' never edits this form. Editing a template here updates every conference
-''' template / session that references it.
+''' template / speaker that references it.
 ''' </summary>
 Public Class FormEngineTemplates
 
     Private ReadOnly _config As AppConfig
+    Private ReadOnly _group As String
     Private _editingTemplate As EngineTemplate
     Private _isNewTemplate As Boolean
     ' Field editors generated from the active engine descriptor (key → input control)
     Private ReadOnly _fieldEditors As New Dictionary(Of String, Control)
     Private _suppressEngineChange As Boolean = False
 
-    Public Sub New(config As AppConfig)
+    Public Sub New(config As AppConfig, Optional group As String = TemplateLibraryStore.GroupStt)
         _config = config
+        _group = If(String.IsNullOrEmpty(group), TemplateLibraryStore.GroupStt, group)
         InitializeComponent()
         ApplyLocale()
         PopulateEngineDropdown()
@@ -33,8 +35,42 @@ Public Class FormEngineTemplates
         Return LanguagePackService.Instance.GetString(key)
     End Function
 
+    ''' <summary>The engines of this form's group: key, display name, descriptor.</summary>
+    Private Function GetEngines() As List(Of (Key As String, DisplayName As String, Descriptor As IEngineConfigDescriptor))
+        Dim result As New List(Of (Key As String, DisplayName As String, Descriptor As IEngineConfigDescriptor))
+        Select Case _group
+            Case TemplateLibraryStore.GroupTranslate
+                For Each e In Services.Translation.TranslationBackendRegistry.GetAll()
+                    result.Add((e.Key, e.DisplayName, e.ConfigDescriptor))
+                Next
+            Case TemplateLibraryStore.GroupTts
+                For Each e In Services.Tts.TtsBackendRegistry.GetAll()
+                    result.Add((e.Key, e.DisplayName, e.ConfigDescriptor))
+                Next
+            Case Else
+                For Each e In SttBackendRegistry.GetAll()
+                    result.Add((e.Key, e.DisplayName, e.ConfigDescriptor))
+                Next
+        End Select
+        Return result
+    End Function
+
+    Private Function FindDescriptor(engineKey As String) As IEngineConfigDescriptor
+        For Each e In GetEngines()
+            If e.Key.Equals(If(engineKey, ""), StringComparison.OrdinalIgnoreCase) Then Return e.Descriptor
+        Next
+        Return Nothing
+    End Function
+
     Private Sub ApplyLocale()
-        Me.Text = S("EngTpl_Title")
+        Select Case _group
+            Case TemplateLibraryStore.GroupTranslate
+                Me.Text = S("EngTpl_TitleTranslate")
+            Case TemplateLibraryStore.GroupTts
+                Me.Text = S("EngTpl_TitleTts")
+            Case Else
+                Me.Text = S("EngTpl_Title")
+        End Select
         colName.Text = S("Tmpl_Name")
         colEngine.Text = S("EngTpl_Engine")
         btnAdd.Text = S("Tmpl_Add")
@@ -48,7 +84,7 @@ Public Class FormEngineTemplates
 
     Private Sub PopulateEngineDropdown()
         cboEngine.Items.Clear()
-        For Each entry In SttBackendRegistry.GetAll()
+        For Each entry In GetEngines()
             cboEngine.Items.Add(entry.Key & " — " & entry.DisplayName)
         Next
         If cboEngine.Items.Count > 0 Then cboEngine.SelectedIndex = 0
@@ -64,7 +100,7 @@ Public Class FormEngineTemplates
 
     Private Sub RefreshList()
         lvTemplates.Items.Clear()
-        For Each t In TemplateLibraryStore.Instance.GetEngineTemplates(TemplateLibraryStore.GroupStt)
+        For Each t In TemplateLibraryStore.Instance.GetEngineTemplates(_group)
             Dim li As New ListViewItem(t.Name)
             li.SubItems.Add(t.EngineKey)
             li.Tag = t.Id
@@ -95,7 +131,7 @@ Public Class FormEngineTemplates
     Private Sub btnEdit_Click(sender As Object, e As EventArgs) Handles btnEdit.Click
         If lvTemplates.SelectedItems.Count = 0 Then Return
         Dim id = CStr(lvTemplates.SelectedItems(0).Tag)
-        _editingTemplate = TemplateLibraryStore.Instance.GetEngineTemplate(TemplateLibraryStore.GroupStt, id)
+        _editingTemplate = TemplateLibraryStore.Instance.GetEngineTemplate(_group, id)
         If _editingTemplate Is Nothing Then Return
         _isNewTemplate = False
         LoadTemplateToDetail(_editingTemplate)
@@ -107,14 +143,25 @@ Public Class FormEngineTemplates
         Dim name = lvTemplates.SelectedItems(0).Text
         Dim id = CStr(lvTemplates.SelectedItems(0).Tag)
 
-        Dim refCount = _config.ConferenceTemplates.Where(Function(t) t.SttTemplateId = id).Count()
+        ' Group-aware reference count: conference templates + speaker slots.
+        Dim speakers = TemplateLibraryStore.Instance.GetSpeakerProfiles()
+        Dim refCount = 0
+        Select Case _group
+            Case TemplateLibraryStore.GroupTranslate
+                refCount = speakers.Where(Function(s) s.TranslateTemplateId = id).Count()
+            Case TemplateLibraryStore.GroupTts
+                refCount = speakers.Where(Function(s) s.TtsTemplateId = id).Count()
+            Case Else
+                refCount = _config.ConferenceTemplates.Where(Function(t) t.SttTemplateId = id).Count() +
+                           speakers.Where(Function(s) s.OnlineSttTemplateId = id OrElse s.OfflineSttTemplateId = id).Count()
+        End Select
         Dim msg = String.Format(S("Tmpl_DeleteConfirm"), name)
         If refCount > 0 Then
             msg = String.Format(S("EngTpl_DeleteReferenced"), name, refCount)
         End If
         If MessageBox.Show(msg, S("Tmpl_Delete"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) <> DialogResult.Yes Then Return
 
-        TemplateLibraryStore.Instance.DeleteEngineTemplate(TemplateLibraryStore.GroupStt, id)
+        TemplateLibraryStore.Instance.DeleteEngineTemplate(_group, id)
         RefreshList()
     End Sub
 
@@ -127,14 +174,14 @@ Public Class FormEngineTemplates
         End If
 
         Dim engineKey = ExtractEngineKey(cboEngine)
-        Dim descriptor = SttBackendRegistry.Find(engineKey)?.ConfigDescriptor
+        Dim descriptor = FindDescriptor(engineKey)
         If descriptor Is Nothing Then Return
 
         _editingTemplate.Name = txtName.Text.Trim()
         _editingTemplate.EngineKey = engineKey
         _editingTemplate.Config = EngineConfigResolver.BuildTemplateConfig(descriptor, ReadFieldValues())
 
-        TemplateLibraryStore.Instance.UpsertEngineTemplate(TemplateLibraryStore.GroupStt, _editingTemplate)
+        TemplateLibraryStore.Instance.UpsertEngineTemplate(_group, _editingTemplate)
         If _isNewTemplate Then _isNewTemplate = False
         ShowDetail(False)
         RefreshList()
@@ -149,7 +196,7 @@ Public Class FormEngineTemplates
         ' Engine switch: re-render this engine's fields. Re-apply the stored
         ' block only when it belongs to the same engine.
         Dim engineKey = ExtractEngineKey(cboEngine)
-        Dim descriptor = SttBackendRegistry.Find(engineKey)?.ConfigDescriptor
+        Dim descriptor = FindDescriptor(engineKey)
         If descriptor Is Nothing Then Return
         Dim block = descriptor.CreateDefault()
         If _editingTemplate.Config.HasValue AndAlso
@@ -162,7 +209,7 @@ Public Class FormEngineTemplates
     Private Sub chkIncludeAdvanced_CheckedChanged(sender As Object, e As EventArgs) Handles chkIncludeAdvanced.CheckedChanged
         If _editingTemplate Is Nothing OrElse _fieldEditors.Count = 0 Then Return
         ' Re-render with/without the advanced rows, preserving current edits.
-        Dim descriptor = SttBackendRegistry.Find(ExtractEngineKey(cboEngine))?.ConfigDescriptor
+        Dim descriptor = FindDescriptor(ExtractEngineKey(cboEngine))
         If descriptor Is Nothing Then Return
         Dim block = descriptor.CreateDefault()
         If _editingTemplate.Config.HasValue Then descriptor.ApplyJson(block, _editingTemplate.Config.Value)
@@ -193,7 +240,7 @@ Public Class FormEngineTemplates
         Next
         _suppressEngineChange = False
 
-        Dim descriptor = SttBackendRegistry.Find(ExtractEngineKey(cboEngine))?.ConfigDescriptor
+        Dim descriptor = FindDescriptor(ExtractEngineKey(cboEngine))
         If descriptor Is Nothing Then Return
         Dim block = descriptor.CreateDefault()
         If t.Config.HasValue Then descriptor.ApplyJson(block, t.Config.Value)

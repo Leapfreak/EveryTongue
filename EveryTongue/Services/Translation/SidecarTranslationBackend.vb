@@ -39,13 +39,16 @@ Namespace Services.Translation
                                              sourceLang As String,
                                              targetLangs As IReadOnlyList(Of String),
                                              ct As CancellationToken,
-                                             Optional noCache As Boolean = False
+                                             Optional noCache As Boolean = False,
+                                             Optional filters As TranslationFilterPaths = Nothing
         ) As Task(Of Dictionary(Of String, String)) Implements ITranslationBackend.TranslateAsync
             If Not IsAvailable Then Return New Dictionary(Of String, String)()
 
             ' Delegate to existing service (it uses its own internal timeout)
             Return Await _legacyService.TranslateAsync(
-                text, sourceLang, New List(Of String)(targetLangs), noCache)
+                text, sourceLang, New List(Of String)(targetLangs), noCache,
+                glossaryPath:=If(filters?.GlossaryPath, ""),
+                profanityPath:=If(filters?.ProfanityPath, ""))
         End Function
 
         Public Function GetSupportedLanguagesAsync(ct As CancellationToken

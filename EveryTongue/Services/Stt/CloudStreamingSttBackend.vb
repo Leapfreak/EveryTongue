@@ -87,6 +87,7 @@ Namespace Services.Stt
         Public Sub Start(config As SttSessionConfig) Implements ISttBackend.Start
             _runner.Backend = _backendKey
             _runner.SttApiKey = config.ApiKey
+            _runner.FiltersHallucinationsPath = config.HallucinationsPath
 
             Dim appConfig As New AppConfig() With {
                 .LiveServerPort = config.ServerPort,

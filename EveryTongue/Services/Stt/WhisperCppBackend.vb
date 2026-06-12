@@ -84,6 +84,7 @@ Namespace Services.Stt
             _runner.WhisperServerPort = ec.WhisperServerPort
             _runner.SileroVadModelPath = ec.SileroVadModelPath
             _runner.NoGpu = Not _useGpu
+            _runner.FiltersHallucinationsPath = config.HallucinationsPath
 
             Dim appConfig As New AppConfig() With {
                 .LiveServerPort = config.ServerPort,

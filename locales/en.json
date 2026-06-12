@@ -629,6 +629,10 @@
   "Tmpl_DisplayTemplate": "Display",
   "Tmpl_DisplayDefault": "(app default)",
   "Opt_ManageDisplayTemplates": "Manage Display Templates...",
+  "Opt_ManageTransTemplates": "Manage Translation Templates...",
+  "Opt_ManageTtsTemplates": "Manage TTS Templates...",
+  "EngTpl_TitleTranslate": "Translation Templates",
+  "EngTpl_TitleTts": "TTS Templates",
 
   "Disp_Title": "Display Templates",
   "Disp_Details": "Display Details",
@@ -652,6 +656,15 @@
   "Spk_Glossary": "Glossary set",
   "Spk_GlossaryGlobal": "(global)",
   "Spk_None": "(none)",
+
+  "Tmpl_FilterSet": "Filter set",
+  "FSet_Title": "Filter Sets",
+  "FSet_Details": "Filter Set Details",
+  "FSet_Glossary": "Glossary file",
+  "FSet_Profanity": "Profanity file",
+  "FSet_Hallucinations": "Hallucinations file",
+  "FSet_CopyGlobal": "Copy global files into this set",
+  "FSet_OpenFolder": "Open set folder",
 
   "EngTpl_Title": "STT Templates",
   "EngTpl_Engine": "Engine",

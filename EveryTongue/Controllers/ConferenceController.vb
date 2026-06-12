@@ -32,6 +32,10 @@ Namespace Controllers
         ' fields get their resolved block pinned here (fixed for the session);
         ' rooms without an entry keep reading the live app-global dials.
         Private ReadOnly _pinnedClauseDials As New Dictionary(Of String, Configs.SpeechmaticsConfig)()
+        ' Per-room NAMED filter sets (room template's FilterSetId, with the
+        ' active speaker's glossary set overriding the glossary path). No entry
+        ' = the sidecars use their own global files.
+        Private ReadOnly _roomFilters As New Dictionary(Of String, Models.Templates.FilterSet)()
         Private _nextConferencePort As Integer = 5101
         Private _nextWhisperServerPort As Integer = 8179  ' 8178 is used by ConversationAudioHandler
         Private _bufferFlushTimer As System.Threading.Timer
@@ -187,6 +191,9 @@ Namespace Controllers
 
             ApplySpeechmaticsTranslation(sttConfig, sttConfig.Language)
             StorePinnedClauseDials(roomId, engineTpl, sttConfig)
+            ResolveRoomFilters(roomId, template)
+            Dim createFs As Models.Templates.FilterSet = Nothing
+            If _roomFilters.TryGetValue(roomId, createFs) Then sttConfig.HallucinationsPath = createFs.HallucinationsPath
             EnsureActiveLanguagesSubscription()
 
             Dim backend = SttBackendRegistry.CreateBackend(backendKey)
@@ -339,6 +346,9 @@ Namespace Controllers
 
             ApplySpeechmaticsTranslation(sttConfig, cfgLang)
             StorePinnedClauseDials(roomId, engineTpl, sttConfig)
+            ResolveRoomFilters(roomId, template)
+            Dim restartFs As Models.Templates.FilterSet = Nothing
+            If _roomFilters.TryGetValue(roomId, restartFs) Then sttConfig.HallucinationsPath = restartFs.HallucinationsPath
 
             Dim newBackend = SttBackendRegistry.CreateBackend(If(template?.SttBackendKey, _config.SttBackend))
             AddHandler newBackend.OutputCommitted, Sub(s, e)
@@ -421,6 +431,7 @@ Namespace Controllers
             ForceLockClause(roomId)
             _clauseAccumulators.Remove(roomId)
             _pinnedClauseDials.Remove(roomId)
+            _roomFilters.Remove(roomId)
 
             ' Flush any remaining buffered text before stopping
             Dim buffer As SentenceBuffer = Nothing
@@ -584,7 +595,8 @@ Namespace Controllers
                 Try
                     Using cts As New Threading.CancellationTokenSource(TimeSpan.FromSeconds(10))
                         Dim result = Await orchestrator.TranslateAsync(
-                            text, sourceLang, targets, cts.Token, Services.Scheduling.TranslationPriority.Room)
+                            text, sourceLang, targets, cts.Token, Services.Scheduling.TranslationPriority.Room,
+                            filters:=RoomTranslationFilters(roomId))
                         If result IsNot Nothing Then
                             For Each kvp In result : translations(kvp.Key) = kvp.Value : Next
                         End If
@@ -599,7 +611,10 @@ Namespace Controllers
             Dim svc = _getTranslationService()
             If svc IsNot Nothing AndAlso svc.IsRunning AndAlso svc.IsModelLoaded Then
                 Try
-                    Dim result = Await svc.TranslateAsync(text, sourceLang, targets, timeoutSeconds:=10)
+                    Dim fallbackFp = RoomTranslationFilters(roomId)
+                    Dim result = Await svc.TranslateAsync(text, sourceLang, targets, timeoutSeconds:=10,
+                        glossaryPath:=If(fallbackFp?.GlossaryPath, ""),
+                        profanityPath:=If(fallbackFp?.ProfanityPath, ""))
                     If result IsNot Nothing Then
                         For Each kvp In result : translations(kvp.Key) = kvp.Value : Next
                     End If
@@ -668,7 +683,10 @@ Namespace Controllers
                 Dim svc = _getTranslationService()
                 If svc IsNot Nothing Then
                     Try
-                        merged = Await svc.ApplyGlossaryAsync(args.Text, sourceLang, merged)
+                        Dim roomFp = RoomTranslationFilters(roomId)
+                        merged = Await svc.ApplyGlossaryAsync(args.Text, sourceLang, merged,
+                            glossaryPath:=If(roomFp?.GlossaryPath, ""),
+                            profanityPath:=If(roomFp?.ProfanityPath, ""))
                     Catch ex As Exception
                         _log($"[Conference:{roomId}] Glossary apply error: {ex.Message}")
                     End Try
@@ -911,6 +929,47 @@ Namespace Controllers
                 End If
             Next
         End Sub
+
+        ''' <summary>
+        ''' Resolve the room's effective NAMED filter set: room template's set,
+        ''' with the active speaker's glossary set overriding the glossary path
+        ''' (speaker > room > global). No named set anywhere = no entry, and the
+        ''' sidecars keep using their own global files.
+        ''' </summary>
+        Private Sub ResolveRoomFilters(roomId As String, template As ConferenceTemplate)
+            Dim fs = SessionResolver.ResolveFilterSet(If(template?.FilterSetId, ""), _config)
+            Dim named = Not String.IsNullOrEmpty(fs.Id)
+
+            Dim room = _getRoomManager()?.GetRoom(roomId)
+            If room IsNot Nothing AndAlso Not String.IsNullOrEmpty(room.ActiveSpeakerId) Then
+                Dim sp = TemplateLibraryStore.Instance.GetSpeakerProfile(room.ActiveSpeakerId)
+                If sp IsNot Nothing AndAlso Not String.IsNullOrEmpty(sp.GlossarySetId) Then
+                    Dim spSet = SessionResolver.ResolveFilterSet(sp.GlossarySetId, _config)
+                    If Not String.IsNullOrEmpty(spSet.Id) Then
+                        fs.GlossaryPath = spSet.GlossaryPath
+                        named = True
+                    End If
+                End If
+            End If
+
+            If named Then
+                _roomFilters(roomId) = fs
+                AppLogger.Log(LogEvents.CONFIG_TEMPLATE_RESOLVED,
+                    $"[Conference:{roomId}] filter set '{fs.Name}' active (glossary={fs.GlossaryPath})")
+            Else
+                _roomFilters.Remove(roomId)
+            End If
+        End Sub
+
+        ''' <summary>Per-room translation filter paths for the sidecar (Nothing = global files).</summary>
+        Private Function RoomTranslationFilters(roomId As String) As Services.Models.TranslationFilterPaths
+            Dim fs As Models.Templates.FilterSet = Nothing
+            If Not _roomFilters.TryGetValue(roomId, fs) Then Return Nothing
+            Return New Services.Models.TranslationFilterPaths With {
+                .GlossaryPath = fs.GlossaryPath,
+                .ProfanityPath = fs.ProfanityPath
+            }
+        End Function
 
         ''' <summary>Whether clause hold-and-lock applies to this room (pinned template value, else live master switch; Speechmatics only).</summary>
         Private Function IsHoldEnabled(roomId As String) As Boolean

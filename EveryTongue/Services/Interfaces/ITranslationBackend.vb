@@ -15,7 +15,8 @@ Namespace Services.Interfaces
                                 sourceLang As String,
                                 targetLangs As IReadOnlyList(Of String),
                                 ct As CancellationToken,
-                                Optional noCache As Boolean = False
+                                Optional noCache As Boolean = False,
+                                Optional filters As TranslationFilterPaths = Nothing
         ) As Task(Of Dictionary(Of String, String))
 
         Function GetSupportedLanguagesAsync(ct As CancellationToken

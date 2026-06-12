@@ -60,6 +60,9 @@ Partial Class FormTemplateManager
         Me.lblDisplayTpl = New System.Windows.Forms.Label()
         Me.cboDisplayTpl = New System.Windows.Forms.ComboBox()
         Me.btnManageDisplay = New System.Windows.Forms.Button()
+        Me.lblFilterSet = New System.Windows.Forms.Label()
+        Me.cboFilterSet = New System.Windows.Forms.ComboBox()
+        Me.btnManageFilterSets = New System.Windows.Forms.Button()
         Me.btnSave = New System.Windows.Forms.Button()
         Me.btnCancelEdit = New System.Windows.Forms.Button()
         Me.grpDetail.SuspendLayout()
@@ -155,6 +158,9 @@ Partial Class FormTemplateManager
         Me.grpDetail.Controls.Add(Me.lblDisplayTpl)
         Me.grpDetail.Controls.Add(Me.cboDisplayTpl)
         Me.grpDetail.Controls.Add(Me.btnManageDisplay)
+        Me.grpDetail.Controls.Add(Me.lblFilterSet)
+        Me.grpDetail.Controls.Add(Me.cboFilterSet)
+        Me.grpDetail.Controls.Add(Me.btnManageFilterSets)
         Me.grpDetail.Controls.Add(Me.cboModel)
         Me.grpDetail.Controls.Add(Me.lblModelPath)
         Me.grpDetail.Controls.Add(Me.btnRefreshDevices)
@@ -180,7 +186,7 @@ Partial Class FormTemplateManager
         Me.grpDetail.Controls.Add(Me.lblName)
         Me.grpDetail.Location = New System.Drawing.Point(12, 180)
         Me.grpDetail.Name = "grpDetail"
-        Me.grpDetail.Size = New System.Drawing.Size(556, 462)
+        Me.grpDetail.Size = New System.Drawing.Size(556, 494)
         Me.grpDetail.TabIndex = 5
         Me.grpDetail.TabStop = False
         Me.grpDetail.Text = "Template Details"
@@ -478,9 +484,33 @@ Partial Class FormTemplateManager
         Me.btnManageDisplay.Text = "Manage..."
         Me.btnManageDisplay.UseVisualStyleBackColor = True
         '
+        ' lblFilterSet — named filter set reference (Phase 8)
+        '
+        Me.lblFilterSet.AutoSize = True
+        Me.lblFilterSet.Location = New System.Drawing.Point(12, 399)
+        Me.lblFilterSet.Name = "lblFilterSet"
+        Me.lblFilterSet.Text = "Filter set"
+        '
+        ' cboFilterSet
+        '
+        Me.cboFilterSet.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboFilterSet.Location = New System.Drawing.Point(130, 396)
+        Me.cboFilterSet.Name = "cboFilterSet"
+        Me.cboFilterSet.Size = New System.Drawing.Size(300, 23)
+        Me.cboFilterSet.TabIndex = 35
+        '
+        ' btnManageFilterSets
+        '
+        Me.btnManageFilterSets.Location = New System.Drawing.Point(440, 395)
+        Me.btnManageFilterSets.Name = "btnManageFilterSets"
+        Me.btnManageFilterSets.Size = New System.Drawing.Size(90, 25)
+        Me.btnManageFilterSets.TabIndex = 36
+        Me.btnManageFilterSets.Text = "Manage..."
+        Me.btnManageFilterSets.UseVisualStyleBackColor = True
+        '
         ' btnSave
         '
-        Me.btnSave.Location = New System.Drawing.Point(350, 412)
+        Me.btnSave.Location = New System.Drawing.Point(350, 444)
         Me.btnSave.Name = "btnSave"
         Me.btnSave.Size = New System.Drawing.Size(90, 30)
         Me.btnSave.TabIndex = 24
@@ -489,7 +519,7 @@ Partial Class FormTemplateManager
         '
         ' btnCancelEdit
         '
-        Me.btnCancelEdit.Location = New System.Drawing.Point(446, 412)
+        Me.btnCancelEdit.Location = New System.Drawing.Point(446, 444)
         Me.btnCancelEdit.Name = "btnCancelEdit"
         Me.btnCancelEdit.Size = New System.Drawing.Size(90, 30)
         Me.btnCancelEdit.TabIndex = 25
@@ -501,7 +531,7 @@ Partial Class FormTemplateManager
         Me.AcceptButton = Me.btnClose
         Me.AutoScaleDimensions = New System.Drawing.SizeF(7.0!, 15.0!)
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
-        Me.ClientSize = New System.Drawing.Size(580, 678)
+        Me.ClientSize = New System.Drawing.Size(580, 710)
         Me.Controls.Add(Me.grpDetail)
         Me.Controls.Add(Me.btnClose)
         Me.Controls.Add(Me.btnDelete)
@@ -567,6 +597,9 @@ Partial Class FormTemplateManager
     Friend WithEvents lblDisplayTpl As System.Windows.Forms.Label
     Friend WithEvents cboDisplayTpl As System.Windows.Forms.ComboBox
     Friend WithEvents btnManageDisplay As System.Windows.Forms.Button
+    Friend WithEvents lblFilterSet As System.Windows.Forms.Label
+    Friend WithEvents cboFilterSet As System.Windows.Forms.ComboBox
+    Friend WithEvents btnManageFilterSets As System.Windows.Forms.Button
     Friend WithEvents btnSave As System.Windows.Forms.Button
     Friend WithEvents btnCancelEdit As System.Windows.Forms.Button
 

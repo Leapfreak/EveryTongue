@@ -18,6 +18,8 @@ Namespace Services.Models
         Public Property ServerPort As Integer = 5100
         ''' <summary>Resolved API key for online engines (machine-level secret; empty for offline engines).</summary>
         Public Property ApiKey As String = ""
+        ''' <summary>Per-session hallucination filter file ("" = the live-server's default). Session/filter concern, not engine config.</summary>
+        Public Property HallucinationsPath As String = ""
         ''' <summary>The selected engine's own config block (e.g. WhisperCppConfig, SpeechmaticsConfig).</summary>
         Public Property EngineConfig As IEngineConfigBlock
 

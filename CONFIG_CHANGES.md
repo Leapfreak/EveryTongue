@@ -1,6 +1,6 @@
 # EveryTongue — Configuration Architecture Refactor
 
-> **Status:** Phases 1–5 implemented in full (2026-06-12). Phases 6–9 (runtime consumption — see plan below) are NEXT: they turn the built-but-unconsumed scaffolding (speakers, gate, display, filters, session convergence) into live behavior. Parked separately: cloud-STT-in-Transcribe batch engines (PLAN.md → Future Work).
+> **Status:** ALL phases (1–9) implemented (2026-06-12). The configuration architecture AND its runtime consumption are complete: engine-independent config blocks, template libraries, sessions (ConferenceTemplate), speakers with online/offline slots, the connectivity gate, per-room display templates, per-session filter sets, and per-group template managers. Parked: cloud-STT-in-Transcribe batch engines (PLAN.md → Future Work); deferred to v2.0: removal of the GoogleCloudSttApiKey read-bridge and ConferenceTemplate's legacy embedded knobs (kept for config.json back-compat); operational: regenerate CDN locale packs for the v1.9.x keys.
 > **Origin:** the config sprawl exposed while solving the "sharing Catalan speaker" (Andreu) problem — settings scattered across Hardware/Translation/Server/Rooms, dead batch-era settings, and conference templates carrying knobs the chosen engine ignores.
 
 ---
@@ -304,7 +304,25 @@ SubtitleService/ServerOptions, EndpointRegistration, app.js, en.json.
 *Test:* two rooms with different display templates side-by-side on two phones;
 per-device font-size preference must still override (viewer-level stays local).
 
-## Phase 8 — Filter consumption (per-session sets)
+## Phase 8 — Filter consumption (per-session sets) ✅ **DONE (2026-06-12)**
+
+> Implemented: translate-server `/translate` and `/glossary/apply` accept
+> optional `glossary_path`/`profanity_path` (per-path cache, mtime-invalidated,
+> fall back to global files on error). SAFE with the translation cache —
+> verified that glossary/profanity are applied AFTER the cached raw NLLB
+> output, so the cache key needs no filter component. live-server `/start`
+> accepts `hallucinations_path` (per-room sidecar instance = per-room filter).
+> .NET: `TranslationFilterPaths` threaded through ITranslationService /
+> ITranslationBackend / orchestrator / sidecar backend (cloud backends ignore
+> it); `SttSessionConfig.HallucinationsPath` → LiveStreamRunner → /start.
+> `ConferenceTemplate.FilterSetId` + picker; `ConferenceController` resolves
+> per-room effective filters at create/restart (speaker `GlossarySetId`
+> overrides the room's glossary — speaker > room > global, delivering the
+> per-speaker glossary) and passes them on every room-scoped translate +
+> glossary-apply call. `FormFilterSets` manager (paths + "copy global files
+> into this set" seeding `%AppData%\EveryTongue\filters\{id}\` + open-folder);
+> speaker glossary combo now active. **Note:** the Filter Editor still edits
+> the GLOBAL files — named sets are edited via their folder for now.
 
 **Goal:** a room can use a named FilterSet instead of the global files.
 
@@ -329,7 +347,20 @@ orchestrator call sites, ConferenceController, ConferenceTemplate, en.json.
 *Test:* room A with a custom glossary set, room B global, simultaneously; check
 filter-hit logs attribute the right set.
 
-## Phase 9 — Convergence + cleanup
+## Phase 9 — Convergence + cleanup ✅ **DONE (2026-06-12)**
+
+> Implemented: the wizard's "Save as session template" now emits a hostable
+> **ConferenceTemplate** (wizard device/language + referenced Display template
+> + 1:1 STT write-through + auto-generated 6-digit hosting code, synced to the
+> lobby) — `SessionTemplate` is no longer created anywhere; the model/store
+> remain as scaffolding for future non-conference workspaces.
+> `FormEngineTemplates` generalized to a group parameter (stt/translate/tts)
+> with group-aware delete reference counts (conference templates + speaker
+> slots); "Manage Translation/TTS Templates…" buttons added to the Options
+> Translation and TTS pages so speaker references are creatable. FormMain's
+> direct `GoogleCloudSttApiKey` reads replaced with `GetSttApiKey` (the
+> read-bridge in AppConfig stays until v2.0 so pre-1.8.x configs don't lose
+> their key). Remaining operational item: regenerate the CDN locale packs.
 
 1. **Wizard/SessionTemplate convergence** per the guiding decision: either the
    wizard emits a ConferenceTemplate (+ Display ref) and `SessionTemplate` is

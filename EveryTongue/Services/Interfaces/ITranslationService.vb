@@ -14,7 +14,8 @@ Namespace Services.Interfaces
                                 targetLangs As IReadOnlyList(Of String),
                                 ct As CancellationToken,
                                 Optional priority As TranslationPriority = TranslationPriority.Workspace,
-                                Optional noCache As Boolean = False
+                                Optional noCache As Boolean = False,
+                                Optional filters As TranslationFilterPaths = Nothing
         ) As Task(Of Dictionary(Of String, String))
 
         ReadOnly Property ActiveBackend As String

@@ -76,6 +76,7 @@ Namespace Services.Stt
             Dim ec = If(config.Block(Of Configs.FasterWhisperConfig)(), New Configs.FasterWhisperConfig())
 
             _runner.Backend = "faster-whisper"
+            _runner.FiltersHallucinationsPath = config.HallucinationsPath
 
             Dim appConfig As New AppConfig() With {
                 .LiveServerPort = config.ServerPort,

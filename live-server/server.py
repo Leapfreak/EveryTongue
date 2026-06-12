@@ -602,15 +602,21 @@ def _is_hallucination(segments, last_commit_text: str = "", detected_lang: str =
 # Known hallucination phrase blocklist
 # ---------------------------------------------------------------------------
 _hallucination_phrases = []  # list of str
+# Per-session override set via /start's optional hallucinations_path field.
+# Each room runs its own live-server instance, so a process-wide override IS
+# the per-room filter set. Empty = the default file next to this script.
+_hallucinations_path_override = ""
 
 
 def _load_hallucination_phrases():
-    """Load known hallucination phrases from hallucinations.json.
-    Supports both legacy format (plain string arrays) and new format
-    (objects with "text" and "enabled" fields). Disabled items are skipped.
+    """Load known hallucination phrases from hallucinations.json (or the
+    session's override path). Supports both legacy format (plain string arrays)
+    and new format (objects with "text" and "enabled" fields). Disabled items
+    are skipped.
     """
     global _hallucination_phrases
-    json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hallucinations.json")
+    json_path = _hallucinations_path_override or os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "hallucinations.json")
     try:
         with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -695,6 +701,15 @@ async def start_capture_endpoint(request: Request):
 
     body = await request.json()
     current_config = body
+
+    # Per-session hallucination filter set (empty = the default file).
+    global _hallucinations_path_override
+    new_halluc_path = body.get("hallucinations_path", "") or ""
+    if new_halluc_path != _hallucinations_path_override:
+        _hallucinations_path_override = new_halluc_path
+        _load_hallucination_phrases()
+        logger.info(f"Hallucination filter set: {new_halluc_path or '(default)'} "
+                    f"({len(_hallucination_phrases)} phrases)")
 
     # Start transcription backend
     requested_model_path = body.get("model_path", model_path_global)

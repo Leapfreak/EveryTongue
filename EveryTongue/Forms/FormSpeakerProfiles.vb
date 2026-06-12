@@ -126,6 +126,7 @@ Public Class FormSpeakerProfiles
         _editing.OfflineSttTemplateId = SelectedId(cboOfflineStt)
         _editing.TranslateTemplateId = SelectedId(cboTranslate)
         _editing.TtsTemplateId = SelectedId(cboTts)
+        _editing.GlossarySetId = SelectedId(cboGlossary)
 
         TemplateLibraryStore.Instance.UpsertSpeakerProfile(_editing)
         ShowDetail(False)
@@ -155,10 +156,17 @@ Public Class FormSpeakerProfiles
         PopulateRefCombo(cboTranslate, store.GetEngineTemplates(TemplateLibraryStore.GroupTranslate), sp.TranslateTemplateId)
         PopulateRefCombo(cboTts, store.GetEngineTemplates(TemplateLibraryStore.GroupTts), sp.TtsTemplateId)
 
-        ' Glossary set selection activates with per-session filter sets (Phase 8).
+        ' Glossary set: "(global)" + named filter sets — the speaker's set
+        ' overrides the room's glossary while that speaker is active.
+        cboGlossary.Enabled = True
         cboGlossary.Items.Clear()
         cboGlossary.Items.Add(New RefItem(S("Spk_GlossaryGlobal"), ""))
-        cboGlossary.SelectedIndex = 0
+        Dim glossIdx = 0
+        For Each fs In store.GetFilterSets()
+            cboGlossary.Items.Add(New RefItem(fs.Name, fs.Id))
+            If fs.Id = If(sp.GlossarySetId, "") Then glossIdx = cboGlossary.Items.Count - 1
+        Next
+        cboGlossary.SelectedIndex = glossIdx
     End Sub
 
     Private Shared Sub PopulateRefCombo(cbo As ComboBox, templates As List(Of EngineTemplate), selectedId As String)

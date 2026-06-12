@@ -156,6 +156,9 @@ Namespace Pipeline
         ''' <summary>API key for online STT backends (e.g. Google Cloud STT, Speechmatics).</summary>
         Public Property SttApiKey As String = ""
 
+        ''' <summary>Per-session hallucination filter file ("" = the live-server's default).</summary>
+        Public Property FiltersHallucinationsPath As String = ""
+
         ''' <summary>Region for region-scoped online backends (e.g. Speechmatics "eu2"/"us").</summary>
         Public Property SttRegion As String = ""
 
@@ -289,6 +292,11 @@ Namespace Pipeline
                     $"""vad_max_segment_s"":{config.LiveMaxSegmentSec}," &
                     $"""interim_interval_ms"":{config.LiveInterimIntervalMs}," &
                     $"""whisper_server_port"":{config.WhisperServerPort}"
+
+                ' Per-session hallucination filter set (empty = server default file)
+                If Not String.IsNullOrEmpty(FiltersHallucinationsPath) Then
+                    jsonBody &= $",""hallucinations_path"":""{EscapeJsonUnquoted(FiltersHallucinationsPath)}"""
+                End If
 
                 ' Add API key + engine-specific options for online backends (not logged in plaintext)
                 If IsOnlineBackend(backendKey) AndAlso Not String.IsNullOrEmpty(SttApiKey) Then

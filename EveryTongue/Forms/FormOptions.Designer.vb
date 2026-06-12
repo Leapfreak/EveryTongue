@@ -184,6 +184,8 @@ Partial Class FormOptions
         Me.pnlDisplay = New System.Windows.Forms.Panel()
         Me.btnManageSttTemplatesOpt = New System.Windows.Forms.Button()
         Me.btnManageDisplayTplOpt = New System.Windows.Forms.Button()
+        Me.btnManageTransTplOpt = New System.Windows.Forms.Button()
+        Me.btnManageTtsTplOpt = New System.Windows.Forms.Button()
         ' ── Advanced panel controls ──
         Me.pnlAdvanced = New System.Windows.Forms.Panel()
         Me.lblAdvPipelineHeader = New System.Windows.Forms.Label()
@@ -1727,6 +1729,7 @@ Partial Class FormOptions
         ' pnlTranslation
         '
         Me.pnlTranslation.AutoScroll = True
+        Me.pnlTranslation.Controls.Add(Me.btnManageTransTplOpt)
         Me.pnlTranslation.Controls.Add(Me.lblClauseHeader)
         Me.pnlTranslation.Controls.Add(Me.chkSpeechmaticsHoldClauses)
         Me.pnlTranslation.Controls.Add(Me.chkClauseLockOnPunctuation)
@@ -1766,6 +1769,7 @@ Partial Class FormOptions
         ' pnlTts
         '
         Me.pnlTts.AutoScroll = True
+        Me.pnlTts.Controls.Add(Me.btnManageTtsTplOpt)
         Me.pnlTts.Controls.Add(Me.lblTtsNote)
         Me.pnlTts.Controls.Add(Me.cboTtsPref3)
         Me.pnlTts.Controls.Add(Me.lblTtsPref3)
@@ -2177,6 +2181,24 @@ Partial Class FormOptions
         Me.btnManageDisplayTplOpt.TabIndex = 31
         Me.btnManageDisplayTplOpt.Text = "Manage Display Templates..."
         Me.btnManageDisplayTplOpt.UseVisualStyleBackColor = True
+        '
+        ' btnManageTransTplOpt — translation template library (Phase 9)
+        '
+        Me.btnManageTransTplOpt.Location = New System.Drawing.Point(12, 444)
+        Me.btnManageTransTplOpt.Name = "btnManageTransTplOpt"
+        Me.btnManageTransTplOpt.Size = New System.Drawing.Size(210, 28)
+        Me.btnManageTransTplOpt.TabIndex = 60
+        Me.btnManageTransTplOpt.Text = "Manage Translation Templates..."
+        Me.btnManageTransTplOpt.UseVisualStyleBackColor = True
+        '
+        ' btnManageTtsTplOpt — TTS template library (Phase 9)
+        '
+        Me.btnManageTtsTplOpt.Location = New System.Drawing.Point(12, 170)
+        Me.btnManageTtsTplOpt.Name = "btnManageTtsTplOpt"
+        Me.btnManageTtsTplOpt.Size = New System.Drawing.Size(210, 28)
+        Me.btnManageTtsTplOpt.TabIndex = 20
+        Me.btnManageTtsTplOpt.Text = "Manage TTS Templates..."
+        Me.btnManageTtsTplOpt.UseVisualStyleBackColor = True
         '
         ' ══════════════════════════════════════════════════════════════
         ' ADVANCED PANEL
@@ -3397,6 +3419,8 @@ Partial Class FormOptions
     Friend WithEvents pnlDisplay As System.Windows.Forms.Panel
     Friend WithEvents btnManageSttTemplatesOpt As System.Windows.Forms.Button
     Friend WithEvents btnManageDisplayTplOpt As System.Windows.Forms.Button
+    Friend WithEvents btnManageTransTplOpt As System.Windows.Forms.Button
+    Friend WithEvents btnManageTtsTplOpt As System.Windows.Forms.Button
     Friend WithEvents lblAdvPipelineHeader As System.Windows.Forms.Label
     Friend WithEvents lblAdvPipelineSep As System.Windows.Forms.Label
     Friend WithEvents nudParallelJobs As System.Windows.Forms.NumericUpDown

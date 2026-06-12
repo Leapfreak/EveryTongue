@@ -120,7 +120,8 @@ Namespace Services.Translation
                                              targetLangs As IReadOnlyList(Of String),
                                              ct As CancellationToken,
                                              Optional priority As TranslationPriority = TranslationPriority.Workspace,
-                                             Optional noCache As Boolean = False
+                                             Optional noCache As Boolean = False,
+                                             Optional filters As TranslationFilterPaths = Nothing
         ) As Task(Of Dictionary(Of String, String)) Implements ITranslationService.TranslateAsync
 
             If targetLangs.Count = 0 Then Return New Dictionary(Of String, String)()
@@ -130,7 +131,7 @@ Namespace Services.Translation
             ' so the translation backend isn't overwhelmed under multi-room load.
             Return Await _queue.EnqueueAsync(
                 Async Function(ct2)
-                    Return Await TranslateInternal(text, sourceLang, targetLangs, ct2, skipCache)
+                    Return Await TranslateInternal(text, sourceLang, targetLangs, ct2, skipCache, filters)
                 End Function,
                 CInt(priority),
                 ct)
@@ -144,7 +145,8 @@ Namespace Services.Translation
                                                   sourceLang As String,
                                                   targetLangs As IReadOnlyList(Of String),
                                                   ct As CancellationToken,
-                                                  noCache As Boolean
+                                                  noCache As Boolean,
+                                                  filters As TranslationFilterPaths
         ) As Task(Of Dictionary(Of String, String))
 
             Dim results As New Dictionary(Of String, String)()
@@ -169,7 +171,7 @@ Namespace Services.Translation
                 Dim langs = group.Value
 
                 Dim translated = Await TryTranslateWithFallback(
-                    text, sourceLang, langs, backendName, ct, noCache)
+                    text, sourceLang, langs, backendName, ct, noCache, filters)
 
                 For Each kvp In translated
                     results(kvp.Key) = kvp.Value
@@ -185,14 +187,15 @@ Namespace Services.Translation
             targetLangs As List(Of String),
             primaryBackend As String,
             ct As CancellationToken,
-            noCache As Boolean
+            noCache As Boolean,
+            filters As TranslationFilterPaths
         ) As Task(Of Dictionary(Of String, String))
 
             ' Try primary backend
             Dim backend As ITranslationBackend = Nothing
             If _backends.TryGetValue(primaryBackend, backend) AndAlso backend.IsAvailable Then
                 Try
-                    Dim result = Await backend.TranslateAsync(text, sourceLang, targetLangs, ct, noCache)
+                    Dim result = Await backend.TranslateAsync(text, sourceLang, targetLangs, ct, noCache, filters)
                     If result.Count > 0 Then Return result
                 Catch ex As OperationCanceledException
                     Throw
@@ -206,7 +209,7 @@ Namespace Services.Translation
             If Not primaryBackend.Equals(_fallbackBackendName, StringComparison.OrdinalIgnoreCase) Then
                 If _backends.TryGetValue(_fallbackBackendName, backend) AndAlso backend.IsAvailable Then
                     Try
-                        Return Await backend.TranslateAsync(text, sourceLang, targetLangs, ct, noCache)
+                        Return Await backend.TranslateAsync(text, sourceLang, targetLangs, ct, noCache, filters)
                     Catch ex As OperationCanceledException
                         Throw
                     Catch ex As Exception

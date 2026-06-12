@@ -393,10 +393,11 @@ Public Class FormSessionWizard
     End Sub
 
     ''' <summary>
-    ''' Persist the wizard's choices as a reusable session template: the display
-    ''' settings become a Display template, the configured engines become
-    ''' engine-choice templates (no knobs — machine baseline applies), and a
-    ''' SessionTemplate references them all by id.
+    ''' Persist the wizard's choices as a hostable CONFERENCE template (the
+    ''' app's session unit — Phase 9 convergence): the display settings become
+    ''' a referenced Display template, the wizard's device/language land on the
+    ''' template, and a random hosting code is generated (editable later in
+    ''' Conference Templates). Visible immediately in the phone lobby.
     ''' </summary>
     Private Sub SaveSessionTemplateIfRequested()
         If Not chkSaveTemplate.Checked Then Return
@@ -415,33 +416,39 @@ Public Class FormSessionWizard
             }
             store.UpsertDisplayTemplate(disp)
 
-            Dim sttTpl As New Models.Templates.EngineTemplate With {
-                .Name = name,
-                .EngineKey = If(_config.SttBackend, "whisper-cpp-vulkan")
-            }
-            store.UpsertEngineTemplate(Services.Config.TemplateLibraryStore.GroupStt, sttTpl)
+            ' Audio device index from the wizard list ("3: Microphone …")
+            Dim deviceId = -1
+            Dim devText = If(lstDevices.SelectedItem?.ToString(), "")
+            Dim colonIdx = devText.IndexOf(":"c)
+            If colonIdx > 0 Then Integer.TryParse(devText.Substring(0, colonIdx).Trim(), deviceId)
 
-            Dim translateId = ""
-            If chkEnableTrans.Checked Then
-                Dim trTpl As New Models.Templates.EngineTemplate With {
-                    .Name = name,
-                    .EngineKey = If(_config.TranslationBackend, "nllb")
-                }
-                store.UpsertEngineTemplate(Services.Config.TemplateLibraryStore.GroupTranslate, trTpl)
-                translateId = trTpl.Id
-            End If
-
-            Dim session As New Models.Templates.SessionTemplate With {
+            Dim tpl As New ConferenceTemplate With {
                 .Name = name,
-                .SttTemplateId = sttTpl.Id,
-                .TranslateTemplateId = translateId,
+                .HostingCode = New Random().Next(100000, 999999).ToString(),
+                .SourceLanguage = If(_config.Language, "auto"),
+                .SttBackendKey = If(_config.SttBackend, "whisper-cpp-vulkan"),
+                .TranslationBackendKey = If(_config.TranslationBackend, "nllb"),
+                .AudioDeviceId = deviceId,
+                .AudioSourceLabel = devText,
                 .DisplayTemplateId = disp.Id
             }
-            store.UpsertSessionTemplate(session)
+            ' 1:1 STT write-through (same pattern as the template manager).
+            tpl.SttTemplateId = tpl.Id
+            store.UpsertEngineTemplate(
+                Services.Config.TemplateLibraryStore.GroupStt,
+                Services.Config.ConferenceTemplateMigration.BuildSttTemplate(tpl, _config.SttBackend))
+
+            _config.ConferenceTemplates.Add(tpl)
+            ConfigManager.Save(_config)
+            Try
+                Services.Rooms.TemplateStore.Instance?.SyncFromConfig(_config.ConferenceTemplates)
+            Catch
+            End Try
+
             AppLogger.Log(LogEvents.CONFIG_TEMPLATE_LIB_SAVED,
-                $"Session wizard saved session template '{name}' ({session.Id}): stt={sttTpl.Id}, translate={translateId}, display={disp.Id}")
+                $"Session wizard saved conference template '{name}' ({tpl.Id}), hosting code {tpl.HostingCode}, display={disp.Id}")
         Catch ex As Exception
-            AppLogger.Log(LogEvents.CONFIG_TEMPLATE_LIB_ERROR, $"Wizard session-template save failed: {ex.Message}")
+            AppLogger.Log(LogEvents.CONFIG_TEMPLATE_LIB_ERROR, $"Wizard template save failed: {ex.Message}")
         End Try
     End Sub
 

@@ -150,33 +150,38 @@ _profanity_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prof
 _profanity_patterns: dict[str, re.Pattern] = {}
 
 
-def _load_profanity():
-    """Load profanity word lists from profanity.json. Returns count of languages loaded.
+def _compile_profanity_file(path):
+    """Compile a profanity.json file into {lang: compiled regex}. Raises on I/O errors.
     Supports both legacy format (plain string arrays) and new format
     (objects with "word" and "enabled" fields). Disabled items are skipped.
     """
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    patterns = {}
+    for lang, items in data.items():
+        words = []
+        for item in items:
+            if isinstance(item, str):
+                # Legacy format: plain string (always enabled)
+                words.append(item)
+            elif isinstance(item, dict):
+                # New format: {"word": "...", "enabled": true/false}
+                if item.get("enabled", True):
+                    words.append(item.get("word", ""))
+        words = [w for w in words if w]  # filter empty
+        if words:
+            pattern = r"\b(" + "|".join(re.escape(w) for w in words) + r")\b"
+            patterns[lang] = re.compile(pattern, re.IGNORECASE)
+    return patterns
+
+
+def _load_profanity():
+    """Load the GLOBAL profanity word lists from profanity.json. Returns language count."""
     global _profanity_patterns
     try:
-        with open(_profanity_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        patterns = {}
-        for lang, items in data.items():
-            words = []
-            for item in items:
-                if isinstance(item, str):
-                    # Legacy format: plain string (always enabled)
-                    words.append(item)
-                elif isinstance(item, dict):
-                    # New format: {"word": "...", "enabled": true/false}
-                    if item.get("enabled", True):
-                        words.append(item.get("word", ""))
-            words = [w for w in words if w]  # filter empty
-            if words:
-                pattern = r"\b(" + "|".join(re.escape(w) for w in words) + r")\b"
-                patterns[lang] = re.compile(pattern, re.IGNORECASE)
-        _profanity_patterns = patterns
-        logger.info("Profanity filter loaded: %s", ", ".join(f"{k} ({len(v)} words)" for k, v in data.items()))
-        return len(patterns)
+        _profanity_patterns = _compile_profanity_file(_profanity_path)
+        logger.info("Profanity filter loaded: %s", ", ".join(f"{k}" for k in _profanity_patterns))
+        return len(_profanity_patterns)
     except FileNotFoundError:
         logger.info("No profanity.json found — profanity filter disabled")
         _profanity_patterns = {}
@@ -190,9 +195,58 @@ def _load_profanity():
 _load_profanity()
 
 
-def _filter_profanity(text: str, target_lang: str) -> str:
+# ---------------------------------------------------------------------------
+# Per-request filter sets: named glossary/profanity files selected per session.
+# Cached by path, invalidated when the file's mtime changes. Missing/broken
+# files fall back to the global set (logged once per load attempt).
+# ---------------------------------------------------------------------------
+_filter_set_cache: dict = {}  # path -> (mtime, loaded object)
+
+
+def _load_cached_filter(path, loader):
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return None
+    entry = _filter_set_cache.get(path)
+    if entry is not None and entry[0] == mtime:
+        return entry[1]
+    try:
+        obj = loader(path)
+    except Exception as e:
+        logger.warning("Filter set load failed for %s: %s", path, e)
+        return None
+    _filter_set_cache[path] = (mtime, obj)
+    logger.info("Filter set loaded: %s", path)
+    return obj
+
+
+def _get_glossary(path):
+    """The glossary for a request: the named set at `path`, else the global one."""
+    if not path:
+        return glossary
+
+    def loader(p):
+        g = Glossary()
+        g.load(p)
+        return g
+
+    return _load_cached_filter(path, loader) or glossary
+
+
+def _get_profanity_patterns(path):
+    """The profanity patterns for a request: the named set at `path`, else global."""
+    if not path:
+        return _profanity_patterns
+    pats = _load_cached_filter(path, _compile_profanity_file)
+    return pats if pats is not None else _profanity_patterns
+
+
+def _filter_profanity(text: str, target_lang: str, patterns=None) -> str:
     """Replace profane words with [...] if a filter exists for the target language."""
-    pattern = _profanity_patterns.get(target_lang)
+    if patterns is None:
+        patterns = _profanity_patterns
+    pattern = patterns.get(target_lang)
     if not pattern:
         return text
     return pattern.sub("[...]", text)
@@ -292,6 +346,11 @@ class TranslateRequest(BaseModel):
     source_lang: str
     target_langs: list[str]
     no_cache: bool = False
+    # Optional per-session filter set ("" = the global files). Safe with the
+    # translation cache: glossary/profanity are applied AFTER the cached raw
+    # translation, so the cache key needs no filter component.
+    glossary_path: str = ""
+    profanity_path: str = ""
 
 
 class TranslateResponse(BaseModel):
@@ -304,6 +363,8 @@ class GlossaryApplyRequest(BaseModel):
     source_text: str
     source_lang: str                 # FLORES code, e.g. "cat_Latn"
     translations: dict[str, str]     # {target FLORES code: translated text}
+    glossary_path: str = ""          # optional per-session filter set
+    profanity_path: str = ""
 
 
 class LoadRequest(BaseModel):
@@ -379,19 +440,22 @@ def _reload_on_cpu():
         translator = None
 
 
-def _translate_to_targets(text: str, source_lang: str, target_langs: list[str], no_cache: bool = False) -> dict[str, str]:
+def _translate_to_targets(text: str, source_lang: str, target_langs: list[str], no_cache: bool = False,
+                          glossary_path: str = "", profanity_path: str = "") -> dict[str, str]:
     """Translate to all target languages, then apply glossary fixes."""
     global translator
     t_total = time.perf_counter()
     logger.info("[TRANSLATE] %s -> %s: %r", source_lang, target_langs, text)
+    gl = _get_glossary(glossary_path)
+    prof = _get_profanity_patterns(profanity_path)
     results = {}
     for tl in target_langs:
         try:
             translated = _translate_single(text, source_lang, tl, no_cache=no_cache)
-            after_glossary = glossary.apply(text, source_lang, tl, translated)
+            after_glossary = gl.apply(text, source_lang, tl, translated)
             if after_glossary != translated:
                 logger.info("[GLOSSARY] %s: %r -> %r", tl, translated, after_glossary)
-            filtered = _filter_profanity(after_glossary, tl)
+            filtered = _filter_profanity(after_glossary, tl, prof)
             if filtered != after_glossary:
                 logger.info("[PROFANITY] %s: %r -> %r", tl, after_glossary, filtered)
             _debug_logger.debug("[FINAL] %s: %r", tl, filtered)
@@ -405,10 +469,10 @@ def _translate_to_targets(text: str, source_lang: str, target_langs: list[str], 
                 if translator is not None:
                     try:
                         translated = _translate_single(text, source_lang, tl, no_cache=no_cache)
-                        after_glossary = glossary.apply(text, source_lang, tl, translated)
+                        after_glossary = gl.apply(text, source_lang, tl, translated)
                         if after_glossary != translated:
                             logger.info("[GLOSSARY] %s: %r -> %r", tl, translated, after_glossary)
-                        filtered = _filter_profanity(after_glossary, tl)
+                        filtered = _filter_profanity(after_glossary, tl, prof)
                         if filtered != after_glossary:
                             logger.info("[PROFANITY] %s: %r -> %r", tl, after_glossary, filtered)
                         results[tl] = filtered
@@ -436,7 +500,8 @@ async def translate(req: TranslateRequest):
     try:
         result = await asyncio.wait_for(
             loop.run_in_executor(
-                None, _translate_to_targets, req.text, req.source_lang, req.target_langs, req.no_cache
+                None, _translate_to_targets, req.text, req.source_lang, req.target_langs, req.no_cache,
+                req.glossary_path, req.profanity_path
             ),
             timeout=10.0,
         )
@@ -509,10 +574,12 @@ async def unload_model():
 async def apply_glossary(req: GlossaryApplyRequest):
     """Apply glossary + profanity fixups to already-translated text without running
     NLLB. For inline STT-engine translations (Speechmatics) that bypass /translate."""
+    gl = _get_glossary(req.glossary_path)
+    prof = _get_profanity_patterns(req.profanity_path)
     result: dict[str, str] = {}
     for target_lang, translated in req.translations.items():
-        fixed = glossary.apply(req.source_text, req.source_lang, target_lang, translated)
-        fixed = _filter_profanity(fixed, target_lang)
+        fixed = gl.apply(req.source_text, req.source_lang, target_lang, translated)
+        fixed = _filter_profanity(fixed, target_lang, prof)
         result[target_lang] = fixed
     return TranslateResponse(translations=result)
 
