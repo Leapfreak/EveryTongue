@@ -93,6 +93,7 @@ Namespace Services.Infrastructure
         Public Const CONF_COMMIT_DROPPED As Integer = 5008
         Public Const CONF_CLAUSE_LOCK As Integer = 5009
         Public Const CONF_CLAUSE_FRAGMENT As Integer = 5010
+        Public Const CONF_SPEAKER_SWITCHED As Integer = 5011
 
         ' ── Rooms (5100–5199) ──
         Public Const ROOM_CREATED As Integer = 5100
@@ -265,6 +266,7 @@ Namespace Services.Infrastructure
             R(CONF_COMMIT_DROPPED, LogCategory.Conference, LogSeverity.Debug, "Conference commit dropped (paused)")
             R(CONF_CLAUSE_LOCK, LogCategory.Conference, LogSeverity.Info, "Speechmatics clause locked (hold-and-lock diagnostics for tuning dials)")
             R(CONF_CLAUSE_FRAGMENT, LogCategory.Conference, LogSeverity.Debug, "Speechmatics clause fragment accumulated (inter-fragment gap trace)")
+            R(CONF_SPEAKER_SWITCHED, LogCategory.Conference, LogSeverity.Info, "Conference active speaker or connectivity mode changed")
 
             ' Rooms
             R(ROOM_CREATED, LogCategory.Rooms, LogSeverity.Info, "Room created")

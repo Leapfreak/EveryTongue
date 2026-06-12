@@ -44,6 +44,12 @@ Namespace Services.Rooms
         Public Property BeamSize As Integer = 7
         Public Property InitialPrompt As String = ""
         Public Property TemplateId As String = ""
+        ''' <summary>Active conference speaker (SpeakerProfile id; "" = the room template's own STT reference).</summary>
+        Public Property ActiveSpeakerId As String = ""
+        ''' <summary>Session connectivity mode ("online"/"offline") — gates which engines are eligible.</summary>
+        Public Property Mode As String = "online"
+        ''' <summary>Resolved Display template for this room (Nothing = app-global appearance, viewer defaults).</summary>
+        Public Property Display As Global.EveryTongue.Models.Templates.DisplayTemplate
         Public Property CreatedAt As DateTime = DateTime.Now
         Public Property IsActive As Boolean = True
         Public Property HostClientId As String

@@ -52,6 +52,14 @@ Partial Class FormTemplateManager
         Me.lblSttTemplate = New System.Windows.Forms.Label()
         Me.cboSttTemplate = New System.Windows.Forms.ComboBox()
         Me.btnManageSttTemplates = New System.Windows.Forms.Button()
+        Me.lblMode = New System.Windows.Forms.Label()
+        Me.cboMode = New System.Windows.Forms.ComboBox()
+        Me.lblSpeakers = New System.Windows.Forms.Label()
+        Me.clbSpeakers = New System.Windows.Forms.CheckedListBox()
+        Me.btnManageSpeakers = New System.Windows.Forms.Button()
+        Me.lblDisplayTpl = New System.Windows.Forms.Label()
+        Me.cboDisplayTpl = New System.Windows.Forms.ComboBox()
+        Me.btnManageDisplay = New System.Windows.Forms.Button()
         Me.btnSave = New System.Windows.Forms.Button()
         Me.btnCancelEdit = New System.Windows.Forms.Button()
         Me.grpDetail.SuspendLayout()
@@ -139,6 +147,14 @@ Partial Class FormTemplateManager
         Me.grpDetail.Controls.Add(Me.btnManageSttTemplates)
         Me.grpDetail.Controls.Add(Me.cboSttTemplate)
         Me.grpDetail.Controls.Add(Me.lblSttTemplate)
+        Me.grpDetail.Controls.Add(Me.lblMode)
+        Me.grpDetail.Controls.Add(Me.cboMode)
+        Me.grpDetail.Controls.Add(Me.lblSpeakers)
+        Me.grpDetail.Controls.Add(Me.clbSpeakers)
+        Me.grpDetail.Controls.Add(Me.btnManageSpeakers)
+        Me.grpDetail.Controls.Add(Me.lblDisplayTpl)
+        Me.grpDetail.Controls.Add(Me.cboDisplayTpl)
+        Me.grpDetail.Controls.Add(Me.btnManageDisplay)
         Me.grpDetail.Controls.Add(Me.cboModel)
         Me.grpDetail.Controls.Add(Me.lblModelPath)
         Me.grpDetail.Controls.Add(Me.btnRefreshDevices)
@@ -164,7 +180,7 @@ Partial Class FormTemplateManager
         Me.grpDetail.Controls.Add(Me.lblName)
         Me.grpDetail.Location = New System.Drawing.Point(12, 180)
         Me.grpDetail.Name = "grpDetail"
-        Me.grpDetail.Size = New System.Drawing.Size(556, 314)
+        Me.grpDetail.Size = New System.Drawing.Size(556, 462)
         Me.grpDetail.TabIndex = 5
         Me.grpDetail.TabStop = False
         Me.grpDetail.Text = "Template Details"
@@ -398,9 +414,73 @@ Partial Class FormTemplateManager
         Me.btnManageSttTemplates.Text = "Manage..."
         Me.btnManageSttTemplates.UseVisualStyleBackColor = True
         '
+        ' lblMode — Online/Offline gate for sessions from this template
+        '
+        Me.lblMode.AutoSize = True
+        Me.lblMode.Location = New System.Drawing.Point(350, 136)
+        Me.lblMode.Name = "lblMode"
+        Me.lblMode.Text = "Mode"
+        '
+        ' cboMode
+        '
+        Me.cboMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboMode.Location = New System.Drawing.Point(440, 133)
+        Me.cboMode.Name = "cboMode"
+        Me.cboMode.Size = New System.Drawing.Size(90, 23)
+        Me.cboMode.TabIndex = 30
+        '
+        ' lblSpeakers
+        '
+        Me.lblSpeakers.AutoSize = True
+        Me.lblSpeakers.Location = New System.Drawing.Point(12, 252)
+        Me.lblSpeakers.Name = "lblSpeakers"
+        Me.lblSpeakers.Text = "Speakers"
+        '
+        ' clbSpeakers — checked = participates in sessions from this template
+        '
+        Me.clbSpeakers.CheckOnClick = True
+        Me.clbSpeakers.IntegralHeight = False
+        Me.clbSpeakers.Location = New System.Drawing.Point(130, 250)
+        Me.clbSpeakers.Name = "clbSpeakers"
+        Me.clbSpeakers.Size = New System.Drawing.Size(300, 105)
+        Me.clbSpeakers.TabIndex = 31
+        '
+        ' btnManageSpeakers
+        '
+        Me.btnManageSpeakers.Location = New System.Drawing.Point(440, 250)
+        Me.btnManageSpeakers.Name = "btnManageSpeakers"
+        Me.btnManageSpeakers.Size = New System.Drawing.Size(90, 25)
+        Me.btnManageSpeakers.TabIndex = 32
+        Me.btnManageSpeakers.Text = "Manage..."
+        Me.btnManageSpeakers.UseVisualStyleBackColor = True
+        '
+        ' lblDisplayTpl — Display template reference (Phase 7)
+        '
+        Me.lblDisplayTpl.AutoSize = True
+        Me.lblDisplayTpl.Location = New System.Drawing.Point(12, 368)
+        Me.lblDisplayTpl.Name = "lblDisplayTpl"
+        Me.lblDisplayTpl.Text = "Display"
+        '
+        ' cboDisplayTpl
+        '
+        Me.cboDisplayTpl.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboDisplayTpl.Location = New System.Drawing.Point(130, 365)
+        Me.cboDisplayTpl.Name = "cboDisplayTpl"
+        Me.cboDisplayTpl.Size = New System.Drawing.Size(300, 23)
+        Me.cboDisplayTpl.TabIndex = 33
+        '
+        ' btnManageDisplay
+        '
+        Me.btnManageDisplay.Location = New System.Drawing.Point(440, 364)
+        Me.btnManageDisplay.Name = "btnManageDisplay"
+        Me.btnManageDisplay.Size = New System.Drawing.Size(90, 25)
+        Me.btnManageDisplay.TabIndex = 34
+        Me.btnManageDisplay.Text = "Manage..."
+        Me.btnManageDisplay.UseVisualStyleBackColor = True
+        '
         ' btnSave
         '
-        Me.btnSave.Location = New System.Drawing.Point(350, 264)
+        Me.btnSave.Location = New System.Drawing.Point(350, 412)
         Me.btnSave.Name = "btnSave"
         Me.btnSave.Size = New System.Drawing.Size(90, 30)
         Me.btnSave.TabIndex = 24
@@ -409,7 +489,7 @@ Partial Class FormTemplateManager
         '
         ' btnCancelEdit
         '
-        Me.btnCancelEdit.Location = New System.Drawing.Point(446, 264)
+        Me.btnCancelEdit.Location = New System.Drawing.Point(446, 412)
         Me.btnCancelEdit.Name = "btnCancelEdit"
         Me.btnCancelEdit.Size = New System.Drawing.Size(90, 30)
         Me.btnCancelEdit.TabIndex = 25
@@ -421,7 +501,7 @@ Partial Class FormTemplateManager
         Me.AcceptButton = Me.btnClose
         Me.AutoScaleDimensions = New System.Drawing.SizeF(7.0!, 15.0!)
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
-        Me.ClientSize = New System.Drawing.Size(580, 532)
+        Me.ClientSize = New System.Drawing.Size(580, 678)
         Me.Controls.Add(Me.grpDetail)
         Me.Controls.Add(Me.btnClose)
         Me.Controls.Add(Me.btnDelete)
@@ -479,6 +559,14 @@ Partial Class FormTemplateManager
     Friend WithEvents lblSttTemplate As System.Windows.Forms.Label
     Friend WithEvents cboSttTemplate As System.Windows.Forms.ComboBox
     Friend WithEvents btnManageSttTemplates As System.Windows.Forms.Button
+    Friend WithEvents lblMode As System.Windows.Forms.Label
+    Friend WithEvents cboMode As System.Windows.Forms.ComboBox
+    Friend WithEvents lblSpeakers As System.Windows.Forms.Label
+    Friend WithEvents clbSpeakers As System.Windows.Forms.CheckedListBox
+    Friend WithEvents btnManageSpeakers As System.Windows.Forms.Button
+    Friend WithEvents lblDisplayTpl As System.Windows.Forms.Label
+    Friend WithEvents cboDisplayTpl As System.Windows.Forms.ComboBox
+    Friend WithEvents btnManageDisplay As System.Windows.Forms.Button
     Friend WithEvents btnSave As System.Windows.Forms.Button
     Friend WithEvents btnCancelEdit As System.Windows.Forms.Button
 

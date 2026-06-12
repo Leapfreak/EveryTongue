@@ -38,7 +38,7 @@ var T={connecting:'Connecting...',connected:'Connected',disconnected:'Disconnect
     bold:'Bold',font:'Font',style:'Style',voice:'Voice',speed:'Speed',color:'Text Color',
     slow:'Slow',normal:'Normal',fast:'Fast',vfast:'Very Fast',
     start:'Start',stop:'Stop',restart:'Restart',clear:'Clear',
-    saveTranscript:'Save Transcript',transLang:'Translation',remote:'Remote Control',settings:'Settings',readAloud:'Read aloud',keepScreen:'Keep screen on',scrollDir:'Scroll Direction',scrollUp:'Bottom-up (newest at bottom)',scrollDown:'Top-down (newest at top)',tags:'Tags',tagOff:'Off',tagLang:'Language',tagTime:'Time',tagBoth:'Language + Time',bible:'Bible',bibleOT:'Old Testament',bibleNT:'New Testament',bibleSearch:'Search',bibleNoResults:'No results found',bibleSelectTrans:'Select a translation',cloudVoice:'Every Tongue Voices',ttsBehind:'{0} behind \u2014 tap to skip',readAll:'Read All',readVerse:'Read',bibleTranslate:'Translate',bibleOriginal:'Original',chooseLang:'Choose your language',lpPopular:'Popular',lpAll:'All Languages',searchLangs:'Search languages...',noTranslation:'No translation',browseAll:'Browse All',adminLabel:'Administrator',adminPin:'PIN',adminBad:'Invalid PIN',adminOk:'Admin access granted'};
+    saveTranscript:'Save Transcript',transLang:'Translation',remote:'Remote Control',settings:'Settings',readAloud:'Read aloud',keepScreen:'Keep screen on',scrollDir:'Scroll Direction',scrollUp:'Bottom-up (newest at bottom)',scrollDown:'Top-down (newest at top)',tags:'Tags',tagOff:'Off',tagLang:'Language',tagTime:'Time',tagBoth:'Language + Time',bible:'Bible',bibleOT:'Old Testament',bibleNT:'New Testament',bibleSearch:'Search',bibleNoResults:'No results found',bibleSelectTrans:'Select a translation',cloudVoice:'Every Tongue Voices',ttsBehind:'{0} behind \u2014 tap to skip',readAll:'Read All',readVerse:'Read',bibleTranslate:'Translate',bibleOriginal:'Original',hostSpeaker:'Speaker',hostSpeakerDefault:'(template default)',hostMode:'Connectivity',hostModeOnline:'Online',hostModeOffline:'Offline',chooseLang:'Choose your language',lpPopular:'Popular',lpAll:'All Languages',searchLangs:'Search languages...',noTranslation:'No translation',browseAll:'Browse All',adminLabel:'Administrator',adminPin:'PIN',adminBad:'Invalid PIN',adminOk:'Admin access granted'};
 /* Detect browser language and fetch matching server-side locale */
 var detectedBrowserLang='';
 (function(){
@@ -166,6 +166,7 @@ function renderLangList(query){
     var popLabel=document.createElement('div');popLabel.className='lp-section-label';
     popLabel.textContent=t('lpPopular');list.appendChild(popLabel);
     for(var p=0;p<POPULAR_LANGS.length;p++){
+      if(!isLangOffered(POPULAR_LANGS[p]))continue;
       for(var j=0;j<LANGS.length;j++){
         if(LANGS[j][0]===POPULAR_LANGS[p]){list.appendChild(createLangItem(LANGS[j]));break}
       }
@@ -175,6 +176,7 @@ function renderLangList(query){
   }
   for(var i=0;i<LANGS.length;i++){
     var l=LANGS[i];
+    if(!isLangOffered(l[0]))continue;
     if(q&&l[1].toLowerCase().indexOf(q)===-1&&l[2].toLowerCase().indexOf(q)===-1&&l[0].toLowerCase().indexOf(q)===-1)continue;
     list.appendChild(createLangItem(l));
   }
@@ -241,6 +243,7 @@ function populateTransLangSelect(){
   var sel=document.getElementById('transLangSelect');
   sel.innerHTML='';
   for(var i=0;i<LANGS.length;i++){
+    if(!isLangOffered(LANGS[i][0]))continue;
     var opt=document.createElement('option');opt.value=LANGS[i][0];
     opt.textContent=LANGS[i][1]+' ('+LANGS[i][2]+')';
     sel.appendChild(opt);
@@ -1547,6 +1550,39 @@ var roomMaxSegSec=15;
 var roomVadMs=800;
 var roomBeamSize=7;
 var roomPrompt='';
+var roomSpeakers=[];
+var roomActiveSpeakerId='';
+var roomMode='online';
+var roomDisplay=null; /* per-room display template: {bgColor,fgColor,fontFamily,fontBold,offeredLanguages,...} */
+
+/* Language offered in this room? (no display template / empty list = all) */
+function isLangOffered(code){
+  if(!roomDisplay||!roomDisplay.offeredLanguages||roomDisplay.offeredLanguages.length===0)return true;
+  for(var i=0;i<roomDisplay.offeredLanguages.length;i++){
+    if(roomDisplay.offeredLanguages[i]===code)return true;
+  }
+  return false;
+}
+
+/* Apply the room's display template to the subtitle view.
+   Deliberately does NOT touch fontSize — that stays a per-device preference. */
+function applyRoomDisplay(){
+  if(!roomDisplay)return;
+  try{
+    var cont=document.getElementById('container');
+    var lns=document.getElementById('lines');
+    if(roomDisplay.bgColor){
+      document.body.style.background=roomDisplay.bgColor;
+      if(cont)cont.style.background=roomDisplay.bgColor;
+    }
+    if(lns){
+      if(roomDisplay.fgColor)lns.style.color=roomDisplay.fgColor;
+      if(roomDisplay.fontFamily)lns.style.fontFamily=roomDisplay.fontFamily;
+      if(roomDisplay.fontBold)lns.style.fontWeight='600';
+    }
+    LOG('applyRoomDisplay: bg='+roomDisplay.bgColor+' fg='+roomDisplay.fgColor+' offered='+(roomDisplay.offeredLanguages||[]).length);
+  }catch(e){LOG('applyRoomDisplay error: '+e)}
+}
 
 function initPushToTalk(){
   var roomMatch=location.search.match(/[?&]room=([^&]+)/);
@@ -1579,6 +1615,16 @@ function initPushToTalk(){
         roomVadMs=room.vadSilenceMs||800;
         roomBeamSize=room.beamSize||7;
         roomPrompt=room.initialPrompt||'';
+        roomSpeakers=room.speakers||[];
+        roomActiveSpeakerId=room.activeSpeakerId||'';
+        roomMode=room.mode||'online';
+        roomDisplay=room.display||null;
+        applyRoomDisplay();
+        if(roomDisplay&&roomDisplay.offeredLanguages&&roomDisplay.offeredLanguages.length>0){
+          populateTransLangSelect();
+          var lpOpen=document.getElementById('langPicker');
+          if(lpOpen&&lpOpen.classList.contains('open'))renderLangList('');
+        }
         if(room.isHost){isHost=true;showHostControls()}
         /* Conversation: everyone gets PTT. Conference: no mic (audio from desktop). */
         if(pttRoomType==='conversation'){
@@ -2064,8 +2110,26 @@ function toggleHostPanel(){
 
   /* Pipeline controls for conference rooms */
   if(pttRoomType==='conference'){
+    /* Speaker selector — only when the room's template defines speakers */
+    var spkHtml='';
+    if(roomSpeakers.length>0){
+      spkHtml='<label style="color:#888;font-size:11px">'+t('hostSpeaker')+'</label>'+
+        '<select id="hcSpeaker" style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:13px;margin-bottom:8px;box-sizing:border-box">'+
+        '<option value="">'+t('hostSpeakerDefault')+'</option>';
+      for(var si=0;si<roomSpeakers.length;si++){
+        var sp=roomSpeakers[si];
+        spkHtml+='<option value="'+sp.id+'"'+(sp.id===roomActiveSpeakerId?' selected':'')+'>'+sp.name+'</option>';
+      }
+      spkHtml+='</select>';
+    }
+    var modeHtml='<label style="color:#888;font-size:11px">'+t('hostMode')+'</label>'+
+      '<select id="hcMode" style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:13px;margin-bottom:8px;box-sizing:border-box">'+
+      '<option value="online"'+(roomMode!=='offline'?' selected':'')+'>'+t('hostModeOnline')+'</option>'+
+      '<option value="offline"'+(roomMode==='offline'?' selected':'')+'>'+t('hostModeOffline')+'</option>'+
+      '</select>';
     var pipeHtml='<div style="border-top:1px solid #444;margin-top:12px;padding-top:12px">'+
       '<div style="color:#aaa;font-size:12px;font-weight:600;margin-bottom:8px">Pipeline</div>'+
+      spkHtml+modeHtml+
       '<label style="color:#888;font-size:11px">Speaker Language</label>'+
       '<select id="hcPipeLang" style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:13px;margin-bottom:8px;box-sizing:border-box">'+
       '<option value="auto">Auto Detect</option>'+
@@ -2191,6 +2255,11 @@ function toggleHostPanel(){
       if(vd)params.vadSilenceMs=parseInt(vd.value,10);
       var bm=document.getElementById('hcBeam');
       if(bm)params.beamSize=parseInt(bm.value,10);
+      /* Speaker + mode: only send when changed (each change restarts the backend) */
+      var spSel=document.getElementById('hcSpeaker');
+      if(spSel&&spSel.value!==roomActiveSpeakerId)params.speakerId=spSel.value;
+      var mdSel=document.getElementById('hcMode');
+      if(mdSel&&mdSel.value!==roomMode)params.mode=mdSel.value;
       var st=document.getElementById('hcPipeStatus');
       if(st)st.textContent='Applying...';
       var xhr=new XMLHttpRequest();
@@ -2199,7 +2268,7 @@ function toggleHostPanel(){
       xhr.onload=function(){
         try{
           var res=JSON.parse(xhr.responseText);
-          if(res.ok){if(st)st.textContent='Applied ('+res.changed+' params)';st.style.color='#4f4';if(params.language)roomSourceLang=params.language;if(params.maxSegmentSec)roomMaxSegSec=params.maxSegmentSec;if(params.vadSilenceMs)roomVadMs=params.vadSilenceMs;if(params.beamSize)roomBeamSize=params.beamSize}
+          if(res.ok){if(st)st.textContent='Applied ('+res.changed+' params)';st.style.color='#4f4';if(params.language)roomSourceLang=params.language;if(params.maxSegmentSec)roomMaxSegSec=params.maxSegmentSec;if(params.vadSilenceMs)roomVadMs=params.vadSilenceMs;if(params.beamSize)roomBeamSize=params.beamSize;if(params.speakerId!==undefined)roomActiveSpeakerId=params.speakerId;if(params.mode)roomMode=params.mode}
           else{if(st){st.textContent=res.error||'Failed';st.style.color='#f44'}}
         }catch(e){if(st){st.textContent='Error';st.style.color='#f44'}}
       };

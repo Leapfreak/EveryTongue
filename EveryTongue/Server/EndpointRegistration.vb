@@ -266,6 +266,37 @@ Namespace Server
             End Set
         End Property
 
+        ''' <summary>Speaker list for a room's host panel: the room template's speaker refs resolved to {id, name}.</summary>
+        Private Function SpeakerListFor(room As Services.Rooms.Room) As Object()
+            Try
+                Dim tpl = Services.Rooms.TemplateStore.Instance?.GetById(If(room.TemplateId, ""))
+                If tpl?.SpeakerProfileIds Is Nothing Then Return Array.Empty(Of Object)()
+                Dim list As New List(Of Object)
+                For Each spId In tpl.SpeakerProfileIds
+                    Dim sp = Services.Config.TemplateLibraryStore.Instance.GetSpeakerProfile(spId)
+                    If sp IsNot Nothing Then list.Add(New With {.id = sp.Id, .name = sp.Name})
+                Next
+                Return list.ToArray()
+            Catch
+                Return Array.Empty(Of Object)()
+            End Try
+        End Function
+
+        ''' <summary>The room's resolved Display template for web clients (Nothing = viewer defaults).</summary>
+        Private Function DisplayFor(room As Services.Rooms.Room) As Object
+            Dim d = room.Display
+            If d Is Nothing Then Return Nothing
+            Return New With {
+                .bgColor = d.BgColor,
+                .fgColor = d.FgColor,
+                .fontFamily = d.FontFamily,
+                .fontSize = d.FontSize,
+                .fontBold = d.FontBold,
+                .layout = d.Layout,
+                .offeredLanguages = If(d.OfferedLanguages, New List(Of String)).ToArray()
+            }
+        End Function
+
         Private Sub MapControlEndpoint(app As IEndpointRouteBuilder)
 
             ' Admin remote control — /api/control?action=start|stop|restart|clear|status|tune|setsliders
@@ -582,7 +613,11 @@ Namespace Server
                                                    .maxSegmentSec = room.MaxSegmentSec,
                                                    .vadSilenceMs = room.VadSilenceMs,
                                                    .beamSize = room.BeamSize,
-                                                   .initialPrompt = room.InitialPrompt
+                                                   .initialPrompt = room.InitialPrompt,
+                                                   .activeSpeakerId = room.ActiveSpeakerId,
+                                                   .mode = room.Mode,
+                                                   .speakers = SpeakerListFor(room),
+                                                   .display = DisplayFor(room)
                                                })
                                            End Function)
 
@@ -1055,8 +1090,11 @@ Namespace Server
                                                                  hostClientId,
                                                                  templateId)
 
-                                                             ' Set source language from template
+                                                             ' Set source language + connectivity mode + display from template
                                                              room.SourceLang = If(template.SourceLanguage, "auto")
+                                                             room.Mode = If(template.Mode = Models.Templates.ConnectivityMode.Offline, "offline", "online")
+                                                             room.Display = Services.Config.TemplateLibraryStore.Instance.GetDisplayTemplate(
+                                                                 If(template.DisplayTemplateId, ""))
 
                                                              context.Response.StatusCode = 201
                                                              Await context.Response.WriteAsJsonAsync(New With {
@@ -1127,6 +1165,10 @@ Namespace Server
                                                           If root.TryGetProperty("vadSilenceMs", vadProp) Then params("vadSilenceMs") = vadProp.GetInt32()
                                                           If root.TryGetProperty("beamSize", beamProp) Then params("beamSize") = beamProp.GetInt32()
                                                           If root.TryGetProperty("initialPrompt", promptProp) Then params("initialPrompt") = promptProp.GetString()
+                                                          Dim speakerProp As JsonElement = Nothing
+                                                          Dim modeProp As JsonElement = Nothing
+                                                          If root.TryGetProperty("speakerId", speakerProp) Then params("speakerId") = If(speakerProp.GetString(), "")
+                                                          If root.TryGetProperty("mode", modeProp) Then params("mode") = If(modeProp.GetString(), "")
 
                                                           If params.Count = 0 Then
                                                               Await context.Response.WriteAsJsonAsync(New With {.ok = True, .changed = 0})

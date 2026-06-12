@@ -154,12 +154,21 @@ Namespace Controllers
             Dim port = _nextConferencePort
             _nextConferencePort += 1
 
-            ' Prefer the referenced STT library template; legacy embedded knobs are
-            ' the fallback for configs that haven't migrated.
-            Dim engineTpl = TemplateLibraryStore.Instance.GetEngineTemplate(
-                TemplateLibraryStore.GroupStt, If(template.SttTemplateId, ""))
+            ' STT template: active speaker's slot (gated by room mode) wins, else
+            ' the room template's reference; legacy embedded knobs are the fallback
+            ' for configs that haven't migrated.
+            Dim engineTpl = ResolveRoomSttTemplate(roomId, template)
             Dim backendKey = If(engineTpl IsNot Nothing AndAlso Not String.IsNullOrEmpty(engineTpl.EngineKey),
                                 engineTpl.EngineKey, If(template.SttBackendKey, _config.SttBackend))
+
+            ' Fail closed: never start an engine the room's mode makes ineligible.
+            Dim roomForGate = _getRoomManager()?.GetRoom(roomId)
+            If Not ConnectivityGate.IsEngineEligible(TemplateLibraryStore.GroupStt, backendKey, RoomMode(roomForGate)) Then
+                AppLogger.Log(LogEvents.CONFIG_GATE_DECISION,
+                    $"[Conference:{roomId}] room start blocked — engine '{backendKey}' is not eligible in {RoomMode(roomForGate)} mode")
+                _log($"[Conference] Backend NOT started for room {roomId}: engine '{backendKey}' blocked by {RoomMode(roomForGate)} mode")
+                Return
+            End If
 
             Dim tplOverrides = BuildSttOverrides(template, engineTpl, Nothing)
             tplOverrides("WhisperServerPort") = _nextWhisperServerPort
@@ -251,6 +260,10 @@ Namespace Controllers
                     Case "initialPrompt"
                         needsRestart = True
                         If room IsNot Nothing Then room.InitialPrompt = CStr(kvp.Value)
+                    Case "speakerId"
+                        If TrySwitchSpeaker(roomId, room, CStr(kvp.Value)) Then needsRestart = True
+                    Case "mode"
+                        If TrySwitchMode(roomId, room, CStr(kvp.Value)) Then needsRestart = True
                 End Select
             Next
 
@@ -303,8 +316,7 @@ Namespace Controllers
                 cfgLang = template.SourceLanguage
             End If
 
-            Dim engineTpl = TemplateLibraryStore.Instance.GetEngineTemplate(
-                TemplateLibraryStore.GroupStt, If(template?.SttTemplateId, ""))
+            Dim engineTpl = ResolveRoomSttTemplate(roomId, template)
             Dim restartBackendKey = If(engineTpl IsNot Nothing AndAlso Not String.IsNullOrEmpty(engineTpl.EngineKey),
                                        engineTpl.EngineKey, If(template?.SttBackendKey, _config.SttBackend))
 
@@ -764,6 +776,111 @@ Namespace Controllers
         End Sub
 
         ' ─── Speechmatics clause hold-and-lock ───────────────────────────
+
+        ' ─── Speakers + Online/Offline gate (runtime) ─────────────────────
+
+        ''' <summary>The room's connectivity mode ("offline" → Offline, anything else → Online).</summary>
+        Private Function RoomMode(room As Services.Rooms.Room) As Models.Templates.ConnectivityMode
+            If room IsNot Nothing AndAlso "offline".Equals(If(room.Mode, ""), StringComparison.OrdinalIgnoreCase) Then
+                Return Models.Templates.ConnectivityMode.Offline
+            End If
+            Return Models.Templates.ConnectivityMode.Online
+        End Function
+
+        ''' <summary>
+        ''' The STT engine template a room should run on: the active speaker's slot
+        ''' for the room's mode wins; otherwise the room template's own reference.
+        ''' Both are gate-checked — an ineligible template resolves to Nothing
+        ''' (caller falls back to legacy embeds / fails closed; never auto-swapped).
+        ''' </summary>
+        Private Function ResolveRoomSttTemplate(roomId As String, template As ConferenceTemplate) As Models.Templates.EngineTemplate
+            Dim store = TemplateLibraryStore.Instance
+            Dim room = _getRoomManager()?.GetRoom(roomId)
+            Dim mode = RoomMode(room)
+            Dim ctx = $"[Conference:{roomId}]"
+
+            If room IsNot Nothing AndAlso Not String.IsNullOrEmpty(room.ActiveSpeakerId) Then
+                Dim sp = store.GetSpeakerProfile(room.ActiveSpeakerId)
+                Dim slotId = ConnectivityGate.SelectSpeakerSttTemplateId(sp, mode)
+                If Not String.IsNullOrEmpty(slotId) Then
+                    Dim slotTpl = ConnectivityGate.GateTemplate(
+                        TemplateLibraryStore.GroupStt, store.GetEngineTemplate(TemplateLibraryStore.GroupStt, slotId), mode, ctx)
+                    If slotTpl IsNot Nothing Then Return slotTpl
+                End If
+                AppLogger.Log(LogEvents.CONFIG_GATE_DECISION,
+                    $"{ctx} speaker '{sp?.Name}' has no eligible STT template for mode={mode} — using the room template's reference")
+            End If
+
+            Return ConnectivityGate.GateTemplate(
+                TemplateLibraryStore.GroupStt,
+                store.GetEngineTemplate(TemplateLibraryStore.GroupStt, If(template?.SttTemplateId, "")), mode, ctx)
+        End Function
+
+        ''' <summary>Validate + apply a host speaker change. Returns True when a restart should follow.</summary>
+        Private Function TrySwitchSpeaker(roomId As String, room As Services.Rooms.Room, speakerId As String) As Boolean
+            If room Is Nothing Then Return False
+            If String.Equals(If(speakerId, ""), If(room.ActiveSpeakerId, ""), StringComparison.Ordinal) Then Return False
+            If String.IsNullOrEmpty(speakerId) Then
+                If String.IsNullOrEmpty(room.ActiveSpeakerId) Then Return False
+                room.ActiveSpeakerId = ""
+                AppLogger.Log(LogEvents.CONF_SPEAKER_SWITCHED, $"room={roomId} speaker cleared (template default)")
+                Return True
+            End If
+
+            Dim sp = TemplateLibraryStore.Instance.GetSpeakerProfile(speakerId)
+            If sp Is Nothing Then
+                AppLogger.Log(LogEvents.CONF_SPEAKER_SWITCHED, $"room={roomId} speaker '{speakerId}' not found — ignored")
+                Return False
+            End If
+
+            ' Pre-validate: the speaker must have an eligible STT template for the
+            ' room's current mode — no auto-fallback, so reject up front.
+            Dim mode = RoomMode(room)
+            Dim slotId = ConnectivityGate.SelectSpeakerSttTemplateId(sp, mode)
+            Dim slotTpl = If(String.IsNullOrEmpty(slotId), Nothing,
+                ConnectivityGate.GateTemplate(TemplateLibraryStore.GroupStt,
+                    TemplateLibraryStore.Instance.GetEngineTemplate(TemplateLibraryStore.GroupStt, slotId),
+                    mode, $"[Conference:{roomId}]"))
+            If slotTpl Is Nothing Then
+                AppLogger.Log(LogEvents.CONFIG_GATE_DECISION,
+                    $"[Conference:{roomId}] speaker switch to '{sp.Name}' rejected — no eligible STT template for mode={mode}")
+                Return False
+            End If
+
+            room.ActiveSpeakerId = speakerId
+            AppLogger.Log(LogEvents.CONF_SPEAKER_SWITCHED,
+                $"room={roomId} speaker → '{sp.Name}' ({speakerId}), stt template '{slotTpl.Name}' [{slotTpl.EngineKey}], mode={mode}")
+            Return True
+        End Function
+
+        ''' <summary>Validate + apply a host mode change. Rejects when nothing would be eligible under the new mode.</summary>
+        Private Function TrySwitchMode(roomId As String, room As Services.Rooms.Room, modeStr As String) As Boolean
+            If room Is Nothing Then Return False
+            Dim newModeStr = If("offline".Equals(If(modeStr, ""), StringComparison.OrdinalIgnoreCase), "offline", "online")
+            If newModeStr.Equals(If(room.Mode, "online"), StringComparison.OrdinalIgnoreCase) Then Return False
+
+            ' Pre-validate the restart under the new mode before committing to it:
+            ' the room must end up with SOME eligible engine (template or speaker
+            ' slot) — otherwise reject and stay on the current mode.
+            Dim previous = room.Mode
+            room.Mode = newModeStr
+            Dim tplId As String = Nothing
+            _roomTemplateIds.TryGetValue(roomId, tplId)
+            Dim template = _config.ConferenceTemplates.FirstOrDefault(Function(t) t.Id = tplId)
+            Dim resolved = ResolveRoomSttTemplate(roomId, template)
+            Dim fallbackKey = If(template?.SttBackendKey, _config.SttBackend)
+            Dim eligible = resolved IsNot Nothing OrElse
+                ConnectivityGate.IsEngineEligible(TemplateLibraryStore.GroupStt, fallbackKey, RoomMode(room))
+            If Not eligible Then
+                room.Mode = previous
+                AppLogger.Log(LogEvents.CONFIG_GATE_DECISION,
+                    $"[Conference:{roomId}] mode change to {newModeStr} rejected — no eligible STT engine (speaker slot or template) for that mode")
+                Return False
+            End If
+
+            AppLogger.Log(LogEvents.CONF_SPEAKER_SWITCHED, $"room={roomId} mode → {newModeStr}")
+            Return True
+        End Function
 
         ''' <summary>The STT backend key for a room (template override, else global config).</summary>
         Private Function RoomBackendKey(roomId As String) As String

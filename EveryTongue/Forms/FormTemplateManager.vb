@@ -40,6 +40,15 @@ Public Class FormTemplateManager
         lblModelPath.Text = lp.GetString("Tmpl_ModelPath")
         lblSttTemplate.Text = lp.GetString("Tmpl_SttTemplate")
         btnManageSttTemplates.Text = lp.GetString("Tmpl_ManageSttTemplates")
+        lblMode.Text = lp.GetString("Tmpl_Mode")
+        lblSpeakers.Text = lp.GetString("Tmpl_Speakers")
+        btnManageSpeakers.Text = lp.GetString("Tmpl_ManageSttTemplates")
+        lblDisplayTpl.Text = lp.GetString("Tmpl_DisplayTemplate")
+        btnManageDisplay.Text = lp.GetString("Tmpl_ManageSttTemplates")
+        cboMode.Items.Clear()
+        cboMode.Items.Add(lp.GetString("Tmpl_ModeOnline"))
+        cboMode.Items.Add(lp.GetString("Tmpl_ModeOffline"))
+        cboMode.SelectedIndex = 0
         colName.Text = lp.GetString("Tmpl_Name")
         colHostingCode.Text = lp.GetString("Tmpl_HostingCode")
         colLanguage.Text = lp.GetString("Tmpl_SourceLang")
@@ -341,6 +350,49 @@ Public Class FormTemplateManager
         cboVisibility.SelectedIndex = If(visIdx >= 0, visIdx, 0)
 
         PopulateSttTemplateCombo(t)
+
+        cboMode.SelectedIndex = If(t.Mode = Models.Templates.ConnectivityMode.Offline, 1, 0)
+        PopulateSpeakerChecklist(t)
+        PopulateDisplayCombo(t)
+    End Sub
+
+    ''' <summary>"(app default)" + the Display template library.</summary>
+    Private Sub PopulateDisplayCombo(t As ConferenceTemplate)
+        cboDisplayTpl.Items.Clear()
+        cboDisplayTpl.Items.Add(New SttTemplateItem(
+            LanguagePackService.Instance.GetString("Tmpl_DisplayDefault"), ""))
+        Dim found = 0
+        For Each d In Services.Config.TemplateLibraryStore.Instance.GetDisplayTemplates()
+            cboDisplayTpl.Items.Add(New SttTemplateItem(d.Name, d.Id))
+            If d.Id = If(t.DisplayTemplateId, "") Then found = cboDisplayTpl.Items.Count - 1
+        Next
+        cboDisplayTpl.SelectedIndex = found
+    End Sub
+
+    Private Sub btnManageDisplay_Click(sender As Object, e As EventArgs) Handles btnManageDisplay.Click
+        Using frm As New FormDisplayTemplates()
+            frm.Icon = Me.Icon
+            frm.ShowDialog(Me)
+        End Using
+        If _editingTemplate IsNot Nothing Then PopulateDisplayCombo(_editingTemplate)
+    End Sub
+
+    ''' <summary>All speaker profiles, checked when referenced by this template.</summary>
+    Private Sub PopulateSpeakerChecklist(t As ConferenceTemplate)
+        clbSpeakers.Items.Clear()
+        Dim refs = If(t.SpeakerProfileIds, New List(Of String))
+        For Each sp In Services.Config.TemplateLibraryStore.Instance.GetSpeakerProfiles()
+            Dim idx = clbSpeakers.Items.Add(New SttTemplateItem(sp.Name, sp.Id))
+            clbSpeakers.SetItemChecked(idx, refs.Contains(sp.Id))
+        Next
+    End Sub
+
+    Private Sub btnManageSpeakers_Click(sender As Object, e As EventArgs) Handles btnManageSpeakers.Click
+        Using frm As New FormSpeakerProfiles()
+            frm.Icon = Me.Icon
+            frm.ShowDialog(Me)
+        End Using
+        If _editingTemplate IsNot Nothing Then PopulateSpeakerChecklist(_editingTemplate)
     End Sub
 
     ''' <summary>
@@ -434,6 +486,16 @@ Public Class FormTemplateManager
         Dim selModel = TryCast(cboModel.SelectedItem, ModelItem)
         t.ModelPath = If(selModel IsNot Nothing, selModel.Path, "")
         t.DefaultVisibility = If(cboVisibility.SelectedItem IsNot Nothing, cboVisibility.SelectedItem.ToString(), "public")
+
+        t.Mode = If(cboMode.SelectedIndex = 1,
+            Models.Templates.ConnectivityMode.Offline, Models.Templates.ConnectivityMode.Online)
+        t.SpeakerProfileIds = New List(Of String)
+        For Each idx In clbSpeakers.CheckedIndices.Cast(Of Integer)()
+            Dim item = TryCast(clbSpeakers.Items(idx), SttTemplateItem)
+            If item IsNot Nothing Then t.SpeakerProfileIds.Add(item.Id)
+        Next
+        Dim dispItem = TryCast(cboDisplayTpl.SelectedItem, SttTemplateItem)
+        t.DisplayTemplateId = If(dispItem?.Id, "")
     End Sub
 
     Private Sub SaveAndSync()

@@ -51,6 +51,7 @@ Public Class FormOptions
         treeNav.Nodes("hardware").Text = langPack.GetString("Opt_NavHardware")
         treeNav.Nodes("advanced").Text = langPack.GetString("Opt_NavAdvanced")
         btnManageSttTemplatesOpt.Text = langPack.GetString("Opt_ManageSttTemplates")
+        btnManageDisplayTplOpt.Text = langPack.GetString("Opt_ManageDisplayTemplates")
 
         ' General panel
         lblAppearanceHeader.Text = langPack.GetString("Opt_AppearanceHeader")
@@ -210,6 +211,14 @@ Public Class FormOptions
                                                            frm.ShowDialog(Me)
                                                        End Using
                                                    End Sub
+
+        ' Display template library manager
+        AddHandler btnManageDisplayTplOpt.Click, Sub(s, e)
+                                                     Using frm As New FormDisplayTemplates()
+                                                         frm.Icon = Me.Icon
+                                                         frm.ShowDialog(Me)
+                                                     End Using
+                                                 End Sub
 
         ' Browse buttons — file pickers
         AddHandler btnBrowseWhisper.Click, Sub(s, e) BrowseFile(txtWhisper)

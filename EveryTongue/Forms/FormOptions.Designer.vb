@@ -183,6 +183,7 @@ Partial Class FormOptions
         Me.pnlStt = New System.Windows.Forms.Panel()
         Me.pnlDisplay = New System.Windows.Forms.Panel()
         Me.btnManageSttTemplatesOpt = New System.Windows.Forms.Button()
+        Me.btnManageDisplayTplOpt = New System.Windows.Forms.Button()
         ' ── Advanced panel controls ──
         Me.pnlAdvanced = New System.Windows.Forms.Panel()
         Me.lblAdvPipelineHeader = New System.Windows.Forms.Label()
@@ -2160,12 +2161,22 @@ Partial Class FormOptions
         ' pnlDisplay
         '
         Me.pnlDisplay.AutoScroll = True
+        Me.pnlDisplay.Controls.Add(Me.btnManageDisplayTplOpt)
         Me.pnlDisplay.Dock = System.Windows.Forms.DockStyle.Fill
         Me.pnlDisplay.Location = New System.Drawing.Point(0, 0)
         Me.pnlDisplay.Name = "pnlDisplay"
         Me.pnlDisplay.Size = New System.Drawing.Size(564, 469)
         Me.pnlDisplay.TabIndex = 0
         Me.pnlDisplay.Visible = False
+        '
+        ' btnManageDisplayTplOpt
+        '
+        Me.btnManageDisplayTplOpt.Location = New System.Drawing.Point(12, 104)
+        Me.btnManageDisplayTplOpt.Name = "btnManageDisplayTplOpt"
+        Me.btnManageDisplayTplOpt.Size = New System.Drawing.Size(190, 28)
+        Me.btnManageDisplayTplOpt.TabIndex = 31
+        Me.btnManageDisplayTplOpt.Text = "Manage Display Templates..."
+        Me.btnManageDisplayTplOpt.UseVisualStyleBackColor = True
         '
         ' ══════════════════════════════════════════════════════════════
         ' ADVANCED PANEL
@@ -3385,6 +3396,7 @@ Partial Class FormOptions
     Friend WithEvents pnlStt As System.Windows.Forms.Panel
     Friend WithEvents pnlDisplay As System.Windows.Forms.Panel
     Friend WithEvents btnManageSttTemplatesOpt As System.Windows.Forms.Button
+    Friend WithEvents btnManageDisplayTplOpt As System.Windows.Forms.Button
     Friend WithEvents lblAdvPipelineHeader As System.Windows.Forms.Label
     Friend WithEvents lblAdvPipelineSep As System.Windows.Forms.Label
     Friend WithEvents nudParallelJobs As System.Windows.Forms.NumericUpDown

@@ -216,7 +216,21 @@ retire it. *(If you'd rather make SessionTemplate the one true session and have
 ConferenceTemplate reference it, say so before Phase 6 starts — it changes the
 field placement below but not the work shape.)*
 
-## Phase 6 — Speakers + Online/Offline gate (the Andreu core)
+## Phase 6 — Speakers + Online/Offline gate (the Andreu core) ✅ **DONE (2026-06-12)**
+
+> Implemented as planned with the ConferenceTemplate-as-session decision:
+> `ConferenceTemplate.Mode` + `SpeakerProfileIds`; `Room.ActiveSpeakerId` +
+> `Room.Mode` (initialized from the template at creation); `FormSpeakerProfiles`
+> (reference-only CRUD, opened from the conference template editor); speaker
+> checklist + Mode combo in FormTemplateManager; host panel (app.js) speaker
+> dropdown + Online/Offline selector posting `speakerId`/`mode` to
+> `/api/control/pipeline` (sent only when changed); `TrySwitchSpeaker` /
+> `TrySwitchMode` pre-validate through the gate and REJECT (logged
+> `CONFIG_GATE_DECISION`) rather than fall back; `ResolveRoomSttTemplate` makes
+> the active speaker's gated slot win over the template reference in both the
+> create and restart paths; room start fails closed when the mode makes the
+> engine ineligible. New event `CONF_SPEAKER_SWITCHED` (5011). Speaker glossary
+> combo present but disabled until Phase 8.
 
 **Goal:** mid-service speaker switching: the host picks "Andreu" on the phone
 panel and the room restarts onto his preferred STT template; flipping the room
@@ -257,7 +271,18 @@ switch reuses the existing restart machinery. *Test:* two speakers with
 different engines (Speechmatics vs Vulkan); switch mid-session; flip offline
 and confirm the Speechmatics speaker blocks with a logged gate decision.
 
-## Phase 7 — Display consumption (both renderers)
+## Phase 7 — Display consumption ✅ **DONE (2026-06-12)**
+
+> Implemented: `FormDisplayTemplates` (colors, font, layout, offered-languages
+> checklist) opened from the Options Display page and from the conference
+> template editor's new Display picker (`ConferenceTemplate.DisplayTemplateId`).
+> Rooms resolve their Display template at creation (`Room.Display`); the room
+> payload exposes it; app.js applies per-room colors/font to the subtitle view
+> and filters the language picker + translation dropdown by offered languages
+> (empty = all). Per-device font size deliberately untouched. **Deviation from
+> the original sketch:** the desktop projected view keeps the app-global
+> appearance — with multiple simultaneous rooms there is no single "active"
+> room to bind it to; revisit if a dedicated projected-room selector is added.
 
 **Goal:** a room's projected/viewer appearance and offered languages come from
 its Display template; the app-global `Subtitle*` settings remain the fallback.
