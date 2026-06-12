@@ -1,4 +1,4 @@
-Namespace Controllers
+Namespace Services.Stt
 
     ''' <summary>
     ''' Accumulates Speechmatics END_OF_UTTERANCE fragments into a complete clause

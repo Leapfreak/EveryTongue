@@ -44,13 +44,12 @@
 The seams exist (descriptors, ISttBackend, ICloudSttEngineConfig, registries);
 these are the places still bypassing them:
 
-- [ ] **C1. Speechmatics clause hold-and-lock lives in shared code** —
-  `ConferenceController` clause accumulators + `IsHoldEnabled` engine-key gate +
-  the AppConfig `Speechmatics*` dial cluster + FormOptions dials. Largest
-  violation, but DELIBERATE for now: the dials' live-tunability from Options is
-  a valued workflow (hybrid pinning shipped in v1.9.2). Revisit only with a
-  design that keeps live tuning (e.g. engine-owned accumulator service behind
-  an ISttBackend capability interface).
+- [x] **C1. Speechmatics clause hold-and-lock lives in shared code** —
+  DONE: decision state machine (accumulators, pinned dials, flush timer,
+  `IsHoldEnabled` engine-key gate, lock diagnostics) extracted to engine-owned
+  `Services/Stt/SpeechmaticsClauseCoordinator.vb` (accumulator moved alongside);
+  controller keeps translate/broadcast execution via callbacks; live-tunable
+  dial reads (pinned-vs-AppConfig per call) preserved byte-for-byte.
 - [x] **C2. Speechmatics inline-translation wiring in ConferenceController** —
   DONE: session wiring moved to `SpeechmaticsTranslation.ConfigureSession`
   (gate + block cast + target computation, incl. `SourceFlores`); retargeting
