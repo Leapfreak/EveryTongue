@@ -96,7 +96,8 @@ Namespace Services.Translation
         Public Sub SetActiveBackend(name As String) Implements ITranslationService.SetActiveBackend
             If _backends.ContainsKey(name) Then
                 _activeBackendName = name
-                _logger.LogInformation("Active translation backend set to {Backend}", name)
+                Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_BACKEND_ACTIVE,
+                    $"Active translation backend → {name}")
             End If
         End Sub
 
@@ -200,9 +201,12 @@ Namespace Services.Translation
                 Catch ex As OperationCanceledException
                     Throw
                 Catch ex As Exception
-                    _logger.LogWarning(ex, "Translation backend {Backend} failed, falling back",
-                                      primaryBackend)
+                    Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_BACKEND_FALLBACK,
+                        $"backend={primaryBackend} failed for {sourceLang}→[{String.Join(",", targetLangs)}]: {ex.Message} — falling back to {_fallbackBackendName}")
                 End Try
+            ElseIf Not primaryBackend.Equals(_fallbackBackendName, StringComparison.OrdinalIgnoreCase) Then
+                Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_BACKEND_FALLBACK,
+                    $"backend={primaryBackend} unavailable for {sourceLang}→[{String.Join(",", targetLangs)}] — falling back to {_fallbackBackendName}")
             End If
 
             ' Fall back to local sidecar if primary was different
@@ -213,8 +217,8 @@ Namespace Services.Translation
                     Catch ex As OperationCanceledException
                         Throw
                     Catch ex As Exception
-                        _logger.LogWarning(ex, "Fallback backend {Backend} also failed",
-                                          _fallbackBackendName)
+                        Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR,
+                            $"fallback backend={_fallbackBackendName} also failed for {sourceLang}→[{String.Join(",", targetLangs)}]: {ex.Message}")
                     End Try
                 End If
             End If

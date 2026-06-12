@@ -113,30 +113,31 @@ Namespace Services.Tts
                 Try
                     Dim supported = Await backend.IsLanguageSupportedAsync(language, ct)
                     If Not supported Then
-                        _logger.LogInformation("TTS backend {Backend} does not support {Language}",
-                            backend.Name, language)
+                        Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TTS_SYNTHESISE,
+                            $"engine={backend.Name} lang={language} unsupported — trying next engine")
                         Continue For
                     End If
 
-                    _logger.LogInformation("TTS trying {Backend} for {Language}, commit {Id}",
-                        backend.Name, language, commitId)
+                    Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TTS_SYNTHESISE,
+                        $"engine={backend.Name} lang={language} commit={commitId} chars={If(text, "").Length}")
+                    Dim sw = Diagnostics.Stopwatch.StartNew()
                     Dim result = Await backend.SynthesiseAsync(text, language, ct)
                     If result IsNot Nothing AndAlso result.AudioData IsNot Nothing Then
                         ' Store in cache and return URL
                         Dim url = _cache.Store(language, commitId,
                             result.AudioData, If(result.Codec, _preferredCodec))
-                        _logger.LogInformation("TTS synthesised via {Backend} for {Language}, commit {Id}",
-                                        backend.Name, language, commitId)
+                        Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TTS_SYNTHESISE_DONE,
+                            $"engine={backend.Name} lang={language} commit={commitId} {sw.ElapsedMilliseconds}ms")
                         Return url
                     Else
-                        _logger.LogWarning("TTS backend {Backend} returned no audio for {Language}",
-                            backend.Name, language)
+                        Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TTS_ENGINE_ERROR,
+                            $"engine={backend.Name} lang={language} returned no audio — trying next engine")
                     End If
                 Catch ex As OperationCanceledException
                     Throw
                 Catch ex As Exception
-                    _logger.LogWarning(ex, "TTS backend {Backend} failed for {Language}",
-                                      backend.Name, language)
+                    Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TTS_ENGINE_ERROR,
+                        $"engine={backend.Name} lang={language} failed: {ex.Message} — trying next engine")
                 End Try
             Next
 

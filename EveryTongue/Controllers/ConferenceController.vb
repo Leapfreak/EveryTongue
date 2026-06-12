@@ -198,24 +198,7 @@ Namespace Controllers
 
             Dim backend = SttBackendRegistry.CreateBackend(backendKey)
 
-            AddHandler backend.OutputCommitted, Sub(s, e)
-                                                     _log($"[Conference:{roomId}] COMMIT: [{e.DetectedLanguage}] {e.Text}")
-                                                     TranslateAndBroadcastForRoomAsync(roomId, e)
-                                                 End Sub
-
-            AddHandler backend.OutputCommittedTranslated, Sub(s, e)
-                                                              _log($"[Conference:{roomId}] COMMIT+TX: [{e.DetectedLanguage}] {e.Text} ({e.Translations.Count} tx)")
-                                                              HandleTranslatedCommitAsync(roomId, e)
-                                                          End Sub
-
-            AddHandler backend.ErrorReceived, Sub(s, line)
-                                                   If Not line.StartsWith(">>> UPDATE:") AndAlso
-                                                      Not line.StartsWith(">>> COMMIT") AndAlso
-                                                      Not line.StartsWith(">>> SENTENCE-COMMIT") AndAlso
-                                                      Not line.Contains("ASGI callable returned without completing response") Then
-                                                       _log($"[Conference:{roomId}] {line}")
-                                                   End If
-                                               End Sub
+            WireBackendLogging(roomId, backend, backendKey)
 
             _sttBackends(roomId) = backend
             _roomTemplateIds(roomId) = templateId
@@ -351,22 +334,7 @@ Namespace Controllers
             If _roomFilters.TryGetValue(roomId, restartFs) Then sttConfig.HallucinationsPath = restartFs.HallucinationsPath
 
             Dim newBackend = SttBackendRegistry.CreateBackend(If(template?.SttBackendKey, _config.SttBackend))
-            AddHandler newBackend.OutputCommitted, Sub(s, e)
-                                                        _log($"[Conference:{roomId}] COMMIT: [{e.DetectedLanguage}] {e.Text}")
-                                                        TranslateAndBroadcastForRoomAsync(roomId, e)
-                                                    End Sub
-            AddHandler newBackend.OutputCommittedTranslated, Sub(s, e)
-                                                                 _log($"[Conference:{roomId}] COMMIT+TX: [{e.DetectedLanguage}] {e.Text} ({e.Translations.Count} tx)")
-                                                                 HandleTranslatedCommitAsync(roomId, e)
-                                                             End Sub
-            AddHandler newBackend.ErrorReceived, Sub(s, line)
-                                                      If Not line.StartsWith(">>> UPDATE:") AndAlso
-                                                         Not line.StartsWith(">>> COMMIT") AndAlso
-                                                         Not line.StartsWith(">>> SENTENCE-COMMIT") AndAlso
-                                                         Not line.Contains("ASGI callable returned without completing response") Then
-                                                          _log($"[Conference:{roomId}] {line}")
-                                                      End If
-                                                  End Sub
+            WireBackendLogging(roomId, newBackend, restartBackendKey)
 
             _sttBackends(roomId) = newBackend
             _log($"[Pipeline:{roomId}] Restarting backend (port={sttConfig.ServerPort})")
@@ -513,7 +481,7 @@ Namespace Controllers
             If mgr IsNot Nothing Then
                 Dim room = mgr.GetRoom(roomId)
                 If room IsNot Nothing AndAlso room.Config.IsPaused Then
-                    _log($"[Conference:{roomId}] Commit dropped (paused): {commitArgs.Text}")
+                    AppLogger.Log(LogEvents.CONF_COMMIT_DROPPED, $"room={roomId} reason=paused text=""{Truncate(commitArgs.Text, 80)}""")
                     Return
                 End If
             End If
@@ -528,7 +496,7 @@ Namespace Controllers
             If subtitleSvc Is Nothing Then Return
 
             If IsGarbageCommit(line) Then
-                _log($"[Conference:{roomId}] Filtered garbage commit")
+                AppLogger.Log(LogEvents.CONF_COMMIT_DROPPED, $"room={roomId} reason=garbage")
                 subtitleSvc.BroadcastCommit(line, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang, targetRoomId:=roomId)
                 Return
             End If
@@ -590,6 +558,7 @@ Namespace Controllers
             Dim translations As New Dictionary(Of String, String)()
             If targets Is Nothing OrElse targets.Count = 0 Then Return translations
 
+            Dim sw = Diagnostics.Stopwatch.StartNew()
             Dim orchestrator = _getTranslationOrchestrator?.Invoke()
             If orchestrator IsNot Nothing AndAlso orchestrator.GetAllBackends().Any(Function(b) b.IsAvailable) Then
                 Try
@@ -602,9 +571,14 @@ Namespace Controllers
                         End If
                     End Using
                 Catch ex As Exception
-                    _log($"[Conference:{roomId}] Translate error: {ex.Message}")
+                    AppLogger.Log(LogEvents.TRANS_ERROR,
+                        $"room={roomId} backend={orchestrator.ActiveBackend} {sourceLang}→[{String.Join(",", targets)}] failed: {ex.Message}")
                 End Try
-                If translations.Count > 0 Then Return translations
+                If translations.Count > 0 Then
+                    AppLogger.Log(LogEvents.TRANS_RESULT,
+                        $"room={roomId} backend={orchestrator.ActiveBackend} {sourceLang}→[{String.Join(",", translations.Keys)}] ok={translations.Count}/{targets.Count} {sw.ElapsedMilliseconds}ms")
+                    Return translations
+                End If
             End If
 
             ' Fallback: direct sidecar (NLLB)
@@ -618,8 +592,11 @@ Namespace Controllers
                     If result IsNot Nothing Then
                         For Each kvp In result : translations(kvp.Key) = kvp.Value : Next
                     End If
+                    AppLogger.Log(LogEvents.TRANS_RESULT,
+                        $"room={roomId} backend=nllb-direct {sourceLang}→[{String.Join(",", translations.Keys)}] ok={translations.Count}/{targets.Count} {sw.ElapsedMilliseconds}ms")
                 Catch ex As Exception
-                    _log($"[Conference:{roomId}] Translate error: {ex.Message}")
+                    AppLogger.Log(LogEvents.TRANS_ERROR,
+                        $"room={roomId} backend=nllb-direct {sourceLang}→[{String.Join(",", targets)}] failed: {ex.Message}")
                 End Try
             End If
             Return translations
@@ -653,7 +630,7 @@ Namespace Controllers
             ' Drop commits while the room is paused (keeps the engine warm).
             Dim room = _getRoomManager?.Invoke()?.GetRoom(roomId)
             If room IsNot Nothing AndAlso room.Config.IsPaused Then
-                _log($"[Conference:{roomId}] Commit dropped (paused): {args.Text}")
+                AppLogger.Log(LogEvents.CONF_COMMIT_DROPPED, $"room={roomId} reason=paused text=""{Truncate(args.Text, 80)}""")
                 Return
             End If
 
@@ -663,7 +640,7 @@ Namespace Controllers
             If subtitleSvc Is Nothing Then Return
 
             If IsGarbageCommit(args.Text) Then
-                _log($"[Conference:{roomId}] Filtered garbage commit")
+                AppLogger.Log(LogEvents.CONF_COMMIT_DROPPED, $"room={roomId} reason=garbage")
                 subtitleSvc.BroadcastCommit(args.Text, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang, targetRoomId:=roomId)
                 Return
             End If
@@ -688,7 +665,7 @@ Namespace Controllers
                             glossaryPath:=If(roomFp?.GlossaryPath, ""),
                             profanityPath:=If(roomFp?.ProfanityPath, ""))
                     Catch ex As Exception
-                        _log($"[Conference:{roomId}] Glossary apply error: {ex.Message}")
+                        AppLogger.Log(LogEvents.TRANS_ERROR, $"room={roomId} glossary-apply failed: {ex.Message}")
                     End Try
                 End If
             End If
@@ -900,6 +877,43 @@ Namespace Controllers
             Return True
         End Function
 
+        ' Python sidecar log lines ("2026-… INFO …") tailed from the log file are
+        ' ALSO raised through the runner's error stream — matching them here
+        ' prevents every Speechmatics commit being logged twice.
+        Private Shared ReadOnly _pythonLogLinePattern As New Text.RegularExpressions.Regex(
+            "^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}\s")
+
+        ''' <summary>
+        ''' Wire a room backend's output/error events to STRUCTURED logging with
+        ''' engine attribution (one CONF_COMMIT line per commit: room, engine,
+        ''' language, text). Genuine runner errors land as CONF_BACKEND_ERROR;
+        ''' protocol chatter and tailed Python log lines are dropped (the tail
+        ''' already structured-logs them under PythonLog).
+        ''' </summary>
+        Private Sub WireBackendLogging(roomId As String, backend As ISttBackend, engineKey As String)
+            AddHandler backend.OutputCommitted,
+                Sub(s, e)
+                    AppLogger.Log(LogEvents.CONF_COMMIT,
+                        $"room={roomId} engine={engineKey} lang={e.DetectedLanguage} chars={If(e.Text, "").Length} text=""{Truncate(e.Text, 160)}""")
+                    TranslateAndBroadcastForRoomAsync(roomId, e)
+                End Sub
+
+            AddHandler backend.OutputCommittedTranslated,
+                Sub(s, e)
+                    AppLogger.Log(LogEvents.CONF_COMMIT,
+                        $"room={roomId} engine={engineKey} lang={e.DetectedLanguage} inlineTx={e.Translations.Count} text=""{Truncate(e.Text, 160)}""")
+                    HandleTranslatedCommitAsync(roomId, e)
+                End Sub
+
+            AddHandler backend.ErrorReceived,
+                Sub(s, line)
+                    If line.StartsWith(">>>") OrElse
+                       line.Contains("ASGI callable returned without completing response") OrElse
+                       _pythonLogLinePattern.IsMatch(line) Then Return
+                    AppLogger.Log(LogEvents.CONF_BACKEND_ERROR, $"room={roomId} engine={engineKey} {line}")
+                End Sub
+        End Sub
+
         ''' <summary>The STT backend key for a room (template override, else global config).</summary>
         Private Function RoomBackendKey(roomId As String) As String
             Dim tplId As String = Nothing
@@ -1077,7 +1091,7 @@ Namespace Controllers
             ' Drop while paused (keeps the engine warm).
             Dim room = _getRoomManager?.Invoke()?.GetRoom(roomId)
             If room IsNot Nothing AndAlso room.Config.IsPaused Then
-                _log($"[Conference:{roomId}] Clause dropped (paused): {text}")
+                AppLogger.Log(LogEvents.CONF_COMMIT_DROPPED, $"room={roomId} reason=paused-clause text=""{Truncate(text, 80)}""")
                 Return
             End If
 
@@ -1092,7 +1106,6 @@ Namespace Controllers
                 Return
             End If
 
-            _log($"[Conference:{roomId}] CLAUSE-LOCK: [{sourceShort}] {text}")
 
             ' Source immediately for source-language viewers.
             subtitleSvc.BroadcastCommit(text, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang, targetRoomId:=roomId)

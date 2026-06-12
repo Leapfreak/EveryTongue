@@ -73,6 +73,8 @@ Namespace Services.Infrastructure
         Public Const TRANS_ERROR As Integer = 4006
         Public Const TRANS_CUDA_FALLBACK As Integer = 4007
         Public Const TRANS_CLOUD_REQUEST As Integer = 4008
+        Public Const TRANS_BACKEND_FALLBACK As Integer = 4009
+        Public Const TRANS_BACKEND_ACTIVE As Integer = 4010
 
         ' ── TTS (4100–4199) ──
         Public Const TTS_SYNTHESISE As Integer = 4100
@@ -243,14 +245,16 @@ Namespace Services.Infrastructure
             R(TRANS_MODEL_LOADING, LogCategory.Translation, LogSeverity.Info, "Translation model loading")
             R(TRANS_MODEL_LOADED, LogCategory.Translation, LogSeverity.Info, "Translation model loaded")
             R(TRANS_REQUEST, LogCategory.Translation, LogSeverity.Debug, "Translation request sent")
-            R(TRANS_RESULT, LogCategory.Translation, LogSeverity.Debug, "Translation result received")
+            R(TRANS_RESULT, LogCategory.Translation, LogSeverity.Info, "Translation result (backend, source→targets, timing)")
             R(TRANS_ERROR, LogCategory.Translation, LogSeverity.[Error], "Translation failed")
             R(TRANS_CUDA_FALLBACK, LogCategory.Translation, LogSeverity.Warning, "CUDA error, falling back to CPU")
             R(TRANS_CLOUD_REQUEST, LogCategory.Translation, LogSeverity.Debug, "Cloud translation API request")
+            R(TRANS_BACKEND_FALLBACK, LogCategory.Translation, LogSeverity.Warning, "Translation backend failed/unavailable — fell back to the local sidecar")
+            R(TRANS_BACKEND_ACTIVE, LogCategory.Translation, LogSeverity.Info, "Active translation backend changed")
 
             ' TTS
             R(TTS_SYNTHESISE, LogCategory.Tts, LogSeverity.Debug, "TTS synthesis requested")
-            R(TTS_SYNTHESISE_DONE, LogCategory.Tts, LogSeverity.Debug, "TTS synthesis complete")
+            R(TTS_SYNTHESISE_DONE, LogCategory.Tts, LogSeverity.Info, "TTS synthesis complete (engine, language, timing)")
             R(TTS_ENGINE_START, LogCategory.Tts, LogSeverity.Info, "TTS engine started")
             R(TTS_ENGINE_STOP, LogCategory.Tts, LogSeverity.Info, "TTS engine stopped")
             R(TTS_ENGINE_ERROR, LogCategory.Tts, LogSeverity.[Error], "TTS engine error")
