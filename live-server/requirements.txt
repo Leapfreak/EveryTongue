@@ -3,3 +3,4 @@ sounddevice
 sse-starlette
 google-cloud-speech
 speechmatics-rt
+azure-cognitiveservices-speech

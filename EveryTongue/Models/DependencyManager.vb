@@ -458,6 +458,8 @@ Namespace Models
                 packages.Add("speechmatics-rt")
             ElseIf sttBackend.Equals("google-cloud-stt", StringComparison.OrdinalIgnoreCase) Then
                 packages.Add("google-cloud-speech")
+            ElseIf sttBackend.Equals("azure-speech", StringComparison.OrdinalIgnoreCase) Then
+                packages.Add("azure-cognitiveservices-speech")
             End If
 
             If Not File.Exists(PythonExePath()) Then

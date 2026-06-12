@@ -708,6 +708,9 @@
   "EngineCfg_DgModel": "Deepgram model",
   "EngineCfg_DgEndpointingMs": "Endpointing silence (ms)",
   "EngineCfg_GlEndpointingMs": "Endpointing silence (ms)",
+  "EngineCfg_AzRegion": "Region",
+  "EngineCfg_AzSegmentationMs": "Segmentation silence (ms)",
+  "EngineCfg_AzAutoDetectLanguages": "Auto-detect languages (CSV)",
 
   "Web_HostConference": "Host Conference",
   "Web_SelectTemplate": "Select Template",
