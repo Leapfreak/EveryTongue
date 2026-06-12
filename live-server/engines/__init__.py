@@ -19,9 +19,12 @@ from .common import (
     create_streaming_pipeline,
     get_api_key,
     get_transcribe_fn,
+    is_ready,
     is_registered,
+    load_model,
     online_keys,
     register_engine,
+    registered_keys,
     requires_model,
     set_api_key,
 )
@@ -33,6 +36,7 @@ from . import speechmatics  # noqa: E402,F401
 __all__ = [
     "SAMPLE_RATE", "SegmentInfo", "TranscribeInfo", "WordInfo",
     "apply_vad_preset", "audio_to_wav_bytes", "create_streaming_pipeline",
-    "get_api_key", "get_transcribe_fn", "is_registered", "online_keys",
-    "register_engine", "requires_model", "set_api_key",
+    "get_api_key", "get_transcribe_fn", "is_ready", "is_registered",
+    "load_model", "online_keys", "register_engine", "registered_keys",
+    "requires_model", "set_api_key",
 ]

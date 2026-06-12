@@ -6,21 +6,23 @@
 
 ## P0 — Stability (crash / corruption risk)
 
-- [ ] **A1. Async Sub fire-and-forget without Try/Catch** — `ConferenceController`:
+- [x] **A1. Async Sub fire-and-forget without Try/Catch** — `ConferenceController`:
   `TranslateAndBroadcastForRoomAsync`, `HandleTranslatedCommitAsync`,
   `BroadcastLockedClauseAsync`, `TranslateAndBroadcastBufferedAsync`. Backend
   commit events fire on the sidecar tail thread (no sync context) — an
-  unhandled exception in these terminates the process mid-service. Fix: outer
-  Try/Catch + CONF_BACKEND_ERROR logging in each Async Sub.
-- [ ] **A2. Unsynchronized per-room dictionaries** — `ConferenceController._sttBackends/
+  unhandled exception in these terminates the process mid-service.
+  DONE: each Async Sub contained (inline Try/Catch or thin wrapper delegating
+  to a `...CoreAsync` Function) with CONF_BACKEND_ERROR logging.
+- [x] **A2. Unsynchronized per-room dictionaries** — `ConferenceController._sttBackends/
   _sentenceBuffers/_clauseAccumulators/_pinnedClauseDials/_roomFilters/_roomTemplateIds`
   are plain Dictionaries touched by THREE thread classes: UI thread (web handlers via
   BeginInvoke), timer thread (BufferTimerTick → flushes), and sidecar tail threads
-  (commit events). Fix: ConcurrentDictionary (mechanical swap; TryGetValue/indexer
-  patterns already compatible) or marshal commit events to the UI thread.
-- [ ] **A3. `New Random()` in `RoomManager.GenerateRoomId`** — same-millisecond room
-  creations can collide. Fix: `Random.Shared` (or a Shared instance + lock).
-  Same pattern (low risk) in FormSessionWizard hosting code.
+  (commit events). DONE: all six swapped to ConcurrentDictionary with
+  GetOrAdd/`DropKey` helper patterns (accumulators/pinned dials since moved
+  into SpeechmaticsClauseCoordinator by C1, same patterns).
+- [x] **A3. `New Random()` in `RoomManager.GenerateRoomId`** — same-millisecond room
+  creations can collide. DONE: `Random.Shared` in both RoomManager and
+  FormSessionWizard hosting-code generation.
 
 ## P1 — Responsiveness + boundaries
 
@@ -87,9 +89,17 @@ these are the places still bypassing them:
   transport assignment in ServerController stays per C7 note. No model-path
   branches existed in ConferenceController/ConversationAudioHandler (verified
   by grep).
-- [ ] **C6. live-server faster-whisper/whisper-cpp branches** — offline engines
+- [x] **C6. live-server faster-whisper/whisper-cpp branches** — offline engines
   bypass the `engines/` registry that online engines use. Fix: move them into
   `engines/` modules (design debt, not regression).
+  DONE (deliberately minimal scope — registry routing only): server.py now
+  registers whisper-cpp/faster-whisper in the engines registry at startup
+  (`is_local=True`, plus `load_model`/`is_ready` capability callables) and all
+  5 `_backend_mode == "faster-whisper"` branch points (_transcribe, /start,
+  /load-model, /transcribe gate, /benchmark gate) plus the `__main__` backend
+  validation are registry lookups. The implementations (model loading,
+  whisper-server process mgmt, stderr drain, VAD pipeline) stay in server.py
+  untouched — not moved into engines/ modules, per regression history.
 - [x] **C7. ServerOptions engine fields** — DONE: `SttRegion`/`SttOperatingPoint`
   deleted (nothing read them after C3) along with their ServerController
   assignments; KestrelHost's GoogleApiKey wiring block deleted — GoogleBackend
@@ -106,19 +116,27 @@ these are the places still bypassing them:
   Language, Virtual} private classes (in EndpointRegistration.Rooms.vb).
   JSON contract preserved: KestrelHost configures Http.Json camelCase policy,
   so PascalCase properties serialize as id/name/clientId/... as before.
-- [ ] **D2. String value-sets → enums**: `Room.Mode` ("online"/"offline" — parse
-  at the edge, enum inside), `DefaultVisibility`, `DisplayTemplate.Layout`.
-- [ ] **D3. List+detail CRUD boilerplate** across the 5 template/manager forms
-  (~650 duplicated lines). Extract a base form when next touched — not before
-  (forms are stable and the user adjusts layouts in the Designer).
+- [x] **D2. String value-sets → enums**: `Room.Mode` ("online"/"offline"),
+  `DefaultVisibility`, `DisplayTemplate.Layout`.
+  RESOLVED AS DOCUMENTED DECISION (no code change): these are BOUNDARY strings —
+  they cross the JSON wire to the ES5 web client and the template files, so an
+  enum would still require string parse/format at every edge. They are
+  validated at the edges (wizard/manager UIs populate from fixed lists;
+  ConnectivityGate rejects unknown modes) and never drive engine-key logic.
+  Revisit only if a value-set gains internal-only consumers.
+- [x] **D3. List+detail CRUD boilerplate** across the 5 template/manager forms
+  (~650 duplicated lines).
+  SKIPPED BY DESIGN: a shared base form requires WinForms visual inheritance,
+  which breaks the .NET (Core) WinForms Designer the user relies on for layout
+  edits. Forms are stable; revisit only if a 6th manager form is added.
 - [x] **D4. EndpointRegistration size** (1,300 lines, 40 inline endpoints) —
   split into per-area files when next majorly edited.
   DONE: `Partial Module` split (pure text moves, all 40 endpoints preserved):
   EndpointRegistration.vb (core/locale/handlers/helpers, 320 lines),
   .Bible.vb, .Rooms.vb (control + room endpoints + DTOs), .Tts.vb (audio +
   tts), .Templates.vb.
-- [ ] **D5. DateTime.Now in logs/persisted timestamps** — consistent but
-  timezone-local; fine for a single-site app, note only.
+- [x] **D5. DateTime.Now in logs/persisted timestamps** — consistent but
+  timezone-local; fine for a single-site app. CLOSED AS NOTE-ONLY (no change).
 
 ## Verified clean
 - SubtitleService client map (ConcurrentDictionary), TemplateLibraryStore

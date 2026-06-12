@@ -63,9 +63,10 @@ except Exception as _vad_pipe_err:
 
 # ---------------------------------------------------------------------------
 # Pluggable STT engine registry. Online engines (Google gRPC, Speechmatics)
-# register themselves on import. server.py drives everything through this
-# registry and contains no engine-specific code — to add an engine, drop a
-# module in engines/ (see engines/common.py for the contract).
+# register themselves on import; the local engines (whisper-cpp,
+# faster-whisper) are registered further down, after their implementations.
+# server.py dispatches everything through this registry — to add an online
+# engine, drop a module in engines/ (see engines/common.py for the contract).
 # ---------------------------------------------------------------------------
 import engines
 from engines.common import (
@@ -179,9 +180,9 @@ current_stats = None  # type: SessionStats or None
 _server = None
 _shutting_down: bool = False
 
-# Backend selection — set from --backend arg in __main__. Offline engines
-# ("whisper-cpp", "faster-whisper") run the local VAD pipeline; online engines
-# (registered in engines/) are looked up through the registry.
+# Backend selection — set from --backend arg in __main__. All engines (local
+# whisper-cpp/faster-whisper and online) are dispatched through the engines
+# registry; local engines are registered below at module load.
 _backend_mode: str = "whisper-cpp"
 
 # whisper-server process management (whisper-cpp backend)
@@ -462,19 +463,83 @@ def _transcribe_faster_whisper(audio_array: np.ndarray, language=None,
 
 
 # ---------------------------------------------------------------------------
-# Backend dispatcher — routes to the active engine based on _backend_mode.
-# Online engines (e.g. Google REST) supply a transcribe fn via the registry;
-# offline engines (whisper-cpp, faster-whisper) are built in here.
+# Local engine registration — whisper-cpp and faster-whisper go through the
+# same engines registry as the online engines, so all dispatch is uniform.
+# The implementations stay above (model loading / whisper-server process
+# management); these thin adapters wrap them with the registry contract.
+# ---------------------------------------------------------------------------
+def _ensure_whisper_cpp_loaded(model_path, body):
+    """Start whisper-server if needed. Returns (ok, detail)."""
+    if _whisper_server_process is not None and _whisper_server_process.poll() is None:
+        return True, ""
+    if not _whisper_server_path:
+        return False, "whisper-server path not configured"
+    if not model_path:
+        return False, "Model path not configured"
+    try:
+        ws_port = body.get("whisper_server_port", _whisper_server_port or 8178)
+        _start_whisper_server(_whisper_server_path, model_path, ws_port, _no_gpu)
+        return True, ""
+    except Exception as e:
+        logger.error(f"Failed to start whisper-server: {e}")
+        return False, str(e)
+
+
+def _whisper_cpp_ready():
+    if _whisper_server_process is None or _whisper_server_process.poll() is not None:
+        return False, "whisper-server not running"
+    return True, ""
+
+
+def _ensure_faster_whisper_loaded(model_path, body):
+    """Load the faster-whisper model if needed. Returns (ok, detail)."""
+    if not model_path:
+        return False, "Model path not configured"
+    try:
+        device = body.get("device", "cuda")
+        compute_type = body.get("compute_type", "int8_float16")
+        _load_faster_whisper_model(model_path, device=device, compute_type=compute_type)
+        return True, ""
+    except Exception as e:
+        logger.error(f"Failed to load faster-whisper model: {e}")
+        return False, str(e)
+
+
+def _faster_whisper_ready():
+    if _faster_whisper_model is None:
+        return False, "faster-whisper model not loaded"
+    return True, ""
+
+
+engines.register_engine(
+    "whisper-cpp",
+    requires_model=True,
+    is_local=True,
+    transcribe_fn=_transcribe_whisper_cpp,
+    load_model=_ensure_whisper_cpp_loaded,
+    is_ready=_whisper_cpp_ready,
+)
+engines.register_engine(
+    "faster-whisper",
+    requires_model=True,
+    is_local=True,
+    transcribe_fn=_transcribe_faster_whisper,
+    load_model=_ensure_faster_whisper_loaded,
+    is_ready=_faster_whisper_ready,
+)
+
+
+# ---------------------------------------------------------------------------
+# Backend dispatcher — routes to the active engine via the registry.
 # ---------------------------------------------------------------------------
 def _transcribe(audio_array: np.ndarray, language=None,
                 beam_size=5, best_of=1, initial_prompt=""):
     """Transcribe audio using whichever backend is configured."""
     fn = engines.get_transcribe_fn(_backend_mode)
-    if fn is not None:
-        return fn(audio_array, language, beam_size, best_of, initial_prompt)
-    if _backend_mode == "faster-whisper":
-        return _transcribe_faster_whisper(audio_array, language, beam_size, best_of, initial_prompt)
-    return _transcribe_whisper_cpp(audio_array, language, beam_size, best_of, initial_prompt)
+    if fn is None:
+        # Unknown backend — fall back to whisper-cpp (matches __main__ default).
+        fn = engines.get_transcribe_fn("whisper-cpp")
+    return fn(audio_array, language, beam_size, best_of, initial_prompt)
 
 
 # ---------------------------------------------------------------------------
@@ -725,30 +790,11 @@ async def start_capture_endpoint(request: Request):
         if engines.is_registered(_backend_mode) and not engines.get_api_key(_backend_mode):
             return JSONResponse({"status": "error", "detail": f"{_backend_mode}: API key not provided"}, status_code=400)
         logger.info(f"{_backend_mode} backend configured (online, no local model)")
-    elif _backend_mode == "faster-whisper":
-        # Load faster-whisper model (CTranslate2)
-        device = body.get("device", "cuda")
-        compute_type = body.get("compute_type", "int8_float16")
-        if not requested_model_path:
-            return JSONResponse({"status": "error", "detail": "Model path not configured"}, status_code=500)
-        try:
-            _load_faster_whisper_model(requested_model_path, device=device, compute_type=compute_type)
-        except Exception as e:
-            logger.error(f"Failed to load faster-whisper model: {e}")
-            return JSONResponse({"status": "error", "detail": str(e)}, status_code=500)
     else:
-        # Start whisper-server if needed
-        if _whisper_server_process is None or _whisper_server_process.poll() is not None:
-            if not _whisper_server_path:
-                return JSONResponse({"status": "error", "detail": "whisper-server path not configured"}, status_code=500)
-            if not requested_model_path:
-                return JSONResponse({"status": "error", "detail": "Model path not configured"}, status_code=500)
-            try:
-                ws_port = body.get("whisper_server_port", _whisper_server_port or 8178)
-                _start_whisper_server(_whisper_server_path, requested_model_path, ws_port, _no_gpu)
-            except Exception as e:
-                logger.error(f"Failed to start whisper-server: {e}")
-                return JSONResponse({"status": "error", "detail": str(e)}, status_code=500)
+        # Local engine — load its model / start its server via the registry.
+        ok, detail = engines.load_model(_backend_mode, requested_model_path, body)
+        if not ok:
+            return JSONResponse({"status": "error", "detail": detail}, status_code=500)
     model_path_global = requested_model_path
 
     # Require Silero VAD + pipeline
@@ -914,26 +960,11 @@ async def load_model_endpoint(request: Request):
     if not engines.requires_model(_backend_mode):
         # Online engine — no local model to load.
         pass
-    elif _backend_mode == "faster-whisper":
-        # Load faster-whisper model in-process
-        try:
-            device = body.get("device", "cuda")
-            compute_type = body.get("compute_type", "int8_float16")
-            _load_faster_whisper_model(requested_model_path, device=device, compute_type=compute_type)
-        except Exception as e:
-            logger.error(f"Failed to load faster-whisper model: {e}")
-            return JSONResponse({"status": "error", "detail": str(e)}, status_code=500)
     else:
-        # Start whisper-server if not already running
-        if _whisper_server_process is None or _whisper_server_process.poll() is not None:
-            if not _whisper_server_path:
-                return JSONResponse({"status": "error", "detail": "whisper-server path not configured"}, status_code=500)
-            try:
-                ws_port = _whisper_server_port or 8178
-                _start_whisper_server(_whisper_server_path, requested_model_path, ws_port, _no_gpu)
-            except Exception as e:
-                logger.error(f"Failed to start whisper-server: {e}")
-                return JSONResponse({"status": "error", "detail": str(e)}, status_code=500)
+        # Local engine — load its model / start its server via the registry.
+        ok, detail = engines.load_model(_backend_mode, requested_model_path, body)
+        if not ok:
+            return JSONResponse({"status": "error", "detail": detail}, status_code=500)
     model_path_global = requested_model_path
     return {"status": "loaded"}
 
@@ -952,12 +983,11 @@ async def transcribe_audio(request: Request):
             return JSONResponse({"status": "error", "detail": f"{_backend_mode} does not support one-shot /transcribe"}, status_code=503)
         if engines.is_registered(_backend_mode) and not engines.get_api_key(_backend_mode):
             return JSONResponse({"status": "error", "detail": f"{_backend_mode}: API key not configured"}, status_code=503)
-    elif _backend_mode == "faster-whisper":
-        if _faster_whisper_model is None:
-            return JSONResponse({"status": "error", "detail": "faster-whisper model not loaded"}, status_code=503)
     else:
-        if _whisper_server_process is None or _whisper_server_process.poll() is not None:
-            return JSONResponse({"status": "error", "detail": "whisper-server not running"}, status_code=503)
+        # Local engine — registry readiness probe (model loaded / server running).
+        ready, detail = engines.is_ready(_backend_mode)
+        if not ready:
+            return JSONResponse({"status": "error", "detail": detail}, status_code=503)
 
     body = await request.body()
     if not body:
@@ -1083,12 +1113,11 @@ async def benchmark_endpoint(request: Request):
             return JSONResponse({"status": "error", "detail": f"{_backend_mode} does not support /benchmark (streaming-only)"}, status_code=503)
         if engines.is_registered(_backend_mode) and not engines.get_api_key(_backend_mode):
             return JSONResponse({"status": "error", "detail": f"{_backend_mode}: API key not configured"}, status_code=503)
-    elif _backend_mode == "faster-whisper":
-        if _faster_whisper_model is None:
-            return JSONResponse({"status": "error", "detail": "faster-whisper model not loaded"}, status_code=503)
     else:
-        if _whisper_server_process is None or _whisper_server_process.poll() is not None:
-            return JSONResponse({"status": "error", "detail": "whisper-server not running"}, status_code=503)
+        # Local engine — registry readiness probe (model loaded / server running).
+        ready, detail = engines.is_ready(_backend_mode)
+        if not ready:
+            return JSONResponse({"status": "error", "detail": detail}, status_code=503)
 
     if not _has_silero_vad or not _has_vad_pipeline:
         return JSONResponse({"status": "error", "detail": "VAD pipeline not available"}, status_code=503)
@@ -1302,7 +1331,7 @@ if __name__ == "__main__":
         _setup_file_logging(args.log_dir)
 
     _backend_mode = args.backend
-    _valid_backends = {"whisper-cpp", "faster-whisper"} | set(engines.online_keys())
+    _valid_backends = set(engines.registered_keys())
     if _backend_mode not in _valid_backends:
         logger.warning(f"Unknown --backend '{_backend_mode}', defaulting to whisper-cpp")
         _backend_mode = "whisper-cpp"

@@ -3,10 +3,12 @@
 An "engine" is a transcription backend selected via ``--backend``. There are two
 kinds:
 
-  * Offline engines (whisper-cpp, faster-whisper) run through the local VAD
+  * Local engines (whisper-cpp, faster-whisper) run through the local VAD
     pipeline plus a *transcribe function* ``(audio, language, beam_size,
-    best_of, initial_prompt) -> (segments, info)``. These are built into
-    server.py and are NOT registered here.
+    best_of, initial_prompt) -> (segments, info)``. Their implementations live
+    in server.py (model loading / whisper-server process management stays
+    there), but server.py registers them here at startup (``is_local=True``)
+    so all dispatch goes through this registry uniformly.
 
   * Online streaming engines (Google gRPC, Speechmatics) are *self-endpointing*:
     they capture/stream audio themselves and emit update/commit events directly,
@@ -107,22 +109,28 @@ def get_api_key(key: str) -> str:
 # Engine registry
 # ---------------------------------------------------------------------------
 class _Engine:
-    __slots__ = ('key', 'requires_model', 'create_streaming', 'transcribe_fn', 'vad_preset')
+    __slots__ = ('key', 'requires_model', 'create_streaming', 'transcribe_fn',
+                 'vad_preset', 'is_local', 'load_model', 'is_ready')
 
-    def __init__(self, key, requires_model, create_streaming, transcribe_fn, vad_preset):
+    def __init__(self, key, requires_model, create_streaming, transcribe_fn,
+                 vad_preset, is_local, load_model, is_ready):
         self.key = key
         self.requires_model = requires_model
         self.create_streaming = create_streaming
         self.transcribe_fn = transcribe_fn
         self.vad_preset = vad_preset
+        self.is_local = is_local
+        self.load_model = load_model
+        self.is_ready = is_ready
 
 
 _engines = {}
 
 
 def register_engine(key, *, requires_model=True, create_streaming=None,
-                    transcribe_fn=None, vad_preset=None):
-    """Register an online engine.
+                    transcribe_fn=None, vad_preset=None, is_local=False,
+                    load_model=None, is_ready=None):
+    """Register an engine.
 
     Args:
         key: backend key, e.g. "google-cloud-stt" / "speechmatics".
@@ -134,8 +142,16 @@ def register_engine(key, *, requires_model=True, create_streaming=None,
             initial_prompt) -> (segments, info)`` for the VAD-pipeline path.
         vad_preset: optional ``(vad_config) -> None`` to tweak VAD config when
             this engine uses the VAD-pipeline path.
+        is_local: True for local engines registered by server.py
+            (whisper-cpp, faster-whisper). Excluded from :func:`online_keys`.
+        load_model: optional ``(model_path, body) -> (ok, detail)`` that loads
+            the local model / starts the local inference server. Used by
+            /start and /load-model for engines with ``requires_model=True``.
+        is_ready: optional ``() -> (ok, detail)`` readiness probe for one-shot
+            endpoints (/transcribe, /benchmark) on local engines.
     """
-    _engines[key] = _Engine(key, requires_model, create_streaming, transcribe_fn, vad_preset)
+    _engines[key] = _Engine(key, requires_model, create_streaming, transcribe_fn,
+                            vad_preset, is_local, load_model, is_ready)
 
 
 def is_registered(key) -> bool:
@@ -143,13 +159,18 @@ def is_registered(key) -> bool:
 
 
 def online_keys():
-    """Keys of all registered online engines (for --backend validation)."""
+    """Keys of all registered online engines (local engines excluded)."""
+    return [k for k, e in _engines.items() if not e.is_local]
+
+
+def registered_keys():
+    """Keys of ALL registered engines, local and online (for --backend validation)."""
     return list(_engines.keys())
 
 
 def requires_model(key) -> bool:
-    """Whether the engine needs a local model loaded. Unknown (offline whisper)
-    engines are assumed to require a model."""
+    """Whether the engine needs a local model loaded. Unknown engines are
+    assumed to require a model."""
     e = _engines.get(key)
     return e.requires_model if e else True
 
@@ -157,6 +178,24 @@ def requires_model(key) -> bool:
 def get_transcribe_fn(key):
     e = _engines.get(key)
     return e.transcribe_fn if e else None
+
+
+def load_model(key, model_path, body):
+    """Load the engine's local model (or start its inference server).
+    Returns ``(ok, detail)``. Engines without a loader succeed trivially."""
+    e = _engines.get(key)
+    if not e or e.load_model is None:
+        return True, ""
+    return e.load_model(model_path, body)
+
+
+def is_ready(key):
+    """Readiness probe for one-shot transcription endpoints.
+    Returns ``(ok, detail)``. Engines without a probe are considered ready."""
+    e = _engines.get(key)
+    if not e or e.is_ready is None:
+        return True, ""
+    return e.is_ready()
 
 
 def apply_vad_preset(key, vad_config):
