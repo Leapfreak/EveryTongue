@@ -22,20 +22,20 @@ Namespace Controllers
         Private ReadOnly _log As Action(Of String)
         Private ReadOnly _ownerForm As Form
 
-        Private ReadOnly _sttBackends As New Dictionary(Of String, ISttBackend)()
-        Private ReadOnly _roomTemplateIds As New Dictionary(Of String, String)()
-        Private ReadOnly _sentenceBuffers As New Dictionary(Of String, SentenceBuffer)()
+        Private ReadOnly _sttBackends As New Concurrent.ConcurrentDictionary(Of String, ISttBackend)()
+        Private ReadOnly _roomTemplateIds As New Concurrent.ConcurrentDictionary(Of String, String)()
+        Private ReadOnly _sentenceBuffers As New Concurrent.ConcurrentDictionary(Of String, SentenceBuffer)()
         ' Speechmatics-only clause hold-and-lock accumulators (one per room). Gated
         ' behind AppConfig.SpeechmaticsHoldClauses + backend == "speechmatics".
-        Private ReadOnly _clauseAccumulators As New Dictionary(Of String, SpeechmaticsClauseAccumulator)()
+        Private ReadOnly _clauseAccumulators As New Concurrent.ConcurrentDictionary(Of String, SpeechmaticsClauseAccumulator)()
         ' HYBRID clause dials: rooms whose STT template explicitly stores clause
         ' fields get their resolved block pinned here (fixed for the session);
         ' rooms without an entry keep reading the live app-global dials.
-        Private ReadOnly _pinnedClauseDials As New Dictionary(Of String, Configs.SpeechmaticsConfig)()
+        Private ReadOnly _pinnedClauseDials As New Concurrent.ConcurrentDictionary(Of String, Configs.SpeechmaticsConfig)()
         ' Per-room NAMED filter sets (room template's FilterSetId, with the
         ' active speaker's glossary set overriding the glossary path). No entry
         ' = the sidecars use their own global files.
-        Private ReadOnly _roomFilters As New Dictionary(Of String, Models.Templates.FilterSet)()
+        Private ReadOnly _roomFilters As New Concurrent.ConcurrentDictionary(Of String, Models.Templates.FilterSet)()
         Private _nextConferencePort As Integer = 5101
         Private _nextWhisperServerPort As Integer = 8179  ' 8178 is used by ConversationAudioHandler
         Private _bufferFlushTimer As System.Threading.Timer
@@ -60,6 +60,12 @@ Namespace Controllers
             ' current SpeechmaticsClauseTimerMs dial so poll resolution is live-tunable.
             _bufferFlushTimer = New System.Threading.Timer(
                 AddressOf BufferTimerTick, Nothing, 1000, System.Threading.Timeout.Infinite)
+        End Sub
+
+        ''' <summary>ConcurrentDictionary remove without the ByRef-out ceremony.</summary>
+        Private Shared Sub DropKey(Of TValue)(dict As Concurrent.ConcurrentDictionary(Of String, TValue), key As String)
+            Dim ignored As TValue = Nothing
+            dict.TryRemove(key, ignored)
         End Sub
 
         Private Sub BufferTimerTick(state As Object)
@@ -209,8 +215,8 @@ Namespace Controllers
                 _log($"[Conference] Backend started for room {roomId}")
             Else
                 _log($"[Conference] Backend FAILED to start for room {roomId}")
-                _sttBackends.Remove(roomId)
-                _roomTemplateIds.Remove(roomId)
+                DropKey(_sttBackends, roomId)
+                DropKey(_roomTemplateIds, roomId)
             End If
         End Sub
 
@@ -397,9 +403,9 @@ Namespace Controllers
         Public Sub StopConferenceBackend(roomId As String)
             ' Lock any pending Speechmatics clause before stopping.
             ForceLockClause(roomId)
-            _clauseAccumulators.Remove(roomId)
-            _pinnedClauseDials.Remove(roomId)
-            _roomFilters.Remove(roomId)
+            DropKey(_clauseAccumulators, roomId)
+            DropKey(_pinnedClauseDials, roomId)
+            DropKey(_roomFilters, roomId)
 
             ' Flush any remaining buffered text before stopping
             Dim buffer As SentenceBuffer = Nothing
@@ -408,14 +414,14 @@ Namespace Controllers
                 If flush IsNot Nothing Then
                     TranslateAndBroadcastBufferedAsync(roomId, flush.Text, flush.DetectedLanguage)
                 End If
-                _sentenceBuffers.Remove(roomId)
+                DropKey(_sentenceBuffers, roomId)
             End If
 
             Dim backend As ISttBackend = Nothing
             If _sttBackends.TryGetValue(roomId, backend) Then
                 _log($"[Conference] Stopping backend for room {roomId}")
-                _sttBackends.Remove(roomId)
-                _roomTemplateIds.Remove(roomId)
+                DropKey(_sttBackends, roomId)
+                DropKey(_roomTemplateIds, roomId)
                 ' Stop on background thread to avoid freezing the UI
                 Task.Run(Sub()
                              Try
@@ -519,11 +525,7 @@ Namespace Controllers
                 ' NLLB is slow and works best on complete sentences.
                 FlushExpiredBuffers(roomId)
 
-                Dim buffer As SentenceBuffer = Nothing
-                If Not _sentenceBuffers.TryGetValue(roomId, buffer) Then
-                    buffer = New SentenceBuffer(4000)
-                    _sentenceBuffers(roomId) = buffer
-                End If
+                Dim buffer = _sentenceBuffers.GetOrAdd(roomId, Function(k) New SentenceBuffer(4000))
 
                 Dim flush = buffer.Add(line, detectedLang)
                 If flush Is Nothing Then Return
@@ -533,19 +535,25 @@ Namespace Controllers
         End Sub
 
         Private Async Sub TranslateAndBroadcastBufferedAsync(roomId As String, bufferedText As String, detectedLang As String)
-            Dim sourceLang = If(Not String.IsNullOrEmpty(detectedLang), WhisperToNllbCode(detectedLang), "eng_Latn")
-            Dim sourceShort = TranslationService.FloresToShortCode(sourceLang)
+            ' Async Sub fired from sidecar/timer threads — an unhandled exception
+            ' here would terminate the process. Always contain.
+            Try
+                Dim sourceLang = If(Not String.IsNullOrEmpty(detectedLang), WhisperToNllbCode(detectedLang), "eng_Latn")
+                Dim sourceShort = TranslationService.FloresToShortCode(sourceLang)
 
-            Dim subtitleSvc = _getSubtitleSvc()
-            If subtitleSvc Is Nothing Then Return
+                Dim subtitleSvc = _getSubtitleSvc()
+                If subtitleSvc Is Nothing Then Return
 
-            Dim targets = subtitleSvc.GetActiveTranslationLanguages()
-            targets?.Remove(sourceLang)
-            If targets Is Nothing OrElse targets.Count = 0 Then Return
+                Dim targets = subtitleSvc.GetActiveTranslationLanguages()
+                targets?.Remove(sourceLang)
+                If targets Is Nothing OrElse targets.Count = 0 Then Return
 
-            Dim translations = Await TranslateTargetsAsync(roomId, bufferedText, sourceLang, targets.ToList())
-            If translations.Count = 0 Then Return
-            BroadcastTranslated(subtitleSvc, roomId, bufferedText, sourceShort, sourceLang, translations)
+                Dim translations = Await TranslateTargetsAsync(roomId, bufferedText, sourceLang, targets.ToList())
+                If translations.Count = 0 Then Return
+                BroadcastTranslated(subtitleSvc, roomId, bufferedText, sourceShort, sourceLang, translations)
+            Catch ex As Exception
+                AppLogger.Log(LogEvents.CONF_BACKEND_ERROR, $"room={roomId} translate/broadcast failed: {ex.Message}")
+            End Try
         End Sub
 
         ''' <summary>
@@ -619,6 +627,15 @@ Namespace Controllers
         ''' (English-pivot limit), merges, and broadcasts one translated commit per client.
         ''' </summary>
         Private Async Sub HandleTranslatedCommitAsync(roomId As String, args As SttTranslatedCommitEventArgs)
+            ' Async Sub fired from sidecar threads — contain all exceptions.
+            Try
+                Await HandleTranslatedCommitCoreAsync(roomId, args)
+            Catch ex As Exception
+                AppLogger.Log(LogEvents.CONF_BACKEND_ERROR, $"room={roomId} translated-commit handling failed: {ex.Message}")
+            End Try
+        End Sub
+
+        Private Async Function HandleTranslatedCommitCoreAsync(roomId As String, args As SttTranslatedCommitEventArgs) As Task
             ' Speechmatics clause hold-and-lock: hold + re-translate the whole clause
             ' (ignores Speechmatics' per-fragment inline translations — the locked
             ' clause is translated once, as a whole, via the configured backend).
@@ -686,7 +703,7 @@ Namespace Controllers
 
             If merged.Count = 0 Then Return
             BroadcastTranslated(subtitleSvc, roomId, args.Text, sourceShort, sourceLang, merged)
-        End Sub
+        End Function
 
         ' ─── Speechmatics inline translation wiring ──────────────────────
 
@@ -929,7 +946,7 @@ Namespace Controllers
         ''' clause field; otherwise the room keeps live app-global dials.
         ''' </summary>
         Private Sub StorePinnedClauseDials(roomId As String, engineTpl As Models.Templates.EngineTemplate, sttConfig As SttSessionConfig)
-            _pinnedClauseDials.Remove(roomId)
+            DropKey(_pinnedClauseDials, roomId)
             Dim sm = sttConfig.Block(Of Configs.SpeechmaticsConfig)()
             If sm Is Nothing OrElse engineTpl Is Nothing OrElse Not engineTpl.Config.HasValue Then Return
             If engineTpl.Config.Value.ValueKind <> System.Text.Json.JsonValueKind.Object Then Return
@@ -971,7 +988,7 @@ Namespace Controllers
                 AppLogger.Log(LogEvents.CONFIG_TEMPLATE_RESOLVED,
                     $"[Conference:{roomId}] filter set '{fs.Name}' active (glossary={fs.GlossaryPath})")
             Else
-                _roomFilters.Remove(roomId)
+                DropKey(_roomFilters, roomId)
             End If
         End Sub
 
@@ -1023,11 +1040,7 @@ Namespace Controllers
         ''' <summary>Feed a Speechmatics fragment into the room's clause accumulator; broadcast if it locks.</summary>
         Private Sub FeedClause(roomId As String, text As String, detectedLang As String)
             If String.IsNullOrWhiteSpace(text) Then Return
-            Dim acc As SpeechmaticsClauseAccumulator = Nothing
-            If Not _clauseAccumulators.TryGetValue(roomId, acc) Then
-                acc = New SpeechmaticsClauseAccumulator()
-                _clauseAccumulators(roomId) = acc
-            End If
+            Dim acc = _clauseAccumulators.GetOrAdd(roomId, Function(k) New SpeechmaticsClauseAccumulator())
             Dim locked = acc.Add(text, detectedLang, CurrentThresholds(roomId))
 
             ' Per-fragment trace: the gap before this fragment is the raw signal for
@@ -1086,6 +1099,15 @@ Namespace Controllers
         ''' non-held commit path but operates on a complete clause, not a fragment.
         ''' </summary>
         Private Async Sub BroadcastLockedClauseAsync(roomId As String, text As String, detectedLang As String)
+            ' Async Sub fired from timer/sidecar threads — contain all exceptions.
+            Try
+                Await BroadcastLockedClauseCoreAsync(roomId, text, detectedLang)
+            Catch ex As Exception
+                AppLogger.Log(LogEvents.CONF_BACKEND_ERROR, $"room={roomId} clause broadcast failed: {ex.Message}")
+            End Try
+        End Sub
+
+        Private Async Function BroadcastLockedClauseCoreAsync(roomId As String, text As String, detectedLang As String) As Task
             If String.IsNullOrWhiteSpace(text) Then Return
 
             ' Drop while paused (keeps the engine warm).
@@ -1117,7 +1139,7 @@ Namespace Controllers
             Dim translations = Await TranslateTargetsAsync(roomId, text, sourceLang, targets.ToList())
             If translations.Count = 0 Then Return
             BroadcastTranslated(subtitleSvc, roomId, text, sourceShort, sourceLang, translations)
-        End Sub
+        End Function
 
         ' ─── Helpers ──────────────────────────────────────────────────
 

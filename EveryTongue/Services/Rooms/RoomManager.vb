@@ -296,8 +296,7 @@ Namespace Services.Rooms
         Private Shared Function GenerateRoomId() As String
             ' Short, URL-safe ID — 6 chars from base36
             Dim chars = "abcdefghijklmnopqrstuvwxyz0123456789"
-            Dim rng As New Random()
-            Return New String(Enumerable.Range(0, 6).Select(Function(i) chars(rng.Next(chars.Length))).ToArray())
+            Return New String(Enumerable.Range(0, 6).Select(Function(i) chars(Random.Shared.Next(chars.Length))).ToArray())
         End Function
 
     End Class

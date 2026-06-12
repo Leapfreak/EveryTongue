@@ -424,7 +424,7 @@ Public Class FormSessionWizard
 
             Dim tpl As New ConferenceTemplate With {
                 .Name = name,
-                .HostingCode = New Random().Next(100000, 999999).ToString(),
+                .HostingCode = Random.Shared.Next(100000, 999999).ToString(),
                 .SourceLanguage = If(_config.Language, "auto"),
                 .SttBackendKey = If(_config.SttBackend, "whisper-cpp-vulkan"),
                 .TranslationBackendKey = If(_config.TranslationBackend, "nllb"),

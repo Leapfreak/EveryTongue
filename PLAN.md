@@ -41,10 +41,11 @@ Replaced flat `AppLogger.Log(msg)` with numbered, categorised events. 120+ event
 
 ## Suggested Next Priorities
 1. ~~**Structured Logging System**~~ — DONE (v1.8.5)
-2. **Config refactor runtime consumption (Phases 6–9)** — speakers + online/offline gate at runtime (mid-service speaker switching), display templates, per-session filter sets, session convergence. **Full plan in `CONFIG_CHANGES.md` → "Runtime consumption plan".** (Refactor phases 1–5 complete, v1.9.0–v1.9.2.)
-3. Audio Level Monitor — operator feedback, prevents bad audio
-4. Setup Wizard expansion — integrates QR, audio monitor, hardware score
-5. Cross-platform headless server (Linux/Docker)
+2. ~~**Config refactor runtime consumption (Phases 6–9)**~~ — DONE (v1.9.0–v1.9.4, see CONFIG_CHANGES.md).
+3. **Architecture audit backlog** — prioritized findings in **`ARCHITECTURE_AUDIT.md`** (P0 crash risks: async-sub exception safety + ConferenceController dictionary races; then UI blocking, JSON safety, remaining engine-independence debt).
+4. Audio Level Monitor — operator feedback, prevents bad audio
+5. Setup Wizard expansion — integrates QR, audio monitor, hardware score
+6. Cross-platform headless server (Linux/Docker)
 
 ---
 
