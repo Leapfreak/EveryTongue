@@ -1,4 +1,4 @@
-# EveryTongue — TODO (updated 2026-06-13, v1.9.7)
+# EveryTongue — TODO (updated 2026-06-13, v1.9.8)
 
 > **Architecture shift:** EveryTongue is evolving from a single-session desktop transcription tool into a **headless multi-room translation server**. The desktop app still has operator workspaces (Live, Transcribe, Translate, Bible), but the primary user interface is now the **phone web client**. Anyone with a phone can create rooms, manage conversations, and receive translations — no operator required. The desktop just runs the server and auto-starts engines at launch.
 
@@ -42,6 +42,9 @@ Three-lens audit (engine independence, layering, correctness), all items fixed: 
 
 ### Legacy Removals + Per-Engine API Keys — COMPLETE (v1.9.6–v1.9.7)
 `GoogleCloudSttApiKey` flat field retired via one-time migration into `SttApiKeys`; SessionTemplate retired (ConferenceTemplate-as-session won). `AppConfig.TranslationApiKeys` per-engine store mirrors the STT pattern; DeepL + Azure Translator registered and selectable; one generic `ConfigureCloudApiKeys` pass keys all cloud translation backends at server start and on Options save; shared Google key preserved via `CompanionTranslationKey` fallback (dedicated translation key overrides).
+
+### Cloud Translation Parity, Cost & Latency — COMPLETE (v1.9.8, plan #14 a–h all done)
+Cloud backend output (Google/DeepL/Azure) now gets the same glossary fixes and profanity masking as NLLB — `GlossaryPostProcessor`/`ProfanityPostProcessor` port the Python filter semantics and run in `TranslationOrchestrator`, gated by `ITranslationBackend.AppliesFiltersInternally` (per-room filter sets honoured, global files fallback). `TranslationUsageTracker` counts billable characters per backend per month with optional budgets (warning-only, never blocks) and rolling latency averages, shown on the Options Translation page. DeepL targets now translate concurrently. See [#14](#14-pluggable-translation-backends-cloud-apis).
 
 ## User-Reported Issues & Tasks
 - [x] Implement stubs — most done (QR Code, Hardware Score, Diagnostics Export, File Integrity, Translate workspace). Remaining stubs: Session Wizard, Audio Level Monitor, Event Profiles, Spec Sheet Generator, Portable Mode, Feedback prompt
