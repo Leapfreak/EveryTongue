@@ -258,7 +258,8 @@ Public Class FormTemplateManager
         cboModel.Items.Clear()
 
         Dim sttKey = ExtractEngineKey(cboSttEngine)
-        Dim isWhisperCpp = sttKey.StartsWith("whisper-cpp", StringComparison.OrdinalIgnoreCase)
+        Dim regEntry = SttBackendRegistry.Find(sttKey)
+        Dim scanPattern = If(regEntry?.ModelScanPattern, "")
         Dim baseDir = AppDomain.CurrentDomain.BaseDirectory
 
         ' Add "(Default)" option — uses global config path for the selected backend
@@ -266,21 +267,23 @@ Public Class FormTemplateManager
         If String.IsNullOrEmpty(defaultLabel) Then defaultLabel = "(Default)"
         cboModel.Items.Add(New ModelItem(defaultLabel, ""))
 
-        If isWhisperCpp Then
-            ' Scan for GGML .bin model files in the app directory
+        If scanPattern = "-" Then
+            ' Online engine — no local model selection; "(Default)" only
+        ElseIf Not String.IsNullOrEmpty(scanPattern) Then
+            ' Scan for model FILES matching the engine's declared pattern (e.g. "*.bin")
             Try
-                For Each f In IO.Directory.GetFiles(baseDir, "*.bin")
-                    Dim name = IO.Path.GetFileName(f)
+                Dim minBytes As Long = CLng(If(regEntry?.ModelMinSizeMB, 0)) * 1024L * 1024L
+                For Each f In IO.Directory.GetFiles(baseDir, scanPattern)
                     ' Skip tiny files that aren't models
-                    If New IO.FileInfo(f).Length > 10 * 1024 * 1024 Then
-                        cboModel.Items.Add(New ModelItem(name, f))
+                    If New IO.FileInfo(f).Length > minBytes Then
+                        cboModel.Items.Add(New ModelItem(IO.Path.GetFileName(f), f))
                     End If
                 Next
             Catch ex As Exception
                 AppLogger.Log(LogEvents.UI_ERROR, $"TemplateManager: error scanning model files: {ex.Message}")
             End Try
         Else
-            ' Scan for model directories (contain config.json or model files)
+            ' Scan for model DIRECTORIES (contain config.json)
             Try
                 For Each d In IO.Directory.GetDirectories(baseDir)
                     If IO.File.Exists(IO.Path.Combine(d, "config.json")) Then

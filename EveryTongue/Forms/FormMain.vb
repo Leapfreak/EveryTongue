@@ -570,7 +570,7 @@ del ""%~f0""
                 Dim hwInfo = Services.Infrastructure.HardwareScanner.Scan()
                 Dim suggestedBackend = Services.Infrastructure.HardwareScanner.SuggestSttBackend(hwInfo)
                 AppLogger.Log(LogEvents.STARTUP_FIRST_RUN, $"Hardware: GPU={hwInfo.GpuName}, CUDA={hwInfo.HasCuda}, Vulkan={hwInfo.HasVulkan}, Suggested STT={suggestedBackend}")
-                If String.IsNullOrEmpty(_config.SttBackend) OrElse _config.SttBackend = "whisper-cpp-vulkan" Then
+                If String.IsNullOrEmpty(_config.SttBackend) OrElse _config.SttBackend = Services.Stt.SttBackendRegistry.GetAll()(0).Key Then
                     _config.SttBackend = suggestedBackend
                     AppLogger.Log(LogEvents.STARTUP_FIRST_RUN, $"Set SttBackend={suggestedBackend}")
                 End If
@@ -1015,15 +1015,17 @@ del ""%~f0""
                 orchestrator.RegisterBackend(sidecarBackend)
 
                 ' Apply the user's selected translation backend to the orchestrator
-                ' When STT is Google Cloud and user has an API key, auto-use Google Translate
-                ' (much faster than waiting for local NLLB model to load and translate)
+                ' When the STT engine declares a companion translation backend (shares
+                ' the same API key) and the user has a key, auto-use that backend
+                ' (much faster than waiting for the local NLLB model to load and translate)
                 Dim configKey = If(_config.TranslationBackend, "nllb")
                 Dim sttBackend = If(_config.SttBackend, "")
-                If sttBackend.Equals("google-cloud-stt", StringComparison.OrdinalIgnoreCase) AndAlso
-                   Not String.IsNullOrEmpty(_config.GetSttApiKey("google-cloud-stt")) AndAlso
-                   Not configKey.Equals("google-translate", StringComparison.OrdinalIgnoreCase) Then
-                    configKey = "google-translate"
-                    AppLogger.Log(LogEvents.TRANS_SERVER_READY, "Auto-selecting Google Translate (STT backend is google-cloud-stt)")
+                Dim companionKey = If(Services.Stt.SttBackendRegistry.Find(sttBackend)?.CompanionTranslationKey, "")
+                If Not String.IsNullOrEmpty(companionKey) AndAlso
+                   Not String.IsNullOrEmpty(_config.GetSttApiKey(sttBackend)) AndAlso
+                   Not configKey.Equals(companionKey, StringComparison.OrdinalIgnoreCase) Then
+                    configKey = companionKey
+                    AppLogger.Log(LogEvents.TRANS_SERVER_READY, $"Auto-selecting companion translation backend '{companionKey}' (STT backend is {sttBackend})")
                 End If
                 Dim entry = Services.Translation.TranslationBackendRegistry.GetAll().FirstOrDefault(
                     Function(e) e.Key.Equals(configKey, StringComparison.OrdinalIgnoreCase))
@@ -1041,9 +1043,10 @@ del ""%~f0""
         ' no point loading a 3.3GB model if we're using Google Translate API
         Dim activeTransBackend = If(_config.TranslationBackend, "nllb")
         Dim sttBk = If(_config.SttBackend, "")
+        Dim sttCompanion = If(Services.Stt.SttBackendRegistry.Find(sttBk)?.CompanionTranslationKey, "")
         Dim usingCloudTranslation = activeTransBackend.Equals("google-translate", StringComparison.OrdinalIgnoreCase) OrElse
-            (sttBk.Equals("google-cloud-stt", StringComparison.OrdinalIgnoreCase) AndAlso
-             Not String.IsNullOrEmpty(_config.GetSttApiKey("google-cloud-stt")))
+            (Not String.IsNullOrEmpty(sttCompanion) AndAlso
+             Not String.IsNullOrEmpty(_config.GetSttApiKey(sttBk)))
 
         If usingCloudTranslation Then
             AppLogger.Log(LogEvents.TRANS_SERVER_READY, "Skipping NLLB sidecar — using cloud translation backend")

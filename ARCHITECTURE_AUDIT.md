@@ -66,15 +66,28 @@ these are the places still bypassing them:
   default for unknown keys). Note: a speechmatics session without a config
   block now emits no speechmatics fields (previously emitted empty defaults) —
   unreachable in practice since EngineConfigResolver always supplies the block.
-- [ ] **C4. Model scanning hardcoded in FormTemplateManager** — `*.bin` for
+- [x] **C4. Model scanning hardcoded in FormTemplateManager** — `*.bin` for
   whisper-cpp vs `config.json`-dir for others. Fix: descriptor-declared scan
   pattern (e.g. `ModelScan` metadata on the registry entry/descriptor).
-- [ ] **C5. ServerController model-path branch** (`faster-whisper` →
+  DONE: `SttBackendRegistry.Entry.ModelScanPattern` ("*.bin" file glob, "" =
+  config.json-dir mode, "-" = no model selection) + `ModelMinSizeMB`;
+  PopulateModelDropdown is now registry-driven. Behavior change (intended):
+  online engines now show only "(Default)" instead of the directory scan.
+- [x] **C5. ServerController model-path branch** (`faster-whisper` →
   PathFasterWhisperModel) + **KestrelHost GoogleApiKey block** +
   **FormMain google-cloud-stt → google-translate affinity rule**. Fix: registry
   metadata (default model path per engine already exists on translation
   registry entries; mirror for STT) and a declared "companion translation
   backend" hint instead of hardcoded affinity.
+  DONE: `Entry.ModelPathFromConfig` drives ServerController.WhisperModelPath
+  (PathWhisperCppModel fallback; online engines now get "" instead of the
+  whisper-cpp path — unused by cloud paths); `Entry.CompanionTranslationKey`
+  ("google-translate" on google-cloud-stt) drives both FormMain affinity
+  branches; first-run default-backend check uses `GetAll()(0).Key`. KestrelHost
+  GoogleApiKey block was already gone (C7); the ServerOptions.GoogleApiKey
+  transport assignment in ServerController stays per C7 note. No model-path
+  branches existed in ConferenceController/ConversationAudioHandler (verified
+  by grep).
 - [ ] **C6. live-server faster-whisper/whisper-cpp branches** — offline engines
   bypass the `engines/` registry that online engines use. Fix: move them into
   `engines/` modules (design debt, not regression).
@@ -88,15 +101,23 @@ these are the places still bypassing them:
 
 ## P3 — Hygiene
 
-- [ ] **D1. `List(Of Object)` in EndpointRegistration** (SpeakerListFor, room
+- [x] **D1. `List(Of Object)` in EndpointRegistration** (SpeakerListFor, room
   members) — banned by project rules; use typed/anonymous lists.
+  DONE: `SpeakerDto` {Id, Name} and `RoomMemberDto` {ClientId, DisplayName,
+  Language, Virtual} private classes (in EndpointRegistration.Rooms.vb).
+  JSON contract preserved: KestrelHost configures Http.Json camelCase policy,
+  so PascalCase properties serialize as id/name/clientId/... as before.
 - [ ] **D2. String value-sets → enums**: `Room.Mode` ("online"/"offline" — parse
   at the edge, enum inside), `DefaultVisibility`, `DisplayTemplate.Layout`.
 - [ ] **D3. List+detail CRUD boilerplate** across the 5 template/manager forms
   (~650 duplicated lines). Extract a base form when next touched — not before
   (forms are stable and the user adjusts layouts in the Designer).
-- [ ] **D4. EndpointRegistration size** (1,300 lines, 40 inline endpoints) —
+- [x] **D4. EndpointRegistration size** (1,300 lines, 40 inline endpoints) —
   split into per-area files when next majorly edited.
+  DONE: `Partial Module` split (pure text moves, all 40 endpoints preserved):
+  EndpointRegistration.vb (core/locale/handlers/helpers, 320 lines),
+  .Bible.vb, .Rooms.vb (control + room endpoints + DTOs), .Tts.vb (audio +
+  tts), .Templates.vb.
 - [ ] **D5. DateTime.Now in logs/persisted timestamps** — consistent but
   timezone-local; fine for a single-site app, note only.
 

@@ -77,8 +77,8 @@ Namespace Controllers
                     .LiveServerPort = _config.LiveServerPort,
                     .FfmpegPath = Models.AppConfig.ResolvePath(_config.PathFfmpeg),
                     .WhisperModelPath = Models.AppConfig.ResolvePath(
-                        If(_config.SttBackend.Equals("faster-whisper", StringComparison.OrdinalIgnoreCase),
-                           _config.PathFasterWhisperModel, _config.PathWhisperCppModel)),
+                        If(Services.Stt.SttBackendRegistry.Find(If(_config.SttBackend, ""))?.ModelPathFromConfig?.Invoke(_config),
+                           _config.PathWhisperCppModel)),
                     .WhisperComputeType = If(_config.LiveComputeType, "int8_float16"),
                     .WhisperUseCpu = _config.NoGpu,
                     .WhisperServerPath = Models.AppConfig.ResolvePath(_config.PathWhisperServer),
