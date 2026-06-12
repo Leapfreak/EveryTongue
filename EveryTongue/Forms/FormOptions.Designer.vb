@@ -131,6 +131,12 @@ Partial Class FormOptions
         Me.lblTtsPref3 = New System.Windows.Forms.Label()
         Me.cboTtsPref3 = New System.Windows.Forms.ComboBox()
         Me.lblTtsNote = New System.Windows.Forms.Label()
+        Me.lblTtsKeyEngine = New System.Windows.Forms.Label()
+        Me.cboTtsKeyEngine = New System.Windows.Forms.ComboBox()
+        Me.lblTtsApiKey = New System.Windows.Forms.Label()
+        Me.txtTtsApiKey = New System.Windows.Forms.TextBox()
+        Me.lblTtsEndpoint = New System.Windows.Forms.Label()
+        Me.txtTtsEndpoint = New System.Windows.Forms.TextBox()
         Me.cboDevice = New System.Windows.Forms.ComboBox()
         Me.lblDevice = New System.Windows.Forms.Label()
         Me.cboTransBackend = New System.Windows.Forms.ComboBox()
@@ -1799,6 +1805,62 @@ Partial Class FormOptions
         Me.lblTtsNote.TabIndex = 8
         Me.lblTtsNote.Text = "Set to (none) to disable. Falls back to next preference if unavailable."
         '
+        ' lblTtsKeyEngine
+        '
+        Me.lblTtsKeyEngine.AutoSize = True
+        Me.lblTtsKeyEngine.Location = New System.Drawing.Point(12, 213)
+        Me.lblTtsKeyEngine.Name = "lblTtsKeyEngine"
+        Me.lblTtsKeyEngine.Size = New System.Drawing.Size(100, 15)
+        Me.lblTtsKeyEngine.TabIndex = 9
+        Me.lblTtsKeyEngine.Text = "Cloud engine keys:"
+        Me.lblTtsKeyEngine.Visible = False
+        '
+        ' cboTtsKeyEngine
+        '
+        Me.cboTtsKeyEngine.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboTtsKeyEngine.Location = New System.Drawing.Point(130, 210)
+        Me.cboTtsKeyEngine.Name = "cboTtsKeyEngine"
+        Me.cboTtsKeyEngine.Size = New System.Drawing.Size(200, 23)
+        Me.cboTtsKeyEngine.TabIndex = 10
+        Me.cboTtsKeyEngine.Visible = False
+        '
+        ' lblTtsApiKey
+        '
+        Me.lblTtsApiKey.AutoSize = True
+        Me.lblTtsApiKey.Location = New System.Drawing.Point(12, 243)
+        Me.lblTtsApiKey.Name = "lblTtsApiKey"
+        Me.lblTtsApiKey.Size = New System.Drawing.Size(55, 15)
+        Me.lblTtsApiKey.TabIndex = 11
+        Me.lblTtsApiKey.Text = "API Key:"
+        Me.lblTtsApiKey.Visible = False
+        '
+        ' txtTtsApiKey
+        '
+        Me.txtTtsApiKey.Location = New System.Drawing.Point(130, 240)
+        Me.txtTtsApiKey.Name = "txtTtsApiKey"
+        Me.txtTtsApiKey.Size = New System.Drawing.Size(310, 23)
+        Me.txtTtsApiKey.TabIndex = 12
+        Me.txtTtsApiKey.UseSystemPasswordChar = True
+        Me.txtTtsApiKey.Visible = False
+        '
+        ' lblTtsEndpoint
+        '
+        Me.lblTtsEndpoint.AutoSize = True
+        Me.lblTtsEndpoint.Location = New System.Drawing.Point(12, 273)
+        Me.lblTtsEndpoint.Name = "lblTtsEndpoint"
+        Me.lblTtsEndpoint.Size = New System.Drawing.Size(110, 15)
+        Me.lblTtsEndpoint.TabIndex = 13
+        Me.lblTtsEndpoint.Text = "Endpoint / Region:"
+        Me.lblTtsEndpoint.Visible = False
+        '
+        ' txtTtsEndpoint
+        '
+        Me.txtTtsEndpoint.Location = New System.Drawing.Point(130, 270)
+        Me.txtTtsEndpoint.Name = "txtTtsEndpoint"
+        Me.txtTtsEndpoint.Size = New System.Drawing.Size(200, 23)
+        Me.txtTtsEndpoint.TabIndex = 14
+        Me.txtTtsEndpoint.Visible = False
+        '
         ' ══════════════════════════════════════════════════════════════
         ' TRANSLATION PANEL
         ' ══════════════════════════════════════════════════════════════
@@ -1854,6 +1916,12 @@ Partial Class FormOptions
         '
         Me.pnlTts.AutoScroll = True
         Me.pnlTts.Controls.Add(Me.btnManageTtsTplOpt)
+        Me.pnlTts.Controls.Add(Me.lblTtsKeyEngine)
+        Me.pnlTts.Controls.Add(Me.cboTtsKeyEngine)
+        Me.pnlTts.Controls.Add(Me.lblTtsApiKey)
+        Me.pnlTts.Controls.Add(Me.txtTtsApiKey)
+        Me.pnlTts.Controls.Add(Me.lblTtsEndpoint)
+        Me.pnlTts.Controls.Add(Me.txtTtsEndpoint)
         Me.pnlTts.Controls.Add(Me.lblTtsNote)
         Me.pnlTts.Controls.Add(Me.cboTtsPref3)
         Me.pnlTts.Controls.Add(Me.lblTtsPref3)
@@ -3474,6 +3542,12 @@ Partial Class FormOptions
     Friend WithEvents lblTtsPref3 As System.Windows.Forms.Label
     Friend WithEvents cboTtsPref3 As System.Windows.Forms.ComboBox
     Friend WithEvents lblTtsNote As System.Windows.Forms.Label
+    Friend WithEvents lblTtsKeyEngine As System.Windows.Forms.Label
+    Friend WithEvents cboTtsKeyEngine As System.Windows.Forms.ComboBox
+    Friend WithEvents lblTtsApiKey As System.Windows.Forms.Label
+    Friend WithEvents txtTtsApiKey As System.Windows.Forms.TextBox
+    Friend WithEvents lblTtsEndpoint As System.Windows.Forms.Label
+    Friend WithEvents txtTtsEndpoint As System.Windows.Forms.TextBox
 
     ' Hardware panel
     Friend WithEvents pnlHardware As System.Windows.Forms.Panel

@@ -337,6 +337,9 @@
   "Opt_TtsPref2": "2nd preference:",
   "Opt_TtsPref3": "3rd preference:",
   "Opt_TtsNote": "Set to (none) to disable. Falls back to next preference if unavailable.",
+  "Opt_TtsKeyEngine": "Cloud engine keys:",
+  "Opt_TtsApiKey": "API Key:",
+  "Opt_TtsEndpoint": "Endpoint / Region:",
 
   "Opt_HwHeader": "Hardware Readiness",
   "Opt_HwOverallCaption": "Overall Score:",

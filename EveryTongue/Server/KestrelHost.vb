@@ -335,6 +335,9 @@ Namespace Server
             services.AddSingleton(Of ITtsBackend, PiperBackend)()
             services.AddSingleton(Of ITtsBackend, MmsTtsBackend)()
             services.AddSingleton(Of ITtsBackend, EdgeTtsBackend)()
+            services.AddSingleton(Of ITtsBackend, AzureTtsBackend)()
+            services.AddSingleton(Of ITtsBackend, GoogleTtsBackend)()
+            services.AddSingleton(Of ITtsBackend, OpenAiTtsBackend)()
             services.AddSingleton(Of ITtsService, TtsOrchestrator)()
         End Sub
 

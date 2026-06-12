@@ -348,10 +348,61 @@ Namespace Models
 
         ''' <summary>
         ''' Comma-separated list of preferred TTS backends in priority order.
-        ''' Values: piper, mms-tts, edgetts. Empty = all (default fallback order).
+        ''' Values are TtsBackendRegistry keys (e.g. piper, mms-tts, edgetts,
+        ''' azure-tts, google-tts, openai-tts). Empty = all (default fallback order).
         ''' </summary>
         Public Property TtsBackends As String = ""
         Public Property TtsConcurrency As Integer = 3
+
+        ''' <summary>
+        ''' API keys for online TTS engines, keyed by backend key (e.g.
+        ''' "azure-tts", "google-tts", "openai-tts"). Each engine keeps its own
+        ''' key so switching engines doesn't clobber another's credential.
+        ''' Mirrors the TranslationApiKeys per-engine pattern.
+        ''' </summary>
+        Public Property TtsApiKeys As New Dictionary(Of String, String)
+
+        ''' <summary>Resolve the API key for a TTS backend from the per-engine store.</summary>
+        Public Function GetTtsApiKey(backendKey As String) As String
+            If backendKey Is Nothing Then Return ""
+            Dim value As String = Nothing
+            If TtsApiKeys IsNot Nothing AndAlso TtsApiKeys.TryGetValue(backendKey, value) AndAlso Not String.IsNullOrEmpty(value) Then
+                Return value
+            End If
+            Return ""
+        End Function
+
+        ''' <summary>Store the API key for a TTS backend.</summary>
+        Public Sub SetTtsApiKey(backendKey As String, value As String)
+            If String.IsNullOrEmpty(backendKey) Then Return
+            If TtsApiKeys Is Nothing Then TtsApiKeys = New Dictionary(Of String, String)
+            TtsApiKeys(backendKey) = If(value, "")
+        End Sub
+
+        ''' <summary>
+        ''' Endpoints (URL, or region name for engines that use regions) for
+        ''' online TTS engines, keyed by backend key (e.g. "azure-tts" stores
+        ''' the Azure Speech region). Empty/absent = use the registry entry's
+        ''' DefaultEndpoint. Mirrors the TranslationEndpoints per-engine pattern.
+        ''' </summary>
+        Public Property TtsEndpoints As New Dictionary(Of String, String)
+
+        ''' <summary>Resolve the endpoint for a TTS backend from the per-engine store ("" when unset).</summary>
+        Public Function GetTtsEndpoint(backendKey As String) As String
+            If backendKey Is Nothing Then Return ""
+            Dim value As String = Nothing
+            If TtsEndpoints IsNot Nothing AndAlso TtsEndpoints.TryGetValue(backendKey, value) AndAlso Not String.IsNullOrEmpty(value) Then
+                Return value
+            End If
+            Return ""
+        End Function
+
+        ''' <summary>Store the endpoint for a TTS backend.</summary>
+        Public Sub SetTtsEndpoint(backendKey As String, value As String)
+            If String.IsNullOrEmpty(backendKey) Then Return
+            If TtsEndpoints Is Nothing Then TtsEndpoints = New Dictionary(Of String, String)
+            TtsEndpoints(backendKey) = If(value, "")
+        End Sub
 
         Public Property FirstRunComplete As Boolean = False
         Public Property StartWithWindows As Boolean = False

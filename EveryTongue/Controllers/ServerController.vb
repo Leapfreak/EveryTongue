@@ -104,6 +104,9 @@ Namespace Controllers
                 ' (own translation key first, else the companion STT engine's key)
                 If _kestrelHost.Services IsNot Nothing Then
                     Services.Translation.TranslationBackendRegistry.ConfigureCloudApiKeys(_kestrelHost.Services, _config)
+                    ' Same pass for cloud TTS backends (own TTS key first, else the
+                    ' companion engine's key declared on the registry entry)
+                    Services.Tts.TtsBackendRegistry.ConfigureCloudTtsKeys(_kestrelHost.Services, _config)
                 End If
 
                 ' Cloud usage tracker reads budgets live from config so Options

@@ -129,6 +129,9 @@ Public Class FormOptions
         lblTtsPref2.Text = langPack.GetString("Opt_TtsPref2")
         lblTtsPref3.Text = langPack.GetString("Opt_TtsPref3")
         lblTtsNote.Text = langPack.GetString("Opt_TtsNote")
+        lblTtsKeyEngine.Text = langPack.GetString("Opt_TtsKeyEngine")
+        lblTtsApiKey.Text = langPack.GetString("Opt_TtsApiKey")
+        lblTtsEndpoint.Text = langPack.GetString("Opt_TtsEndpoint")
 
         ' Hardware panel
         lblHwHeader.Text = langPack.GetString("Opt_HwHeader")
@@ -380,6 +383,11 @@ Public Class FormOptions
         ' TTS
         PopulateTtsCombos()
         LoadTtsPreferences(_config.TtsBackends)
+        PopulateTtsKeyEngineCombo()
+        _currentTtsApiKeyBackend = CurrentTtsKeyEngine()
+        txtTtsApiKey.Text = _config.GetTtsApiKey(_currentTtsApiKeyBackend)
+        txtTtsEndpoint.Text = _config.GetTtsEndpoint(_currentTtsApiKeyBackend)
+        UpdateTtsApiKeyVisibility()
 
         ' STT Engine
         PopulateSttBackendCombo()
@@ -534,6 +542,11 @@ Public Class FormOptions
 
         ' TTS
         _config.TtsBackends = BuildTtsBackendsString()
+        ' Save the API key + endpoint against the engine currently shown.
+        If Not String.IsNullOrEmpty(_currentTtsApiKeyBackend) Then
+            _config.SetTtsApiKey(_currentTtsApiKeyBackend, txtTtsApiKey.Text.Trim())
+            _config.SetTtsEndpoint(_currentTtsApiKeyBackend, txtTtsEndpoint.Text.Trim())
+        End If
 
         ' STT Engine
         If cboSttBackend.SelectedIndex >= 0 AndAlso cboSttBackend.SelectedIndex < _sttKeys.Length Then
@@ -943,6 +956,72 @@ Public Class FormOptions
         Next
         Return String.Join(",", result)
     End Function
+
+    ' ── Per-engine TTS API key/endpoint — mirrors the Translation page pattern ──
+    ' The "engine being configured" selector lists only key-requiring engines
+    ' from the registry; the key + endpoint fields swap with the selection so
+    ' each engine keeps its own credential.
+    Private _ttsKeyEngineEntries As List(Of Services.Tts.TtsBackendRegistry.Entry)
+    ' Which engine's API key is currently shown in txtTtsApiKey.
+    Private _currentTtsApiKeyBackend As String = ""
+
+    Private Sub PopulateTtsKeyEngineCombo()
+        _ttsKeyEngineEntries = Services.Tts.TtsBackendRegistry.GetAll().
+            Where(Function(e) e.RequiresApiKey).ToList()
+        cboTtsKeyEngine.Items.Clear()
+        For Each entry In _ttsKeyEngineEntries
+            cboTtsKeyEngine.Items.Add(entry.DisplayName)
+        Next
+        If cboTtsKeyEngine.Items.Count > 0 Then cboTtsKeyEngine.SelectedIndex = 0
+        AddHandler cboTtsKeyEngine.SelectedIndexChanged, AddressOf TtsKeyEngineCombo_Changed
+    End Sub
+
+    ''' <summary>Registry key of the engine selected in the TTS key-engine combo, or "" if none.</summary>
+    Private Function CurrentTtsKeyEngine() As String
+        If _ttsKeyEngineEntries IsNot Nothing AndAlso cboTtsKeyEngine.SelectedIndex >= 0 AndAlso
+           cboTtsKeyEngine.SelectedIndex < _ttsKeyEngineEntries.Count Then
+            Return _ttsKeyEngineEntries(cboTtsKeyEngine.SelectedIndex).Key
+        End If
+        Return ""
+    End Function
+
+    Private Sub UpdateTtsApiKeyVisibility()
+        Dim hasEngines = _ttsKeyEngineEntries IsNot Nothing AndAlso _ttsKeyEngineEntries.Count > 0
+        lblTtsKeyEngine.Visible = hasEngines
+        cboTtsKeyEngine.Visible = hasEngines
+        lblTtsApiKey.Visible = hasEngines
+        txtTtsApiKey.Visible = hasEngines
+        ' Endpoint/region only for engines that declare RequiresEndpoint (e.g.
+        ' azure-tts stores its region here); the registry default shows as a
+        ' placeholder when the user hasn't set one.
+        Dim showEndpoint = False
+        Dim defaultEndpoint = ""
+        If hasEngines AndAlso cboTtsKeyEngine.SelectedIndex >= 0 AndAlso
+           cboTtsKeyEngine.SelectedIndex < _ttsKeyEngineEntries.Count Then
+            Dim entry = _ttsKeyEngineEntries(cboTtsKeyEngine.SelectedIndex)
+            showEndpoint = entry.RequiresEndpoint
+            defaultEndpoint = If(entry.DefaultEndpoint, "")
+        End If
+        lblTtsEndpoint.Visible = showEndpoint
+        txtTtsEndpoint.Visible = showEndpoint
+        txtTtsEndpoint.PlaceholderText = defaultEndpoint
+    End Sub
+
+    ''' <summary>
+    ''' When the user switches the TTS engine being configured, persist the key +
+    ''' endpoint shown for the previous engine and load the new engine's stored
+    ''' values — each engine keeps its own credential.
+    ''' </summary>
+    Private Sub TtsKeyEngineCombo_Changed(sender As Object, e As EventArgs)
+        If Not String.IsNullOrEmpty(_currentTtsApiKeyBackend) Then
+            _config.SetTtsApiKey(_currentTtsApiKeyBackend, txtTtsApiKey.Text.Trim())
+            _config.SetTtsEndpoint(_currentTtsApiKeyBackend, txtTtsEndpoint.Text.Trim())
+        End If
+        _currentTtsApiKeyBackend = CurrentTtsKeyEngine()
+        txtTtsApiKey.Text = _config.GetTtsApiKey(_currentTtsApiKeyBackend)
+        txtTtsEndpoint.Text = _config.GetTtsEndpoint(_currentTtsApiKeyBackend)
+        UpdateTtsApiKeyVisibility()
+    End Sub
 
     ' ═══════════════════════════════════════════════════════════════
     ' Helpers

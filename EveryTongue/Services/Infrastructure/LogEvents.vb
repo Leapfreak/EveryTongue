@@ -84,6 +84,7 @@ Namespace Services.Infrastructure
         Public Const TTS_ENGINE_STOP As Integer = 4103
         Public Const TTS_ENGINE_ERROR As Integer = 4104
         Public Const TTS_PLAYBACK As Integer = 4105
+        Public Const TTS_BACKEND_CONFIGURED As Integer = 4106
 
         ' ── Conference (5000–5099) ──
         Public Const CONF_BACKEND_STARTING As Integer = 5000
@@ -261,6 +262,7 @@ Namespace Services.Infrastructure
             R(TTS_ENGINE_STOP, LogCategory.Tts, LogSeverity.Info, "TTS engine stopped")
             R(TTS_ENGINE_ERROR, LogCategory.Tts, LogSeverity.[Error], "TTS engine error")
             R(TTS_PLAYBACK, LogCategory.Tts, LogSeverity.Debug, "TTS audio playback")
+            R(TTS_BACKEND_CONFIGURED, LogCategory.Tts, LogSeverity.Info, "Cloud TTS backend API key/endpoint configured")
 
             ' Conference
             R(CONF_BACKEND_STARTING, LogCategory.Conference, LogSeverity.Info, "Conference backend starting")

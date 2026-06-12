@@ -668,6 +668,8 @@ Partial Class FormMain
                         ' Re-apply per-engine keys to every cloud translation backend
                         ' (own translation key first, else the companion STT engine's key)
                         Services.Translation.TranslationBackendRegistry.ConfigureCloudApiKeys(svc, _config)
+                        ' Same pass for cloud TTS backends (azure-tts/google-tts/openai-tts)
+                        Services.Tts.TtsBackendRegistry.ConfigureCloudTtsKeys(svc, _config)
                         ' Update ConversationAudioHandler with the active backend's key
                         Dim cah = TryCast(svc.GetService(GetType(Services.Rooms.ConversationAudioHandler)), Services.Rooms.ConversationAudioHandler)
                         If cah IsNot Nothing Then cah.SttApiKey = _config.GetSttApiKey(If(_config.SttBackend, ""))

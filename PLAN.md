@@ -269,7 +269,9 @@ Add steps after the current two:
 
 ## 6. Text-to-Speech — Server-Side Engine
 
-**Status:** Done. TtsOrchestrator with 3 backends (Piper, MMS-TTS, EdgeTTS), TtsCache ring-buffer, fire-and-forget pipeline, hybrid browser/server approach, Bible verse TTS, local NAudio output. Not done: Piper voice model download UI (b), earphone mode (d).
+**Status:** Done. TtsOrchestrator with 6 backends (Piper, MMS-TTS, EdgeTTS, Azure AI Speech TTS, Google Cloud TTS, OpenAI TTS), TtsCache ring-buffer, fire-and-forget pipeline, hybrid browser/server approach, Bible verse TTS, local NAudio output. Not done: Piper voice model download UI (b), earphone mode (d).
+
+**v1.9.13:** Added three online key-requiring TTS engines — Azure AI Speech TTS (`azure-tts`, region endpoint, shares the Azure AI Speech STT key), Google Cloud TTS (`google-tts`, shares the Google Translate/STT key), OpenAI TTS (`openai-tts`, gpt-4o-mini-tts "alloy", shares the OpenAI translation key). Per-engine TTS key plumbing mirrors translation: `AppConfig.TtsApiKeys`/`TtsEndpoints`, `TtsBackendRegistry.ResolveTtsApiKey`/`ConfigureCloudTtsKeys` (entry-declared `FallbackApiKey`), Options TTS page key/endpoint fields, shared Edge/Azure neural voice catalogue (`NeuralVoiceCatalog`).
 
 ---
 

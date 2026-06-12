@@ -101,24 +101,9 @@ Namespace Services.Tts
         End Function
 
         Private Shared Function GetVoiceForLanguage(language As String) As String
-            ' Map common FLORES codes to Edge TTS voice names
-            ' Default to a reasonable voice per language
-            Select Case language.Split("_"c)(0).ToLower()
-                Case "eng" : Return "en-US-JennyNeural"
-                Case "spa" : Return "es-ES-ElviraNeural"
-                Case "fra" : Return "fr-FR-DeniseNeural"
-                Case "deu" : Return "de-DE-KatjaNeural"
-                Case "cat" : Return "ca-ES-JoanaNeural"
-                Case "por" : Return "pt-BR-FranciscaNeural"
-                Case "ita" : Return "it-IT-ElsaNeural"
-                Case "jpn" : Return "ja-JP-NanamiNeural"
-                Case "zho" : Return "zh-CN-XiaoxiaoNeural"
-                Case "kor" : Return "ko-KR-SunHiNeural"
-                Case "arb" : Return "ar-SA-ZariyahNeural"
-                Case "hin" : Return "hi-IN-SwaraNeural"
-                Case "rus" : Return "ru-RU-SvetlanaNeural"
-                Case Else : Return "en-US-JennyNeural"
-            End Select
+            ' Shared with AzureTtsBackend — Edge TTS and Azure AI Speech expose
+            ' the same neural voice catalogue (see NeuralVoiceCatalog).
+            Return NeuralVoiceCatalog.GetVoiceForLanguage(language)
         End Function
 
         Private Shared Function FindPython() As String
