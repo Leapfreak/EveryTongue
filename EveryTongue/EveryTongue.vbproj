@@ -231,7 +231,10 @@
       <!-- Other shipped files -->
       <ChecksumFile Include="$(PublishDir)LICENSE" />
       <ChecksumFile Include="$(PublishDir)THIRD_PARTY_NOTICES.md" />
-      <ChecksumFile Include="$(PublishDir)tool-versions.json" />
+      <!-- NOTE: tool-versions.json is deliberately NOT tracked — it is a
+           runtime-mutable state file the Download Manager rewrites whenever a
+           tool is installed/updated, so a fixed manifest hash would always
+           mismatch after the first download. -->
     </ItemGroup>
     <GetFileHash Files="@(ChecksumFile)" Algorithm="SHA256" Condition="Exists('%(Identity)')">
       <Output TaskParameter="Items" ItemName="HashedFile" />
