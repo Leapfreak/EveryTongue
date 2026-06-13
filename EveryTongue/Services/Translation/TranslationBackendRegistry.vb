@@ -162,15 +162,32 @@ Namespace Services.Translation
                     Function(b) b.Name.Equals(entry.BackendName, StringComparison.OrdinalIgnoreCase))
                 If backend Is Nothing Then Continue For
                 Dim key = ResolveTranslationApiKey(cfg, entry.Key)
-                backend.Configure(key)
-                Dim endpointNote = ""
-                If entry.RequiresEndpoint Then
-                    Dim endpoint = ResolveTranslationEndpoint(cfg, entry.Key)
-                    backend.ConfigureEndpoint(endpoint)
-                    endpointNote = $", endpoint '{endpoint}'"
+                ' Never initialise a backend that has no key. An unselected /
+                ' unconfigured engine must not be touched at startup — and this
+                ' also avoids loading an optional vendor SDK assembly (e.g.
+                ' AWSSDK for Amazon) merely to configure an engine nobody uses.
+                If String.IsNullOrEmpty(key) Then
+                    AppLogger.Log(LogEvents.TRANS_BACKEND_ACTIVE,
+                        $"Cloud translation backend '{entry.Key}': no key — skipped")
+                    Continue For
                 End If
-                AppLogger.Log(LogEvents.TRANS_BACKEND_ACTIVE,
-                    $"Cloud translation backend '{entry.Key}': API key {If(String.IsNullOrEmpty(key), "no key", "configured")}{endpointNote}")
+                ' Configure defensively: a backend whose optional dependency (a
+                ' managed SDK DLL) is missing must log and be skipped, never take
+                ' down server startup for every other engine.
+                Try
+                    backend.Configure(key)
+                    Dim endpointNote = ""
+                    If entry.RequiresEndpoint Then
+                        Dim endpoint = ResolveTranslationEndpoint(cfg, entry.Key)
+                        backend.ConfigureEndpoint(endpoint)
+                        endpointNote = $", endpoint '{endpoint}'"
+                    End If
+                    AppLogger.Log(LogEvents.TRANS_BACKEND_ACTIVE,
+                        $"Cloud translation backend '{entry.Key}': API key configured{endpointNote}")
+                Catch ex As Exception
+                    AppLogger.Log(LogEvents.TRANS_BACKEND_FALLBACK,
+                        $"Cloud translation backend '{entry.Key}' unavailable — {ex.GetType().Name}: {ex.Message} (engine disabled; a required component may be missing)")
+                End Try
             Next
         End Sub
 

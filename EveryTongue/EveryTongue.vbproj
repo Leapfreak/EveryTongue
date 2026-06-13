@@ -6,9 +6,9 @@
     <RootNamespace>EveryTongue</RootNamespace>
     <StartupObject>EveryTongue.Program</StartupObject>
     <UseWindowsForms>true</UseWindowsForms>
-    <Version>1.9.14</Version>
-    <AssemblyVersion>1.9.14.0</AssemblyVersion>
-    <FileVersion>1.9.14.0</FileVersion>
+    <Version>1.9.15</Version>
+    <AssemblyVersion>1.9.15.0</AssemblyVersion>
+    <FileVersion>1.9.15.0</FileVersion>
     <IsPackable>false</IsPackable>
     <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
     <NoWarn>MSB3277;NU5118</NoWarn>
@@ -195,6 +195,10 @@
       <ChecksumFile Include="$(PublishDir)EveryTongue.dll" />
       <ChecksumFile Include="$(PublishDir)EveryTongue.deps.json" />
       <ChecksumFile Include="$(PublishDir)EveryTongue.runtimeconfig.json" />
+      <!-- AWS SDK (Amazon Translate) — lazily loaded; track so a missing/partial
+           deploy is reported as "missing" at startup instead of failing silently -->
+      <ChecksumFile Include="$(PublishDir)AWSSDK.Core.dll" />
+      <ChecksumFile Include="$(PublishDir)AWSSDK.Translate.dll" />
       <!-- Web client -->
       <ChecksumFile Include="$(PublishDir)wwwroot\**\*" />
       <!-- Python servers -->

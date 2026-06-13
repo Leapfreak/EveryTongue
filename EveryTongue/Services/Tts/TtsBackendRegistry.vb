@@ -111,15 +111,30 @@ Namespace Services.Tts
                     Function(b) b.Name.Equals(entry.Key, StringComparison.OrdinalIgnoreCase))
                 If backend Is Nothing Then Continue For
                 Dim key = ResolveTtsApiKey(cfg, entry.Key)
-                backend.Configure(key)
-                Dim endpointNote = ""
-                If entry.RequiresEndpoint Then
-                    Dim endpoint = ResolveTtsEndpoint(cfg, entry.Key)
-                    backend.ConfigureEndpoint(endpoint)
-                    endpointNote = $", endpoint '{endpoint}'"
+                ' Never initialise a backend that has no key — an unselected /
+                ' unconfigured engine must not be touched at startup (also avoids
+                ' loading any optional vendor SDK assembly just to configure it).
+                If String.IsNullOrEmpty(key) Then
+                    AppLogger.Log(LogEvents.TTS_BACKEND_CONFIGURED,
+                        $"Cloud TTS backend '{entry.Key}': no key — skipped")
+                    Continue For
                 End If
-                AppLogger.Log(LogEvents.TTS_BACKEND_CONFIGURED,
-                    $"Cloud TTS backend '{entry.Key}': API key {If(String.IsNullOrEmpty(key), "no key", "configured")}{endpointNote}")
+                ' Configure defensively: a missing optional dependency must log
+                ' and be skipped, never crash server startup.
+                Try
+                    backend.Configure(key)
+                    Dim endpointNote = ""
+                    If entry.RequiresEndpoint Then
+                        Dim endpoint = ResolveTtsEndpoint(cfg, entry.Key)
+                        backend.ConfigureEndpoint(endpoint)
+                        endpointNote = $", endpoint '{endpoint}'"
+                    End If
+                    AppLogger.Log(LogEvents.TTS_BACKEND_CONFIGURED,
+                        $"Cloud TTS backend '{entry.Key}': API key configured{endpointNote}")
+                Catch ex As Exception
+                    AppLogger.Log(LogEvents.TTS_ENGINE_ERROR,
+                        $"Cloud TTS backend '{entry.Key}' unavailable — {ex.GetType().Name}: {ex.Message} (engine disabled; a required component may be missing)")
+                End Try
             Next
         End Sub
 
