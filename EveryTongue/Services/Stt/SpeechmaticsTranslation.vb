@@ -99,15 +99,17 @@ Namespace Services.Stt
         End Function
 
         ''' <summary>
-        ''' Configure a session for Speechmatics inline translation, if enabled.
-        ''' Engine-owned: gates on the user toggle, finds the engine's own config
-        ''' block on the session (a non-Speechmatics session has none → no-op),
-        ''' and computes the engine-native target codes. Callers stay blind to
-        ''' the engine's fields.
+        ''' Configure a session for Speechmatics inline translation, when enabled by
+        ''' the caller (the room picked the Speechmatics inline translation engine AND
+        ''' its STT engine is Speechmatics). Engine-owned: finds the engine's own
+        ''' config block on the session (a non-Speechmatics session has none → no-op),
+        ''' and computes the engine-native target codes. Callers stay blind to the
+        ''' engine's fields. cfg is unused for gating now (kept for signature stability).
         ''' </summary>
         Public Sub ConfigureSession(sttConfig As SttSessionConfig, cfg As AppConfig,
-                                    sourceWhisperLang As String, activeLangs As List(Of String))
-            If cfg Is Nothing OrElse Not cfg.UseSpeechmaticsTranslation Then Return
+                                    sourceWhisperLang As String, activeLangs As List(Of String),
+                                    enabled As Boolean)
+            If Not enabled Then Return
             ' Only a Speechmatics session carries a SpeechmaticsConfig block.
             Dim sm = sttConfig.Block(Of Configs.SpeechmaticsConfig)()
             If sm Is Nothing Then Return

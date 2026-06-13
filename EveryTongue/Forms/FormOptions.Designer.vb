@@ -149,7 +149,6 @@ Partial Class FormOptions
         Me.lblTransEndpoint = New System.Windows.Forms.Label()
         Me.txtTransEndpoint = New System.Windows.Forms.TextBox()
         Me.chkTransEnabled = New System.Windows.Forms.CheckBox()
-        Me.chkUseSpeechmaticsTranslation = New System.Windows.Forms.CheckBox()
         Me.lblClauseHeader = New System.Windows.Forms.Label()
         Me.chkSpeechmaticsHoldClauses = New System.Windows.Forms.CheckBox()
         Me.chkClauseLockOnPunctuation = New System.Windows.Forms.CheckBox()
@@ -1272,16 +1271,6 @@ Partial Class FormOptions
         Me.nudTransPort.TabIndex = 10
         Me.nudTransPort.Value = New Decimal(New Integer() {5090, 0, 0, 0})
         '
-        ' chkUseSpeechmaticsTranslation
-        '
-        Me.chkUseSpeechmaticsTranslation.AutoSize = True
-        Me.chkUseSpeechmaticsTranslation.Location = New System.Drawing.Point(12, 224)
-        Me.chkUseSpeechmaticsTranslation.Name = "chkUseSpeechmaticsTranslation"
-        Me.chkUseSpeechmaticsTranslation.Size = New System.Drawing.Size(330, 19)
-        Me.chkUseSpeechmaticsTranslation.TabIndex = 11
-        Me.chkUseSpeechmaticsTranslation.Text = "Use Speechmatics translation (when Speechmatics is the STT engine)"
-        Me.chkUseSpeechmaticsTranslation.UseVisualStyleBackColor = True
-        '
         ' lblClauseHeader
         '
         Me.lblClauseHeader.AutoSize = True
@@ -1884,7 +1873,6 @@ Partial Class FormOptions
         Me.pnlTranslation.Controls.Add(Me.nudClauseTimerMs)
         Me.pnlTranslation.Controls.Add(Me.lblClauseSentenceEnders)
         Me.pnlTranslation.Controls.Add(Me.txtClauseSentenceEnders)
-        Me.pnlTranslation.Controls.Add(Me.chkUseSpeechmaticsTranslation)
         Me.pnlTranslation.Controls.Add(Me.nudTransPort)
         Me.pnlTranslation.Controls.Add(Me.lblTransPort)
         Me.pnlTranslation.Controls.Add(Me.cboDevice)
@@ -3500,7 +3488,6 @@ Partial Class FormOptions
     Friend WithEvents lblTranslationHeader As System.Windows.Forms.Label
     Friend WithEvents lblTranslationSep As System.Windows.Forms.Label
     Friend WithEvents chkTransEnabled As System.Windows.Forms.CheckBox
-    Friend WithEvents chkUseSpeechmaticsTranslation As System.Windows.Forms.CheckBox
     Friend WithEvents lblClauseHeader As System.Windows.Forms.Label
     Friend WithEvents chkSpeechmaticsHoldClauses As System.Windows.Forms.CheckBox
     Friend WithEvents chkClauseLockOnPunctuation As System.Windows.Forms.CheckBox

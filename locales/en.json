@@ -313,7 +313,6 @@
 
   "Opt_TranslationHeader": "Translation",
   "Opt_TransEnabled": "Translation enabled",
-  "Opt_UseSpeechmaticsTranslation": "Use Speechmatics translation (when Speechmatics is the STT engine)",
   "Opt_ClauseHeader": "Speechmatics clause buffering",
   "Opt_HoldClauses": "Hold & merge fragments into whole clauses before translating",
   "Opt_ClauseLockOnPunct": "Lock immediately on sentence-final punctuation",

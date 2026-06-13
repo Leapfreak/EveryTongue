@@ -201,8 +201,15 @@ Namespace Controllers
                     backendKey, _config, template:=engineTpl, fieldOverrides:=tplOverrides, contextLabel:=$"[Conference:{roomId}]")
             }
 
+            ' Resolve + remember the room's OWN translation engine (template wins;
+            ' else the global config default) BEFORE configuring inline translation,
+            ' so the inline-vs-fallback decision can read the resolved engine. This
+            ' overrides the global Options translation engine for this room's calls.
+            ResolveRoomTranslationEngine(roomId, template)
+
             SpeechmaticsTranslation.ConfigureSession(sttConfig, _config, sttConfig.Language,
-                                                     _getSubtitleSvc()?.GetActiveTranslationLanguages())
+                                                     _getSubtitleSvc()?.GetActiveTranslationLanguages(),
+                                                     ResolveInlineEnabled(roomId, backendKey))
             _clauseCoordinator.StorePinnedClauseDials(roomId, engineTpl, sttConfig)
             ResolveRoomFilters(roomId, template)
             Dim createFs As Models.Templates.FilterSet = Nothing
@@ -215,11 +222,6 @@ Namespace Controllers
 
             _sttBackends(roomId) = backend
             _roomTemplateIds(roomId) = templateId
-
-            ' Resolve + remember the room's OWN translation engine (template wins;
-            ' else the global config default). This overrides the global Options
-            ' translation engine for this room's translation calls.
-            ResolveRoomTranslationEngine(roomId, template)
 
             _log($"[Conference] Starting backend for room {roomId} (template={template.Name}, port={port}, lang={sttConfig.Language}, backend={backendKey})")
             backend.Start(sttConfig)
@@ -347,8 +349,13 @@ Namespace Controllers
             _nextConferencePort += 1
             _nextWhisperServerPort += 1
 
+            ' Re-resolve the room's translation engine before configuring inline
+            ' translation so the inline-vs-fallback decision is current.
+            ResolveRoomTranslationEngine(roomId, template)
+
             SpeechmaticsTranslation.ConfigureSession(sttConfig, _config, cfgLang,
-                                                     _getSubtitleSvc()?.GetActiveTranslationLanguages())
+                                                     _getSubtitleSvc()?.GetActiveTranslationLanguages(),
+                                                     ResolveInlineEnabled(roomId, restartBackendKey))
             _clauseCoordinator.StorePinnedClauseDials(roomId, engineTpl, sttConfig)
             ResolveRoomFilters(roomId, template)
             Dim restartFs As Models.Templates.FilterSet = Nothing
@@ -581,12 +588,20 @@ Namespace Controllers
             ' The room translates with ITS OWN engine (template's, else the global
             ' default), passed as a per-call override so it wins over the global
             ' orchestrator active backend and any per-language overrides.
+            '
+            ' INLINE engines (e.g. Speechmatics) are NOT orchestrator backends — the
+            ' inline translations arrive on the commit itself. Here the orchestrator is
+            ' only the FALLBACK for languages the inline engine couldn't cover, so we
+            ' pass no override and let the orchestrator use the GLOBAL DEFAULT backend.
             Dim roomKey = RoomTranslationKey(roomId)
-            Dim backendName = TranslationBackendRegistry.BackendNameForKey(roomKey)
+            Dim isInline = TranslationBackendRegistry.IsInlineEngine(roomKey)
+            Dim backendName = If(isInline, Nothing, TranslationBackendRegistry.BackendNameForKey(roomKey))
 
             Dim sw = Diagnostics.Stopwatch.StartNew()
             Dim orchestrator = _getTranslationOrchestrator?.Invoke()
             If orchestrator IsNot Nothing AndAlso orchestrator.GetAllBackends().Any(Function(b) b.IsAvailable) Then
+                Dim actualBackend = If(isInline, orchestrator.ActiveBackend, backendName)
+                Dim engineLabel = If(isInline, $"{roomKey}->fallback", roomKey)
                 Try
                     Using cts As New Threading.CancellationTokenSource(TimeSpan.FromSeconds(10))
                         Dim result = Await orchestrator.TranslateAsync(
@@ -598,11 +613,11 @@ Namespace Controllers
                     End Using
                 Catch ex As Exception
                     AppLogger.Log(LogEvents.TRANS_ERROR,
-                        $"room={roomId} engine={roomKey} backend={backendName} {sourceLang}→[{String.Join(",", targets)}] failed: {ex.Message}")
+                        $"room={roomId} engine={engineLabel} backend={actualBackend} {sourceLang}→[{String.Join(",", targets)}] failed: {ex.Message}")
                 End Try
                 If translations.Count > 0 Then
                     AppLogger.Log(LogEvents.TRANS_RESULT,
-                        $"room={roomId} engine={roomKey} backend={backendName} {sourceLang}→[{String.Join(",", translations.Keys)}] ok={translations.Count}/{targets.Count} {sw.ElapsedMilliseconds}ms")
+                        $"room={roomId} engine={engineLabel} backend={actualBackend} {sourceLang}→[{String.Join(",", translations.Keys)}] ok={translations.Count}/{targets.Count} {sw.ElapsedMilliseconds}ms")
                     Return translations
                 End If
             End If
@@ -743,10 +758,13 @@ Namespace Controllers
         End Sub
 
         Private Sub OnActiveLanguagesChanged(sender As Object, e As EventArgs)
-            If Not _config.UseSpeechmaticsTranslation Then Return
             Dim svc = _getSubtitleSvc()
             If svc Is Nothing Then Return
             For Each kvp In _sttBackends.ToList()
+                ' Only retarget rooms whose translation engine is an INLINE engine —
+                ' other rooms translate via the orchestrator and need no session
+                ' restart on language change.
+                If Not TranslationBackendRegistry.IsInlineEngine(RoomTranslationKey(kvp.Key)) Then Continue For
                 ' Capability interface — no engine keys here; the backend itself
                 ' knows whether its session translates inline.
                 Dim retargetable = TryCast(kvp.Value, IRetargetableSttBackend)
@@ -967,6 +985,26 @@ Namespace Controllers
                 _ensureTranslationBackend?.Invoke(roomKey, Not otherLocalRoom)
             End If
         End Sub
+
+        ''' <summary>
+        ''' Decide whether a room should use INLINE (STT-engine-native) translation:
+        ''' true only when the room's chosen translation engine is an inline engine
+        ''' AND the room's STT engine matches that inline engine's STT requirement.
+        ''' When the room picked an inline translation engine but its STT engine isn't
+        ''' the required one, log a fallback warning and return False — the room then
+        ''' uses the global default translation engine for everything.
+        ''' </summary>
+        Private Function ResolveInlineEnabled(roomId As String, sttBackendKey As String) As Boolean
+            Dim roomKey = RoomTranslationKey(roomId)
+            Dim transEntry = TranslationBackendRegistry.Find(roomKey)
+            If transEntry Is Nothing OrElse String.IsNullOrEmpty(transEntry.InlineWithStt) Then Return False
+            Dim inlineEnabled = transEntry.InlineWithStt.Equals(If(sttBackendKey, ""), StringComparison.OrdinalIgnoreCase)
+            If Not inlineEnabled Then
+                AppLogger.Log(LogEvents.TRANS_BACKEND_FALLBACK,
+                    $"[Conference:{roomId}] translation engine '{roomKey}' requires {transEntry.InlineWithStt} STT (room STT is '{sttBackendKey}') — falling back to the global default translation engine")
+            End If
+            Return inlineEnabled
+        End Function
 
         ''' <summary>The TRANSLATION engine key for a room (template override, else global config default).</summary>
         Private Function RoomTranslationKey(roomId As String) As String

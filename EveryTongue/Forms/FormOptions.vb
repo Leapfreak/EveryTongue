@@ -107,7 +107,6 @@ Public Class FormOptions
         ' Translation panel
         lblTranslationHeader.Text = langPack.GetString("Opt_TranslationHeader")
         chkTransEnabled.Text = langPack.GetString("Opt_TransEnabled")
-        chkUseSpeechmaticsTranslation.Text = langPack.GetString("Opt_UseSpeechmaticsTranslation")
         lblClauseHeader.Text = langPack.GetString("Opt_ClauseHeader")
         chkSpeechmaticsHoldClauses.Text = langPack.GetString("Opt_HoldClauses")
         chkClauseLockOnPunctuation.Text = langPack.GetString("Opt_ClauseLockOnPunct")
@@ -368,7 +367,6 @@ Public Class FormOptions
         nudTransBudget.Value = ClampNudLong(nudTransBudget, _config.GetTranslationCharBudget(_currentTransApiKeyBackend))
         UpdateTransApiKeyVisibility()
         chkTransEnabled.Checked = _config.TranslationEnabled
-        chkUseSpeechmaticsTranslation.Checked = _config.UseSpeechmaticsTranslation
         chkSpeechmaticsHoldClauses.Checked = _config.SpeechmaticsHoldClauses
         chkClauseLockOnPunctuation.Checked = _config.SpeechmaticsClauseLockOnPunctuation
         nudClauseGraceMs.Value = ClampNud(nudClauseGraceMs, _config.SpeechmaticsClauseGraceMs)
@@ -528,7 +526,6 @@ Public Class FormOptions
             _config.SetTranslationCharBudget(_currentTransApiKeyBackend, CLng(nudTransBudget.Value))
         End If
         _config.TranslationEnabled = chkTransEnabled.Checked
-        _config.UseSpeechmaticsTranslation = chkUseSpeechmaticsTranslation.Checked
         _config.SpeechmaticsHoldClauses = chkSpeechmaticsHoldClauses.Checked
         _config.SpeechmaticsClauseLockOnPunctuation = chkClauseLockOnPunctuation.Checked
         _config.SpeechmaticsClauseGraceMs = CInt(nudClauseGraceMs.Value)

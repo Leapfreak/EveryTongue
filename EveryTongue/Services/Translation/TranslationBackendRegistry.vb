@@ -27,6 +27,15 @@ Namespace Services.Translation
             Public Property DefaultEndpoint As String = ""
             ''' <summary>Self-description of this engine's config block. Empty (BasicEngineConfigDescriptor) until the engine exposes per-session knobs.</summary>
             Public Property ConfigDescriptor As Config.IEngineConfigDescriptor
+            ''' <summary>
+            ''' When non-empty, this "engine" is INLINE translation produced by the
+            ''' named STT engine (e.g. Speechmatics' English-pivot translation), NOT a
+            ''' standalone orchestrator backend. Such an engine only works inside a
+            ''' session running that STT engine; everywhere else it degrades to the
+            ''' global default translation engine. Has no BackendName (no orchestrator
+            ''' backend instance exists for it).
+            ''' </summary>
+            Public Property InlineWithStt As String = ""
         End Class
 
         Private Shared ReadOnly _backends As New List(Of Entry) From {
@@ -38,7 +47,8 @@ Namespace Services.Translation
             New Entry With {.Key = "deepseek", .DisplayName = "DeepSeek (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "DeepSeek", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("deepseek")},
             New Entry With {.Key = "openai", .DisplayName = "OpenAI (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "OpenAI", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("openai")},
             New Entry With {.Key = "libretranslate", .DisplayName = "LibreTranslate (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "LibreTranslate", .RequiresEndpoint = True, .DefaultEndpoint = "https://libretranslate.com", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("libretranslate")},
-            New Entry With {.Key = "amazon-translate", .DisplayName = "Amazon Translate (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "Amazon", .RequiresEndpoint = True, .DefaultEndpoint = "us-east-1", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("amazon-translate")}
+            New Entry With {.Key = "amazon-translate", .DisplayName = "Amazon Translate (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "Amazon", .RequiresEndpoint = True, .DefaultEndpoint = "us-east-1", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("amazon-translate")},
+            New Entry With {.Key = "speechmatics", .DisplayName = "Speechmatics (inline)", .RequiresInternet = True, .RequiresApiKey = False, .InlineWithStt = "speechmatics", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("speechmatics")}
         }
 
         Public Shared Function GetAll() As IReadOnlyList(Of Entry)
@@ -62,6 +72,17 @@ Namespace Services.Translation
         Public Shared Function Find(key As String) As Entry
             Return _backends.FirstOrDefault(
                 Function(e) e.Key.Equals(If(key, ""), StringComparison.OrdinalIgnoreCase))
+        End Function
+
+        ''' <summary>
+        ''' True when the engine key is an INLINE engine — translation produced by an
+        ''' STT engine in-session (see Entry.InlineWithStt), not a standalone
+        ''' orchestrator backend. Inline engines have no orchestrator backend instance,
+        ''' so callers must never make one the orchestrator's active backend; outside a
+        ''' matching STT session they degrade to the global default.
+        ''' </summary>
+        Public Shared Function IsInlineEngine(key As String) As Boolean
+            Return Not String.IsNullOrEmpty(Find(key)?.InlineWithStt)
         End Function
 
         ''' <summary>
@@ -114,6 +135,15 @@ Namespace Services.Translation
             If Not String.IsNullOrEmpty(companionKey) AndAlso
                Not String.IsNullOrEmpty(cfg.GetSttApiKey(sttKey)) Then
                 Return companionKey
+            End If
+            ' An INLINE engine (e.g. Speechmatics) only works inside a matching STT
+            ' session (a conference room). It is not a global orchestrator backend, so
+            ' for every non-conference / global path degrade to the safe local default.
+            ' This also prevents the inline key from ever reaching SetActiveBackend.
+            If IsInlineEngine(configKey) Then
+                AppLogger.Log(LogEvents.TRANS_BACKEND_FALLBACK,
+                    $"Global translation engine '{configKey}' is inline-only (works only inside a {Find(configKey)?.InlineWithStt} conference room) — using 'nllb' as the global default")
+                Return "nllb"
             End If
             Return configKey
         End Function

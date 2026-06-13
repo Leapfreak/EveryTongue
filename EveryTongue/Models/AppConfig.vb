@@ -297,13 +297,6 @@ Namespace Models
             TranslationMonthlyCharBudgets(backendKey) = Math.Max(0L, value)
         End Sub
 
-        ''' <summary>
-        ''' When the STT engine is Speechmatics, use its built-in (English-pivot)
-        ''' translation for eligible languages; others fall back to the configured
-        ''' translation backend.
-        ''' </summary>
-        Public Property UseSpeechmaticsTranslation As Boolean = False
-
         ' --- Speechmatics clause hold-and-lock (translate-and-replace, Phase 1) ---
         ' Speechmatics-only. When on, the conference pipeline holds each
         ' END_OF_UTTERANCE fragment and merges consecutive fragments into one
