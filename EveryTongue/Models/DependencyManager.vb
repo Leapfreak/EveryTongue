@@ -111,7 +111,8 @@ Namespace Models
                 CheckSileroVadModelAsync(),
                 CheckNllbModelAsync(),
                 CheckNllb33bModelAsync(),
-                CheckPiperAsync()
+                CheckPiperAsync(),
+                CheckAwsSdkAsync()
             }
             Await Task.WhenAll(tasks)
             Return tasks.Select(Function(t) t.Result).ToList()
@@ -886,6 +887,53 @@ Namespace Models
         End Function
 
         ' ──────────────────────────────────────────
+        '  AWS SDK (Amazon Translate) — optional managed DLLs, downloaded on demand
+        ' ──────────────────────────────────────────
+
+        ''' <summary>AWS SDK assemblies must sit beside EveryTongue.dll for the runtime to load them.</summary>
+        Private Function AwsSdkInstalledPath() As String
+            Return Path.Combine(_toolsDir, "AWSSDK.Translate.dll")
+        End Function
+
+        Public Async Function CheckAwsSdkAsync() As Task(Of ToolState)
+            Dim state As New ToolState With {
+                .Name = "AWS SDK (Amazon Translate)"
+            }
+            Try
+                If File.Exists(AwsSdkInstalledPath()) AndAlso
+                   File.Exists(Path.Combine(_toolsDir, "AWSSDK.Core.dll")) Then
+                    state.InstalledVersion = GetSavedVersion("AWS SDK (Amazon Translate)")
+                    If String.IsNullOrEmpty(state.InstalledVersion) Then state.InstalledVersion = "installed"
+                    state.Status = ToolStatus.Installed
+                End If
+
+                ' Hosted on EveryTongue releases as a small zip of the two managed DLLs.
+                Dim found = Await FindAssetAcrossReleasesAsync("LeapFreak/EveryTongue", "aws-sdk.*\.zip$")
+                If found IsNot Nothing Then
+                    state.LatestVersion = found.Value.TagName
+                    state.DownloadUrl = found.Value.Url
+                    If state.Status = ToolStatus.Installed Then
+                        state.Status = CompareVersionTags(state.InstalledVersion, state.LatestVersion)
+                    End If
+                End If
+            Catch ex As Exception
+                AppLogger.Log(LogEvents.DL_CHECK_RESULT, $"AWS SDK check failed: {ex.Message}")
+                If state.Status = ToolStatus.Missing Then state.Status = ToolStatus.CheckFailed
+            End Try
+            Return state
+        End Function
+
+        Public Async Function DownloadAwsSdkAsync(url As String, progress As IProgress(Of (downloaded As Long, total As Long))) As Task
+            Dim zipPath = Path.Combine(_toolsDir, "aws-sdk-temp.zip")
+            Try
+                Await DownloadFileAsync(url, zipPath, progress)
+                ExtractAllFromZip(zipPath, _toolsDir)
+            Finally
+                If File.Exists(zipPath) Then File.Delete(zipPath)
+            End Try
+        End Function
+
+        ' ──────────────────────────────────────────
         '  GGML Whisper Model (for whisper.cpp)
         ' ──────────────────────────────────────────
 
@@ -1021,6 +1069,8 @@ Namespace Models
                         Await DownloadFasterWhisperModelAsync(progress)
                     Case "Silero VAD Model"
                         Await DownloadSileroVadModelAsync(state.DownloadUrl, progress)
+                    Case "AWS SDK (Amazon Translate)"
+                        Await DownloadAwsSdkAsync(state.DownloadUrl, progress)
                     Case Else
                         AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"Unknown tool name: '{state.Name}' — no download handler")
                 End Select
