@@ -23,7 +23,10 @@ Namespace Controllers
         ' Ensures the translation backend for a room's engine KEY is ready before the
         ' room translates: for a local/NLLB engine, starts the sidecar with that key's
         ' model on demand; for cloud engines, a no-op (configured at server start).
-        Private ReadOnly _ensureTranslationBackend As Action(Of String)
+        ' The Boolean is "may reload" — True when no other active room is using a local
+        ' engine, so the sidecar may be reloaded to THIS room's model (room overrides
+        ' the global default); False = another local room is active, so share its model.
+        Private ReadOnly _ensureTranslationBackend As Action(Of String, Boolean)
         Private ReadOnly _log As Action(Of String)
         Private ReadOnly _ownerForm As Form
 
@@ -57,7 +60,7 @@ Namespace Controllers
                        getTranslationService As Func(Of TranslationService),
                        getTranslationOrchestrator As Func(Of ITranslationService),
                        getRoomManager As Func(Of Services.Rooms.RoomManager),
-                       ensureTranslationBackend As Action(Of String),
+                       ensureTranslationBackend As Action(Of String, Boolean),
                        log As Action(Of String),
                        ownerForm As Form)
             _config = config
@@ -955,7 +958,13 @@ Namespace Controllers
             ' engines have a non-empty BackendName but EMPTY ModelType — skip them.
             Dim entry = TranslationBackendRegistry.Find(roomKey)
             If entry IsNot Nothing AndAlso Not String.IsNullOrEmpty(entry.ModelType) Then
-                _ensureTranslationBackend?.Invoke(roomKey)
+                ' May reload the sidecar to this room's model only if no OTHER active
+                ' room is on a local/NLLB engine — reloading would disrupt it. When
+                ' another local room is active, this room shares the loaded model.
+                Dim otherLocalRoom = _roomTranslationKey.Any(
+                    Function(kv) kv.Key <> roomId AndAlso
+                    TranslationBackendRegistry.BackendNameForKey(kv.Value).Equals("Local", StringComparison.OrdinalIgnoreCase))
+                _ensureTranslationBackend?.Invoke(roomKey, Not otherLocalRoom)
             End If
         End Sub
 

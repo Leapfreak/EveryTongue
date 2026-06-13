@@ -324,7 +324,7 @@ Public Class FormMain
                                       Function() TryCast(_serverController?.KestrelHost?.Services?.GetService(
                                           GetType(Services.Interfaces.ITranslationService)), Services.Interfaces.ITranslationService),
                                       Function() _serverController.GetRoomManager(),
-                                      Sub(engineKey) EnsureTranslationSidecarForKey(engineKey),
+                                      Sub(engineKey, mayReload) EnsureTranslationSidecarForKey(engineKey, mayReload),
                                       AddressOf WriteDebugLog,
                                       Me)
                                   _conferenceController.WireEndpointHandlers()
@@ -983,23 +983,39 @@ del ""%~f0""
     ''' warning and KEEP the running model (no reload) — two rooms on different
     ''' NLLB models share the first-loaded one. Cloud engines have no such limit.
     ''' </summary>
-    Private Sub EnsureTranslationSidecarForKey(engineKey As String)
+    Private Sub EnsureTranslationSidecarForKey(engineKey As String, mayReload As Boolean)
         Dim entry = Services.Translation.TranslationBackendRegistry.Find(engineKey)
         ' Cloud engine (or unknown key): no sidecar needed. Cloud engines are
         ' configured via ConfigureCloudApiKeys at server start; if unkeyed they
         ' fail at call time and fall back, which is acceptable.
         If entry Is Nothing OrElse String.IsNullOrEmpty(entry.ModelType) Then Return
 
-        ' Already running: just make sure SidecarTranslationBackend is registered,
-        ' and warn if the loaded model differs from this key's model (no reload).
+        ' Already running: ensure the sidecar backend is registered, then handle a
+        ' model mismatch. A conference room overrides the global default, so when
+        ' it's safe (no other local room active) RELOAD the sidecar to this room's
+        ' model; otherwise share the running model (a concurrent local room is using it).
         If _translationService IsNot Nothing AndAlso _translationService.IsRunning Then
             EnsureSidecarBackendRegistered()
             Dim requested = AppConfig.ResolvePath(entry.DefaultModelPath)
             Dim loaded = AppConfig.ResolvePath(_config.TranslationModelPath)
             If Not String.IsNullOrEmpty(requested) AndAlso
                Not requested.Equals(loaded, StringComparison.OrdinalIgnoreCase) Then
-                AppLogger.Log(LogEvents.TRANS_BACKEND_FALLBACK,
-                    $"Room requested NLLB engine '{engineKey}' (model {entry.DefaultModelPath}), but the sidecar is already running model '{_config.TranslationModelPath}'. Simultaneous different NLLB models aren't supported — using the running model.")
+                If mayReload Then
+                    ' Room wins: reload the sidecar to this room's model. Costs a
+                    ' model-load (~seconds); the reloaded model then also serves
+                    ' non-conference paths until the global engine is changed.
+                    AppLogger.Log(LogEvents.TRANS_SERVER_STARTING,
+                        $"Reloading NLLB sidecar to room engine '{engineKey}' (model {entry.DefaultModelPath}; was '{_config.TranslationModelPath}')")
+                    _translationService.Stop()
+                    _translationService = Nothing
+                    Dim wasEnabledR = _config.TranslationEnabled
+                    _config.TranslationEnabled = True
+                    StartTranslationService(engineKey)
+                    If Not wasEnabledR Then _config.TranslationEnabled = wasEnabledR
+                Else
+                    AppLogger.Log(LogEvents.TRANS_BACKEND_FALLBACK,
+                        $"Room requested NLLB engine '{engineKey}' (model {entry.DefaultModelPath}), but another active room is using model '{_config.TranslationModelPath}'. Simultaneous different NLLB models aren't supported — using the running model.")
+                End If
             End If
             Return
         End If
