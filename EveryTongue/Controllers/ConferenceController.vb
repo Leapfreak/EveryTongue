@@ -6,6 +6,7 @@ Imports EveryTongue.Services.Infrastructure
 Imports EveryTongue.Services.Interfaces
 Imports EveryTongue.Services.Models
 Imports EveryTongue.Services.Stt
+Imports EveryTongue.Services.Translation
 
 Namespace Controllers
     ''' <summary>
@@ -656,17 +657,23 @@ Namespace Controllers
                 End If
             Next
             If merged.Count > 0 Then
-                Dim svc = _getTranslationService()
-                If svc IsNot Nothing Then
-                    Try
-                        Dim roomFp = RoomTranslationFilters(roomId)
-                        merged = Await svc.ApplyGlossaryAsync(args.Text, sourceLang, merged,
-                            glossaryPath:=If(roomFp?.GlossaryPath, ""),
-                            profanityPath:=If(roomFp?.ProfanityPath, ""))
-                    Catch ex As Exception
-                        AppLogger.Log(LogEvents.TRANS_ERROR, $"room={roomId} glossary-apply failed: {ex.Message}")
-                    End Try
-                End If
+                ' Apply glossary + profanity locally (self-contained, file-based) so the
+                ' fixes land regardless of whether the NLLB sidecar is running. The old
+                ' /glossary/apply path silently no-op'd when a cloud translation backend
+                ' was selected (sidecar skipped), so Speechmatics-inline lines bypassed
+                ' the glossary entirely.
+                Try
+                    Dim roomFp = RoomTranslationFilters(roomId)
+                    Dim globalGloss = AppConfig.ResolvePath(
+                        If(_config.TranslationGlossaryPath, ".\translate-server\glossary.json"))
+                    Dim globalProf = AppConfig.ResolvePath(".\translate-server\profanity.json")
+                    merged = GlossaryPostProcessor.Apply(
+                        args.Text, sourceLang, merged, If(roomFp?.GlossaryPath, ""), globalGloss)
+                    merged = ProfanityPostProcessor.Apply(
+                        merged, If(roomFp?.ProfanityPath, ""), globalProf)
+                Catch ex As Exception
+                    AppLogger.Log(LogEvents.TRANS_ERROR, $"room={roomId} glossary/profanity post-process failed: {ex.Message}")
+                End Try
             End If
 
             ' NLLB (or cloud) for active targets Speechmatics didn't cover (English-pivot limit).

@@ -371,11 +371,14 @@ Namespace Pipeline
         End Sub
 
         Private Sub DoShutdown(waitMs As Integer)
+            ' Clear capturing state BEFORE stopping the process so the
+            ' ProcessExited handler treats this exit as intentional (graceful)
+            ' rather than logging a false "exited unexpectedly" error.
+            _isCapturing = False
+            _serverReady = False
             _cts?.Cancel()
             _httpClient.CancelPendingRequests()
             _host.Stop(waitMs)
-            _isCapturing = False
-            _serverReady = False
         End Sub
 
         Public Sub ShutdownServer()

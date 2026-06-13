@@ -301,54 +301,13 @@ Namespace Pipeline
             Return New Dictionary(Of String, String)()
         End Function
 
-        ''' <summary>
-        ''' Apply the glossary + profanity filter to already-translated text (e.g.
-        ''' translations produced inline by Speechmatics) without running NLLB.
-        ''' Returns the fixed translations; on any failure returns the input unchanged.
-        ''' </summary>
-        Public Async Function ApplyGlossaryAsync(sourceText As String, sourceLang As String,
-                                                 translations As Dictionary(Of String, String),
-                                                 Optional timeoutSeconds As Integer = 10,
-                                                 Optional glossaryPath As String = "",
-                                                 Optional profanityPath As String = "") As Task(Of Dictionary(Of String, String))
-            If translations Is Nothing OrElse translations.Count = 0 Then
-                Return If(translations, New Dictionary(Of String, String)())
-            End If
-            If Not _host.IsProcessRunning Then Return translations
-
-            Try
-                Dim txJson As New StringBuilder("{")
-                Dim first = True
-                For Each kvp In translations
-                    If Not first Then txJson.Append(",")
-                    first = False
-                    txJson.Append($"{ProcessHelper.EscapeJson(kvp.Key)}:{ProcessHelper.EscapeJson(kvp.Value)}")
-                Next
-                txJson.Append("}")
-
-                Dim filtersJson = ""
-                If Not String.IsNullOrEmpty(glossaryPath) Then filtersJson &= $",""glossary_path"":{ProcessHelper.EscapeJson(glossaryPath)}"
-                If Not String.IsNullOrEmpty(profanityPath) Then filtersJson &= $",""profanity_path"":{ProcessHelper.EscapeJson(profanityPath)}"
-                Dim json = $"{{""source_text"":{ProcessHelper.EscapeJson(sourceText)},""source_lang"":""{sourceLang}"",""translations"":{txJson}{filtersJson}}}"
-                Dim content As New StringContent(json, Encoding.UTF8, "application/json")
-                Using cts As New CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds))
-                    Dim response = Await _httpClient.PostAsync($"http://127.0.0.1:{_port}/glossary/apply", content, cts.Token)
-                    If response.IsSuccessStatusCode Then
-                        Dim body = Await response.Content.ReadAsStringAsync()
-                        Using doc = JsonDocument.Parse(body)
-                            Dim result As New Dictionary(Of String, String)()
-                            For Each prop In doc.RootElement.GetProperty("translations").EnumerateObject()
-                                result(prop.Name) = prop.Value.GetString()
-                            Next
-                            Return result
-                        End Using
-                    End If
-                End Using
-            Catch ex As Exception
-                AppLogger.Log(LogEvents.TRANS_ERROR, $"Glossary apply failed: {ex.Message}")
-            End Try
-            Return translations
-        End Function
+        ' NOTE: glossary + profanity post-processing of inline (Speechmatics)
+        ' translations now runs in-process via GlossaryPostProcessor /
+        ' ProfanityPostProcessor (ConferenceController), which are self-contained
+        ' and file-based — so the fixes apply even when the NLLB sidecar isn't
+        ' running. The old sidecar-dependent ApplyGlossaryAsync (/glossary/apply)
+        ' was removed because it silently no-op'd whenever a cloud translation
+        ' backend was selected and the sidecar was skipped.
 
         Public Sub [Stop]()
             _host.Stop()
