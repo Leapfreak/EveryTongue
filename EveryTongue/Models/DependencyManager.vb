@@ -34,6 +34,14 @@ Namespace Models
 
         Private Shared ReadOnly _downloadClient As New HttpClient()
 
+        ' Short-lived cache of GitHub "releases" responses, keyed by URL. Several
+        ' tool checks hit the same EveryTongue releases endpoint in one refresh —
+        ' caching dedups them, and a stale entry is reused if the API rate-limits
+        ' (HTTP 403), so a burst of checks can't exhaust the 60/hour anon budget.
+        Private Shared ReadOnly _releaseListCacheLock As New Object()
+        Private Shared ReadOnly _releaseListCache As New Dictionary(Of String, (FetchedUtc As DateTime, Json As String))()
+        Private Shared ReadOnly _releaseListTtl As TimeSpan = TimeSpan.FromMinutes(5)
+
         Shared Sub New()
             _client.DefaultRequestHeaders.UserAgent.ParseAdd("EveryTongue-DependencyManager")
             _client.Timeout = TimeSpan.FromSeconds(30)
@@ -1166,12 +1174,48 @@ Namespace Models
         ''' Used for assets like whisper-server that are versioned independently
         ''' and may not be attached to every release.
         ''' </summary>
+        ''' <summary>
+        ''' Fetch a GitHub releases-list JSON with a short cache. Within the TTL,
+        ''' repeated lookups against the same endpoint reuse one response (several
+        ''' tool checks share it per refresh). If the fetch fails or is rate-limited
+        ''' (HTTP 403), any cached copy — even stale — is reused so a burst of checks
+        ''' survives the anonymous 60/hour budget.
+        ''' </summary>
+        Private Shared Async Function GetReleaseListJsonAsync(url As String) As Task(Of String)
+            SyncLock _releaseListCacheLock
+                Dim hit As (FetchedUtc As DateTime, Json As String) = Nothing
+                If _releaseListCache.TryGetValue(url, hit) AndAlso (DateTime.UtcNow - hit.FetchedUtc) < _releaseListTtl Then
+                    Return hit.Json
+                End If
+            End SyncLock
+
+            Try
+                Dim response = Await _client.GetAsync(url)
+                If response.IsSuccessStatusCode Then
+                    Dim json = Await response.Content.ReadAsStringAsync()
+                    SyncLock _releaseListCacheLock
+                        _releaseListCache(url) = (DateTime.UtcNow, json)
+                    End SyncLock
+                    Return json
+                End If
+                AppLogger.Log(LogEvents.DL_CHECK_RESULT, $"GitHub releases fetch failed ({CInt(response.StatusCode)}) — using cached copy if available")
+            Catch ex As Exception
+                AppLogger.Log(LogEvents.DL_CHECK_RESULT, $"GitHub releases fetch error: {ex.Message} — using cached copy if available")
+            End Try
+
+            ' Failed (e.g. 403 rate limit) — fall back to any cached copy, even stale.
+            SyncLock _releaseListCacheLock
+                Dim stale As (FetchedUtc As DateTime, Json As String) = Nothing
+                If _releaseListCache.TryGetValue(url, stale) Then Return stale.Json
+            End SyncLock
+            Return Nothing
+        End Function
+
         Private Shared Async Function FindAssetAcrossReleasesAsync(repo As String, pattern As String) As Task(Of (Url As String, TagName As String)?)
             Dim url = $"https://api.github.com/repos/{repo}/releases?per_page=10"
-            Dim response = Await _client.GetAsync(url)
-            If Not response.IsSuccessStatusCode Then Return Nothing
+            Dim json = Await GetReleaseListJsonAsync(url)
+            If String.IsNullOrEmpty(json) Then Return Nothing
 
-            Dim json = Await response.Content.ReadAsStringAsync()
             Using doc = JsonDocument.Parse(json)
                 For Each release In doc.RootElement.EnumerateArray()
                     Dim tagName = release.GetProperty("tag_name").GetString()
