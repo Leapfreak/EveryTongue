@@ -9,13 +9,20 @@ Namespace Services.Interfaces
     ''' Requests are scheduled through a priority queue when multiple callers compete.
     ''' </summary>
     Public Interface ITranslationService
+        ''' <param name="backendOverride">
+        ''' Optional backend NAME (e.g. "Google", "Local") that forces ALL target
+        ''' languages through that single backend for this call, overriding the
+        ''' active backend and per-language overrides. Used by conference rooms to
+        ''' translate with their template's own engine. Nothing/empty = default routing.
+        ''' </param>
         Function TranslateAsync(text As String,
                                 sourceLang As String,
                                 targetLangs As IReadOnlyList(Of String),
                                 ct As CancellationToken,
                                 Optional priority As TranslationPriority = TranslationPriority.Workspace,
                                 Optional noCache As Boolean = False,
-                                Optional filters As TranslationFilterPaths = Nothing
+                                Optional filters As TranslationFilterPaths = Nothing,
+                                Optional backendOverride As String = Nothing
         ) As Task(Of Dictionary(Of String, String))
 
         ReadOnly Property ActiveBackend As String

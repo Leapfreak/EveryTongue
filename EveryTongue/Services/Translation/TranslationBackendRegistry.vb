@@ -65,6 +65,16 @@ Namespace Services.Translation
         End Function
 
         ''' <summary>
+        ''' Map an engine KEY (e.g. "google-translate", "nllb") to the orchestrator
+        ''' backend NAME used for routing (e.g. "Google", "Local"). Falls back to
+        ''' "Local" (the NLLB sidecar) when the key is unknown. No engine-key
+        ''' literals belong in shared code — callers use this metadata helper.
+        ''' </summary>
+        Public Shared Function BackendNameForKey(key As String) As String
+            Return If(Find(key)?.BackendName, "Local")
+        End Function
+
+        ''' <summary>
         ''' Look up a registry entry by the orchestrator backend name (e.g. "DeepL"
         ''' → the "deepl" entry). Returns Nothing if not found.
         ''' </summary>

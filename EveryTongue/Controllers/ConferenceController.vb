@@ -20,6 +20,10 @@ Namespace Controllers
         Private ReadOnly _getTranslationService As Func(Of TranslationService)
         Private ReadOnly _getTranslationOrchestrator As Func(Of ITranslationService)
         Private ReadOnly _getRoomManager As Func(Of Services.Rooms.RoomManager)
+        ' Ensures the translation backend for a room's engine KEY is ready before the
+        ' room translates: for a local/NLLB engine, starts the sidecar with that key's
+        ' model on demand; for cloud engines, a no-op (configured at server start).
+        Private ReadOnly _ensureTranslationBackend As Action(Of String)
         Private ReadOnly _log As Action(Of String)
         Private ReadOnly _ownerForm As Form
 
@@ -34,6 +38,17 @@ Namespace Controllers
         ' active speaker's glossary set overriding the glossary path). No entry
         ' = the sidecars use their own global files.
         Private ReadOnly _roomFilters As New Concurrent.ConcurrentDictionary(Of String, Models.Templates.FilterSet)()
+        ' Per-room TRANSLATION engine key (the room template's TranslationBackendKey,
+        ' else the global config default). The room's translation always uses ITS OWN
+        ' engine, overriding the global Options translation engine — the global setting
+        ' is only the default for rooms whose template doesn't specify one (and for all
+        ' non-conference paths).
+        '
+        ' CONSTRAINT: the NLLB sidecar holds ONE model at a time, so two simultaneous
+        ' rooms requesting DIFFERENT NLLB models share the first-loaded model (logged
+        ' once). Cloud engines have no such limit — multiple rooms can run different
+        ' cloud translation engines concurrently.
+        Private ReadOnly _roomTranslationKey As New Concurrent.ConcurrentDictionary(Of String, String)()
         Private _nextConferencePort As Integer = 5101
         Private _nextWhisperServerPort As Integer = 8179  ' 8178 is used by ConversationAudioHandler
 
@@ -42,6 +57,7 @@ Namespace Controllers
                        getTranslationService As Func(Of TranslationService),
                        getTranslationOrchestrator As Func(Of ITranslationService),
                        getRoomManager As Func(Of Services.Rooms.RoomManager),
+                       ensureTranslationBackend As Action(Of String),
                        log As Action(Of String),
                        ownerForm As Form)
             _config = config
@@ -49,6 +65,7 @@ Namespace Controllers
             _getTranslationService = getTranslationService
             _getTranslationOrchestrator = getTranslationOrchestrator
             _getRoomManager = getRoomManager
+            _ensureTranslationBackend = ensureTranslationBackend
             _log = log
             _ownerForm = ownerForm
 
@@ -195,6 +212,12 @@ Namespace Controllers
 
             _sttBackends(roomId) = backend
             _roomTemplateIds(roomId) = templateId
+
+            ' Resolve + remember the room's OWN translation engine (template wins;
+            ' else the global config default). This overrides the global Options
+            ' translation engine for this room's translation calls.
+            ResolveRoomTranslationEngine(roomId, template)
+
             _log($"[Conference] Starting backend for room {roomId} (template={template.Name}, port={port}, lang={sttConfig.Language}, backend={backendKey})")
             backend.Start(sttConfig)
 
@@ -204,6 +227,7 @@ Namespace Controllers
                 _log($"[Conference] Backend FAILED to start for room {roomId}")
                 DropKey(_sttBackends, roomId)
                 DropKey(_roomTemplateIds, roomId)
+                DropKey(_roomTranslationKey, roomId)
             End If
         End Sub
 
@@ -393,6 +417,7 @@ Namespace Controllers
             _clauseCoordinator.ForceLockClause(roomId)
             _clauseCoordinator.ClearRoom(roomId)
             DropKey(_roomFilters, roomId)
+            DropKey(_roomTranslationKey, roomId)
 
             ' Flush any remaining buffered text before stopping
             Dim buffer As SentenceBuffer = Nothing
@@ -452,6 +477,7 @@ Namespace Controllers
             Next
             _sttBackends.Clear()
             _roomTemplateIds.Clear()
+            _roomTranslationKey.Clear()
             Task.WaitAll(stopTasks.ToArray(), 10000)
         End Sub
 
@@ -549,6 +575,12 @@ Namespace Controllers
             Dim translations As New Dictionary(Of String, String)()
             If targets Is Nothing OrElse targets.Count = 0 Then Return translations
 
+            ' The room translates with ITS OWN engine (template's, else the global
+            ' default), passed as a per-call override so it wins over the global
+            ' orchestrator active backend and any per-language overrides.
+            Dim roomKey = RoomTranslationKey(roomId)
+            Dim backendName = TranslationBackendRegistry.BackendNameForKey(roomKey)
+
             Dim sw = Diagnostics.Stopwatch.StartNew()
             Dim orchestrator = _getTranslationOrchestrator?.Invoke()
             If orchestrator IsNot Nothing AndAlso orchestrator.GetAllBackends().Any(Function(b) b.IsAvailable) Then
@@ -556,18 +588,18 @@ Namespace Controllers
                     Using cts As New Threading.CancellationTokenSource(TimeSpan.FromSeconds(10))
                         Dim result = Await orchestrator.TranslateAsync(
                             text, sourceLang, targets, cts.Token, Services.Scheduling.TranslationPriority.Room,
-                            filters:=RoomTranslationFilters(roomId))
+                            filters:=RoomTranslationFilters(roomId), backendOverride:=backendName)
                         If result IsNot Nothing Then
                             For Each kvp In result : translations(kvp.Key) = kvp.Value : Next
                         End If
                     End Using
                 Catch ex As Exception
                     AppLogger.Log(LogEvents.TRANS_ERROR,
-                        $"room={roomId} backend={orchestrator.ActiveBackend} {sourceLang}→[{String.Join(",", targets)}] failed: {ex.Message}")
+                        $"room={roomId} engine={roomKey} backend={backendName} {sourceLang}→[{String.Join(",", targets)}] failed: {ex.Message}")
                 End Try
                 If translations.Count > 0 Then
                     AppLogger.Log(LogEvents.TRANS_RESULT,
-                        $"room={roomId} backend={orchestrator.ActiveBackend} {sourceLang}→[{String.Join(",", translations.Keys)}] ok={translations.Count}/{targets.Count} {sw.ElapsedMilliseconds}ms")
+                        $"room={roomId} engine={roomKey} backend={backendName} {sourceLang}→[{String.Join(",", translations.Keys)}] ok={translations.Count}/{targets.Count} {sw.ElapsedMilliseconds}ms")
                     Return translations
                 End If
             End If
@@ -901,6 +933,38 @@ Namespace Controllers
                     AppLogger.Log(LogEvents.CONF_BACKEND_ERROR, $"room={roomId} engine={engineKey} {line}")
                 End Sub
         End Sub
+
+        ''' <summary>
+        ''' Resolve the room's TRANSLATION engine key (template's TranslationBackendKey,
+        ''' else the global config default), store it, and ensure the backend is ready:
+        ''' for a local/NLLB engine (registry ModelType non-empty) start the sidecar with
+        ''' that key's model on demand; cloud engines are a no-op (configured at server
+        ''' start). The global Options translation engine remains only the default.
+        ''' </summary>
+        Private Sub ResolveRoomTranslationEngine(roomId As String, template As ConferenceTemplate)
+            Dim roomKey = If(String.IsNullOrWhiteSpace(template?.TranslationBackendKey),
+                             If(_config.TranslationBackend, "nllb"),
+                             template.TranslationBackendKey)
+            _roomTranslationKey(roomId) = roomKey
+
+            Dim backendName = TranslationBackendRegistry.BackendNameForKey(roomKey)
+            AppLogger.Log(LogEvents.CONFIG_TEMPLATE_RESOLVED,
+                $"[Conference:{roomId}] translation engine '{roomKey}' (backend {backendName})")
+
+            ' Local/NLLB engines need the sidecar running with their model. Cloud
+            ' engines have a non-empty BackendName but EMPTY ModelType — skip them.
+            Dim entry = TranslationBackendRegistry.Find(roomKey)
+            If entry IsNot Nothing AndAlso Not String.IsNullOrEmpty(entry.ModelType) Then
+                _ensureTranslationBackend?.Invoke(roomKey)
+            End If
+        End Sub
+
+        ''' <summary>The TRANSLATION engine key for a room (template override, else global config default).</summary>
+        Private Function RoomTranslationKey(roomId As String) As String
+            Dim key As String = Nothing
+            If _roomTranslationKey.TryGetValue(roomId, key) AndAlso Not String.IsNullOrEmpty(key) Then Return key
+            Return If(_config.TranslationBackend, "nllb")
+        End Function
 
         ''' <summary>The STT backend key for a room (template override, else global config).</summary>
         Private Function RoomBackendKey(roomId As String) As String

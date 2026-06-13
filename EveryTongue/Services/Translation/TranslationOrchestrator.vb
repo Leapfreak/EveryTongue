@@ -126,17 +126,19 @@ Namespace Services.Translation
                                              ct As CancellationToken,
                                              Optional priority As TranslationPriority = TranslationPriority.Workspace,
                                              Optional noCache As Boolean = False,
-                                             Optional filters As TranslationFilterPaths = Nothing
+                                             Optional filters As TranslationFilterPaths = Nothing,
+                                             Optional backendOverride As String = Nothing
         ) As Task(Of Dictionary(Of String, String)) Implements ITranslationService.TranslateAsync
 
             If targetLangs.Count = 0 Then Return New Dictionary(Of String, String)()
 
             Dim skipCache = noCache
+            Dim ovr = backendOverride
             ' Route through the priority queue — the queue gates concurrency
             ' so the translation backend isn't overwhelmed under multi-room load.
             Return Await _queue.EnqueueAsync(
                 Async Function(ct2)
-                    Return Await TranslateInternal(text, sourceLang, targetLangs, ct2, skipCache, filters)
+                    Return Await TranslateInternal(text, sourceLang, targetLangs, ct2, skipCache, filters, ovr)
                 End Function,
                 CInt(priority),
                 ct)
@@ -151,24 +153,34 @@ Namespace Services.Translation
                                                   targetLangs As IReadOnlyList(Of String),
                                                   ct As CancellationToken,
                                                   noCache As Boolean,
-                                                  filters As TranslationFilterPaths
+                                                  filters As TranslationFilterPaths,
+                                                  Optional backendOverride As String = Nothing
         ) As Task(Of Dictionary(Of String, String))
 
             Dim results As New Dictionary(Of String, String)()
 
-            ' Group languages by backend (respecting per-language overrides)
+            ' Group languages by backend.
             Dim groups As New Dictionary(Of String, List(Of String))(StringComparer.OrdinalIgnoreCase)
-            For Each lang In targetLangs
-                Dim backendName = _activeBackendName
-                Dim overrideName As String = Nothing
-                If LanguageOverrides.TryGetValue(lang, overrideName) Then
-                    backendName = overrideName
-                End If
-                If Not groups.ContainsKey(backendName) Then
-                    groups(backendName) = New List(Of String)()
-                End If
-                groups(backendName).Add(lang)
-            Next
+            If Not String.IsNullOrWhiteSpace(backendOverride) AndAlso _backends.ContainsKey(backendOverride) Then
+                ' Explicit per-call override (e.g. a conference room's own engine):
+                ' route ALL targets through the one named backend, bypassing the
+                ' active backend AND per-language overrides — the room's choice wins.
+                ' The fallback chain in TryTranslateWithFallback still applies.
+                groups(backendOverride) = targetLangs.ToList()
+            Else
+                ' Default routing: active backend, with per-language overrides applied.
+                For Each lang In targetLangs
+                    Dim backendName = _activeBackendName
+                    Dim overrideName As String = Nothing
+                    If LanguageOverrides.TryGetValue(lang, overrideName) Then
+                        backendName = overrideName
+                    End If
+                    If Not groups.ContainsKey(backendName) Then
+                        groups(backendName) = New List(Of String)()
+                    End If
+                    groups(backendName).Add(lang)
+                Next
+            End If
 
             ' Translate each group with its assigned backend (with fallback)
             For Each group In groups

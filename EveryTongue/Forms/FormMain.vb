@@ -324,6 +324,7 @@ Public Class FormMain
                                       Function() TryCast(_serverController?.KestrelHost?.Services?.GetService(
                                           GetType(Services.Interfaces.ITranslationService)), Services.Interfaces.ITranslationService),
                                       Function() _serverController.GetRoomManager(),
+                                      Sub(engineKey) EnsureTranslationSidecarForKey(engineKey),
                                       AddressOf WriteDebugLog,
                                       Me)
                                   _conferenceController.WireEndpointHandlers()
@@ -971,7 +972,85 @@ del ""%~f0""
 
     Private _translationStarting As Boolean = False
 
-    Private Sub StartTranslationService()
+    ''' <summary>
+    ''' Ensure the NLLB sidecar is running for a specific translation engine KEY
+    ''' (a conference room's own engine), independent of the global Options engine.
+    ''' Only meaningful for local/NLLB engines (registry ModelType non-empty);
+    ''' cloud engines are configured at server start and ignored here.
+    '''
+    ''' CONSTRAINT: the sidecar holds ONE NLLB model at a time. If it is already
+    ''' running with a DIFFERENT model than this key requests, we log a single
+    ''' warning and KEEP the running model (no reload) — two rooms on different
+    ''' NLLB models share the first-loaded one. Cloud engines have no such limit.
+    ''' </summary>
+    Private Sub EnsureTranslationSidecarForKey(engineKey As String)
+        Dim entry = Services.Translation.TranslationBackendRegistry.Find(engineKey)
+        ' Cloud engine (or unknown key): no sidecar needed. Cloud engines are
+        ' configured via ConfigureCloudApiKeys at server start; if unkeyed they
+        ' fail at call time and fall back, which is acceptable.
+        If entry Is Nothing OrElse String.IsNullOrEmpty(entry.ModelType) Then Return
+
+        ' Already running: just make sure SidecarTranslationBackend is registered,
+        ' and warn if the loaded model differs from this key's model (no reload).
+        If _translationService IsNot Nothing AndAlso _translationService.IsRunning Then
+            EnsureSidecarBackendRegistered()
+            Dim requested = AppConfig.ResolvePath(entry.DefaultModelPath)
+            Dim loaded = AppConfig.ResolvePath(_config.TranslationModelPath)
+            If Not String.IsNullOrEmpty(requested) AndAlso
+               Not requested.Equals(loaded, StringComparison.OrdinalIgnoreCase) Then
+                AppLogger.Log(LogEvents.TRANS_BACKEND_FALLBACK,
+                    $"Room requested NLLB engine '{engineKey}' (model {entry.DefaultModelPath}), but the sidecar is already running model '{_config.TranslationModelPath}'. Simultaneous different NLLB models aren't supported — using the running model.")
+            End If
+            Return
+        End If
+
+        If _translationStarting Then
+            AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, $"EnsureTranslationSidecarForKey('{engineKey}'): already starting, skipping")
+            Return
+        End If
+
+        ' Not running: verify deps, then start with the REQUESTED key's model.
+        Dim deps = Pipeline.TranslationService.CheckDependenciesInstalled()
+        If Not deps.pythonOk OrElse Not deps.depsOk OrElse Not deps.modelOk Then
+            AppLogger.Log(LogEvents.TRANS_ERROR, $"Room requested NLLB engine '{engineKey}' but translation dependencies aren't installed — translation unavailable for this room")
+            Return
+        End If
+
+        ' Force TranslationEnabled so StartTranslationService proceeds, and start
+        ' the sidecar with the room engine's model (overriding the global config).
+        Dim wasEnabled = _config.TranslationEnabled
+        _config.TranslationEnabled = True
+        StartTranslationService(engineKey)
+        If Not wasEnabled Then _config.TranslationEnabled = wasEnabled
+    End Sub
+
+    ''' <summary>
+    ''' Register SidecarTranslationBackend with the orchestrator if not already
+    ''' present (mirrors the re-register logic in EnsureTranslationForRooms).
+    ''' </summary>
+    Private Sub EnsureSidecarBackendRegistered()
+        Try
+            Dim orchestrator = TryCast(_serverController?.KestrelHost?.Services?.GetService(
+                GetType(Services.Interfaces.ITranslationService)), Services.Translation.TranslationOrchestrator)
+            If orchestrator Is Nothing OrElse _translationService Is Nothing Then Return
+            Dim sidecarRegistered = orchestrator.GetAllBackends().Any(
+                Function(b) b.Name.Equals("Local", StringComparison.OrdinalIgnoreCase))
+            If Not sidecarRegistered Then
+                orchestrator.RegisterBackend(New Services.Translation.SidecarTranslationBackend(_translationService))
+                AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, "Re-registered SidecarTranslationBackend with orchestrator")
+            End If
+        Catch ex As Exception
+            AppLogger.Log(LogEvents.CONF_BACKEND_ERROR, $"EnsureSidecarBackendRegistered: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <param name="keyOverride">
+    ''' When set, the sidecar starts with this translation engine KEY's model
+    ''' (registry DefaultModelPath/ModelType) instead of the global config model —
+    ''' used to start NLLB on demand for a conference room whose template selects a
+    ''' local engine even when the GLOBAL engine is cloud. Nothing = use global config.
+    ''' </param>
+    Private Sub StartTranslationService(Optional keyOverride As String = Nothing)
         If Not _config.TranslationEnabled Then
             AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, "StartTranslationService: TranslationEnabled=False, skipping")
             Return
@@ -1034,24 +1113,36 @@ del ""%~f0""
             AppLogger.Log(LogEvents.TRANS_ERROR, $"Failed to register SidecarTranslationBackend: {ex.Message}")
         End Try
 
-        ' Skip starting the NLLB sidecar when using a cloud translation backend —
-        ' no point loading a 3.3GB model if we're using Google Translate API
+        ' A room may request a SPECIFIC local engine (keyOverride) even when the
+        ' global engine is cloud — in that case start the sidecar with the room
+        ' engine's model. Otherwise: skip the NLLB sidecar when the global
+        ' effective backend is cloud (no point loading a multi-GB model for an API).
+        Dim overrideEntry = If(String.IsNullOrWhiteSpace(keyOverride), Nothing,
+                               Services.Translation.TranslationBackendRegistry.Find(keyOverride))
+        Dim overrideIsLocal = overrideEntry IsNot Nothing AndAlso Not String.IsNullOrEmpty(overrideEntry.ModelType)
+
         Dim effectiveKey = Services.Translation.TranslationBackendRegistry.ResolveEffectiveBackendKey(_config)
         Dim effectiveEntry = Services.Translation.TranslationBackendRegistry.Find(effectiveKey)
         Dim usingCloudTranslation = effectiveEntry IsNot Nothing AndAlso
                                     String.IsNullOrEmpty(effectiveEntry.ModelType)
 
-        If usingCloudTranslation Then
+        If usingCloudTranslation AndAlso Not overrideIsLocal Then
             AppLogger.Log(LogEvents.TRANS_SERVER_READY, "Skipping NLLB sidecar — using cloud translation backend")
             _translationStarting = False
         Else
-            Dim modelPath = _config.TranslationModelPath
+            ' When a room override is set, use ITS model/modelType (registry metadata);
+            ' otherwise use the global config model.
+            Dim modelPath = If(overrideIsLocal, AppConfig.ResolvePath(overrideEntry.DefaultModelPath), _config.TranslationModelPath)
+            Dim modelType = If(overrideIsLocal, overrideEntry.ModelType, If(_config.TranslationModelType, "nllb"))
             Dim port = _config.TranslationPort
             Dim device = _config.TranslationDevice
             Dim glossaryPath = _config.TranslationGlossaryPath
-            Dim modelType = If(_config.TranslationModelType, "nllb")
 
-            AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, $"StartTranslationService: port={port}, device={device}, modelPath={modelPath}, modelType={modelType}")
+            ' Keep the loaded model in sync so the single-model constraint check
+            ' (EnsureTranslationSidecarForKey) reports the actually-loaded model.
+            If overrideIsLocal Then _config.TranslationModelPath = modelPath
+
+            AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, $"StartTranslationService: port={port}, device={device}, modelPath={modelPath}, modelType={modelType}{If(overrideIsLocal, $" (room engine '{keyOverride}')", "")}")
             _translationService.Start(port, modelPath, device, glossaryPath, modelType)
             _translationStarting = False
             AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, "Translation service starting...")
