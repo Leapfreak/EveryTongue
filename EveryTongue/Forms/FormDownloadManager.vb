@@ -558,6 +558,8 @@ Namespace Forms
                     Return lp.GetString("DM_CategoryTool")
                 Case "AWS SDK (Amazon Translate)"
                     Return lp.GetString("DM_CategoryTool")
+                Case "Whisper CLI + CUDA runtime"
+                    Return lp.GetString("DM_CategoryTool")
                 Case "Piper TTS"
                     Return lp.GetString("DM_CategoryTts")
                 Case Else
@@ -606,23 +608,9 @@ Namespace Forms
                 Dim total = toDownload.Count + If(needPython, 1, 0) + If(needPythonDeps, 1, 0)
                 Dim current = 0
 
-                ' Download tools/models
-                For Each tool In toDownload
-                    current += 1
-                    lblProgress.Text = $"Downloading {tool.Name} ({current}/{total})..."
-                    pbProgress.Value = 0
-
-                    Dim progress As New Progress(Of (downloaded As Long, total As Long))(
-                        Sub(p)
-                            If p.total > 0 Then
-                                pbProgress.Value = CInt(Math.Min(p.downloaded * 100 \ p.total, 100))
-                            End If
-                        End Sub)
-
-                    Await _mgr.DownloadToolAsync(tool, progress)
-                Next
-
-                ' Python
+                ' Python FIRST, then packages — some model downloads (e.g.
+                ' faster-whisper) run the embedded Python to fetch the model, so
+                ' Python + its packages must be installed before the tools loop.
                 If needPython Then
                     current += 1
                     lblProgress.Text = $"Installing Python Embedded ({current}/{total})..."
@@ -639,6 +627,22 @@ Namespace Forms
                     Await _mgr.InstallPythonDepsAsync(Nothing)
                     pbProgress.Style = ProgressBarStyle.Continuous
                 End If
+
+                ' Then download tools/models (faster-whisper model now has Python).
+                For Each tool In toDownload
+                    current += 1
+                    lblProgress.Text = $"Downloading {tool.Name} ({current}/{total})..."
+                    pbProgress.Value = 0
+
+                    Dim progress As New Progress(Of (downloaded As Long, total As Long))(
+                        Sub(p)
+                            If p.total > 0 Then
+                                pbProgress.Value = CInt(Math.Min(p.downloaded * 100 \ p.total, 100))
+                            End If
+                        End Sub)
+
+                    Await _mgr.DownloadToolAsync(tool, progress)
+                Next
 
                 pbProgress.Value = 100
                 lblProgress.Text = String.Format(Services.Infrastructure.LanguagePackService.Instance.GetString("DM_DownloadedComponents"), total)

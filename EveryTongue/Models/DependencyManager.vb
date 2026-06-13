@@ -120,7 +120,8 @@ Namespace Models
                 CheckNllbModelAsync(),
                 CheckNllb33bModelAsync(),
                 CheckPiperAsync(),
-                CheckAwsSdkAsync()
+                CheckAwsSdkAsync(),
+                CheckWhisperCliAsync()
             }
             Await Task.WhenAll(tasks)
             Return tasks.Select(Function(t) t.Result).ToList()
@@ -895,6 +896,54 @@ Namespace Models
         End Function
 
         ' ──────────────────────────────────────────
+        '  Whisper CLI + CUDA runtime — batch (Transcribe workspace) file
+        '  transcription. The legacy "EveryTongue_Whisper" bundle holds
+        '  whisper-cli.exe + whisper/ggml DLLs + the CUDA 12 runtime
+        '  (cublas64_12.dll, cublasLt64_12.dll, cudart64_12.dll). It was only ever
+        '  delivered by the in-app updater (which doesn't fire on a fresh install),
+        '  so a clean machine had no whisper-cli and no cublas — this Download
+        '  Manager entry fills that gap. NOTE: this is the CUDA build; a Vulkan-only
+        '  whisper-cli bundle would be a smaller future asset for non-NVIDIA boxes.
+        ' ──────────────────────────────────────────
+
+        Private Function WhisperCliInstalledPath() As String
+            Return Path.Combine(_toolsDir, "whisper-cli.exe")
+        End Function
+
+        Public Async Function CheckWhisperCliAsync() As Task(Of ToolState)
+            Dim state As New ToolState With {.Name = "Whisper CLI + CUDA runtime"}
+            Try
+                If File.Exists(WhisperCliInstalledPath()) Then
+                    state.InstalledVersion = GetSavedVersion(state.Name)
+                    If String.IsNullOrEmpty(state.InstalledVersion) Then state.InstalledVersion = "installed"
+                    state.Status = ToolStatus.Installed
+                End If
+                Dim found = Await FindAssetAcrossReleasesAsync("LeapFreak/EveryTongue", "EveryTongue_Whisper.*\.zip$")
+                If found IsNot Nothing Then
+                    state.LatestVersion = found.Value.TagName
+                    state.DownloadUrl = found.Value.Url
+                    If state.Status = ToolStatus.Installed Then
+                        state.Status = CompareVersionTags(state.InstalledVersion, state.LatestVersion)
+                    End If
+                End If
+            Catch ex As Exception
+                AppLogger.Log(LogEvents.DL_CHECK_RESULT, $"Whisper CLI check failed: {ex.Message}")
+                If state.Status = ToolStatus.Missing Then state.Status = ToolStatus.CheckFailed
+            End Try
+            Return state
+        End Function
+
+        Public Async Function DownloadWhisperCliAsync(url As String, progress As IProgress(Of (downloaded As Long, total As Long))) As Task
+            Dim zipPath = Path.Combine(_toolsDir, "whisper-cli-bundle.zip")
+            Try
+                Await DownloadFileAsync(url, zipPath, progress)
+                ExtractAllFromZip(zipPath, _toolsDir)
+            Finally
+                If File.Exists(zipPath) Then File.Delete(zipPath)
+            End Try
+        End Function
+
+        ' ──────────────────────────────────────────
         '  AWS SDK (Amazon Translate) — optional managed DLLs, downloaded on demand
         ' ──────────────────────────────────────────
 
@@ -1079,6 +1128,8 @@ Namespace Models
                         Await DownloadSileroVadModelAsync(state.DownloadUrl, progress)
                     Case "AWS SDK (Amazon Translate)"
                         Await DownloadAwsSdkAsync(state.DownloadUrl, progress)
+                    Case "Whisper CLI + CUDA runtime"
+                        Await DownloadWhisperCliAsync(state.DownloadUrl, progress)
                     Case Else
                         AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"Unknown tool name: '{state.Name}' — no download handler")
                 End Select
@@ -1212,7 +1263,10 @@ Namespace Models
         End Function
 
         Private Shared Async Function FindAssetAcrossReleasesAsync(repo As String, pattern As String) As Task(Of (Url As String, TagName As String)?)
-            Dim url = $"https://api.github.com/repos/{repo}/releases?per_page=10"
+            ' per_page=100 (GitHub max): component binaries (whisper-server, etc.)
+            ' may live on an OLD release far behind the most-recent few, so a small
+            ' window would miss them once many app releases have been published.
+            Dim url = $"https://api.github.com/repos/{repo}/releases?per_page=100"
             Dim json = Await GetReleaseListJsonAsync(url)
             If String.IsNullOrEmpty(json) Then Return Nothing
 

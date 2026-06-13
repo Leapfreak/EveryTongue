@@ -114,11 +114,17 @@ Namespace Pipeline
                 psi.Environment("PYTHONLEGACYWINDOWSSTDIO") = "0"
 
                 If AddWhisperToPath Then
-                    Dim whisperDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "whisper")
-                    If Directory.Exists(whisperDir) Then
-                        Dim currentPath = If(Environment.GetEnvironmentVariable("PATH"), "")
-                        psi.Environment("PATH") = whisperDir & ";" & currentPath
-                    End If
+                    ' The CUDA runtime DLLs (cublas64_12, cudart64_12, …) and ggml/
+                    ' whisper DLLs are extracted to the app ROOT (flat layout), so the
+                    ' app root must be on PATH for CTranslate2 (faster-whisper) and the
+                    ' CUDA whisper binaries to load them. The legacy "whisper" subdir is
+                    ' still prepended when present for older installs.
+                    Dim baseDir = AppDomain.CurrentDomain.BaseDirectory
+                    Dim whisperDir = Path.Combine(baseDir, "whisper")
+                    Dim currentPath = If(Environment.GetEnvironmentVariable("PATH"), "")
+                    Dim prefix = baseDir
+                    If Directory.Exists(whisperDir) Then prefix = whisperDir & ";" & prefix
+                    psi.Environment("PATH") = prefix & ";" & currentPath
                 End If
 
                 Try
