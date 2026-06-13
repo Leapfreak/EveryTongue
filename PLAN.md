@@ -1,4 +1,4 @@
-# EveryTongue — TODO (updated 2026-06-13, v1.9.13 — RELEASED)
+# EveryTongue — TODO (updated 2026-06-13, v2.0.0 — RELEASED)
 
 > **Architecture shift:** EveryTongue is evolving from a single-session desktop transcription tool into a **headless multi-room translation server**. The desktop app still has operator workspaces (Live, Transcribe, Translate, Bible), but the primary user interface is now the **phone web client**. Anyone with a phone can create rooms, manage conversations, and receive translations — no operator required. The desktop just runs the server and auto-starts engines at launch.
 
@@ -52,23 +52,33 @@ Third engine added via the same plugin registries as Deepgram/Gladia — zero sh
 ### Cloud Translation Parity, Cost & Latency — COMPLETE (v1.9.8–v1.9.9, plan #14 a–h all done)
 Cloud backend output now gets the same glossary fixes and profanity masking as NLLB — `GlossaryPostProcessor`/`ProfanityPostProcessor` port the Python filter semantics and run in `TranslationOrchestrator`, gated by `ITranslationBackend.AppliesFiltersInternally` (per-room filter sets honoured, global files fallback). `TranslationUsageTracker` counts billable characters per backend per month with optional budgets (warning-only, never blocks) and rolling latency averages, shown on the Options Translation page. DeepL targets now translate concurrently. **v1.9.9:** cloud engines honoured in ALL pipelines — the Translate workspace and Transcribe job pipeline route through the orchestrator when the effective engine is cloud (previously NLLB-only dead-ends); NLLB-selected behavior byte-identical. See [#14](#14-pluggable-translation-backends-cloud-apis).
 
-### Engine Expansion — COMPLETE (v1.9.10–v1.9.13, released to GitHub as v1.9.13)
-Ten engines added, all registry-driven with per-engine keys and cross-vendor key sharing. **Translation (v1.9.10)**: DeepSeek + OpenAI (shared `OpenAiCompatibleBackend`), LibreTranslate (configurable endpoint, self-hostable), Amazon Translate (AWSSDK, composite `accessKeyId:secret` key, region in endpoint field) → 9 translation engines total (see [#14](#14-pluggable-translation-backends-cloud-apis)). **STT (v1.9.11–v1.9.12, entries above)** → 9 STT engines total. **TTS (v1.9.13)**: Azure AI Speech TTS (official Edge voice catalogue, with SLA), Google Cloud TTS, OpenAI TTS, with `TtsApiKeys`/`TtsEndpoints` plumbing and entry-declared key fallbacks (Azure key shared STT↔TTS; Google key shared STT↔Translate↔TTS; OpenAI key shared Translate↔TTS) → 6 TTS engines total (see [#6](#6-text-to-speech--server-side-engine)). UI plumbing verified surface-by-surface (Options combos/key/endpoint fields, template manager, descriptor editor, connectivity gate, Download Manager) — all registry-enumerated, zero hardcoded engine lists. **⚠ All v1.9.10–v1.9.13 cloud engines were implemented from vendor docs and are NOT yet smoke-tested against live endpoints (no API keys on the dev box) — real-key sessions on the test machine are the actual verification.** Release: GitHub v1.9.13 (installer + app zip + update manifest); setup.iss hardened (CUDA DLL and .pyc/.log excludes).
+### Engine Expansion — COMPLETE (v1.9.10–v1.9.13)
+Ten engines added, all registry-driven with per-engine keys and cross-vendor key sharing. **Translation (v1.9.10)**: DeepSeek + OpenAI (shared `OpenAiCompatibleBackend`), LibreTranslate (configurable endpoint, self-hostable), Amazon Translate (AWSSDK, composite `accessKeyId:secret` key, region in endpoint field) → 9 translation engines total (see [#14](#14-pluggable-translation-backends-cloud-apis)). **STT (v1.9.11–v1.9.12)**: Deepgram, Gladia, Azure AI Speech → 9 STT engines total. **TTS (v1.9.13)**: Azure AI Speech TTS (official Edge voice catalogue, with SLA), Google Cloud TTS, OpenAI TTS, with `TtsApiKeys`/`TtsEndpoints` plumbing and entry-declared key fallbacks (Azure key shared STT↔TTS; Google key shared STT↔Translate↔TTS; OpenAI key shared Translate↔TTS) → 6 TTS engines total (see [#6](#6-text-to-speech--server-side-engine)). UI plumbing verified surface-by-surface — all registry-enumerated, zero hardcoded engine lists.
+
+### Per-Room Translation Engines — COMPLETE (v1.9.19–v1.9.21)
+A conference room runs its OWN translation engine, overriding the global default (global is only the default for non-conference paths). `TranslationOrchestrator.TranslateAsync` gained a `backendOverride`; `ConferenceController` stores `_roomTranslationKey` per room. The local **NLLB sidecar reloads to the room's chosen model** on demand (room wins; single model at a time, concurrent rooms share + warn); cloud engines run independently per room. **Speechmatics translation is now a selectable engine** ("Speechmatics (inline)", `InlineWithStt` metadata) rather than the old global checkbox — inline when the room's STT is Speechmatics, else falls back to the global default. Verified on Jezer (session 20260613_113138: room got real NLLB-3.3B via reload, single-engine output, zero errors).
+
+### Robustness & Release Hardening — COMPLETE (v1.9.14–v1.9.18)
+Installer no longer bundles CUDA/AWS DLLs or `.pyc`/`.log`; AWS SDK is an on-demand Download Manager component; resilient GitHub API usage (cached release lookups survive 403 rate limits); `tool-versions.json` removed from the integrity manifest; cloud-engine config never crashes startup when an optional SDK is missing; glossary/profanity applied to Speechmatics-inline translations; no false "live server exited unexpectedly" on graceful room close.
+
+### v2.0.0 — RELEASED (2026-06-13)
+Milestone bundling all of the above: pluggable engines across STT/translation/TTS, per-room translation, cloud parity (glossary/profanity + usage/latency), and release hardening. GitHub v2.0.0 (installer + app zip + AWS SDK component + update manifest).
+**⚠ Still untested against live vendor endpoints (no keys on dev/Jezer yet):** Deepgram/Gladia/Azure STT, DeepSeek/OpenAI/LibreTranslate/Amazon translation, Azure/Google/OpenAI TTS. The Speechmatics + NLLB-3.3B + Piper stack is proven.
 
 ## User-Reported Issues & Tasks
 - [x] Implement stubs — most done (QR Code, Hardware Score, Diagnostics Export, File Integrity, Translate workspace). Remaining stubs: Session Wizard, Audio Level Monitor, Event Profiles, Spec Sheet Generator, Portable Mode, Feedback prompt
 - [x] Connected Clients dialog — popup form showing all connected phones with model, OS, browser, language, TTS, connection time
 - [ ] Audio routing: NDI or Direct Audio output
 
-## Suggested Next Priorities
-1. ~~**Structured Logging System**~~ — DONE (v1.8.5)
-2. ~~**Config refactor runtime consumption (Phases 6–9)**~~ — DONE (v1.9.0–v1.9.4; plan doc CONFIG_CHANGES.md deleted after completion, history in git).
-3. ~~**Architecture audit backlog**~~ — DONE (v1.9.5, commits d684db2..5e30f98; ARCHITECTURE_AUDIT.md deleted after completion).
-4. **Smoke-test the new cloud engines with real API keys** (test machine) — Deepgram/Gladia/Azure Speech STT, DeepSeek/OpenAI/LibreTranslate/Amazon translation, Azure/Google/OpenAI TTS were built from vendor docs only; verify auth, response shapes, and fallback behavior per engine, fix against real responses.
-5. **Regenerate CDN locale packs** — ~100 new string keys added in v1.9.x exist only in `locales/en.json`; the downloadable packs on the GitHub CDN need regenerating (carried over from config refactor).
-6. Audio Level Monitor — operator feedback, prevents bad audio
-7. Setup Wizard expansion — integrates QR, audio monitor, hardware score
-8. Cross-platform headless server (Linux/Docker)
+## Suggested Next Priorities (post-2.0.0)
+1. **Smoke-test the new cloud engines with real API keys** (test machine) — Deepgram/Gladia/Azure Speech STT, DeepSeek/OpenAI/LibreTranslate/Amazon translation, Azure/Google/OpenAI TTS were built from vendor docs only; verify auth, response shapes, and fallback behavior per engine, fix against real responses. (The Speechmatics + NLLB-3.3B + Piper stack is already proven.)
+2. **Regenerate CDN locale packs** — ~100 new string keys added in v1.9.x/2.0 exist only in `locales/en.json`; the downloadable packs on the GitHub CDN need regenerating.
+3. Audio Level Monitor — operator feedback, prevents bad audio (#3)
+4. Rooms desktop dashboard — active-rooms overview + Live-tab room dropdown (#19g)
+5. Setup Wizard expansion — integrates QR, audio monitor, hardware score (#2)
+6. Cross-platform headless server (Linux/Docker)
+
+Done in the 1.9.x→2.0 line: Structured Logging (v1.8.5), Config refactor (v1.9.0–4), Architecture audit (v1.9.5), legacy removals + per-engine keys (v1.9.6–7), cloud parity/cost/latency (v1.9.8–9), engine expansion (v1.9.10–13), robustness/hardening (v1.9.14–18), per-room translation engines (v1.9.19–21), v2.0.0 milestone.
 
 ---
 
