@@ -2109,7 +2109,8 @@ function toggleHostPanel(){
   var roomId=roomMatch?roomMatch[1]:'';
   var hostHtml=
     '<div style="color:#fff;font-weight:600;margin-bottom:12px">Host Controls</div>'+
-    '<button id="hcEndRoom" style="width:100%;padding:10px;border:none;border-radius:8px;background:#e74c3c;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">End Room</button>';
+    '<button id="hcEndRoom" style="width:100%;padding:10px;border:none;border-radius:8px;background:#e74c3c;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">End Room</button>'+
+    '<button id="hcClear" style="width:100%;padding:10px;border:none;border-radius:8px;background:#555;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">✕ Clear Captions</button>';
   if(pttRoomType==='conference'){
     var isPaused=window._roomPaused||false;
     hostHtml+='<button id="hcPauseBtn" style="width:100%;padding:10px;border:none;border-radius:8px;background:'+(isPaused?'#e74c3c':'#27ae60')+';color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">'+(isPaused?'\u23F8 Paused':'\u25B6 Playing')+'</button>';
@@ -2184,6 +2185,17 @@ function toggleHostPanel(){
     xhr.onload=function(){location.href='/lobby.html'};
     xhr.send();
   });
+
+  var clearBtn=document.getElementById('hcClear');
+  if(clearBtn){
+    clearBtn.addEventListener('click',function(){
+      /* Host clears every listener's captions in this room back to empty */
+      var xhr=new XMLHttpRequest();
+      xhr.open('POST','/api/rooms/'+encodeURIComponent(roomId)+'/clear',true);
+      xhr.setRequestHeader('Content-Type','application/json');
+      xhr.send(JSON.stringify({requestingClientId:myClientId}));
+    });
+  }
 
   var pauseBtn=document.getElementById('hcPauseBtn');
   if(pauseBtn){

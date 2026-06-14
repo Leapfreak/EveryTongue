@@ -370,6 +370,33 @@ Namespace Server
                                                           Await context.Response.WriteAsJsonAsync(New With {.ok = ok})
                                                       End Function)
 
+            ' Clear every client's captions in the room back to empty (host only)
+            app.MapPost("/api/rooms/{id}/clear", Async Function(id As String, context As HttpContext) As Task
+                                                       Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                                       Dim hub = context.RequestServices.GetRequiredService(Of SubtitleHub)()
+                                                       Dim doc As JsonDocument = Nothing
+                                                       Dim ok = False
+                                                       Dim failed = False
+                                                       Try
+                                                           doc = Await JsonDocument.ParseAsync(context.Request.Body)
+                                                           Dim reqProp As JsonElement = Nothing
+                                                           Dim requestingClientId = ""
+                                                           If doc.RootElement.TryGetProperty("requestingClientId", reqProp) Then requestingClientId = If(reqProp.GetString(), "")
+                                                           Dim room = mgr.GetRoom(id)
+                                                           If room IsNot Nothing AndAlso room.HostClientId = requestingClientId Then
+                                                               hub.BroadcastToRoom(id, "{""type"":""clear""}", "")
+                                                               ok = True
+                                                           End If
+                                                       Catch ex As Exception
+                                                           AppLogger.Log(LogEvents.SERVER_ERROR, $"/rooms/{id}/clear error: {ex.Message}")
+                                                           failed = True
+                                                       Finally
+                                                           doc?.Dispose()
+                                                       End Try
+                                                       If failed Then context.Response.StatusCode = 400
+                                                       Await context.Response.WriteAsJsonAsync(New With {.ok = ok})
+                                                   End Function)
+
             ' Pause/resume commit broadcasting (host only)
             app.MapPost("/api/rooms/{id}/pause", Async Function(id As String, context As HttpContext) As Task
                                                        Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
