@@ -333,7 +333,11 @@ Namespace Controllers
                 End Select
             Next
 
-            If runtimeParams.Count > 0 Then
+            ' Skip the live config update when a restart is already coming: the restart
+            ' re-applies every param (language → cfgLang) on the fresh backend, and pushing
+            ' an HTTP config call to a live-server that is about to be shut down just races
+            ' the shutdown and logs a spurious "UpdateConfigAsync failed" error.
+            If runtimeParams.Count > 0 AndAlso Not needsRestart Then
                 _log($"[Pipeline:{roomId}] Updating runtime params: {String.Join(", ", runtimeParams.Keys)}")
                 Task.Run(Function() backend.UpdateConfigAsync(runtimeParams))
             End If
