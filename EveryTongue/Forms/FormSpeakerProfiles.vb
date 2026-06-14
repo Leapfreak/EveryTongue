@@ -1,3 +1,4 @@
+Imports EveryTongue.Models
 Imports EveryTongue.Models.Templates
 Imports EveryTongue.Services.Config
 Imports EveryTongue.Services.Infrastructure
@@ -12,6 +13,7 @@ Public Class FormSpeakerProfiles
 
     Private _editing As SpeakerProfile
     Private _isNew As Boolean
+    Private ReadOnly _config As AppConfig
 
     ''' <summary>Combo item mapping a display name to a template id ("" = none).</summary>
     Private Class RefItem
@@ -28,8 +30,9 @@ Public Class FormSpeakerProfiles
         End Function
     End Class
 
-    Public Sub New()
+    Public Sub New(Optional config As AppConfig = Nothing)
         InitializeComponent()
+        _config = If(config, ConfigManager.Load())
         ApplyLocale()
         RefreshList()
     End Sub
@@ -151,8 +154,11 @@ Public Class FormSpeakerProfiles
         txtName.Text = sp.Name
         Dim store = TemplateLibraryStore.Instance
 
-        PopulateRefCombo(cboOnlineStt, store.GetEngineTemplates(TemplateLibraryStore.GroupStt), sp.OnlineSttTemplateId)
-        PopulateRefCombo(cboOfflineStt, store.GetEngineTemplates(TemplateLibraryStore.GroupStt), sp.OfflineSttTemplateId)
+        ' Standalone STT presets only — exclude per-room companion templates so a speaker
+        ' isn't offered other rooms' engine configs as their STT template.
+        Dim sttPresets = ConferenceTemplateMigration.StandaloneSttTemplates(_config)
+        PopulateRefCombo(cboOnlineStt, sttPresets, sp.OnlineSttTemplateId)
+        PopulateRefCombo(cboOfflineStt, sttPresets, sp.OfflineSttTemplateId)
         PopulateRefCombo(cboTranslate, store.GetEngineTemplates(TemplateLibraryStore.GroupTranslate), sp.TranslateTemplateId)
         PopulateRefCombo(cboTts, store.GetEngineTemplates(TemplateLibraryStore.GroupTts), sp.TtsTemplateId)
 

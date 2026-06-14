@@ -100,7 +100,14 @@ Public Class FormEngineTemplates
 
     Private Sub RefreshList()
         lvTemplates.Items.Clear()
-        For Each t In TemplateLibraryStore.Instance.GetEngineTemplates(_group)
+        ' Each conference template materialises a 1:1 companion STT template that shares
+        ' its Id (see ConferenceTemplateMigration). Those are the room's own engine config,
+        ' edited via the Conference Templates dialog — not standalone presets — so hide them
+        ' from the STT list; otherwise every room shows up here and the two libraries look fused.
+        Dim source = If(_group = TemplateLibraryStore.GroupStt,
+            ConferenceTemplateMigration.StandaloneSttTemplates(_config),
+            TemplateLibraryStore.Instance.GetEngineTemplates(_group))
+        For Each t In source
             Dim li As New ListViewItem(t.Name)
             li.SubItems.Add(t.EngineKey)
             li.Tag = t.Id

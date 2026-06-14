@@ -1,3 +1,4 @@
+Imports System.Linq
 Imports EveryTongue.Models
 Imports EveryTongue.Models.Templates
 Imports EveryTongue.Services.Infrastructure
@@ -39,6 +40,19 @@ Namespace Services.Config
                 .EngineKey = engineKey,
                 .Config = EngineConfigResolver.BuildTemplateConfig(entry.ConfigDescriptor, values)
             }
+        End Function
+
+        ''' <summary>
+        ''' The STT library templates a user manages/picks directly — i.e. excluding the
+        ''' per-conference companion templates (1:1, sharing the room's Id) that exist only
+        ''' to back a room's own engine config. Keeps room setups out of STT-template pickers.
+        ''' </summary>
+        Public Shared Function StandaloneSttTemplates(cfg As AppConfig) As List(Of EngineTemplate)
+            Dim roomIds As New HashSet(Of String)(
+                If(cfg?.ConferenceTemplates, New List(Of ConferenceTemplate)).Select(Function(c) c.Id),
+                StringComparer.OrdinalIgnoreCase)
+            Return TemplateLibraryStore.Instance.GetEngineTemplates(TemplateLibraryStore.GroupStt).
+                Where(Function(t) Not roomIds.Contains(t.Id)).ToList()
         End Function
 
         ''' <summary>

@@ -39,11 +39,11 @@ Public Class FormTemplateManager
         btnManageSttTemplates.Text = lp.GetString("Tmpl_ManageSttTemplates")
         lblMode.Text = lp.GetString("Tmpl_Mode")
         lblSpeakers.Text = lp.GetString("Tmpl_Speakers")
-        btnManageSpeakers.Text = lp.GetString("Tmpl_ManageSttTemplates")
+        btnManageSpeakers.Text = lp.GetString("Tmpl_ManageSpeakers")
         lblDisplayTpl.Text = lp.GetString("Tmpl_DisplayTemplate")
-        btnManageDisplay.Text = lp.GetString("Tmpl_ManageSttTemplates")
+        btnManageDisplay.Text = lp.GetString("Tmpl_ManageDisplay")
         lblFilterSet.Text = lp.GetString("Tmpl_FilterSet")
-        btnManageFilterSets.Text = lp.GetString("Tmpl_ManageSttTemplates")
+        btnManageFilterSets.Text = lp.GetString("Tmpl_ManageFilterSets")
         cboMode.Items.Clear()
         cboMode.Items.Add(lp.GetString("Tmpl_ModeOnline"))
         cboMode.Items.Add(lp.GetString("Tmpl_ModeOffline"))
@@ -422,7 +422,7 @@ Public Class FormTemplateManager
     End Sub
 
     Private Sub btnManageSpeakers_Click(sender As Object, e As EventArgs) Handles btnManageSpeakers.Click
-        Using frm As New FormSpeakerProfiles()
+        Using frm As New FormSpeakerProfiles(_config)
             frm.Icon = Me.Icon
             frm.ShowDialog(Me)
         End Using
@@ -438,8 +438,9 @@ Public Class FormTemplateManager
         cboSttTemplate.Items.Clear()
         cboSttTemplate.Items.Add(New SttTemplateItem(
             LanguagePackService.Instance.GetString("Tmpl_SttTemplateOwn"), ""))
-        For Each tpl In Services.Config.TemplateLibraryStore.Instance.GetEngineTemplates(
-                Services.Config.TemplateLibraryStore.GroupStt)
+        ' Standalone STT presets only — exclude every room's 1:1 companion template so a
+        ' room's STT-template picker doesn't list other rooms.
+        For Each tpl In Services.Config.ConferenceTemplateMigration.StandaloneSttTemplates(_config)
             If tpl.Id = t.Id Then Continue For
             cboSttTemplate.Items.Add(New SttTemplateItem($"{tpl.Name} [{tpl.EngineKey}]", tpl.Id))
         Next
