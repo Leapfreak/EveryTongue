@@ -1,6 +1,7 @@
 Imports System.Threading
 Imports EveryTongue.Models
 Imports EveryTongue.Pipeline
+Imports EveryTongue.Services.Infrastructure
 Imports EveryTongue.Services.Interfaces
 Imports EveryTongue.Services.Models
 
@@ -15,9 +16,13 @@ Namespace Services.Stt
 
         Private ReadOnly _runner As New LiveStreamRunner()
         Private ReadOnly _useGpu As Boolean
+        ' When True, launch the CUDA whisper-server build (whisper-server-cuda.exe)
+        ' instead of the default Vulkan binary. NVIDIA-only.
+        Private ReadOnly _useCuda As Boolean
 
-        Public Sub New(useGpu As Boolean)
+        Public Sub New(useGpu As Boolean, Optional useCuda As Boolean = False)
             _useGpu = useGpu
+            _useCuda = useCuda
 
             AddHandler _runner.OutputLineUpdated, Sub(s, line)
                                                       RaiseEvent OutputUpdated(Me, New SttOutputEventArgs(line))
@@ -78,9 +83,29 @@ Namespace Services.Stt
         Public Sub Start(config As SttSessionConfig) Implements ISttBackend.Start
             Dim ec = If(config.Block(Of Configs.WhisperCppConfig)(), New Configs.WhisperCppConfig())
 
+            ' Resolve the server binary. The CUDA engine key must launch the CUDA build
+            ' (whisper-server-cuda.exe), which lives next to the Vulkan build. Without this
+            ' the CUDA selection silently ran the Vulkan binary — and mixing a Vulkan whisper
+            ' context with a resident CUDA context (e.g. NLLB) on the same NVIDIA GPU can crash
+            ' ggml on init. Fall back to the Vulkan binary if the CUDA build is missing.
+            Dim serverPath = ec.WhisperServerPath
+            Dim backendKey = If(_useGpu, "whisper-cpp-vulkan", "whisper-cpp-cpu")
+            If _useCuda AndAlso Not String.IsNullOrEmpty(serverPath) Then
+                Dim dir = IO.Path.GetDirectoryName(EveryTongue.Models.AppConfig.ResolvePath(serverPath))
+                Dim cudaPath = If(String.IsNullOrEmpty(dir), "whisper-server-cuda.exe",
+                                  IO.Path.Combine(dir, "whisper-server-cuda.exe"))
+                If IO.File.Exists(cudaPath) Then
+                    serverPath = cudaPath
+                    backendKey = "whisper-cpp-cuda"
+                Else
+                    AppLogger.Log(LogEvents.STT_WHISPER_SERVER_START,
+                        $"whisper-cpp-cuda selected but '{cudaPath}' not found — using the Vulkan build instead")
+                End If
+            End If
+
             ' Configure the runner for whisper-cpp backend
-            _runner.Backend = If(_useGpu, "whisper-cpp-vulkan", "whisper-cpp-cpu")
-            _runner.WhisperServerPath = ec.WhisperServerPath
+            _runner.Backend = backendKey
+            _runner.WhisperServerPath = serverPath
             _runner.WhisperServerPort = ec.WhisperServerPort
             _runner.SileroVadModelPath = ec.SileroVadModelPath
             _runner.NoGpu = Not _useGpu
@@ -89,7 +114,7 @@ Namespace Services.Stt
             Dim appConfig As New AppConfig() With {
                 .LiveServerPort = config.ServerPort,
                 .PathWhisperCppModel = ec.ModelPath,
-                .PathWhisperServer = ec.WhisperServerPath,
+                .PathWhisperServer = serverPath,
                 .WhisperServerPort = ec.WhisperServerPort,
                 .NoGpu = Not _useGpu,
                 .BeamSize = ec.BeamSize,
