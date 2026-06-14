@@ -113,18 +113,34 @@ Namespace Pipeline
                 psi.Environment("PYTHONIOENCODING") = "utf-8"
                 psi.Environment("PYTHONLEGACYWINDOWSSTDIO") = "0"
 
+                ' CUDA 12 runtime path wiring. The single shared CUDA 12 runtime is the
+                ' nvidia pip packages (nvidia-cublas-cu12, …) installed in the embedded
+                ' Python's site-packages. Putting their bin dirs on PATH lets every CUDA
+                ' consumer find ONE cublas64_12.dll: CTranslate2 (faster-whisper + NLLB)
+                ' in-process, and whisper-server.exe which the live-server launches as a
+                ' child (inheriting this PATH). Added for ALL sidecars since the NLLB
+                ' translate-server needs it too.
+                Dim baseDir = AppDomain.CurrentDomain.BaseDirectory
+                Dim pathParts As New List(Of String)
+                Dim nvidiaRoot = Path.Combine(baseDir, "python-embed", "Lib", "site-packages", "nvidia")
+                If Directory.Exists(nvidiaRoot) Then
+                    For Each pkgDir In Directory.GetDirectories(nvidiaRoot)
+                        Dim binDir = Path.Combine(pkgDir, "bin")
+                        If Directory.Exists(binDir) Then pathParts.Add(binDir)
+                    Next
+                End If
+
                 If AddWhisperToPath Then
-                    ' The CUDA runtime DLLs (cublas64_12, cudart64_12, …) and ggml/
-                    ' whisper DLLs are extracted to the app ROOT (flat layout), so the
-                    ' app root must be on PATH for CTranslate2 (faster-whisper) and the
-                    ' CUDA whisper binaries to load them. The legacy "whisper" subdir is
-                    ' still prepended when present for older installs.
-                    Dim baseDir = AppDomain.CurrentDomain.BaseDirectory
+                    ' whisper-cli/ggml DLLs and any app-root CUDA DLLs (flat layout);
+                    ' legacy "whisper" subdir kept for older installs.
                     Dim whisperDir = Path.Combine(baseDir, "whisper")
+                    If Directory.Exists(whisperDir) Then pathParts.Add(whisperDir)
+                    pathParts.Add(baseDir)
+                End If
+
+                If pathParts.Count > 0 Then
                     Dim currentPath = If(Environment.GetEnvironmentVariable("PATH"), "")
-                    Dim prefix = baseDir
-                    If Directory.Exists(whisperDir) Then prefix = whisperDir & ";" & prefix
-                    psi.Environment("PATH") = prefix & ";" & currentPath
+                    psi.Environment("PATH") = String.Join(";", pathParts) & ";" & currentPath
                 End If
 
                 Try
