@@ -862,7 +862,13 @@ Namespace Models
                 .Name = "whisper-server (CUDA)"
             }
             Try
-                If File.Exists(WhisperServerCudaInstalledPath()) Then
+                ' "Installed" requires the exe AND its CUDA 13 runtime DLLs, so a
+                ' partial deletion (DLLs removed, exe kept) is detected as Missing
+                ' and offered for re-download instead of silently failing at runtime.
+                Dim cudaDir = Path.GetDirectoryName(WhisperServerCudaInstalledPath())
+                If File.Exists(WhisperServerCudaInstalledPath()) AndAlso
+                   File.Exists(Path.Combine(cudaDir, "cublas64_13.dll")) AndAlso
+                   File.Exists(Path.Combine(cudaDir, "cublasLt64_13.dll")) Then
                     state.InstalledVersion = GetSavedVersion("whisper-server (CUDA)")
                     If String.IsNullOrEmpty(state.InstalledVersion) Then state.InstalledVersion = "installed"
                     state.Status = ToolStatus.Installed
@@ -913,7 +919,12 @@ Namespace Models
         Public Async Function CheckWhisperCliAsync() As Task(Of ToolState)
             Dim state As New ToolState With {.Name = "Whisper CLI + CUDA runtime"}
             Try
-                If File.Exists(WhisperCliInstalledPath()) Then
+                ' "Installed" requires the exe AND its CUDA 12 runtime DLLs, so a
+                ' deleted runtime is detected as Missing and re-downloadable.
+                If File.Exists(WhisperCliInstalledPath()) AndAlso
+                   File.Exists(Path.Combine(_toolsDir, "cublas64_12.dll")) AndAlso
+                   File.Exists(Path.Combine(_toolsDir, "cublasLt64_12.dll")) AndAlso
+                   File.Exists(Path.Combine(_toolsDir, "cudart64_12.dll")) Then
                     state.InstalledVersion = GetSavedVersion(state.Name)
                     If String.IsNullOrEmpty(state.InstalledVersion) Then state.InstalledVersion = "installed"
                     state.Status = ToolStatus.Installed
