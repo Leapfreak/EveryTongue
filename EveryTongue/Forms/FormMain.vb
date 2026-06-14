@@ -26,6 +26,13 @@ Public Class FormMain
     Private _conferenceController As Controllers.ConferenceController
     Private _langPack As LanguagePackService
     Private _translationService As TranslationService
+    ''' <summary>
+    ''' The CTranslate2 compute_type the NLLB sidecar is currently loaded with.
+    ''' Tracked alongside _config.TranslationModelPath because int8 and float16
+    ''' variants of the same model size share a DefaultModelPath and differ only
+    ''' by compute_type — a model-path-only check can't detect a precision switch.
+    ''' </summary>
+    Private _loadedTranslationComputeType As String = "auto"
     Private _isInitializing As Boolean = True
     Private _isSyncingUi As Boolean = False
     Private _exitForReal As Boolean = False
@@ -998,23 +1005,32 @@ del ""%~f0""
             EnsureSidecarBackendRegistered()
             Dim requested = AppConfig.ResolvePath(entry.DefaultModelPath)
             Dim loaded = AppConfig.ResolvePath(_config.TranslationModelPath)
-            If Not String.IsNullOrEmpty(requested) AndAlso
-               Not requested.Equals(loaded, StringComparison.OrdinalIgnoreCase) Then
+            Dim modelDiffers = Not String.IsNullOrEmpty(requested) AndAlso
+                               Not requested.Equals(loaded, StringComparison.OrdinalIgnoreCase)
+            ' int8 and float16 variants of the same size share a DefaultModelPath,
+            ' so a model-path-only check can't catch a needed precision switch.
+            ' Compare the requested engine's compute_type to the loaded one too.
+            Dim requestedCompute = Services.Translation.TranslationBackendRegistry.ComputeTypeForKey(engineKey)
+            Dim computeDiffers = Not requestedCompute.Equals(_loadedTranslationComputeType, StringComparison.OrdinalIgnoreCase)
+            If modelDiffers OrElse computeDiffers Then
                 If mayReload Then
-                    ' Room wins: reload the sidecar to this room's model. Costs a
-                    ' model-load (~seconds); the reloaded model then also serves
-                    ' non-conference paths until the global engine is changed.
+                    ' Room wins: reload the sidecar to this room's model/precision.
+                    ' Costs a model-load (~seconds); the reloaded model then also
+                    ' serves non-conference paths until the global engine changes.
                     AppLogger.Log(LogEvents.TRANS_SERVER_STARTING,
-                        $"Reloading NLLB sidecar to room engine '{engineKey}' (model {entry.DefaultModelPath}; was '{_config.TranslationModelPath}')")
+                        $"Reloading NLLB sidecar to room engine '{engineKey}' (model {entry.DefaultModelPath}, compute {requestedCompute}; was model '{_config.TranslationModelPath}', compute '{_loadedTranslationComputeType}')")
                     _translationService.Stop()
                     _translationService = Nothing
                     Dim wasEnabledR = _config.TranslationEnabled
                     _config.TranslationEnabled = True
                     StartTranslationService(engineKey)
                     If Not wasEnabledR Then _config.TranslationEnabled = wasEnabledR
-                Else
+                ElseIf modelDiffers Then
                     AppLogger.Log(LogEvents.TRANS_BACKEND_FALLBACK,
                         $"Room requested NLLB engine '{engineKey}' (model {entry.DefaultModelPath}), but another active room is using model '{_config.TranslationModelPath}'. Simultaneous different NLLB models aren't supported — using the running model.")
+                Else
+                    AppLogger.Log(LogEvents.TRANS_BACKEND_FALLBACK,
+                        $"Room requested NLLB engine '{engineKey}' (compute {requestedCompute}), but another active room is using compute '{_loadedTranslationComputeType}' on the same model. Simultaneous different precisions aren't supported — using the running model.")
                 End If
             End If
             Return
@@ -1150,16 +1166,24 @@ del ""%~f0""
             ' otherwise use the global config model.
             Dim modelPath = If(overrideIsLocal, AppConfig.ResolvePath(overrideEntry.DefaultModelPath), _config.TranslationModelPath)
             Dim modelType = If(overrideIsLocal, overrideEntry.ModelType, If(_config.TranslationModelType, "nllb"))
+            ' Derive the compute_type from the registry: a room override uses its own
+            ' engine key; the global path uses the effective configured engine. int8
+            ' variants carry "int8_float16" so the float16 model is quantized at load.
+            Dim computeType = If(overrideIsLocal,
+                Services.Translation.TranslationBackendRegistry.ComputeTypeForKey(keyOverride),
+                Services.Translation.TranslationBackendRegistry.ComputeTypeForKey(effectiveKey))
             Dim port = _config.TranslationPort
             Dim device = _config.TranslationDevice
             Dim glossaryPath = _config.TranslationGlossaryPath
 
-            ' Keep the loaded model in sync so the single-model constraint check
-            ' (EnsureTranslationSidecarForKey) reports the actually-loaded model.
+            ' Keep the loaded model + compute_type in sync so the single-model
+            ' constraint check (EnsureTranslationSidecarForKey) reports the
+            ' actually-loaded model and precision.
             If overrideIsLocal Then _config.TranslationModelPath = modelPath
+            _loadedTranslationComputeType = computeType
 
-            AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, $"StartTranslationService: port={port}, device={device}, modelPath={modelPath}, modelType={modelType}{If(overrideIsLocal, $" (room engine '{keyOverride}')", "")}")
-            _translationService.Start(port, modelPath, device, glossaryPath, modelType)
+            AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, $"StartTranslationService: port={port}, device={device}, modelPath={modelPath}, modelType={modelType}, computeType={computeType}{If(overrideIsLocal, $" (room engine '{keyOverride}')", "")}")
+            _translationService.Start(port, modelPath, device, glossaryPath, modelType, computeType)
             _translationStarting = False
             AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, "Translation service starting...")
         End If

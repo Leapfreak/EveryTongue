@@ -111,6 +111,7 @@ translator = None
 sp_model = None
 device_in_use = "cpu"
 model_path_global = ""
+compute_type_global = "auto"
 glossary_path_global = ""
 _lock = Lock()
 
@@ -519,14 +520,15 @@ async def load_model(req: LoadRequest):
     device = req.device
     with _lock:
         try:
-            logger.info("Loading model from %s on %s...", model_path_global, device)
+            logger.info("Loading model from %s on %s (compute_type=%s)...",
+                        model_path_global, device, compute_type_global)
 
-            # Try CUDA, fall back to CPU
-            # Use compute_type="auto" so quantized models (int8, int8_float16)
-            # run with their native precision instead of being dequantized.
+            # Try CUDA, fall back to CPU. compute_type_global lets the .NET side
+            # request int8/int8_float16 quantization at load (halves VRAM) by
+            # quantizing a float16 model on the fly; "auto" keeps native precision.
             try:
                 translator = ctranslate2.Translator(
-                    model_path_global, device=device, compute_type="auto"
+                    model_path_global, device=device, compute_type=compute_type_global
                 )
                 device_in_use = device
             except Exception as cuda_err:
@@ -616,6 +618,8 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--model-type", type=str, default="nllb",
                         help="Model architecture (kept for backward compatibility)")
+    parser.add_argument("--compute-type", type=str, default="auto",
+                        help="CTranslate2 compute_type (auto, int8_float16, int8, float16, float32)")
     parser.add_argument("--log-level", type=str, default="normal",
                         choices=["minimal", "normal", "verbose"],
                         help="Log verbosity: minimal (errors only), normal (default), verbose (all debug)")
@@ -629,6 +633,7 @@ if __name__ == "__main__":
         _setup_file_logging(args.log_dir)
 
     model_path_global = args.model_path
+    compute_type_global = args.compute_type
     _apply_log_level(args.log_level)
     _debug_logger.info("Translation server started")
 

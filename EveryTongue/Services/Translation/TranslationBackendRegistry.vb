@@ -19,6 +19,13 @@ Namespace Services.Translation
             Public Property ModelType As String
             ''' <summary>Default model directory path (e.g. ".\nllb-model"). Null for cloud backends.</summary>
             Public Property DefaultModelPath As String
+            ''' <summary>
+            ''' CTranslate2 compute_type passed to the sidecar (e.g. "int8_float16"
+            ''' to quantize a float16 model to int8 at load, halving VRAM). Empty ⇒
+            ''' treat as "auto" (native precision). Two entries of the same size can
+            ''' share a DefaultModelPath but differ only by ComputeType.
+            ''' </summary>
+            Public Property ComputeType As String = ""
             ''' <summary>Name used by TranslationOrchestrator to identify the backend (e.g. "Local", "DeepL").</summary>
             Public Property BackendName As String
             ''' <summary>True when the engine needs a per-engine endpoint/region value (Options shows the Endpoint field).</summary>
@@ -40,7 +47,9 @@ Namespace Services.Translation
 
         Private Shared ReadOnly _backends As New List(Of Entry) From {
             New Entry With {.Key = "nllb", .DisplayName = "NLLB 1.3B (offline)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-model", .BackendName = "Local", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb")},
+            New Entry With {.Key = "nllb-int8", .DisplayName = "NLLB 1.3B int8 (offline)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-model", .BackendName = "Local", .ComputeType = "int8_float16", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb-int8")},
             New Entry With {.Key = "nllb-3.3b", .DisplayName = "NLLB 3.3B (offline)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-3.3b-model", .BackendName = "Local", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb-3.3b")},
+            New Entry With {.Key = "nllb-3.3b-int8", .DisplayName = "NLLB 3.3B int8 (offline, 6 GB GPU)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-3.3b-model", .BackendName = "Local", .ComputeType = "int8_float16", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb-3.3b-int8")},
             New Entry With {.Key = "google-translate", .DisplayName = "Google Translate (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "Google", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("google-translate")},
             New Entry With {.Key = "deepl", .DisplayName = "DeepL (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "DeepL", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("deepl")},
             New Entry With {.Key = "azure-translator", .DisplayName = "Azure Translator (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "Azure", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("azure-translator")},
@@ -93,6 +102,17 @@ Namespace Services.Translation
         ''' </summary>
         Public Shared Function BackendNameForKey(key As String) As String
             Return If(Find(key)?.BackendName, "Local")
+        End Function
+
+        ''' <summary>
+        ''' The CTranslate2 compute_type for an engine KEY (e.g. "int8_float16" for
+        ''' the int8 NLLB variants). Returns "auto" when the entry has no explicit
+        ''' ComputeType (native precision) or the key is unknown. No engine-key
+        ''' literals belong in shared code — callers use this metadata helper.
+        ''' </summary>
+        Public Shared Function ComputeTypeForKey(key As String) As String
+            Dim ct = Find(key)?.ComputeType
+            Return If(String.IsNullOrEmpty(ct), "auto", ct)
         End Function
 
         ''' <summary>

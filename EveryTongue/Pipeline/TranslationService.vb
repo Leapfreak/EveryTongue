@@ -125,7 +125,8 @@ Namespace Pipeline
         End Function
 
         Public Sub Start(port As Integer, modelPath As String, device As String,
-                         Optional glossaryPath As String = "", Optional modelType As String = "nllb")
+                         Optional glossaryPath As String = "", Optional modelType As String = "nllb",
+                         Optional computeType As String = "auto")
             _port = port
             _device = device
             _host.Port = port
@@ -134,6 +135,10 @@ Namespace Pipeline
             Dim serverScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "translate-server", "server.py")
 
             Dim extraArgs = $"--model-path ""{resolvedModelPath}"" --device {device} --model-type {modelType}"
+
+            If Not String.IsNullOrEmpty(computeType) Then
+                extraArgs &= $" --compute-type {computeType}"
+            End If
 
             If Not String.IsNullOrEmpty(glossaryPath) Then
                 Dim resolvedGlossary = Models.AppConfig.ResolvePath(glossaryPath)
