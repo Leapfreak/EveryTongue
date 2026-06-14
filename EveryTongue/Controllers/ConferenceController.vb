@@ -415,7 +415,11 @@ Namespace Controllers
             Dim restartFs As Models.Templates.FilterSet = Nothing
             If _roomFilters.TryGetValue(roomId, restartFs) Then sttConfig.HallucinationsPath = restartFs.HallucinationsPath
 
-            Dim newBackend = SttBackendRegistry.CreateBackend(If(template?.SttBackendKey, _config.SttBackend))
+            ' Must create the backend for the RESOLVED engine (speaker STT template wins),
+            ' not the conference template's default — otherwise switching to a speaker whose
+            ' STT template uses a different engine (e.g. speechmatics) builds the wrong backend
+            ' type (whisper-cpp) and the speechmatics session config is silently ignored.
+            Dim newBackend = SttBackendRegistry.CreateBackend(restartBackendKey)
             WireBackendLogging(roomId, newBackend, restartBackendKey)
 
             _sttBackends(roomId) = newBackend
