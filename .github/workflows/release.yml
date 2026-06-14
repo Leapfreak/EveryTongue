@@ -1,9 +1,14 @@
 name: Build and Release
 
+# Manual-only (workflow_dispatch). Releases are built and published LOCALLY —
+# the local process stages assets correctly (excludes AWSSDK/CUDA DLLs and .pyc
+# from the app zip, ships the aws-sdk component, writes the manifest). This
+# workflow previously ran on every `v*` tag and re-uploaded a raw bin/Publish
+# app zip, clobbering the local assets; and a failed run (v2.0.2) deleted the
+# app zip and left the release broken. Kept dispatch-only for reference /
+# optional clean-room builds, not wired to auto-release.
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
