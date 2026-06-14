@@ -210,9 +210,20 @@ def _start_whisper_server(server_path: str, model_path: str, port: int, no_gpu: 
 
     logger.debug(f"WHISPER-SERVER START: {' '.join(cmd)}")
 
+    # whisper.cpp's ggml installs a std::terminate handler in a static initializer
+    # (ggml.cpp) that GGML_ASSERTs if it runs twice. It DOES run twice when ggml is
+    # present in more than one loaded module (ggml-base + ggml-cpu + ggml-cuda/-vulkan;
+    # note backends=2). The failed assert aborts immediately after device init, before
+    # the model loads, surfacing as exit 3221226505 / 0xC0000409. GGML_NO_BACKTRACE
+    # makes the initializer return early — before the assert and set_terminate — so the
+    # handler is never double-registered. Affects both the CUDA and Vulkan builds.
+    ws_env = dict(os.environ)
+    ws_env["GGML_NO_BACKTRACE"] = "1"
+
     _whisper_server_process = subprocess.Popen(
         cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        env=ws_env,
     )
     _whisper_server_port = port
 
@@ -231,11 +242,17 @@ def _start_whisper_server(server_path: str, model_path: str, port: int, no_gpu: 
     # DO NOT REMOVE THIS THREAD. Without it, whisper-server silently hangs
     # after a handful of requests and transcription stops completely.
     # =========================================================================
+    # Keep the last few stderr lines so a launch failure can report the actual cause
+    # (e.g. a GGML_ASSERT / CUDA error) instead of just an opaque exit code.
+    _ws_stderr_tail: list = []
+
     def _drain_whisper_stderr(proc):
         try:
             for line in proc.stderr:
                 decoded = line.decode(errors="replace").rstrip()
                 if decoded:
+                    _ws_stderr_tail.append(decoded)
+                    del _ws_stderr_tail[:-15]
                     logger.debug(f"WHISPER-SERVER: {decoded}")
         except Exception:
             pass
@@ -245,7 +262,10 @@ def _start_whisper_server(server_path: str, model_path: str, port: int, no_gpu: 
     # Wait for server to be ready (up to 60s for large model load)
     for i in range(120):
         if _whisper_server_process.poll() is not None:
-            raise RuntimeError(f"whisper-server exited with code {_whisper_server_process.returncode} (check logs above)")
+            time.sleep(0.1)  # let the drain thread flush the final stderr lines
+            tail = " | ".join(_ws_stderr_tail[-6:]) if _ws_stderr_tail else "(no stderr captured)"
+            raise RuntimeError(
+                f"whisper-server exited with code {_whisper_server_process.returncode}. Last output: {tail}")
         try:
             req = urllib.request.Request(f"http://127.0.0.1:{port}/health")
             with urllib.request.urlopen(req, timeout=1) as resp:
