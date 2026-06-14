@@ -20,6 +20,14 @@ Namespace Models
         Public Property InitialPrompt As String = ""
         Public Property ModelPath As String = ""
         Public Property AudioDeviceId As Integer = -1
+        ''' <summary>
+        ''' Name of the saved input device. PortAudio device INDICES (AudioDeviceId) renumber
+        ''' when devices are added/removed, so a stored index can drift to the wrong device
+        ''' (e.g. an S/PDIF input) → silent capture. At capture start the index is re-resolved
+        ''' from this name against the current device enumeration; AudioDeviceId is the fallback
+        ''' for templates saved before this field existed.
+        ''' </summary>
+        Public Property AudioDeviceName As String = ""
         Public Property AudioSourceLabel As String = ""
         Public Property DefaultVisibility As String = "public"
         ''' <summary>Online/Offline gate for sessions hosted from this template (explicit switch, no auto-fallback).</summary>

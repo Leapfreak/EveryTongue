@@ -321,6 +321,12 @@ Public Class FormMain
 
         ' Auto-start subtitle server after form is fully shown
         AddHandler Me.Shown, Sub(s, ev)
+                                  ' Clean up orphaned sidecars (python / whisper-server) left by a prior
+                                  ' crash BEFORE starting the server or warming engines — they may still
+                                  ' hold the GPU/mic. The single-instance lock guarantees these are orphans.
+                                  Dim orphansKilled = KillOrphanedSidecars()
+                                  AppLogger.Log(LogEvents.STARTUP_APP_STARTED, $"Orphaned-sidecar cleanup on startup: killed {orphansKilled} process(es)")
+
                                   _serverController.StartServer()
 
                                   ' Create and wire conference controller for template-based rooms
@@ -343,27 +349,14 @@ Public Class FormMain
                                       convAudioHandler.EnsureTranslationAvailable = Sub() Me.BeginInvoke(Sub() EnsureTranslationForRooms())
                                   End If
 
-                                  ' Warm up engines — update tray tooltip as they start
-                                  trayIcon.Text = GetString("Tray_WarmingUpTranslation")
-                                  EnsureTranslationForRooms()
-
-                                  trayIcon.Text = GetString("Tray_WarmingUpStt")
-                                  If convAudioHandler IsNot Nothing Then
-                                      AppLogger.Log(LogEvents.STT_WHISPER_SERVER_START, "Auto-starting Whisper live-server for conversation rooms...")
-                                      Task.Run(Async Function()
-                                                   Try
-                                                       Dim ready = Await convAudioHandler.EnsureLiveServerAsync(CancellationToken.None)
-                                                       AppLogger.Log(LogEvents.STT_WHISPER_SERVER_START, $"Whisper live-server auto-start: ready={ready}")
-                                                       Me.BeginInvoke(Sub() trayIcon.Text = GetString("Tray_Ready"))
-                                                   Catch ex As Exception
-                                                       AppLogger.Log(LogEvents.STT_WHISPER_SERVER_ERROR, $"Whisper live-server auto-start failed: {ex.Message}")
-                                                       Me.BeginInvoke(Sub() trayIcon.Text = GetString("Tray_Ready"))
-                                                   End Try
-                                               End Function)
-                                  Else
-                                      AppLogger.Log(LogEvents.STARTUP_APP_STARTED, "ConversationAudioHandler not available — skipping Whisper auto-start")
-                                      trayIcon.Text = GetString("Tray_Ready")
-                                  End If
+                                  ' Lazy engine start: conversation/conference rooms start STT and
+                                  ' translation on first use (ConversationAudioHandler.EnsureLiveServerAsync
+                                  ' is called in the audio path, and EnsureTranslationAvailable is invoked
+                                  ' when a room needs translation but no backend is loaded). A
+                                  ' Speechmatics-only session must NOT auto-start whisper-cpp at launch,
+                                  ' which wastes VRAM and can crash on small GPUs.
+                                  AppLogger.Log(LogEvents.STARTUP_APP_STARTED, "Conversation-rooms STT and translation will start on first use (no eager warm-up)")
+                                  trayIcon.Text = GetString("Tray_Ready")
 
                                   InitBibleTab()
                               End Sub
@@ -1244,25 +1237,49 @@ del ""%~f0""
     End Sub
 
 
-    Private Sub KillOrphanedPythonProcesses()
-        Try
-            Dim pythonDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "python-embed").ToLowerInvariant()
-            For Each proc In Process.GetProcessesByName("python")
-                Try
-                    Dim exePath = proc.MainModule?.FileName
-                    If exePath IsNot Nothing AndAlso exePath.ToLowerInvariant().StartsWith(pythonDir) Then
-                        proc.Kill(True)
-                        proc.WaitForExit(3000)
-                    End If
-                Catch ex As Exception
-                    ' Access denied or already exited — ignore
-                    AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"KillOrphanedPythonProcesses (per-process): {ex.Message}")
-                End Try
-            Next
-        Catch ex As Exception
-            AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"KillOrphanedPythonProcesses: {ex.Message}")
-        End Try
-    End Sub
+    ''' <summary>
+    ''' Kill orphaned sidecar processes left over from a prior crash: embedded python
+    ''' (under python-embed) and whisper-server binaries (whisper-server / whisper-server-cuda
+    ''' under the app base dir). All matching is path-scoped to our install so we never kill
+    ''' an unrelated python or whisper-server from another application.
+    ''' Safe to call on startup: the single-instance lock in Program.vb guarantees no other
+    ''' EveryTongue GUI is running, so any such process under our dir is a genuine orphan.
+    ''' Returns the number of processes killed.
+    ''' </summary>
+    Private Function KillOrphanedSidecars() As Integer
+        Dim killed As Integer = 0
+        Dim baseDir = AppDomain.CurrentDomain.BaseDirectory.ToLowerInvariant()
+        Dim pythonDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "python-embed").ToLowerInvariant()
+
+        ' (process name, required path prefix) — name has no .exe per GetProcessesByName
+        Dim targets = New(Name As String, PathPrefix As String)() {
+            ("python", pythonDir),
+            ("whisper-server", baseDir),
+            ("whisper-server-cuda", baseDir)
+        }
+
+        For Each target In targets
+            Try
+                For Each proc In Process.GetProcessesByName(target.Name)
+                    Try
+                        Dim exePath = proc.MainModule?.FileName
+                        If exePath IsNot Nothing AndAlso exePath.ToLowerInvariant().StartsWith(target.PathPrefix) Then
+                            proc.Kill(True)
+                            proc.WaitForExit(3000)
+                            killed += 1
+                        End If
+                    Catch ex As Exception
+                        ' Access denied or already exited — ignore
+                        AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"KillOrphanedSidecars (per-process {target.Name}): {ex.Message}")
+                    End Try
+                Next
+            Catch ex As Exception
+                AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"KillOrphanedSidecars ({target.Name}): {ex.Message}")
+            End Try
+        Next
+
+        Return killed
+    End Function
 
     Private Sub FormMain_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
         ' Always save settings
@@ -1290,7 +1307,7 @@ del ""%~f0""
         AppLogger.EmitSessionSummary()
 
         ' Clean exit
-        KillOrphanedPythonProcesses()
+        KillOrphanedSidecars()
         Try : IO.File.Delete(Program.CrashSentinelPath) : Catch : End Try
         Environment.Exit(0)
     End Sub

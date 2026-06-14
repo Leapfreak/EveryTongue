@@ -192,7 +192,7 @@ Namespace Controllers
 
             Dim sttConfig As New SttSessionConfig With {
                 .EngineKey = backendKey,
-                .DeviceIndex = If(template.AudioDeviceId >= 0, template.AudioDeviceId, 0),
+                .DeviceIndex = ResolveAudioDeviceIndex(template),
                 .Language = If(template.SourceLanguage, "auto"),
                 .TranslateToEnglish = False,
                 .ServerPort = port,
@@ -235,6 +235,60 @@ Namespace Controllers
                 DropKey(_roomTranslationKey, roomId)
             End If
         End Sub
+
+        ''' <summary>
+        ''' Resolve the CURRENT PortAudio input-device index for a template at capture start.
+        ''' PortAudio indices renumber when devices are added/removed, so a stored index can
+        ''' drift to the wrong device (e.g. S/PDIF, no input) → silent capture. If the template
+        ''' has a saved device NAME, we enumerate the current input devices and use the index of
+        ''' the device whose name matches. Otherwise (or if not found/invalid) we fall back to the
+        ''' stored AudioDeviceId, validated against the current enumeration, finally defaulting to 0.
+        ''' Enumeration happens once per room start (cheap relative to the capture session) — never
+        ''' per audio frame.
+        ''' </summary>
+        Private Function ResolveAudioDeviceIndex(template As ConferenceTemplate) As Integer
+            Dim storedId = If(template IsNot Nothing AndAlso template.AudioDeviceId >= 0, template.AudioDeviceId, 0)
+            Dim storedName = If(template?.AudioDeviceName, "")
+
+            Dim devices As List(Of AudioDeviceInfo) = Nothing
+            Try
+                Dim pythonPath = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "python-embed", "python.exe")
+                devices = SttBackendRegistry.CreateBackend().EnumerateDevicesAsync(pythonPath)
+            Catch ex As Exception
+                AppLogger.Log(LogEvents.CONF_BACKEND_ERROR,
+                    $"ResolveAudioDeviceIndex: device enumeration failed ({ex.Message}) — using stored index {storedId}")
+                Return storedId
+            End Try
+
+            If devices Is Nothing OrElse devices.Count = 0 Then
+                ' Couldn't enumerate — trust the stored index.
+                Return storedId
+            End If
+
+            ' Prefer match by NAME (survives index drift).
+            If Not String.IsNullOrWhiteSpace(storedName) Then
+                Dim byName = devices.FirstOrDefault(Function(d) d IsNot Nothing AndAlso d.Id >= 0 AndAlso
+                    String.Equals(d.Name?.Trim(), storedName.Trim(), StringComparison.OrdinalIgnoreCase))
+                If byName IsNot Nothing Then
+                    If byName.Id <> storedId Then
+                        AppLogger.Log(LogEvents.CONF_BACKEND_STARTING,
+                            $"Audio device '{storedName}' re-resolved to current index {byName.Id} (saved index was {storedId}).")
+                    End If
+                    Return byName.Id
+                End If
+            End If
+
+            ' No name match — validate the stored index is still a real input device.
+            Dim byId = devices.FirstOrDefault(Function(d) d IsNot Nothing AndAlso d.Id = storedId)
+            If byId IsNot Nothing Then
+                Return storedId
+            End If
+
+            ' Stored index isn't present/valid → fall back to default and warn.
+            AppLogger.Log(LogEvents.CONF_BACKEND_ERROR,
+                $"Audio device '{storedName}' (saved index {storedId}) not found among current input devices — using default. PortAudio indices change when devices are added/removed.")
+            Return 0
+        End Function
 
         ''' <summary>
         ''' Handles pipeline config changes from the web host control panel.
@@ -319,7 +373,7 @@ Namespace Controllers
             Dim hasTpl = template IsNot Nothing
 
             Dim cfgDevice As Integer = 0
-            If hasTpl AndAlso template.AudioDeviceId >= 0 Then cfgDevice = template.AudioDeviceId
+            If hasTpl Then cfgDevice = ResolveAudioDeviceIndex(template)
 
             Dim cfgLang As String = "auto"
             If configOverrides.ContainsKey("language") Then

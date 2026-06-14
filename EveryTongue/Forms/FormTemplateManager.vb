@@ -337,16 +337,29 @@ Public Class FormTemplateManager
         nudBeamSize.Value = Math.Max(nudBeamSize.Minimum, Math.Min(nudBeamSize.Maximum, t.BeamSize))
         nudMaxSegment.Value = Math.Max(nudMaxSegment.Minimum, Math.Min(nudMaxSegment.Maximum, t.MaxSegmentSec))
         nudVadSilence.Value = Math.Max(nudVadSilence.Minimum, Math.Min(nudVadSilence.Maximum, t.VadSilenceMs))
-        ' Audio device — select by ID
+        ' Audio device — prefer matching by NAME (PortAudio indices drift), else by ID
         Dim deviceFound = False
-        For i = 0 To cboAudioDevice.Items.Count - 1
-            Dim dev = TryCast(cboAudioDevice.Items(i), AudioDeviceInfo)
-            If dev IsNot Nothing AndAlso dev.Id = t.AudioDeviceId Then
-                cboAudioDevice.SelectedIndex = i
-                deviceFound = True
-                Exit For
-            End If
-        Next
+        If Not String.IsNullOrEmpty(t.AudioDeviceName) Then
+            For i = 0 To cboAudioDevice.Items.Count - 1
+                Dim dev = TryCast(cboAudioDevice.Items(i), AudioDeviceInfo)
+                If dev IsNot Nothing AndAlso
+                   String.Equals(dev.Name?.Trim(), t.AudioDeviceName.Trim(), StringComparison.OrdinalIgnoreCase) Then
+                    cboAudioDevice.SelectedIndex = i
+                    deviceFound = True
+                    Exit For
+                End If
+            Next
+        End If
+        If Not deviceFound Then
+            For i = 0 To cboAudioDevice.Items.Count - 1
+                Dim dev = TryCast(cboAudioDevice.Items(i), AudioDeviceInfo)
+                If dev IsNot Nothing AndAlso dev.Id = t.AudioDeviceId Then
+                    cboAudioDevice.SelectedIndex = i
+                    deviceFound = True
+                    Exit For
+                End If
+            Next
+        End If
         If Not deviceFound AndAlso cboAudioDevice.Items.Count > 0 Then cboAudioDevice.SelectedIndex = 0
 
         PopulateModelDropdown(t.ModelPath)
@@ -501,13 +514,15 @@ Public Class FormTemplateManager
         t.BeamSize = CInt(nudBeamSize.Value)
         t.MaxSegmentSec = CInt(nudMaxSegment.Value)
         t.VadSilenceMs = CInt(nudVadSilence.Value)
-        ' Audio device from combo
+        ' Audio device from combo — store BOTH id and name (name survives PortAudio index drift)
         Dim selDev = TryCast(cboAudioDevice.SelectedItem, AudioDeviceInfo)
         If selDev IsNot Nothing Then
             t.AudioDeviceId = selDev.Id
+            t.AudioDeviceName = If(selDev.Id >= 0, If(selDev.Name, ""), "")
             t.AudioSourceLabel = selDev.Name
         Else
             t.AudioDeviceId = -1
+            t.AudioDeviceName = ""
             t.AudioSourceLabel = ""
         End If
         Dim selModel = TryCast(cboModel.SelectedItem, ModelItem)
