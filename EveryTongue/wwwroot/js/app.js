@@ -2153,13 +2153,6 @@ function toggleHostPanel(){
       '<option value="pt">Portuguese</option><option value="nl">Dutch</option><option value="ru">Russian</option>'+
       '<option value="zh">Chinese</option><option value="ja">Japanese</option><option value="ko">Korean</option>'+
       '<option value="ar">Arabic</option></select>'+
-      '<label style="color:#888;font-size:11px">Max Segment: <span id="hcMaxSegVal">15</span>s</label>'+
-      '<input type="range" id="hcMaxSeg" min="5" max="60" value="15" style="width:100%;margin-bottom:8px;box-sizing:border-box">'+
-      '<label style="color:#888;font-size:11px">VAD Silence: <span id="hcVadVal">800</span>ms</label>'+
-      '<input type="range" id="hcVad" min="200" max="2000" step="100" value="800" style="width:100%;margin-bottom:8px;box-sizing:border-box">'+
-      '<label style="color:#888;font-size:11px">Beam Size</label>'+
-      '<select id="hcBeam" style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:13px;margin-bottom:8px;box-sizing:border-box">'+
-      '<option value="1">1</option><option value="3">3</option><option value="5">5</option><option value="7" selected>7</option></select>'+
       '<button id="hcPipeApply" style="width:100%;padding:8px;border:none;border-radius:8px;background:#7c9cf7;color:#1a1a2e;font-size:13px;font-weight:600;cursor:pointer">Apply</button>'+
       '<button id="hcPipeReset" style="width:100%;padding:8px;border:none;border-radius:8px;background:#e67e22;color:#fff;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px">\u21BB Reset Pipeline</button>'+
       '<div id="hcPipeStatus" style="color:#888;font-size:11px;margin-top:4px;text-align:center"></div>'+
@@ -2172,12 +2165,6 @@ function toggleHostPanel(){
   /* Pre-select pipeline values from room state */
   var pipeLang=document.getElementById('hcPipeLang');
   if(pipeLang&&roomSourceLang){pipeLang.value=roomSourceLang}
-  var hcMs=document.getElementById('hcMaxSeg');
-  if(hcMs){hcMs.value=roomMaxSegSec;var msv=document.getElementById('hcMaxSegVal');if(msv)msv.textContent=roomMaxSegSec}
-  var hcVd=document.getElementById('hcVad');
-  if(hcVd){hcVd.value=roomVadMs;var vdv=document.getElementById('hcVadVal');if(vdv)vdv.textContent=roomVadMs}
-  var hcBm=document.getElementById('hcBeam');
-  if(hcBm){hcBm.value=roomBeamSize}
 
   document.getElementById('hcEndRoom').addEventListener('click',function(){
     var xhr=new XMLHttpRequest();
@@ -2247,10 +2234,6 @@ function toggleHostPanel(){
 
   /* Pipeline control events (conference only) */
   if(pttRoomType==='conference'){
-    var hcMaxSeg=document.getElementById('hcMaxSeg');
-    var hcVad=document.getElementById('hcVad');
-    if(hcMaxSeg)hcMaxSeg.addEventListener('input',function(){document.getElementById('hcMaxSegVal').textContent=this.value});
-    if(hcVad)hcVad.addEventListener('input',function(){document.getElementById('hcVadVal').textContent=this.value});
 
     var hcReset=document.getElementById('hcPipeReset');
     if(hcReset)hcReset.addEventListener('click',function(){
@@ -2275,12 +2258,6 @@ function toggleHostPanel(){
       var params={roomId:roomId,clientId:myClientId};
       var lang=document.getElementById('hcPipeLang');
       if(lang)params.language=lang.value;
-      var ms=document.getElementById('hcMaxSeg');
-      if(ms)params.maxSegmentSec=parseInt(ms.value,10);
-      var vd=document.getElementById('hcVad');
-      if(vd)params.vadSilenceMs=parseInt(vd.value,10);
-      var bm=document.getElementById('hcBeam');
-      if(bm)params.beamSize=parseInt(bm.value,10);
       /* Speaker + mode: only send when changed (each change restarts the backend) */
       var spSel=document.getElementById('hcSpeaker');
       if(spSel&&spSel.value!==roomActiveSpeakerId)params.speakerId=spSel.value;
@@ -2294,7 +2271,7 @@ function toggleHostPanel(){
       xhr.onload=function(){
         try{
           var res=JSON.parse(xhr.responseText);
-          if(res.ok){if(st)st.textContent='Applied ('+res.changed+' params)';st.style.color='#4f4';if(params.language)roomSourceLang=params.language;if(params.maxSegmentSec)roomMaxSegSec=params.maxSegmentSec;if(params.vadSilenceMs)roomVadMs=params.vadSilenceMs;if(params.beamSize)roomBeamSize=params.beamSize;if(params.speakerId!==undefined)roomActiveSpeakerId=params.speakerId;if(params.mode)roomMode=params.mode}
+          if(res.ok){if(st)st.textContent='Applied ('+res.changed+' params)';st.style.color='#4f4';if(params.language)roomSourceLang=params.language;if(params.speakerId!==undefined)roomActiveSpeakerId=params.speakerId;if(params.mode)roomMode=params.mode}
           else{if(st){st.textContent=res.error||'Failed';st.style.color='#f44'}}
         }catch(e){if(st){st.textContent='Error';st.style.color='#f44'}}
       };

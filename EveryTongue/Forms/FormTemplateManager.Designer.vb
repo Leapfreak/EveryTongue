@@ -36,12 +36,6 @@ Partial Class FormTemplateManager
         Me.cboSttEngine = New System.Windows.Forms.ComboBox()
         Me.lblTransEngine = New System.Windows.Forms.Label()
         Me.cboTransEngine = New System.Windows.Forms.ComboBox()
-        Me.lblBeamSize = New System.Windows.Forms.Label()
-        Me.nudBeamSize = New System.Windows.Forms.NumericUpDown()
-        Me.lblMaxSegment = New System.Windows.Forms.Label()
-        Me.nudMaxSegment = New System.Windows.Forms.NumericUpDown()
-        Me.lblVadSilence = New System.Windows.Forms.Label()
-        Me.nudVadSilence = New System.Windows.Forms.NumericUpDown()
         Me.lblVisibility = New System.Windows.Forms.Label()
         Me.cboVisibility = New System.Windows.Forms.ComboBox()
         Me.lblAudioDevice = New System.Windows.Forms.Label()
@@ -66,9 +60,6 @@ Partial Class FormTemplateManager
         Me.btnSave = New System.Windows.Forms.Button()
         Me.btnCancelEdit = New System.Windows.Forms.Button()
         Me.grpDetail.SuspendLayout()
-        CType(Me.nudBeamSize, System.ComponentModel.ISupportInitialize).BeginInit()
-        CType(Me.nudMaxSegment, System.ComponentModel.ISupportInitialize).BeginInit()
-        CType(Me.nudVadSilence, System.ComponentModel.ISupportInitialize).BeginInit()
         Me.SuspendLayout()
         '
         ' lvTemplates
@@ -168,12 +159,6 @@ Partial Class FormTemplateManager
         Me.grpDetail.Controls.Add(Me.lblAudioDevice)
         Me.grpDetail.Controls.Add(Me.cboVisibility)
         Me.grpDetail.Controls.Add(Me.lblVisibility)
-        Me.grpDetail.Controls.Add(Me.nudVadSilence)
-        Me.grpDetail.Controls.Add(Me.lblVadSilence)
-        Me.grpDetail.Controls.Add(Me.nudMaxSegment)
-        Me.grpDetail.Controls.Add(Me.lblMaxSegment)
-        Me.grpDetail.Controls.Add(Me.nudBeamSize)
-        Me.grpDetail.Controls.Add(Me.lblBeamSize)
         Me.grpDetail.Controls.Add(Me.cboTransEngine)
         Me.grpDetail.Controls.Add(Me.lblTransEngine)
         Me.grpDetail.Controls.Add(Me.cboSttEngine)
@@ -274,64 +259,6 @@ Partial Class FormTemplateManager
         Me.cboTransEngine.Name = "cboTransEngine"
         Me.cboTransEngine.Size = New System.Drawing.Size(200, 23)
         Me.cboTransEngine.TabIndex = 9
-        '
-        ' lblBeamSize
-        '
-        Me.lblBeamSize.AutoSize = True
-        Me.lblBeamSize.Location = New System.Drawing.Point(350, 24)
-        Me.lblBeamSize.Name = "lblBeamSize"
-        Me.lblBeamSize.Size = New System.Drawing.Size(61, 15)
-        Me.lblBeamSize.TabIndex = 10
-        Me.lblBeamSize.Text = "Beam Size"
-        '
-        ' nudBeamSize
-        '
-        Me.nudBeamSize.Location = New System.Drawing.Point(460, 21)
-        Me.nudBeamSize.Maximum = New Decimal(New Integer() {15, 0, 0, 0})
-        Me.nudBeamSize.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
-        Me.nudBeamSize.Name = "nudBeamSize"
-        Me.nudBeamSize.Size = New System.Drawing.Size(70, 23)
-        Me.nudBeamSize.TabIndex = 11
-        Me.nudBeamSize.Value = New Decimal(New Integer() {7, 0, 0, 0})
-        '
-        ' lblMaxSegment
-        '
-        Me.lblMaxSegment.AutoSize = True
-        Me.lblMaxSegment.Location = New System.Drawing.Point(350, 52)
-        Me.lblMaxSegment.Name = "lblMaxSegment"
-        Me.lblMaxSegment.Size = New System.Drawing.Size(103, 15)
-        Me.lblMaxSegment.TabIndex = 12
-        Me.lblMaxSegment.Text = "Max Segment (sec)"
-        '
-        ' nudMaxSegment
-        '
-        Me.nudMaxSegment.Location = New System.Drawing.Point(460, 49)
-        Me.nudMaxSegment.Maximum = New Decimal(New Integer() {60, 0, 0, 0})
-        Me.nudMaxSegment.Minimum = New Decimal(New Integer() {5, 0, 0, 0})
-        Me.nudMaxSegment.Name = "nudMaxSegment"
-        Me.nudMaxSegment.Size = New System.Drawing.Size(70, 23)
-        Me.nudMaxSegment.TabIndex = 13
-        Me.nudMaxSegment.Value = New Decimal(New Integer() {15, 0, 0, 0})
-        '
-        ' lblVadSilence
-        '
-        Me.lblVadSilence.AutoSize = True
-        Me.lblVadSilence.Location = New System.Drawing.Point(350, 80)
-        Me.lblVadSilence.Name = "lblVadSilence"
-        Me.lblVadSilence.Size = New System.Drawing.Size(98, 15)
-        Me.lblVadSilence.TabIndex = 14
-        Me.lblVadSilence.Text = "VAD Silence (ms)"
-        '
-        ' nudVadSilence
-        '
-        Me.nudVadSilence.Increment = New Decimal(New Integer() {100, 0, 0, 0})
-        Me.nudVadSilence.Location = New System.Drawing.Point(460, 77)
-        Me.nudVadSilence.Maximum = New Decimal(New Integer() {2000, 0, 0, 0})
-        Me.nudVadSilence.Minimum = New Decimal(New Integer() {200, 0, 0, 0})
-        Me.nudVadSilence.Name = "nudVadSilence"
-        Me.nudVadSilence.Size = New System.Drawing.Size(70, 23)
-        Me.nudVadSilence.TabIndex = 15
-        Me.nudVadSilence.Value = New Decimal(New Integer() {800, 0, 0, 0})
         '
         ' lblVisibility
         '
@@ -546,9 +473,6 @@ Partial Class FormTemplateManager
         Me.Text = "Conference Templates"
         Me.grpDetail.ResumeLayout(False)
         Me.grpDetail.PerformLayout()
-        CType(Me.nudBeamSize, System.ComponentModel.ISupportInitialize).EndInit()
-        CType(Me.nudMaxSegment, System.ComponentModel.ISupportInitialize).EndInit()
-        CType(Me.nudVadSilence, System.ComponentModel.ISupportInitialize).EndInit()
         Me.ResumeLayout(False)
 
     End Sub
@@ -573,12 +497,6 @@ Partial Class FormTemplateManager
     Friend WithEvents cboSttEngine As System.Windows.Forms.ComboBox
     Friend WithEvents lblTransEngine As System.Windows.Forms.Label
     Friend WithEvents cboTransEngine As System.Windows.Forms.ComboBox
-    Friend WithEvents lblBeamSize As System.Windows.Forms.Label
-    Friend WithEvents nudBeamSize As System.Windows.Forms.NumericUpDown
-    Friend WithEvents lblMaxSegment As System.Windows.Forms.Label
-    Friend WithEvents nudMaxSegment As System.Windows.Forms.NumericUpDown
-    Friend WithEvents lblVadSilence As System.Windows.Forms.Label
-    Friend WithEvents nudVadSilence As System.Windows.Forms.NumericUpDown
     Friend WithEvents lblVisibility As System.Windows.Forms.Label
     Friend WithEvents cboVisibility As System.Windows.Forms.ComboBox
     Friend WithEvents lblAudioDevice As System.Windows.Forms.Label

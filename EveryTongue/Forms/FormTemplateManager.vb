@@ -32,9 +32,6 @@ Public Class FormTemplateManager
         lblSourceLang.Text = lp.GetString("Tmpl_SourceLang")
         lblSttEngine.Text = lp.GetString("Tmpl_SttEngine")
         lblTransEngine.Text = lp.GetString("Tmpl_TransEngine")
-        lblBeamSize.Text = lp.GetString("Tmpl_BeamSize")
-        lblMaxSegment.Text = lp.GetString("Tmpl_MaxSegment")
-        lblVadSilence.Text = lp.GetString("Tmpl_VadSilence")
         lblVisibility.Text = lp.GetString("Tmpl_Visibility")
         lblAudioDevice.Text = lp.GetString("Tmpl_AudioDevice")
         lblModelPath.Text = lp.GetString("Tmpl_ModelPath")
@@ -334,9 +331,6 @@ Public Class FormTemplateManager
         ' Translation engine
         SelectEngineCombo(cboTransEngine, t.TranslationBackendKey)
 
-        nudBeamSize.Value = Math.Max(nudBeamSize.Minimum, Math.Min(nudBeamSize.Maximum, t.BeamSize))
-        nudMaxSegment.Value = Math.Max(nudMaxSegment.Minimum, Math.Min(nudMaxSegment.Maximum, t.MaxSegmentSec))
-        nudVadSilence.Value = Math.Max(nudVadSilence.Minimum, Math.Min(nudVadSilence.Maximum, t.VadSilenceMs))
         ' Audio device — prefer matching by NAME (PortAudio indices drift), else by ID
         Dim deviceFound = False
         If Not String.IsNullOrEmpty(t.AudioDeviceName) Then
@@ -467,9 +461,6 @@ Public Class FormTemplateManager
     Private Sub UpdateKnobEnabledState()
         Dim ownSettings = SelectedSttTemplateId() = ""
         cboSttEngine.Enabled = ownSettings
-        nudBeamSize.Enabled = ownSettings
-        nudMaxSegment.Enabled = ownSettings
-        nudVadSilence.Enabled = ownSettings
         cboModel.Enabled = ownSettings
     End Sub
 
@@ -511,9 +502,6 @@ Public Class FormTemplateManager
         t.SourceLanguage = If(cboSourceLang.SelectedItem IsNot Nothing, cboSourceLang.SelectedItem.ToString(), "auto")
         t.SttBackendKey = ExtractEngineKey(cboSttEngine)
         t.TranslationBackendKey = ExtractEngineKey(cboTransEngine)
-        t.BeamSize = CInt(nudBeamSize.Value)
-        t.MaxSegmentSec = CInt(nudMaxSegment.Value)
-        t.VadSilenceMs = CInt(nudVadSilence.Value)
         ' Audio device from combo — store BOTH id and name (name survives PortAudio index drift)
         Dim selDev = TryCast(cboAudioDevice.SelectedItem, AudioDeviceInfo)
         If selDev IsNot Nothing Then
