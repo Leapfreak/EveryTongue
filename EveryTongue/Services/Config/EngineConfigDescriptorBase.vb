@@ -32,9 +32,23 @@ Namespace Services.Config
 
         Public Sub ApplyJson(block As IEngineConfigBlock, json As JsonElement) Implements IEngineConfigDescriptor.ApplyJson
             If json.ValueKind <> JsonValueKind.Object Then Return
+            ' Path-typed fields are populated from the machine baseline (ApplyMachineBaseline)
+            ' BEFORE the template is applied. A template that did not capture a path stores it
+            ' as "" — applying that empty value would CLOBBER the baseline (→ "whisper-server
+            ' path not configured" / "Model path not configured" at runtime). An empty path in
+            ' a template means "inherit the baseline", so skip empty FilePath values here.
+            Dim pathFields As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+            For Each f In Fields
+                If f.FieldType = EngineConfigFieldType.FilePath Then pathFields.Add(f.Key)
+            Next
             For Each jsonProp In json.EnumerateObject()
                 Dim clrProp = FindProperty(jsonProp.Name)
                 If clrProp Is Nothing OrElse Not clrProp.CanWrite Then Continue For
+                If pathFields.Contains(jsonProp.Name) AndAlso
+                   jsonProp.Value.ValueKind = JsonValueKind.String AndAlso
+                   String.IsNullOrEmpty(jsonProp.Value.GetString()) Then
+                    Continue For ' empty path → keep the machine baseline
+                End If
                 Try
                     Dim value = JsonSerializer.Deserialize(jsonProp.Value.GetRawText(), clrProp.PropertyType, _jsonOptions)
                     clrProp.SetValue(block, value)

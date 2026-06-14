@@ -245,7 +245,16 @@ def _start_whisper_server(server_path: str, model_path: str, port: int, no_gpu: 
     # Wait for server to be ready (up to 60s for large model load)
     for i in range(120):
         if _whisper_server_process.poll() is not None:
-            raise RuntimeError(f"whisper-server exited with code {_whisper_server_process.returncode} (check logs above)")
+            rc = _whisper_server_process.returncode
+            # 0xC0000409 (3221226505) / 0xC0000005 (-1073741819) from the CUDA build almost
+            # always mean a failed GPU allocation — typically not enough free VRAM because
+            # another model (e.g. NLLB-3.3B) is already resident. Surface that, not the raw code.
+            if not no_gpu and rc in (3221226505, -1073741819, 0xC0000409 - 0x100000000):
+                raise RuntimeError(
+                    f"whisper-server (CUDA) crashed on launch (code {rc}) — likely out of GPU memory. "
+                    f"Free VRAM (use an int8 translation model such as nllb-3.3b-int8, a smaller whisper "
+                    f"model, or the Vulkan whisper build), then retry.")
+            raise RuntimeError(f"whisper-server exited with code {rc} (check logs above)")
         try:
             req = urllib.request.Request(f"http://127.0.0.1:{port}/health")
             with urllib.request.urlopen(req, timeout=1) as resp:
