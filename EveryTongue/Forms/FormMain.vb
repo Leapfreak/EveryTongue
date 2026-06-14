@@ -1097,13 +1097,13 @@ del ""%~f0""
             _translationService = Nothing
         End If
 
-        Try
-            Dim logPath = GetPipelineLogPath()
-            Dim ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version
-            IO.File.AppendAllText(logPath, $"{Environment.NewLine}=== Session started at {DateTime.Now:yyyy-MM-dd HH:mm:ss} v{ver.Major}.{ver.Minor}.{ver.Build} ==={Environment.NewLine}")
-        Catch ex As Exception
-            AppLogger.Log(LogEvents.TRANS_ERROR, $"StartTranslationService (write session header): {ex.Message}")
-        End Try
+        ' Route the session header through AppLogger (which serialises writes under
+        ' _fileLock). Writing to session.log directly here raced AppLogger's concurrent
+        ' writes from other threads → "the process cannot access the file ... because it
+        ' is being used by another process".
+        Dim ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version
+        AppLogger.Log(LogEvents.TRANS_SERVER_STARTING,
+            $"=== Translation session started v{ver.Major}.{ver.Minor}.{ver.Build} ===")
 
         _translationService = New TranslationService()
         AddHandler _translationService.StatusChanged, Sub(s, msg)
