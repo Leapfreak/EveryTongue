@@ -108,9 +108,12 @@ Namespace Services.Input
 
         Private Async Sub OnCommitted(sender As Object, e As SttOutputEventArgs)
             Try
+                Dim text = If(e?.Text, "").Trim()
+                ' Diagnostic: log every commit + the gating decision so we can see why text
+                ' does or doesn't reach the injector.
+                _log(LogEvents.DICT_COMMIT, $"commit received: '{text}' armed={_armed} style={_config.DictationStyle} pttHeld={_pttHeld} target='{_config.DictationActiveTargetLanguage}'")
                 If Not _armed Then Return
                 If _config.DictationStyle = DictationStyle.PushToTalk AndAlso Not _pttHeld Then Return
-                Dim text = If(e?.Text, "").Trim()
                 If text.Length = 0 Then Return
 
                 Dim target = _config.DictationActiveTargetLanguage
