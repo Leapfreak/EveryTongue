@@ -237,6 +237,11 @@ Namespace Services.Rooms
             End If
             _logger.LogInformation("EnsureLiveServerAsync: _serverEnsured=False, checking server...")
 
+            ' Warm the translation engine alongside STT so the first utterance can translate.
+            ' (Lazy warm-up no longer eagerly starts the Local/NLLB sidecar; without this the
+            ' first conversation in a room goes out untranslated until the engine loads.)
+            Try : EnsureTranslationAvailable?.Invoke() : Catch : End Try
+
             Await _ensureLock.WaitAsync(ct).ConfigureAwait(False)
             Try
                 If _serverEnsured Then Return True
@@ -486,11 +491,16 @@ Namespace Services.Rooms
             ' Translate to all needed languages in one batch call
             Dim translations As Dictionary(Of String, String) = Nothing
             If targetLangs.Count > 0 AndAlso _translationService IsNot Nothing Then
-                ' Check if any backend is actually available; if not, request translation startup
+                ' Check the ACTIVE backend specifically — translation routes to it, so a different
+                ' backend being available (e.g. a keyed cloud engine) must NOT mask the active one
+                ' (Local/NLLB) being down. This is the lazy-warm-up regression: the active sidecar
+                ' was never started because the any-backend check passed on an unused cloud engine.
                 Dim backends = _translationService.GetAllBackends()
-                Dim anyAvailable = backends.Any(Function(b) b.IsAvailable)
-                If Not anyAvailable Then
-                    _logger.LogInformation("No translation backend available — requesting translation startup")
+                Dim active = backends.FirstOrDefault(Function(b) b.IsActive)
+                Dim activeReady = active IsNot Nothing AndAlso active.IsAvailable
+                If Not activeReady Then
+                    _logger.LogInformation("Active translation backend '{Backend}' not ready — requesting startup",
+                        If(active IsNot Nothing, active.Name, _translationService.ActiveBackend))
                     Try
                         EnsureTranslationAvailable?.Invoke()
                     Catch ex As Exception
