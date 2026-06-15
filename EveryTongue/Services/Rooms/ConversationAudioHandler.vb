@@ -456,9 +456,10 @@ Namespace Services.Rooms
                 End If
             Next
 
-            ' Shared-device: host's own language must be a target too (they get excluded
-            ' above as the speaker, but need translations when switching identity back to self)
-            If room.VirtualMembers.Count > 0 AndAlso Not String.IsNullOrEmpty(speaker.Language) Then
+            ' The speaker also VIEWS the room, so their own display language is a translation
+            ' target too — their echoed message must appear in their chosen language, not the
+            ' language they happened to speak (everyone's feed is uniformly their own language).
+            If Not String.IsNullOrEmpty(speaker.Language) Then
                 targetLangs.Add(speaker.Language)
             End If
 
@@ -585,12 +586,13 @@ Namespace Services.Rooms
                         commitId, client.RemoteEndpoint, allTranslations.Count)
                     TrySendToClient(client, buffer)
                 Else
-                    ' Normal single-language client
+                    ' Normal single-language client. The speaker is treated like everyone else
+                    ' so their own message is shown in THEIR display language (uniform feed),
+                    ' falling back to the original only when their language IS the spoken one or
+                    ' no translation is available.
                     Dim clientText As String
 
-                    If client.Id = speaker.Id Then
-                        clientText = text
-                    ElseIf String.IsNullOrEmpty(client.Language) OrElse client.Language = sourceFlores Then
+                    If String.IsNullOrEmpty(client.Language) OrElse client.Language = sourceFlores Then
                         clientText = text
                     ElseIf translations IsNot Nothing AndAlso translations.ContainsKey(client.Language) Then
                         clientText = translations(client.Language)
@@ -600,7 +602,8 @@ Namespace Services.Rooms
 
                     ' Lang tag = language of the TEXT being sent (target lang for translated, source for original)
                     Dim textLang As String
-                    If client.Id = speaker.Id OrElse String.IsNullOrEmpty(client.Language) OrElse client.Language = sourceFlores Then
+                    If String.IsNullOrEmpty(client.Language) OrElse client.Language = sourceFlores OrElse
+                       translations Is Nothing OrElse Not translations.ContainsKey(client.Language) Then
                         textLang = sourceShort
                     Else
                         textLang = TranslationService.FloresToShortCode(client.Language)
