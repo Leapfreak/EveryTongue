@@ -170,6 +170,30 @@ Namespace Controllers
             Dim port = _nextConferencePort
             _nextConferencePort += 1
 
+            ' Apply the template's default speaker so the room boots pre-selected on that
+            ' speaker's engine (the host menu shows them selected). Only when the speaker has
+            ' an eligible STT template for the room's mode; otherwise leave the template default.
+            Dim roomForDefault = _getRoomManager()?.GetRoom(roomId)
+            If roomForDefault IsNot Nothing AndAlso String.IsNullOrEmpty(roomForDefault.ActiveSpeakerId) AndAlso
+               Not String.IsNullOrEmpty(template.DefaultSpeakerId) AndAlso
+               template.SpeakerProfileIds IsNot Nothing AndAlso template.SpeakerProfileIds.Contains(template.DefaultSpeakerId) Then
+                Dim dsp = TemplateLibraryStore.Instance.GetSpeakerProfile(template.DefaultSpeakerId)
+                Dim dMode = RoomMode(roomForDefault)
+                Dim dSlotId = ConnectivityGate.SelectSpeakerSttTemplateId(dsp, dMode)
+                Dim dSlotTpl = If(String.IsNullOrEmpty(dSlotId), Nothing,
+                    ConnectivityGate.GateTemplate(TemplateLibraryStore.GroupStt,
+                        TemplateLibraryStore.Instance.GetEngineTemplate(TemplateLibraryStore.GroupStt, dSlotId),
+                        dMode, $"[Conference:{roomId}]"))
+                If dSlotTpl IsNot Nothing Then
+                    roomForDefault.ActiveSpeakerId = template.DefaultSpeakerId
+                    AppLogger.Log(LogEvents.CONF_SPEAKER_SWITCHED,
+                        $"room={roomId} default speaker → '{dsp.Name}' ({template.DefaultSpeakerId}), stt template '{dSlotTpl.Name}' [{dSlotTpl.EngineKey}], mode={dMode}")
+                Else
+                    AppLogger.Log(LogEvents.CONFIG_GATE_DECISION,
+                        $"[Conference:{roomId}] default speaker '{dsp?.Name}' has no eligible STT template for mode={dMode} — using template default")
+                End If
+            End If
+
             ' STT template: active speaker's slot (gated by room mode) wins, else
             ' the room template's reference; legacy embedded knobs are the fallback
             ' for configs that haven't migrated.

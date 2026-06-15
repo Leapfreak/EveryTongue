@@ -631,6 +631,7 @@
   "Tmpl_SttTemplateOwn": "(this template's own settings)",
   "Tmpl_ManageSttTemplates": "Manage STT Templates...",
   "Tmpl_ManageSpeakers": "Manage Speakers...",
+  "Tmpl_DefaultSpeaker": "Default speaker",
   "Tmpl_ManageDisplay": "Manage Display Templates...",
   "Tmpl_ManageFilterSets": "Manage Filter Sets...",
   "Tmpl_Mode": "Mode",

@@ -40,6 +40,7 @@ Public Class FormTemplateManager
         lblMode.Text = lp.GetString("Tmpl_Mode")
         lblSpeakers.Text = lp.GetString("Tmpl_Speakers")
         btnManageSpeakers.Text = lp.GetString("Tmpl_ManageSpeakers")
+        lblDefaultSpeaker.Text = lp.GetString("Tmpl_DefaultSpeaker")
         lblDisplayTpl.Text = lp.GetString("Tmpl_DisplayTemplate")
         btnManageDisplay.Text = lp.GetString("Tmpl_ManageDisplay")
         lblFilterSet.Text = lp.GetString("Tmpl_FilterSet")
@@ -365,8 +366,30 @@ Public Class FormTemplateManager
 
         cboMode.SelectedIndex = If(t.Mode = Models.Templates.ConnectivityMode.Offline, 1, 0)
         PopulateSpeakerChecklist(t)
+        PopulateDefaultSpeakerCombo(t.DefaultSpeakerId)
         PopulateDisplayCombo(t)
         PopulateFilterSetCombo(t)
+    End Sub
+
+    ''' <summary>"(none)" + the speakers currently checked for this template; selects selectedId.</summary>
+    Private Sub PopulateDefaultSpeakerCombo(selectedId As String)
+        cboDefaultSpeaker.Items.Clear()
+        cboDefaultSpeaker.Items.Add(New SttTemplateItem(LanguagePackService.Instance.GetString("Spk_None"), ""))
+        Dim found = 0
+        For Each idx In clbSpeakers.CheckedIndices.Cast(Of Integer)()
+            Dim item = TryCast(clbSpeakers.Items(idx), SttTemplateItem)
+            If item Is Nothing Then Continue For
+            Dim added = cboDefaultSpeaker.Items.Add(New SttTemplateItem(item.DisplayName, item.Id))
+            If item.Id = selectedId Then found = added
+        Next
+        cboDefaultSpeaker.SelectedIndex = found
+    End Sub
+
+    ' The default-speaker choices are the checked speakers, so refresh when the checklist
+    ' changes (deferred: ItemCheck fires before the item's state updates).
+    Private Sub clbSpeakers_ItemCheck(sender As Object, e As ItemCheckEventArgs) Handles clbSpeakers.ItemCheck
+        Dim keep = TryCast(cboDefaultSpeaker.SelectedItem, SttTemplateItem)?.Id
+        BeginInvoke(Sub() PopulateDefaultSpeakerCombo(If(keep, "")))
     End Sub
 
     ''' <summary>"(global)" + the named filter sets.</summary>
@@ -525,6 +548,9 @@ Public Class FormTemplateManager
             Dim item = TryCast(clbSpeakers.Items(idx), SttTemplateItem)
             If item IsNot Nothing Then t.SpeakerProfileIds.Add(item.Id)
         Next
+        ' Default speaker must be one of the checked speakers (else "" = none).
+        Dim defSpk = TryCast(cboDefaultSpeaker.SelectedItem, SttTemplateItem)
+        t.DefaultSpeakerId = If(defSpk IsNot Nothing AndAlso t.SpeakerProfileIds.Contains(defSpk.Id), defSpk.Id, "")
         Dim dispItem = TryCast(cboDisplayTpl.SelectedItem, SttTemplateItem)
         t.DisplayTemplateId = If(dispItem?.Id, "")
         Dim fsItem = TryCast(cboFilterSet.SelectedItem, SttTemplateItem)

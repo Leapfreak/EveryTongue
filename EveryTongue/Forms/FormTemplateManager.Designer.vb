@@ -51,6 +51,8 @@ Partial Class FormTemplateManager
         Me.lblSpeakers = New System.Windows.Forms.Label()
         Me.clbSpeakers = New System.Windows.Forms.CheckedListBox()
         Me.btnManageSpeakers = New System.Windows.Forms.Button()
+        Me.lblDefaultSpeaker = New System.Windows.Forms.Label()
+        Me.cboDefaultSpeaker = New System.Windows.Forms.ComboBox()
         Me.lblDisplayTpl = New System.Windows.Forms.Label()
         Me.cboDisplayTpl = New System.Windows.Forms.ComboBox()
         Me.btnManageDisplay = New System.Windows.Forms.Button()
@@ -146,6 +148,8 @@ Partial Class FormTemplateManager
         Me.grpDetail.Controls.Add(Me.lblSpeakers)
         Me.grpDetail.Controls.Add(Me.clbSpeakers)
         Me.grpDetail.Controls.Add(Me.btnManageSpeakers)
+        Me.grpDetail.Controls.Add(Me.lblDefaultSpeaker)
+        Me.grpDetail.Controls.Add(Me.cboDefaultSpeaker)
         Me.grpDetail.Controls.Add(Me.lblDisplayTpl)
         Me.grpDetail.Controls.Add(Me.cboDisplayTpl)
         Me.grpDetail.Controls.Add(Me.btnManageDisplay)
@@ -387,6 +391,21 @@ Partial Class FormTemplateManager
         Me.btnManageSpeakers.Text = "Manage..."
         Me.btnManageSpeakers.UseVisualStyleBackColor = True
         '
+        ' lblDefaultSpeaker — speaker auto-selected when a room starts from this template
+        '
+        Me.lblDefaultSpeaker.AutoSize = True
+        Me.lblDefaultSpeaker.Location = New System.Drawing.Point(437, 285)
+        Me.lblDefaultSpeaker.Name = "lblDefaultSpeaker"
+        Me.lblDefaultSpeaker.Text = "Default speaker"
+        '
+        ' cboDefaultSpeaker
+        '
+        Me.cboDefaultSpeaker.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboDefaultSpeaker.Location = New System.Drawing.Point(440, 303)
+        Me.cboDefaultSpeaker.Name = "cboDefaultSpeaker"
+        Me.cboDefaultSpeaker.Size = New System.Drawing.Size(110, 23)
+        Me.cboDefaultSpeaker.TabIndex = 37
+        '
         ' lblDisplayTpl — Display template reference (Phase 7)
         '
         Me.lblDisplayTpl.AutoSize = True
@@ -512,6 +531,8 @@ Partial Class FormTemplateManager
     Friend WithEvents lblSpeakers As System.Windows.Forms.Label
     Friend WithEvents clbSpeakers As System.Windows.Forms.CheckedListBox
     Friend WithEvents btnManageSpeakers As System.Windows.Forms.Button
+    Friend WithEvents lblDefaultSpeaker As System.Windows.Forms.Label
+    Friend WithEvents cboDefaultSpeaker As System.Windows.Forms.ComboBox
     Friend WithEvents lblDisplayTpl As System.Windows.Forms.Label
     Friend WithEvents cboDisplayTpl As System.Windows.Forms.ComboBox
     Friend WithEvents btnManageDisplay As System.Windows.Forms.Button

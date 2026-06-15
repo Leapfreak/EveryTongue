@@ -32,8 +32,14 @@ Namespace Models
         Public Property DefaultVisibility As String = "public"
         ''' <summary>Online/Offline gate for sessions hosted from this template (explicit switch, no auto-fallback).</summary>
         Public Property Mode As Templates.ConnectivityMode = Templates.ConnectivityMode.Online
-        ''' <summary>Conference speakers (SpeakerProfile ids; list order = display order; first is the default).</summary>
+        ''' <summary>Conference speakers (SpeakerProfile ids; list order = display order).</summary>
         Public Property SpeakerProfileIds As New List(Of String)
+        ''' <summary>
+        ''' Speaker auto-selected when a room starts from this template ("" = none, i.e. the
+        ''' room boots on the template's own STT settings / "(template default)"). Must be one
+        ''' of SpeakerProfileIds. Applied to Room.ActiveSpeakerId at creation.
+        ''' </summary>
+        Public Property DefaultSpeakerId As String = ""
         ''' <summary>Display template reference ("" = app-global subtitle appearance).</summary>
         Public Property DisplayTemplateId As String = ""
         ''' <summary>Filter set reference ("" = the global glossary/profanity/hallucination files).</summary>
