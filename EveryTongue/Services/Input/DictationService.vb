@@ -154,7 +154,17 @@ Namespace Services.Input
             Return "eng_Latn"
         End Function
 
+        ' ErrorReceived carries every tailed live-server log line (DEBUG/INFO included), not
+        ' just errors — those are already captured via the PythonLog routing, so drop them here
+        ' (mirrors ConferenceController.WireBackendLogging) and only surface genuine errors.
+        Private Shared ReadOnly _pythonLogLinePattern As New Text.RegularExpressions.Regex(
+            "^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}\s")
+
         Private Sub OnError(sender As Object, msg As String)
+            If String.IsNullOrEmpty(msg) Then Return
+            If msg.StartsWith(">>>") OrElse
+               msg.Contains("ASGI callable returned without completing response") OrElse
+               _pythonLogLinePattern.IsMatch(msg) Then Return
             _log(LogEvents.DICT_SESSION_ERROR, $"Dictation engine error: {msg}")
         End Sub
 

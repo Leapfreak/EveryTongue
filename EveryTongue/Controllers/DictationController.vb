@@ -165,9 +165,14 @@ Namespace Controllers
         End Sub
 
         Private Sub RouteText(text As String)
-            ' Never type into our own window (e.g. Options dialog focused).
+            ' Never type into our own window — system-wide dictation targets OTHER apps.
+            ' If EveryTongue is focused, there's nowhere to type; log it so it's not silent
+            ' (the operator must click into the target textbox in another app).
             Dim fg = TextInjector.ForegroundWindow()
-            If fg = _ownerForm.Handle Then Return
+            If fg = _ownerForm.Handle Then
+                AppLogger.Log(LogEvents.DICT_COMMIT, $"Skipped ""{text}"" — EveryTongue is focused; click into the target app's textbox")
+                Return
+            End If
             TextInjector.InjectText(text & " ", _config.DictationInsertMode = DictationInsertMode.ClipboardPaste)
             AppLogger.Log(LogEvents.DICT_COMMIT, $"Injected {text.Length} chars")
         End Sub
