@@ -945,9 +945,35 @@ Namespace Controllers
                 Return False
             End If
 
+            ' Resolve the STT template that is effective RIGHT NOW (the old speaker, or the
+            ' conference template default if none) so the log can say whether this switch
+            ' actually changes the engine config or just the speaker name.
+            Dim store = TemplateLibraryStore.Instance
+            Dim prevId As String
+            If Not String.IsNullOrEmpty(room.ActiveSpeakerId) Then
+                prevId = ConnectivityGate.SelectSpeakerSttTemplateId(store.GetSpeakerProfile(room.ActiveSpeakerId), mode)
+            Else
+                Dim cTplId As String = Nothing
+                _roomTemplateIds.TryGetValue(roomId, cTplId)
+                Dim cTpl = If(Not String.IsNullOrEmpty(cTplId),
+                    _config.ConferenceTemplates.FirstOrDefault(Function(t) t.Id = cTplId), Nothing)
+                prevId = If(cTpl?.SttTemplateId, "")
+            End If
+            Dim prevName = If(String.IsNullOrEmpty(prevId), "",
+                If(store.GetEngineTemplate(TemplateLibraryStore.GroupStt, prevId)?.Name, prevId))
+            Dim sameCfg = String.Equals(If(prevId, ""), slotId, StringComparison.OrdinalIgnoreCase)
+
             room.ActiveSpeakerId = speakerId
+            Dim changeNote As String
+            If sameCfg Then
+                changeNote = " — STT config UNCHANGED (same template)"
+            ElseIf Not String.IsNullOrEmpty(prevName) Then
+                changeNote = $" (was '{prevName}')"
+            Else
+                changeNote = ""
+            End If
             AppLogger.Log(LogEvents.CONF_SPEAKER_SWITCHED,
-                $"room={roomId} speaker → '{sp.Name}' ({speakerId}), stt template '{slotTpl.Name}' [{slotTpl.EngineKey}], mode={mode}")
+                $"room={roomId} speaker → '{sp.Name}' ({speakerId}), stt template '{slotTpl.Name}' [{slotTpl.EngineKey}], mode={mode}{changeNote}")
             Return True
         End Function
 
