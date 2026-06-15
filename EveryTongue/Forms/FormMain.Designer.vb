@@ -200,6 +200,8 @@ Partial Class FormMain
         trayMenuShow = New ToolStripMenuItem()
         traySep2 = New ToolStripSeparator()
         trayMenuExit = New ToolStripMenuItem()
+        trayMenuDictation = New ToolStripMenuItem()
+        traySepDict = New ToolStripSeparator()
         trayIcon = New NotifyIcon(components)
         menuMain.SuspendLayout()
         tsNavBar.SuspendLayout()
@@ -1732,7 +1734,7 @@ Partial Class FormMain
 
         ' trayMenu
         '
-        trayMenu.Items.AddRange(New ToolStripItem() {trayMenuAbout, traySep0, trayMenuQR, trayMenuBrowser, traySep1, trayMenuShow, traySep2, trayMenuExit})
+        trayMenu.Items.AddRange(New ToolStripItem() {trayMenuAbout, traySep0, trayMenuDictation, traySepDict, trayMenuQR, trayMenuBrowser, traySep1, trayMenuShow, traySep2, trayMenuExit})
         trayMenu.Name = "trayMenu"
         trayMenu.Size = New Size(181, 148)
         '
@@ -1780,7 +1782,17 @@ Partial Class FormMain
         trayMenuExit.Name = "trayMenuExit"
         trayMenuExit.Size = New Size(180, 22)
         trayMenuExit.Text = "Exit"
-        ' 
+        '
+        ' trayMenuDictation
+        '
+        trayMenuDictation.Name = "trayMenuDictation"
+        trayMenuDictation.Size = New Size(180, 22)
+        trayMenuDictation.Text = "Dictation"
+        '
+        ' traySepDict
+        '
+        traySepDict.Name = "traySepDict"
+        '
         ' trayIcon
         ' 
         trayIcon.ContextMenuStrip = trayMenu
@@ -2060,7 +2072,9 @@ Partial Class FormMain
     Friend WithEvents trayMenuQR As ToolStripMenuItem
     Friend WithEvents trayMenuBrowser As ToolStripMenuItem
     Friend WithEvents trayMenuExit As ToolStripMenuItem
+    Friend WithEvents trayMenuDictation As ToolStripMenuItem
     Friend WithEvents traySep0 As ToolStripSeparator
     Friend WithEvents traySep1 As ToolStripSeparator
     Friend WithEvents traySep2 As ToolStripSeparator
+    Friend WithEvents traySepDict As ToolStripSeparator
 End Class

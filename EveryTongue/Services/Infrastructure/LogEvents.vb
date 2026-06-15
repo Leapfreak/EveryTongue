@@ -160,6 +160,13 @@ Namespace Services.Infrastructure
         ' 8001/8002 (workspace switch, dialog opened) retired — never logged
         Public Const UI_ERROR As Integer = 8003
         Public Const UI_LOG_VIEWER_OPENED As Integer = 8004
+        Public Const DICT_SESSION_STARTED As Integer = 8010
+        Public Const DICT_SESSION_STOPPED As Integer = 8011
+        Public Const DICT_SESSION_ERROR As Integer = 8012
+        Public Const DICT_COMMIT As Integer = 8013
+        Public Const DICT_TRANSLATE As Integer = 8014
+        Public Const DICT_INJECT_ERROR As Integer = 8015
+        Public Const DICT_HOTKEY As Integer = 8016
 
         ' ── Python Log (9000–9299) ──
         ' Each server gets base+0=Info, base+1=Debug, base+2=Warning, base+3=Error
@@ -336,6 +343,13 @@ Namespace Services.Infrastructure
             R(UI_THEME_CHANGED, LogCategory.UI, LogSeverity.Debug, "Theme changed")
             R(UI_ERROR, LogCategory.UI, LogSeverity.[Error], "UI error")
             R(UI_LOG_VIEWER_OPENED, LogCategory.UI, LogSeverity.Debug, "Log viewer opened")
+            R(DICT_SESSION_STARTED, LogCategory.UI, LogSeverity.Info, "Dictation session started")
+            R(DICT_SESSION_STOPPED, LogCategory.UI, LogSeverity.Info, "Dictation session stopped")
+            R(DICT_SESSION_ERROR, LogCategory.UI, LogSeverity.[Error], "Dictation session error")
+            R(DICT_COMMIT, LogCategory.UI, LogSeverity.Debug, "Dictation text injected")
+            R(DICT_TRANSLATE, LogCategory.UI, LogSeverity.Debug, "Dictation translated before inject")
+            R(DICT_INJECT_ERROR, LogCategory.UI, LogSeverity.[Error], "Dictation injection error")
+            R(DICT_HOTKEY, LogCategory.UI, LogSeverity.Debug, "Dictation hotkey event")
 
             ' Python log lines (tailed from files) — base+0=Info, base+1=Debug, base+2=Warning, base+3=Error
             R(PYLOG_LIVE, LogCategory.PythonLog, LogSeverity.Info, "Live server log line")

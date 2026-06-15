@@ -16,6 +16,24 @@ Namespace Models
         Verbose
     End Enum
 
+    ''' <summary>How system-wide dictation captures speech.</summary>
+    <JsonConverter(GetType(JsonStringEnumConverter))>
+    Public Enum DictationStyle
+        ''' <summary>Toggle on = listen continuously, inject each committed utterance.</summary>
+        Continuous
+        ''' <summary>Hold the PTT hotkey to capture; inject only while held.</summary>
+        PushToTalk
+    End Enum
+
+    ''' <summary>How dictated text is inserted into the focused control.</summary>
+    <JsonConverter(GetType(JsonStringEnumConverter))>
+    Public Enum DictationInsertMode
+        ''' <summary>Synthesized Unicode keystrokes (no clipboard impact).</summary>
+        SendInput
+        ''' <summary>Clipboard + Ctrl+V (prior clipboard restored).</summary>
+        ClipboardPaste
+    End Enum
+
     Public Class AppConfig
 
         ' --- Paths & Tools ---
@@ -145,6 +163,25 @@ Namespace Models
         Public Property SubtitleFontFamily As String = "Segoe UI"
         Public Property SubtitleFontSize As Single = 14
         Public Property SubtitleFontBold As Boolean = True
+
+        ' --- Dictation (system-wide voice typing) ---
+
+        ''' <summary>Enable the system-wide dictation feature (tray toggle + hotkeys).</summary>
+        Public Property DictationEnabled As Boolean = True
+        Public Property DictationStyle As DictationStyle = DictationStyle.Continuous
+        Public Property DictationInsertMode As DictationInsertMode = DictationInsertMode.SendInput
+        ''' <summary>Toggle hotkey, e.g. "Control+Alt+D".</summary>
+        Public Property DictationToggleHotkey As String = "Control+Alt+D"
+        ''' <summary>Push-to-talk key, e.g. "F8" (held to talk).</summary>
+        Public Property DictationPttHotkey As String = "F8"
+        ''' <summary>Curated target languages (FLORES codes) shown in the tray output-language submenu.</summary>
+        Public Property DictationTargetLanguages As New List(Of String)
+        ''' <summary>Currently selected output language (FLORES code); "" = None / transcribe only.</summary>
+        Public Property DictationActiveTargetLanguage As String = ""
+        ''' <summary>STT input language ("auto" or a whisper code); used for capture + as translate source fallback.</summary>
+        Public Property DictationSourceLanguage As String = "auto"
+        ''' <summary>Audio input device index for dictation (0 = default input device).</summary>
+        Public Property DictationDeviceIndex As Integer = 0
 
         ' --- Live Server (STT + VAD) ---
 

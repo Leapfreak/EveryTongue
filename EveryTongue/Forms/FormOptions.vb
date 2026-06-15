@@ -26,8 +26,30 @@ Public Class FormOptions
         treeNav.SelectedNode = treeNav.Nodes("general")
         WireEvents()
         PopulateFontCombo()
+        PopulateDictation()
         LoadFromConfig()
         ApplyLocale()
+    End Sub
+
+    Private ReadOnly _dictTargetCodes As New List(Of String)
+
+    ''' <summary>Fill the dictation combos + the available-languages checklist (codes tracked in _dictTargetCodes).</summary>
+    Private Sub PopulateDictation()
+        Dim lp = LanguagePackService.Instance
+        cboDictStyle.Items.Clear()
+        cboDictStyle.Items.Add(lp.GetString("Dict_ModeContinuous"))
+        cboDictStyle.Items.Add(lp.GetString("Dict_ModePushToTalk"))
+        cboDictInsert.Items.Clear()
+        cboDictInsert.Items.Add(lp.GetString("Opt_DictInsertSendInput"))
+        cboDictInsert.Items.Add(lp.GetString("Opt_DictInsertClipboard"))
+
+        clbDictTargets.Items.Clear()
+        _dictTargetCodes.Clear()
+        For Each lang In LanguageCodeService.Instance.GetAllLanguagesSorted()
+            If String.IsNullOrEmpty(lang.Flores) Then Continue For
+            _dictTargetCodes.Add(lang.Flores)
+            clbDictTargets.Items.Add($"{lang.Name} ({lang.Flores})")
+        Next
     End Sub
 
     ' ═══════════════════════════════════════════════════════════════
@@ -48,7 +70,15 @@ Public Class FormOptions
         treeNav.Nodes("display").Text = langPack.GetString("Opt_NavDisplay")
         treeNav.Nodes("translation").Text = langPack.GetString("Opt_NavTranslation")
         treeNav.Nodes("tts").Text = langPack.GetString("Opt_NavTts")
+        treeNav.Nodes("dictation").Text = langPack.GetString("Tray_Dictation")
         treeNav.Nodes("hardware").Text = langPack.GetString("Opt_NavHardware")
+        chkDictEnabled.Text = langPack.GetString("Opt_DictEnabled")
+        lblDictToggle.Text = langPack.GetString("Opt_DictToggleHotkey")
+        lblDictPtt.Text = langPack.GetString("Opt_DictPttHotkey")
+        lblDictStyle.Text = langPack.GetString("Opt_DictStyle")
+        lblDictInsert.Text = langPack.GetString("Opt_DictInsertMode")
+        lblDictSource.Text = langPack.GetString("Opt_DictSourceLang")
+        lblDictTargets.Text = langPack.GetString("Opt_DictTargets")
         treeNav.Nodes("advanced").Text = langPack.GetString("Opt_NavAdvanced")
         btnManageSttTemplatesOpt.Text = langPack.GetString("Opt_ManageSttTemplates")
         btnManageDisplayTplOpt.Text = langPack.GetString("Opt_ManageDisplayTemplates")
@@ -293,6 +323,7 @@ Public Class FormOptions
         pnlPaths.Visible = (e.Node.Name = "paths")
         pnlStt.Visible = (e.Node.Name = "stt")
         pnlServer.Visible = (e.Node.Name = "server")
+        pnlDictation.Visible = (e.Node.Name = "dictation")
         pnlDisplay.Visible = (e.Node.Name = "display")
         pnlTranslation.Visible = (e.Node.Name = "translation")
         pnlTts.Visible = (e.Node.Name = "tts")
@@ -455,6 +486,17 @@ Public Class FormOptions
         ' Advanced — Live Pipeline concurrency
         nudTranslationConcurrency.Value = Math.Max(1, Math.Min(10, _config.TranslationConcurrency))
         nudTtsConcurrency.Value = Math.Max(1, Math.Min(10, _config.TtsConcurrency))
+
+        ' Dictation
+        chkDictEnabled.Checked = _config.DictationEnabled
+        txtDictToggle.Text = _config.DictationToggleHotkey
+        txtDictPtt.Text = _config.DictationPttHotkey
+        cboDictStyle.SelectedIndex = If(_config.DictationStyle = DictationStyle.PushToTalk, 1, 0)
+        cboDictInsert.SelectedIndex = If(_config.DictationInsertMode = DictationInsertMode.ClipboardPaste, 1, 0)
+        txtDictSource.Text = If(String.IsNullOrEmpty(_config.DictationSourceLanguage), "auto", _config.DictationSourceLanguage)
+        For i = 0 To _dictTargetCodes.Count - 1
+            clbDictTargets.SetItemChecked(i, _config.DictationTargetLanguages.Contains(_dictTargetCodes(i)))
+        Next
     End Sub
 
     Private Sub ApplyToConfig()
@@ -618,6 +660,23 @@ Public Class FormOptions
         ' Advanced — Live Pipeline concurrency
         _config.TranslationConcurrency = CInt(nudTranslationConcurrency.Value)
         _config.TtsConcurrency = CInt(nudTtsConcurrency.Value)
+
+        ' Dictation
+        _config.DictationEnabled = chkDictEnabled.Checked
+        _config.DictationToggleHotkey = txtDictToggle.Text.Trim()
+        _config.DictationPttHotkey = txtDictPtt.Text.Trim()
+        _config.DictationStyle = If(cboDictStyle.SelectedIndex = 1, DictationStyle.PushToTalk, DictationStyle.Continuous)
+        _config.DictationInsertMode = If(cboDictInsert.SelectedIndex = 1, DictationInsertMode.ClipboardPaste, DictationInsertMode.SendInput)
+        _config.DictationSourceLanguage = If(String.IsNullOrWhiteSpace(txtDictSource.Text), "auto", txtDictSource.Text.Trim())
+        Dim picked As New List(Of String)
+        For Each idx As Integer In clbDictTargets.CheckedIndices
+            If idx >= 0 AndAlso idx < _dictTargetCodes.Count Then picked.Add(_dictTargetCodes(idx))
+        Next
+        _config.DictationTargetLanguages = picked
+        ' Drop the active output language if it's no longer in the curated list.
+        If Not String.IsNullOrEmpty(_config.DictationActiveTargetLanguage) AndAlso Not picked.Contains(_config.DictationActiveTargetLanguage) Then
+            _config.DictationActiveTargetLanguage = ""
+        End If
 
         AppLogger.Log(LogEvents.CONFIG_SAVED, $"ApplyToConfig: Language={_config.Language}, OutputLanguage={_config.OutputLanguage}, BiblesDirectory={_config.BiblesDirectory}, Theme={_config.Theme}, UiLanguage={_config.UiLanguage}, TranslationEnabled={_config.TranslationEnabled}")
         ConfigManager.Save(_config)

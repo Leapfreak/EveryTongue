@@ -198,6 +198,21 @@ Partial Class FormOptions
         Me.btnManageDisplayTplOpt = New System.Windows.Forms.Button()
         Me.btnManageTransTplOpt = New System.Windows.Forms.Button()
         Me.btnManageTtsTplOpt = New System.Windows.Forms.Button()
+        ' ── Dictation panel controls ──
+        Me.pnlDictation = New System.Windows.Forms.Panel()
+        Me.chkDictEnabled = New System.Windows.Forms.CheckBox()
+        Me.lblDictToggle = New System.Windows.Forms.Label()
+        Me.txtDictToggle = New System.Windows.Forms.TextBox()
+        Me.lblDictPtt = New System.Windows.Forms.Label()
+        Me.txtDictPtt = New System.Windows.Forms.TextBox()
+        Me.lblDictStyle = New System.Windows.Forms.Label()
+        Me.cboDictStyle = New System.Windows.Forms.ComboBox()
+        Me.lblDictInsert = New System.Windows.Forms.Label()
+        Me.cboDictInsert = New System.Windows.Forms.ComboBox()
+        Me.lblDictSource = New System.Windows.Forms.Label()
+        Me.txtDictSource = New System.Windows.Forms.TextBox()
+        Me.lblDictTargets = New System.Windows.Forms.Label()
+        Me.clbDictTargets = New System.Windows.Forms.CheckedListBox()
         ' ── Advanced panel controls ──
         Me.pnlAdvanced = New System.Windows.Forms.Panel()
         Me.lblAdvPipelineHeader = New System.Windows.Forms.Label()
@@ -294,6 +309,7 @@ Partial Class FormOptions
         Me.pnlTranslation.SuspendLayout()
         Me.pnlTts.SuspendLayout()
         Me.pnlHardware.SuspendLayout()
+        Me.pnlDictation.SuspendLayout()
         Me.pnlAdvanced.SuspendLayout()
         CType(Me.nudParallelJobs, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudChunkSize, System.ComponentModel.ISupportInitialize).BeginInit()
@@ -383,7 +399,7 @@ Partial Class FormOptions
         Me.treeNav.ItemHeight = 28
         Me.treeNav.Location = New System.Drawing.Point(0, 0)
         Me.treeNav.Name = "treeNav"
-        Me.treeNav.Nodes.AddRange(New System.Windows.Forms.TreeNode() {New System.Windows.Forms.TreeNode("General") With {.Name = "general"}, New System.Windows.Forms.TreeNode("Tool Paths") With {.Name = "paths"}, New System.Windows.Forms.TreeNode("Speech-to-Text") With {.Name = "stt"}, New System.Windows.Forms.TreeNode("Translation") With {.Name = "translation"}, New System.Windows.Forms.TreeNode("Text-to-Speech") With {.Name = "tts"}, New System.Windows.Forms.TreeNode("Display") With {.Name = "display"}, New System.Windows.Forms.TreeNode("Server") With {.Name = "server"}, New System.Windows.Forms.TreeNode("Hardware") With {.Name = "hardware"}, New System.Windows.Forms.TreeNode("Advanced") With {.Name = "advanced"}})
+        Me.treeNav.Nodes.AddRange(New System.Windows.Forms.TreeNode() {New System.Windows.Forms.TreeNode("General") With {.Name = "general"}, New System.Windows.Forms.TreeNode("Tool Paths") With {.Name = "paths"}, New System.Windows.Forms.TreeNode("Speech-to-Text") With {.Name = "stt"}, New System.Windows.Forms.TreeNode("Translation") With {.Name = "translation"}, New System.Windows.Forms.TreeNode("Text-to-Speech") With {.Name = "tts"}, New System.Windows.Forms.TreeNode("Dictation") With {.Name = "dictation"}, New System.Windows.Forms.TreeNode("Display") With {.Name = "display"}, New System.Windows.Forms.TreeNode("Server") With {.Name = "server"}, New System.Windows.Forms.TreeNode("Hardware") With {.Name = "hardware"}, New System.Windows.Forms.TreeNode("Advanced") With {.Name = "advanced"}})
         Me.treeNav.ShowLines = False
         Me.treeNav.ShowPlusMinus = False
         Me.treeNav.ShowRootLines = False
@@ -400,6 +416,7 @@ Partial Class FormOptions
         Me.pnlPages.Controls.Add(Me.pnlTranslation)
         Me.pnlPages.Controls.Add(Me.pnlTts)
         Me.pnlPages.Controls.Add(Me.pnlHardware)
+        Me.pnlPages.Controls.Add(Me.pnlDictation)
         Me.pnlPages.Controls.Add(Me.pnlAdvanced)
         Me.pnlPages.Dock = System.Windows.Forms.DockStyle.Fill
         Me.pnlPages.Location = New System.Drawing.Point(0, 0)
@@ -2344,6 +2361,127 @@ Partial Class FormOptions
         ' ADVANCED PANEL
         ' ══════════════════════════════════════════════════════════════
         '
+        ' pnlDictation
+        '
+        Me.pnlDictation.AutoScroll = True
+        Me.pnlDictation.Controls.Add(Me.chkDictEnabled)
+        Me.pnlDictation.Controls.Add(Me.lblDictToggle)
+        Me.pnlDictation.Controls.Add(Me.txtDictToggle)
+        Me.pnlDictation.Controls.Add(Me.lblDictPtt)
+        Me.pnlDictation.Controls.Add(Me.txtDictPtt)
+        Me.pnlDictation.Controls.Add(Me.lblDictStyle)
+        Me.pnlDictation.Controls.Add(Me.cboDictStyle)
+        Me.pnlDictation.Controls.Add(Me.lblDictInsert)
+        Me.pnlDictation.Controls.Add(Me.cboDictInsert)
+        Me.pnlDictation.Controls.Add(Me.lblDictSource)
+        Me.pnlDictation.Controls.Add(Me.txtDictSource)
+        Me.pnlDictation.Controls.Add(Me.lblDictTargets)
+        Me.pnlDictation.Controls.Add(Me.clbDictTargets)
+        Me.pnlDictation.Dock = System.Windows.Forms.DockStyle.Fill
+        Me.pnlDictation.Location = New System.Drawing.Point(0, 0)
+        Me.pnlDictation.Name = "pnlDictation"
+        Me.pnlDictation.Size = New System.Drawing.Size(564, 469)
+        Me.pnlDictation.TabIndex = 8
+        Me.pnlDictation.Visible = False
+        '
+        ' chkDictEnabled
+        '
+        Me.chkDictEnabled.AutoSize = True
+        Me.chkDictEnabled.Location = New System.Drawing.Point(16, 16)
+        Me.chkDictEnabled.Name = "chkDictEnabled"
+        Me.chkDictEnabled.Size = New System.Drawing.Size(200, 19)
+        Me.chkDictEnabled.TabIndex = 0
+        Me.chkDictEnabled.Text = "Enable system-wide dictation"
+        '
+        ' lblDictToggle
+        '
+        Me.lblDictToggle.AutoSize = True
+        Me.lblDictToggle.Location = New System.Drawing.Point(16, 52)
+        Me.lblDictToggle.Name = "lblDictToggle"
+        Me.lblDictToggle.Text = "Toggle hotkey"
+        '
+        ' txtDictToggle
+        '
+        Me.txtDictToggle.Location = New System.Drawing.Point(180, 49)
+        Me.txtDictToggle.Name = "txtDictToggle"
+        Me.txtDictToggle.Size = New System.Drawing.Size(160, 23)
+        Me.txtDictToggle.TabIndex = 1
+        '
+        ' lblDictPtt
+        '
+        Me.lblDictPtt.AutoSize = True
+        Me.lblDictPtt.Location = New System.Drawing.Point(16, 84)
+        Me.lblDictPtt.Name = "lblDictPtt"
+        Me.lblDictPtt.Text = "Push-to-talk key"
+        '
+        ' txtDictPtt
+        '
+        Me.txtDictPtt.Location = New System.Drawing.Point(180, 81)
+        Me.txtDictPtt.Name = "txtDictPtt"
+        Me.txtDictPtt.Size = New System.Drawing.Size(160, 23)
+        Me.txtDictPtt.TabIndex = 2
+        '
+        ' lblDictStyle
+        '
+        Me.lblDictStyle.AutoSize = True
+        Me.lblDictStyle.Location = New System.Drawing.Point(16, 116)
+        Me.lblDictStyle.Name = "lblDictStyle"
+        Me.lblDictStyle.Text = "Capture style"
+        '
+        ' cboDictStyle
+        '
+        Me.cboDictStyle.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboDictStyle.Location = New System.Drawing.Point(180, 113)
+        Me.cboDictStyle.Name = "cboDictStyle"
+        Me.cboDictStyle.Size = New System.Drawing.Size(220, 23)
+        Me.cboDictStyle.TabIndex = 3
+        '
+        ' lblDictInsert
+        '
+        Me.lblDictInsert.AutoSize = True
+        Me.lblDictInsert.Location = New System.Drawing.Point(16, 148)
+        Me.lblDictInsert.Name = "lblDictInsert"
+        Me.lblDictInsert.Text = "Text insertion"
+        '
+        ' cboDictInsert
+        '
+        Me.cboDictInsert.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboDictInsert.Location = New System.Drawing.Point(180, 145)
+        Me.cboDictInsert.Name = "cboDictInsert"
+        Me.cboDictInsert.Size = New System.Drawing.Size(220, 23)
+        Me.cboDictInsert.TabIndex = 4
+        '
+        ' lblDictSource
+        '
+        Me.lblDictSource.AutoSize = True
+        Me.lblDictSource.Location = New System.Drawing.Point(16, 180)
+        Me.lblDictSource.Name = "lblDictSource"
+        Me.lblDictSource.Text = "Spoken language"
+        '
+        ' txtDictSource
+        '
+        Me.txtDictSource.Location = New System.Drawing.Point(180, 177)
+        Me.txtDictSource.Name = "txtDictSource"
+        Me.txtDictSource.Size = New System.Drawing.Size(160, 23)
+        Me.txtDictSource.TabIndex = 5
+        '
+        ' lblDictTargets
+        '
+        Me.lblDictTargets.AutoSize = True
+        Me.lblDictTargets.Location = New System.Drawing.Point(16, 216)
+        Me.lblDictTargets.Name = "lblDictTargets"
+        Me.lblDictTargets.Text = "Output languages (menu)"
+        '
+        ' clbDictTargets
+        '
+        Me.clbDictTargets.CheckOnClick = True
+        Me.clbDictTargets.IntegralHeight = False
+        Me.clbDictTargets.Location = New System.Drawing.Point(16, 238)
+        Me.clbDictTargets.Name = "clbDictTargets"
+        Me.clbDictTargets.Size = New System.Drawing.Size(384, 200)
+        Me.clbDictTargets.TabIndex = 6
+        ' ══════════════════════════════════════════════════════════════
+        '
         ' pnlAdvanced
         '
         Me.pnlAdvanced.AutoScroll = True
@@ -3323,6 +3461,8 @@ Partial Class FormOptions
         Me.pnlTts.PerformLayout()
         Me.pnlHardware.ResumeLayout(False)
         Me.pnlHardware.PerformLayout()
+        Me.pnlDictation.ResumeLayout(False)
+        Me.pnlDictation.PerformLayout()
         Me.pnlAdvanced.ResumeLayout(False)
         Me.pnlAdvanced.PerformLayout()
         CType(Me.nudParallelJobs, System.ComponentModel.ISupportInitialize).EndInit()
@@ -3568,6 +3708,20 @@ Partial Class FormOptions
 
     ' Advanced panel
     Friend WithEvents pnlAdvanced As System.Windows.Forms.Panel
+    Friend WithEvents pnlDictation As System.Windows.Forms.Panel
+    Friend WithEvents chkDictEnabled As System.Windows.Forms.CheckBox
+    Friend WithEvents lblDictToggle As System.Windows.Forms.Label
+    Friend WithEvents txtDictToggle As System.Windows.Forms.TextBox
+    Friend WithEvents lblDictPtt As System.Windows.Forms.Label
+    Friend WithEvents txtDictPtt As System.Windows.Forms.TextBox
+    Friend WithEvents lblDictStyle As System.Windows.Forms.Label
+    Friend WithEvents cboDictStyle As System.Windows.Forms.ComboBox
+    Friend WithEvents lblDictInsert As System.Windows.Forms.Label
+    Friend WithEvents cboDictInsert As System.Windows.Forms.ComboBox
+    Friend WithEvents lblDictSource As System.Windows.Forms.Label
+    Friend WithEvents txtDictSource As System.Windows.Forms.TextBox
+    Friend WithEvents lblDictTargets As System.Windows.Forms.Label
+    Friend WithEvents clbDictTargets As System.Windows.Forms.CheckedListBox
     Friend WithEvents pnlStt As System.Windows.Forms.Panel
     Friend WithEvents pnlDisplay As System.Windows.Forms.Panel
     Friend WithEvents btnManageSttTemplatesOpt As System.Windows.Forms.Button

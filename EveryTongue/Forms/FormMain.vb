@@ -24,6 +24,9 @@ Public Class FormMain
     Private _transcribeController As Controllers.TranscribeController
     Private _serverController As Controllers.ServerController
     Private _conferenceController As Controllers.ConferenceController
+    Private _dictationService As Services.Input.DictationService
+    Private _globalHotkeys As Services.Input.GlobalHotkeys
+    Private _dictationController As Controllers.DictationController
     Private _langPack As LanguagePackService
     Private _translationService As TranslationService
     ''' <summary>
@@ -255,6 +258,22 @@ Public Class FormMain
             AddressOf UpdateShellStatus,
             AddressOf WriteDebugLog,
             Sub(msg, title, icon) MessageBox.Show(Me, msg, title, MessageBoxButtons.OK, icon))
+
+        ' Dictation: system-wide voice typing. We're in Form Load, so the window handle
+        ' exists (RegisterHotKey needs a valid HWND).
+        _dictationService = New Services.Input.DictationService(
+            _config,
+            Function() _serverController?.GetTranslationOrchestrator(),
+            AddressOf StartTranslationService,
+            Sub(id, msg) AppLogger.Log(id, msg))
+        _globalHotkeys = New Services.Input.GlobalHotkeys(Me.Handle)
+        _dictationController = New Controllers.DictationController(
+            _config, Me, _dictationService, _globalHotkeys, trayMenuDictation,
+            AddressOf GetString,
+            Function(flores) _langCodeService.GetDisplayName(flores),
+            Sub() Models.ConfigManager.Save(_config))
+        _dictationController.WireEvents()
+        _dictationController.ApplyHotkeys()
 
         ' Run path verification at startup (log only, non-blocking)
         Dim sc = _serverController
@@ -610,6 +629,7 @@ del ""%~f0""
                     _langPack.LoadLanguage(_config.UiLanguage)
                     ApplyLocale()
                     ApplyTheme(_config.Theme)
+                    _dictationController?.ReapplySettings()
                 End If
             End Using
         End If
@@ -1281,6 +1301,14 @@ del ""%~f0""
         Return killed
     End Function
 
+    ''' <summary>Forward global-hotkey messages (WM_HOTKEY) to the dictation hotkey handler.</summary>
+    Protected Overrides Sub WndProc(ByRef m As Message)
+        If m.Msg = &H312 Then   ' WM_HOTKEY
+            Try : _globalHotkeys?.OnWmHotkey(m.WParam.ToInt32()) : Catch : End Try
+        End If
+        MyBase.WndProc(m)
+    End Sub
+
     Private Sub FormMain_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
         ' Always save settings
         SaveUiToConfig()
@@ -1296,6 +1324,9 @@ del ""%~f0""
         ' Hide tray icon immediately so it looks closed
         Try : trayIcon.Visible = False : Catch : End Try
         Try : trayIcon.Dispose() : Catch : End Try
+
+        ' Stop dictation (disarm STT session, release hotkeys)
+        Try : _dictationController?.Shutdown() : Catch : End Try
 
         ' Stop conference backends
         _conferenceController?.StopAllConferenceBackends()

@@ -660,6 +660,8 @@ Partial Class FormMain
                 ApplyLocale()
                 ApplyTheme(_config.Theme)
                 If _config.StartWithWindows Then RegisterStartup() Else UnregisterStartup()
+                ' Re-apply dictation settings (hotkeys + output-language menu) after Options changes
+                _dictationController?.ReapplySettings()
 
                 ' Propagate updated API keys to running cloud backends
                 Try
