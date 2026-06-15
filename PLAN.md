@@ -1,4 +1,4 @@
-# EveryTongue — TODO (updated 2026-06-13, v2.0.0 — RELEASED)
+# EveryTongue — TODO (updated 2026-06-16, v2.1.6 — RELEASED)
 
 > **Architecture shift:** EveryTongue is evolving from a single-session desktop transcription tool into a **headless multi-room translation server**. The desktop app still has operator workspaces (Live, Transcribe, Translate, Bible), but the primary user interface is now the **phone web client**. Anyone with a phone can create rooms, manage conversations, and receive translations — no operator required. The desktop just runs the server and auto-starts engines at launch.
 
@@ -65,18 +65,28 @@ Installer no longer bundles CUDA/AWS DLLs or `.pyc`/`.log`; AWS SDK is an on-dem
 Milestone bundling all of the above: pluggable engines across STT/translation/TTS, per-room translation, cloud parity (glossary/profanity + usage/latency), and release hardening. GitHub v2.0.0 (installer + app zip + AWS SDK component + update manifest).
 **⚠ Still untested against live vendor endpoints (no keys on dev/Jezer yet):** Deepgram/Gladia/Azure STT, DeepSeek/OpenAI/LibreTranslate/Amazon translation, Azure/Google/OpenAI TTS. The Speechmatics + NLLB-3.3B + Piper stack is proven.
 
+### v2.0.1–v2.0.16 — RELEASED (2026-06-14/15)
+Field-hardening + UX from Jezer logs. Fresh-install component delivery (per_page=100 asset discovery, faster-whisper-after-Python, whisper-cli DM entry, CUDA-12 PATH); NLLB int8 variants; lazy conversation-rooms warm-up; audio-device-by-name; startup orphan-sidecar cleanup; Download-Manager CUDA checks now require runtime DLLs (not just the exe); host "Clear Captions" button; removed dead whisper dials (host panel + Conference Templates); **whisper-server crash fixed** (`GGML_NO_BACKTRACE`, was `GGML_ASSERT`/exit 3221226505 on both CUDA & Vulkan); whisper-cpp-cuda now runs the CUDA binary; speaker switch builds the correct backend; empty template paths inherit the machine baseline; **STT-templates vs room-templates decluttered** (companion templates hidden from pickers) + button labels fixed; **Default Speaker** per conference template (rooms boot pre-selected).
+
+### v2.1.0–v2.1.6 — RELEASED (2026-06-15/16)
+- **System-wide Dictation (voice typing)** — NEW feature. Speak → text typed into whatever textbox has focus in any app; tray submenu (start/stop, output language, mode) + global hotkeys; optional translate-while-dictating; Tools→Options→Dictation. Stable Win32 only (SendInput/RegisterHotKey/GetAsyncKeyState — no global keyboard hook). **VERIFIED working on Jezer** (continuous + SendInput + transcribe-only). Still to confirm on hardware (built, not suspected broken): translate-while-dictating, push-to-talk hold, clipboard insertion mode.
+- **Conversation-room translation regression FIXED** (v2.1.6) — rooms route to the ACTIVE engine (Local/NLLB) but the readiness gate checked *any* backend; a keyed cloud engine masked the lazy NLLB sidecar being down, so it never started → original text passed through. Now checks the active engine + warms translation with STT. Verified bidirectional spa↔eng on Jezer. Also: each participant now sees the whole feed in their own language (speaker's own line was stuck in the spoken language). Added `ROOM_TRANSLATION_ROUTING` (5107) diagnostic. **LESSON: when something "isn't working", verify the sidecar PROCESS is running (its log has activity) before theorizing about logic.**
+
 ## User-Reported Issues & Tasks
 - [x] Implement stubs — most done (QR Code, Hardware Score, Diagnostics Export, File Integrity, Translate workspace). Remaining stubs: Session Wizard, Audio Level Monitor, Event Profiles, Spec Sheet Generator, Portable Mode, Feedback prompt
 - [x] Connected Clients dialog — popup form showing all connected phones with model, OS, browser, language, TTS, connection time
 - [ ] Audio routing: NDI or Direct Audio output
 
-## Suggested Next Priorities (post-2.0.0)
-1. **Smoke-test the new cloud engines with real API keys** (test machine) — Deepgram/Gladia/Azure Speech STT, DeepSeek/OpenAI/LibreTranslate/Amazon translation, Azure/Google/OpenAI TTS were built from vendor docs only; verify auth, response shapes, and fallback behavior per engine, fix against real responses. (The Speechmatics + NLLB-3.3B + Piper stack is already proven.)
-2. **Regenerate CDN locale packs** — ~100 new string keys added in v1.9.x/2.0 exist only in `locales/en.json`; the downloadable packs on the GitHub CDN need regenerating.
-3. Audio Level Monitor — operator feedback, prevents bad audio (#3)
-4. Rooms desktop dashboard — active-rooms overview + Live-tab room dropdown (#19g)
-5. Setup Wizard expansion — integrates QR, audio monitor, hardware score (#2)
-6. Cross-platform headless server (Linux/Docker)
+## Suggested Next Priorities (post-2.1.x)
+1. **Smoke-test the new cloud engines with real API keys** (test machine) — Deepgram/Gladia/Azure Speech STT, DeepSeek/OpenAI/LibreTranslate/Amazon translation, Azure/Google/OpenAI TTS were built from vendor docs only; verify auth, response shapes, and fallback behavior per engine, fix against real responses. (The Speechmatics + NLLB-3.3B + Piper stack is proven.)
+2. **Confirm the remaining Dictation modes on hardware** — translate-while-dictating (set a tray output language), push-to-talk hold, clipboard insertion. Core dictation (continuous + SendInput) is verified.
+3. **Regenerate CDN locale packs** — string keys added across v1.9.x → v2.1.x (incl. Dictation `Dict_*`/`Opt_Dict*`, Default-Speaker `Tmpl_*`, Manage-button labels) exist only in `locales/en.json`; the downloadable packs on the GitHub CDN need regenerating.
+4. Audio Level Monitor — operator feedback, prevents bad audio (#3)
+5. Rooms desktop dashboard — active-rooms overview + Live-tab room dropdown (#19g)
+6. Setup Wizard expansion — integrates QR, audio monitor, hardware score (#2)
+7. Cross-platform headless server (Linux/Docker)
+
+**Done since 2.0.0:** fresh-install/CUDA delivery fixes, whisper-server crash fix, Default Speaker, STT-template/room-template declutter, **System-wide Dictation (verified)**, **conversation-room translation regression fix (verified)**.
 
 Done in the 1.9.x→2.0 line: Structured Logging (v1.8.5), Config refactor (v1.9.0–4), Architecture audit (v1.9.5), legacy removals + per-engine keys (v1.9.6–7), cloud parity/cost/latency (v1.9.8–9), engine expansion (v1.9.10–13), robustness/hardening (v1.9.14–18), per-room translation engines (v1.9.19–21), v2.0.0 milestone.
 
