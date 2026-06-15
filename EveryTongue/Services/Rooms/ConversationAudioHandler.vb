@@ -4,6 +4,7 @@ Imports System.Text
 Imports System.Text.Json
 Imports System.Threading
 Imports Microsoft.Extensions.Logging
+Imports EveryTongue.Services.Infrastructure
 Imports EveryTongue.Services.Interfaces
 Imports EveryTongue.Services.Subtitle
 Imports EveryTongue.Pipeline
@@ -474,6 +475,14 @@ Namespace Services.Rooms
             ' Remove source language from targets (no self-translation)
             targetLangs.Remove(sourceFlores)
 
+            ' High-signal routing line (dedicated event id so the rate-limiter doesn't collapse
+            ' it into the generic [Server] flood). Shows exactly why translation does/doesn't run:
+            ' each recipient's language, the source, and the resulting targets.
+            AppLogger.Log(LogEvents.ROOM_TRANSLATION_ROUTING,
+                $"room={room.Id} speaker={ShortId(speaker.Id)}({If(speaker.Language, "(none)")}) src={sourceFlores} " &
+                $"recipients=[{String.Join("; ", roomClients.Select(Function(c) ShortId(c.Id) & "=" & If(String.IsNullOrEmpty(c.Language), "(none)", c.Language)))}] " &
+                $"targets=[{String.Join(",", targetLangs)}] backend={If(_translationService Is Nothing, "none", _translationService.ActiveBackend)}")
+
             ' Translate to all needed languages in one batch call
             Dim translations As Dictionary(Of String, String) = Nothing
             If targetLangs.Count > 0 AndAlso _translationService IsNot Nothing Then
@@ -620,6 +629,11 @@ Namespace Services.Rooms
 
         Private Function GetClient(clientId As String) As ClientConnection
             Return _subtitleService?.GetClient(clientId)
+        End Function
+
+        Private Shared Function ShortId(id As String) As String
+            If String.IsNullOrEmpty(id) Then Return "?"
+            Return id.Substring(0, Math.Min(4, id.Length))
         End Function
 
         Private Sub TrySendToClient(client As ClientConnection, data As Byte())

@@ -108,6 +108,7 @@ Namespace Services.Infrastructure
         Public Const ROOM_LOCKED As Integer = 5104
         Public Const ROOM_PAUSED As Integer = 5105
         Public Const ROOM_EXPIRED As Integer = 5106
+        Public Const ROOM_TRANSLATION_ROUTING As Integer = 5107
 
         ' ── Subtitle (5200–5299) ──
         Public Const SUB_BROADCAST As Integer = 5200
@@ -292,6 +293,7 @@ Namespace Services.Infrastructure
             R(ROOM_LOCKED, LogCategory.Rooms, LogSeverity.Info, "Room lock toggled")
             R(ROOM_PAUSED, LogCategory.Rooms, LogSeverity.Info, "Room paused/resumed")
             R(ROOM_EXPIRED, LogCategory.Rooms, LogSeverity.Info, "Room expired due to inactivity")
+            R(ROOM_TRANSLATION_ROUTING, LogCategory.Rooms, LogSeverity.Info, "Conversation-room translation routing (recipients, languages, targets)")
 
             ' Subtitle
             R(SUB_BROADCAST, LogCategory.Subtitle, LogSeverity.Debug, "Subtitle broadcast to clients")
