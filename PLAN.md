@@ -1,4 +1,4 @@
-# EveryTongue — TODO (updated 2026-06-16, v2.1.6 — RELEASED)
+# EveryTongue — TODO (updated 2026-06-19, v2.2.1 — RELEASED)
 
 > **Architecture shift:** EveryTongue is evolving from a single-session desktop transcription tool into a **headless multi-room translation server**. The desktop app still has operator workspaces (Live, Transcribe, Translate, Bible), but the primary user interface is now the **phone web client**. Anyone with a phone can create rooms, manage conversations, and receive translations — no operator required. The desktop just runs the server and auto-starts engines at launch.
 
@@ -71,6 +71,9 @@ Field-hardening + UX from Jezer logs. Fresh-install component delivery (per_page
 ### v2.1.0–v2.1.6 — RELEASED (2026-06-15/16)
 - **System-wide Dictation (voice typing)** — NEW feature. Speak → text typed into whatever textbox has focus in any app; tray submenu (start/stop, output language, mode) + global hotkeys; optional translate-while-dictating; Tools→Options→Dictation. Stable Win32 only (SendInput/RegisterHotKey/GetAsyncKeyState — no global keyboard hook). **VERIFIED working on Jezer** (continuous + SendInput + transcribe-only). Still to confirm on hardware (built, not suspected broken): translate-while-dictating, push-to-talk hold, clipboard insertion mode.
 - **Conversation-room translation regression FIXED** (v2.1.6) — rooms route to the ACTIVE engine (Local/NLLB) but the readiness gate checked *any* backend; a keyed cloud engine masked the lazy NLLB sidecar being down, so it never started → original text passed through. Now checks the active engine + warms translation with STT. Verified bidirectional spa↔eng on Jezer. Also: each participant now sees the whole feed in their own language (speaker's own line was stuck in the spoken language). Added `ROOM_TRANSLATION_ROUTING` (5107) diagnostic. **LESSON: when something "isn't working", verify the sidecar PROCESS is running (its log has activity) before theorizing about logic.**
+
+### v2.2.0–v2.2.1 — RELEASED (2026-06-19): concurrent multi-engine translation
+Removed the single-offline-model limitation. **Different rooms can now run different offline translation models simultaneously**; rooms on the same model+precision share one sidecar (no double-load); the model's sidecar is freed (VRAM) when the last room using it leaves; GPU-OOM still falls back to CPU. New `TranslationSidecarPool` (one translate-server per model+compute signature, refcounted by room, own port + `translate-server-<port>.log`). Global default stays the "Local" sidecar; others register as per-model backends and route via the existing `backendOverride`. v2.2.1 extends per-room engine selection to **conversation rooms** (lobby dropdown + `GET /api/translation-engines`). Cloud was already concurrent; offline is now at parity. **Not yet hardware-tested on Jezer.**
 
 ## User-Reported Issues & Tasks
 - [x] Implement stubs — most done (QR Code, Hardware Score, Diagnostics Export, File Integrity, Translate workspace). Remaining stubs: Session Wizard, Audio Level Monitor, Event Profiles, Spec Sheet Generator, Portable Mode, Feedback prompt
