@@ -109,13 +109,16 @@
         var name = "Conversation " + suffix;
         btnCreate.disabled = true;
         try {
+            var engineSel = document.getElementById("conv-engine");
+            var engineVal = engineSel ? engineSel.value : "";
             var res = await fetch("/api/rooms", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     name: name,
                     type: "conversation",
-                    visibility: isPrivate ? "private" : "public"
+                    visibility: isPrivate ? "private" : "public",
+                    translationEngine: engineVal
                 })
             });
             if (!res.ok) throw new Error("Server returned " + res.status);
@@ -311,8 +314,26 @@
         refreshTimer = setInterval(loadRooms, 5000);
     }
 
+    // ── Populate the conversation translation-engine dropdown ──
+    async function loadEngines() {
+        var sel = document.getElementById("conv-engine");
+        if (!sel) return;
+        try {
+            var res = await fetch("/api/translation-engines");
+            if (!res.ok) return;
+            var engines = await res.json();
+            for (var i = 0; i < engines.length; i++) {
+                var opt = document.createElement("option");
+                opt.value = engines[i].key;
+                opt.textContent = engines[i].name;
+                sel.appendChild(opt);
+            }
+        } catch (err) { /* leave just the Default option */ }
+    }
+
     // ── Init ──
     renderMyRooms();
     startAutoRefresh();
     loadTemplates();
+    loadEngines();
 })();

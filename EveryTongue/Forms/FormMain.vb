@@ -373,6 +373,9 @@ Public Class FormMain
                                       GetType(Services.Rooms.ConversationAudioHandler)), Services.Rooms.ConversationAudioHandler)
                                   If convAudioHandler IsNot Nothing Then
                                       convAudioHandler.EnsureTranslationAvailable = Sub() Me.BeginInvoke(Sub() EnsureTranslationForRooms())
+                                      ' Per-room translation engine for conversation rooms (same pool as conference;
+                                      ' release happens via the room-closed handler → StopConferenceBackend).
+                                      convAudioHandler.AcquireTranslationBackend = Function(roomId, engineKey) AcquireRoomTranslationBackend(roomId, engineKey)
                                   End If
 
                                   ' Lazy engine start: conversation/conference rooms start STT and

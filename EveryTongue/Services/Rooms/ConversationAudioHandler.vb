@@ -80,6 +80,14 @@ Namespace Services.Rooms
         ''' </summary>
         Public Property EnsureTranslationAvailable As Action
 
+        ''' <summary>
+        ''' Resolve + ensure a room's translation backend, returning the orchestrator backend
+        ''' name to route by. (roomId, engineKey) → name. FormMain wires this to the per-model
+        ''' sidecar pool so a conversation room can use its own (incl. offline) engine.
+        ''' Idempotent + reference-counted; release happens via the room-closed handler.
+        ''' </summary>
+        Public Property AcquireTranslationBackend As Func(Of String, String, String)
+
         Public Sub New(roomManager As RoomManager,
                        subtitleService As ISubtitleService,
                        translationService As ITranslationService,
@@ -488,17 +496,23 @@ Namespace Services.Rooms
                 $"recipients=[{String.Join("; ", roomClients.Select(Function(c) ShortId(c.Id) & "=" & If(String.IsNullOrEmpty(c.Language), "(none)", c.Language)))}] " &
                 $"targets=[{String.Join(",", targetLangs)}] backend={If(_translationService Is Nothing, "none", _translationService.ActiveBackend)}")
 
+            ' Per-room translation engine (conversation room's own choice). When set, ensure its
+            ' sidecar (pool) and route ALL targets through it; "" = the global default path below.
+            Dim roomBackend As String = Nothing
+            If AcquireTranslationBackend IsNot Nothing AndAlso Not String.IsNullOrEmpty(room.TranslationBackendKey) Then
+                Dim nm = AcquireTranslationBackend(room.Id, room.TranslationBackendKey)
+                If Not String.IsNullOrEmpty(nm) Then roomBackend = nm
+            End If
+
             ' Translate to all needed languages in one batch call
             Dim translations As Dictionary(Of String, String) = Nothing
             If targetLangs.Count > 0 AndAlso _translationService IsNot Nothing Then
-                ' Check the ACTIVE backend specifically — translation routes to it, so a different
-                ' backend being available (e.g. a keyed cloud engine) must NOT mask the active one
-                ' (Local/NLLB) being down. This is the lazy-warm-up regression: the active sidecar
-                ' was never started because the any-backend check passed on an unused cloud engine.
+                ' Default path only: ensure the global active backend is up. (When the room has its
+                ' own engine, its sidecar was just ensured above and routing uses backendOverride.)
                 Dim backends = _translationService.GetAllBackends()
                 Dim active = backends.FirstOrDefault(Function(b) b.IsActive)
                 Dim activeReady = active IsNot Nothing AndAlso active.IsAvailable
-                If Not activeReady Then
+                If String.IsNullOrEmpty(roomBackend) AndAlso Not activeReady Then
                     _logger.LogInformation("Active translation backend '{Backend}' not ready — requesting startup",
                         If(active IsNot Nothing, active.Name, _translationService.ActiveBackend))
                     Try
@@ -517,7 +531,7 @@ Namespace Services.Rooms
                         ' Single sentence — translate directly
                         translations = Await _translationService.TranslateAsync(
                             text, sourceFlores, targetLangs.ToList(), ct,
-                            Scheduling.TranslationPriority.Room).ConfigureAwait(False)
+                            Scheduling.TranslationPriority.Room, backendOverride:=roomBackend).ConfigureAwait(False)
                     Else
                         ' Multi-sentence — translate per sentence, reassemble with line breaks
                         Dim perLang As New Dictionary(Of String, Text.StringBuilder)()
@@ -537,7 +551,7 @@ Namespace Services.Rooms
                             For Each sentence In tl.Sentences
                                 Dim sentResult = Await _translationService.TranslateAsync(
                                     sentence, sourceFlores, targetLangs.ToList(), ct,
-                                    Scheduling.TranslationPriority.Room).ConfigureAwait(False)
+                                    Scheduling.TranslationPriority.Room, backendOverride:=roomBackend).ConfigureAwait(False)
                                 For Each lang In targetLangs
                                     If perLang(lang).Length > 0 AndAlso Not perLang(lang).ToString().EndsWith(vbLf) Then
                                         perLang(lang).Append(" ")

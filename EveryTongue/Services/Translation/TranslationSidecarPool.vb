@@ -58,10 +58,12 @@ Namespace Services.Translation
             Dim sig = Signature(modelPath, computeType)
             Dim name = "Local:" & sig
             SyncLock _lock
-                ' Drop a different prior holding for this owner first.
+                ' Idempotent per owner: if this owner already holds this exact sidecar, no-op.
+                ' (Lets callers acquire on every commit without inflating the refcount.)
                 Dim priorSig As String = Nothing
-                If _byOwner.TryGetValue(ownerId, priorSig) AndAlso Not priorSig.Equals(sig, StringComparison.OrdinalIgnoreCase) Then
-                    ReleaseInternal(ownerId)
+                If _byOwner.TryGetValue(ownerId, priorSig) Then
+                    If priorSig.Equals(sig, StringComparison.OrdinalIgnoreCase) Then Return name
+                    ReleaseInternal(ownerId)   ' owner switched models — drop the old one
                 End If
 
                 Dim e As PooledSidecar = Nothing

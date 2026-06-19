@@ -197,7 +197,12 @@ Namespace Server
                                                Dim hostProp As JsonElement = Nothing
                                                If root.TryGetProperty("hostClientId", hostProp) Then hostId = If(hostProp.GetString(), "")
 
-                                               Dim room = mgr.CreateRoom(name, roomType, visibility, hostId)
+                                               ' Optional per-room translation engine (conversation rooms); "" = global default.
+                                               Dim engProp As JsonElement = Nothing
+                                               Dim translationEngine = ""
+                                               If root.TryGetProperty("translationEngine", engProp) Then translationEngine = If(engProp.GetString(), "")
+
+                                               Dim room = mgr.CreateRoom(name, roomType, visibility, hostId, "", translationEngine)
                                                context.Response.StatusCode = 201
                                                Await context.Response.WriteAsJsonAsync(New With {
                                                    .id = room.Id,
@@ -213,6 +218,19 @@ Namespace Server
                                                doc?.Dispose()
                                            End Try
                                        End Function)
+
+            ' List selectable translation engines (for the lobby's per-room engine picker).
+            ' Excludes inline engines (they only work inside a matching STT session).
+            app.MapGet("/api/translation-engines", Function(context As HttpContext) As Task
+                                                       Dim engines = Services.Translation.TranslationBackendRegistry.GetAll().
+                                                           Where(Function(e) String.IsNullOrEmpty(e.InlineWithStt)).
+                                                           Select(Function(e) New With {
+                                                               .key = e.Key,
+                                                               .name = e.DisplayName,
+                                                               .offline = Not String.IsNullOrEmpty(e.ModelType)
+                                                           }).ToList()
+                                                       Return context.Response.WriteAsJsonAsync(engines)
+                                                   End Function)
 
             ' Close a room — broadcasts roomClosed to all clients
             app.MapDelete("/api/rooms/{id}", Function(id As String, context As HttpContext) As Task

@@ -44,6 +44,12 @@ Namespace Services.Rooms
         Public Property BeamSize As Integer = 7
         Public Property InitialPrompt As String = ""
         Public Property TemplateId As String = ""
+        ''' <summary>
+        ''' Translation engine key for this room ("" = the global default). Conference rooms
+        ''' inherit it from their template; conversation rooms can pick one at creation. Lets
+        ''' different rooms use different (incl. offline) translation engines concurrently.
+        ''' </summary>
+        Public Property TranslationBackendKey As String = ""
         ''' <summary>Active conference speaker (SpeakerProfile id; "" = the room template's own STT reference).</summary>
         Public Property ActiveSpeakerId As String = ""
         ''' <summary>Session connectivity mode ("online"/"offline") — gates which engines are eligible.</summary>

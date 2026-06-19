@@ -27,7 +27,8 @@ Namespace Services.Rooms
                                     type As RoomType,
                                     visibility As RoomVisibility,
                                     hostClientId As String,
-                                    Optional templateId As String = "") As Room
+                                    Optional templateId As String = "",
+                                    Optional translationBackendKey As String = "") As Room
 
             Dim room As New Room() With {
                 .Id = GenerateRoomId(),
@@ -36,7 +37,8 @@ Namespace Services.Rooms
                 .Visibility = visibility,
                 .HostClientId = hostClientId,
                 .HostToken = Guid.NewGuid().ToString("N"),
-                .TemplateId = If(templateId, "")
+                .TemplateId = If(templateId, ""),
+                .TranslationBackendKey = If(translationBackendKey, "")
             }
 
             ' Conversation rooms default to private
