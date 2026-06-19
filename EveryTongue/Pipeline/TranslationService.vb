@@ -130,6 +130,9 @@ Namespace Pipeline
             _port = port
             _device = device
             _host.Port = port
+            ' Per-port log file so concurrent translation sidecars (one per offline model) don't
+            ' write to the same file. The first/default model uses port 5090 → translate-server-5090.log.
+            _host.LogFileName = $"translate-server-{port}.log"
 
             Dim resolvedModelPath = Models.AppConfig.ResolvePath(modelPath)
             Dim serverScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "translate-server", "server.py")

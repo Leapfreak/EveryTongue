@@ -1,3 +1,4 @@
+Imports System.Collections.Concurrent
 Imports System.Threading
 Imports Microsoft.Extensions.Logging
 Imports EveryTongue.Services.Interfaces
@@ -14,7 +15,8 @@ Namespace Services.Translation
     Public Class TranslationOrchestrator
         Implements ITranslationService
 
-        Private ReadOnly _backends As Dictionary(Of String, ITranslationBackend)
+        ' Mutated at runtime as per-model offline sidecars are registered/unregistered per room → concurrent.
+        Private ReadOnly _backends As ConcurrentDictionary(Of String, ITranslationBackend)
         Private ReadOnly _logger As ILogger(Of TranslationOrchestrator)
         Private ReadOnly _queue As PriorityWorkQueue(Of Dictionary(Of String, String))
         Private _activeBackendName As String = "Local"
@@ -42,7 +44,7 @@ Namespace Services.Translation
         Public Sub New(backends As IEnumerable(Of ITranslationBackend),
                        logger As ILogger(Of TranslationOrchestrator),
                        options As Server.ServerOptions)
-            _backends = New Dictionary(Of String, ITranslationBackend)(StringComparer.OrdinalIgnoreCase)
+            _backends = New ConcurrentDictionary(Of String, ITranslationBackend)(StringComparer.OrdinalIgnoreCase)
             For Each backend In backends
                 _backends(backend.Name) = backend
             Next
@@ -96,6 +98,23 @@ Namespace Services.Translation
             _backends(backend.Name) = backend
             _logger.LogInformation("Registered translation backend: {Backend}", backend.Name)
         End Sub
+
+        ''' <summary>Remove a dynamically-registered backend (e.g. a per-model offline sidecar that's being freed).</summary>
+        Public Sub UnregisterBackend(name As String)
+            If String.IsNullOrEmpty(name) Then Return
+            Dim removed As ITranslationBackend = Nothing
+            If _backends.TryRemove(name, removed) Then
+                _logger.LogInformation("Unregistered translation backend: {Backend}", name)
+            End If
+        End Sub
+
+        ''' <summary>The fallback backend name to use: "Local" if available, else any available offline backend.</summary>
+        Private Function ResolveFallbackName() As String
+            Dim b As ITranslationBackend = Nothing
+            If _backends.TryGetValue(_fallbackBackendName, b) AndAlso b.IsAvailable Then Return _fallbackBackendName
+            Dim alt = _backends.Values.FirstOrDefault(Function(x) Not x.RequiresInternet AndAlso x.IsAvailable)
+            Return If(alt IsNot Nothing, alt.Name, _fallbackBackendName)
+        End Function
 
         Public Sub SetActiveBackend(name As String) Implements ITranslationService.SetActiveBackend
             If _backends.ContainsKey(name) Then
@@ -208,6 +227,7 @@ Namespace Services.Translation
             filters As TranslationFilterPaths
         ) As Task(Of Dictionary(Of String, String))
 
+            Dim fb = ResolveFallbackName()
             ' Try primary backend
             Dim backend As ITranslationBackend = Nothing
             If _backends.TryGetValue(primaryBackend, backend) AndAlso backend.IsAvailable Then
@@ -218,16 +238,16 @@ Namespace Services.Translation
                     Throw
                 Catch ex As Exception
                     Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_BACKEND_FALLBACK,
-                        $"backend={primaryBackend} failed for {sourceLang}→[{String.Join(",", targetLangs)}]: {ex.Message} — falling back to {_fallbackBackendName}")
+                        $"backend={primaryBackend} failed for {sourceLang}→[{String.Join(",", targetLangs)}]: {ex.Message} — falling back to {fb}")
                 End Try
-            ElseIf Not primaryBackend.Equals(_fallbackBackendName, StringComparison.OrdinalIgnoreCase) Then
+            ElseIf Not primaryBackend.Equals(fb, StringComparison.OrdinalIgnoreCase) Then
                 Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_BACKEND_FALLBACK,
-                    $"backend={primaryBackend} unavailable for {sourceLang}→[{String.Join(",", targetLangs)}] — falling back to {_fallbackBackendName}")
+                    $"backend={primaryBackend} unavailable for {sourceLang}→[{String.Join(",", targetLangs)}] — falling back to {fb}")
             End If
 
-            ' Fall back to local sidecar if primary was different
-            If Not primaryBackend.Equals(_fallbackBackendName, StringComparison.OrdinalIgnoreCase) Then
-                If _backends.TryGetValue(_fallbackBackendName, backend) AndAlso backend.IsAvailable Then
+            ' Fall back to an available local sidecar if primary was different
+            If Not primaryBackend.Equals(fb, StringComparison.OrdinalIgnoreCase) Then
+                If _backends.TryGetValue(fb, backend) AndAlso backend.IsAvailable Then
                     Try
                         Dim fallbackResult = Await InvokeBackendAsync(backend, text, sourceLang, targetLangs, ct, noCache, filters)
                         Return ApplyLocalFilters(backend, text, sourceLang, fallbackResult, filters)
@@ -235,7 +255,7 @@ Namespace Services.Translation
                         Throw
                     Catch ex As Exception
                         Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR,
-                            $"fallback backend={_fallbackBackendName} also failed for {sourceLang}→[{String.Join(",", targetLangs)}]: {ex.Message}")
+                            $"fallback backend={fb} also failed for {sourceLang}→[{String.Join(",", targetLangs)}]: {ex.Message}")
                     End Try
                 End If
             End If

@@ -12,14 +12,29 @@ Namespace Services.Translation
         Implements ITranslationBackend
 
         Private ReadOnly _legacyService As TranslationService
+        Private ReadOnly _name As String
 
-        Public Sub New(legacyService As TranslationService)
+        ''' <summary>The offline engine key this sidecar runs (e.g. nllb-3.3b); "" for the legacy default.</summary>
+        Public ReadOnly Property EngineKey As String
+
+        ''' <param name="name">Orchestrator backend name. "Local" = the global-default offline model;
+        ''' per-model sidecars use a distinct name (e.g. "Local#&lt;sig&gt;") so rooms route to a specific model.</param>
+        Public Sub New(legacyService As TranslationService, Optional name As String = "Local", Optional engineKey As String = "")
             _legacyService = legacyService
+            _name = If(String.IsNullOrEmpty(name), "Local", name)
+            EngineKey = If(engineKey, "")
         End Sub
 
         Public ReadOnly Property Name As String Implements ITranslationBackend.Name
             Get
-                Return "Local"
+                Return _name
+            End Get
+        End Property
+
+        ''' <summary>The underlying sidecar service (used by the pool for lifecycle management).</summary>
+        Public ReadOnly Property Service As TranslationService
+            Get
+                Return _legacyService
             End Get
         End Property
 

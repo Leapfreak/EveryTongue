@@ -26,7 +26,12 @@ Namespace Controllers
         ' The Boolean is "may reload" — True when no other active room is using a local
         ' engine, so the sidecar may be reloaded to THIS room's model (room overrides
         ' the global default); False = another local room is active, so share its model.
-        Private ReadOnly _ensureTranslationBackend As Action(Of String, Boolean)
+        ' Resolve + ensure a room's translation backend, returning the orchestrator backend
+        ' NAME to route by (per-model offline sidecars run concurrently). Paired with release.
+        Private ReadOnly _acquireTranslationBackend As Func(Of String, String, String)
+        Private ReadOnly _releaseTranslationBackend As Action(Of String)
+        ' Per-room resolved translation backend name (what AcquireRoomTranslationBackend returned).
+        Private ReadOnly _roomTranslationBackendName As New Concurrent.ConcurrentDictionary(Of String, String)()
         Private ReadOnly _log As Action(Of String)
         Private ReadOnly _ownerForm As Form
 
@@ -60,7 +65,8 @@ Namespace Controllers
                        getTranslationService As Func(Of TranslationService),
                        getTranslationOrchestrator As Func(Of ITranslationService),
                        getRoomManager As Func(Of Services.Rooms.RoomManager),
-                       ensureTranslationBackend As Action(Of String, Boolean),
+                       acquireTranslationBackend As Func(Of String, String, String),
+                       releaseTranslationBackend As Action(Of String),
                        log As Action(Of String),
                        ownerForm As Form)
             _config = config
@@ -68,7 +74,8 @@ Namespace Controllers
             _getTranslationService = getTranslationService
             _getTranslationOrchestrator = getTranslationOrchestrator
             _getRoomManager = getRoomManager
-            _ensureTranslationBackend = ensureTranslationBackend
+            _acquireTranslationBackend = acquireTranslationBackend
+            _releaseTranslationBackend = releaseTranslationBackend
             _log = log
             _ownerForm = ownerForm
 
@@ -257,6 +264,8 @@ Namespace Controllers
                 DropKey(_sttBackends, roomId)
                 DropKey(_roomTemplateIds, roomId)
                 DropKey(_roomTranslationKey, roomId)
+                _releaseTranslationBackend?.Invoke(roomId)
+                DropKey(_roomTranslationBackendName, roomId)
             End If
         End Sub
 
@@ -514,6 +523,9 @@ Namespace Controllers
             _clauseCoordinator.ClearRoom(roomId)
             DropKey(_roomFilters, roomId)
             DropKey(_roomTranslationKey, roomId)
+            ' Release this room's offline translation sidecar (refcounted; frees VRAM when last room leaves).
+            _releaseTranslationBackend?.Invoke(roomId)
+            DropKey(_roomTranslationBackendName, roomId)
 
             ' Flush any remaining buffered text before stopping
             Dim buffer As SentenceBuffer = Nothing
@@ -574,6 +586,10 @@ Namespace Controllers
             _sttBackends.Clear()
             _roomTemplateIds.Clear()
             _roomTranslationKey.Clear()
+            For Each rid In _roomTranslationBackendName.Keys.ToList()
+                _releaseTranslationBackend?.Invoke(rid)
+            Next
+            _roomTranslationBackendName.Clear()
             Task.WaitAll(stopTasks.ToArray(), 10000)
         End Sub
 
@@ -615,10 +631,11 @@ Namespace Controllers
             ' Always broadcast source text immediately (no delay for source-lang viewers)
             subtitleSvc.BroadcastCommit(line, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang, targetRoomId:=roomId)
 
-            ' Determine if we're using a cloud translation backend
-            Dim orchestrator = _getTranslationOrchestrator?.Invoke()
-            Dim isCloud = orchestrator IsNot Nothing AndAlso
-                Not orchestrator.ActiveBackend.Equals("Local", StringComparison.OrdinalIgnoreCase)
+            ' Buffer-vs-immediate is a property of THIS room's engine, not the global
+            ' active backend: offline (NLLB, ModelType set) buffers into sentences;
+            ' cloud + inline engines translate each commit immediately.
+            Dim roomTransEntry = TranslationBackendRegistry.Find(RoomTranslationKey(roomId))
+            Dim isCloud = roomTransEntry Is Nothing OrElse String.IsNullOrEmpty(roomTransEntry.ModelType)
 
             If isCloud Then
                 ' Cloud STT + Cloud Translate: each commit from the pipeline
@@ -681,7 +698,12 @@ Namespace Controllers
             ' pass no override and let the orchestrator use the GLOBAL DEFAULT backend.
             Dim roomKey = RoomTranslationKey(roomId)
             Dim isInline = TranslationBackendRegistry.IsInlineEngine(roomKey)
-            Dim backendName = If(isInline, Nothing, TranslationBackendRegistry.BackendNameForKey(roomKey))
+            ' Route to the backend name resolved at room start (per-model offline sidecar,
+            ' "Local" for the default model, or the cloud backend name).
+            Dim storedName As String = Nothing
+            _roomTranslationBackendName.TryGetValue(roomId, storedName)
+            Dim backendName = If(isInline, Nothing,
+                                 If(String.IsNullOrEmpty(storedName), TranslationBackendRegistry.BackendNameForKey(roomKey), storedName))
 
             Dim sw = Diagnostics.Stopwatch.StartNew()
             Dim orchestrator = _getTranslationOrchestrator?.Invoke()
@@ -1080,22 +1102,15 @@ Namespace Controllers
                              template.TranslationBackendKey)
             _roomTranslationKey(roomId) = roomKey
 
-            Dim backendName = TranslationBackendRegistry.BackendNameForKey(roomKey)
+            ' Resolve + ensure the room's translation backend. For offline engines this
+            ' spins up (or shares) a per-model sidecar so different rooms can run different
+            ' offline models concurrently — same model+precision shares one sidecar.
+            Dim backendName = If(_acquireTranslationBackend IsNot Nothing,
+                                 _acquireTranslationBackend(roomId, roomKey),
+                                 TranslationBackendRegistry.BackendNameForKey(roomKey))
+            _roomTranslationBackendName(roomId) = If(backendName, "")
             AppLogger.Log(LogEvents.CONFIG_TEMPLATE_RESOLVED,
-                $"[Conference:{roomId}] translation engine '{roomKey}' (backend {backendName})")
-
-            ' Local/NLLB engines need the sidecar running with their model. Cloud
-            ' engines have a non-empty BackendName but EMPTY ModelType — skip them.
-            Dim entry = TranslationBackendRegistry.Find(roomKey)
-            If entry IsNot Nothing AndAlso Not String.IsNullOrEmpty(entry.ModelType) Then
-                ' May reload the sidecar to this room's model only if no OTHER active
-                ' room is on a local/NLLB engine — reloading would disrupt it. When
-                ' another local room is active, this room shares the loaded model.
-                Dim otherLocalRoom = _roomTranslationKey.Any(
-                    Function(kv) kv.Key <> roomId AndAlso
-                    TranslationBackendRegistry.BackendNameForKey(kv.Value).Equals("Local", StringComparison.OrdinalIgnoreCase))
-                _ensureTranslationBackend?.Invoke(roomKey, Not otherLocalRoom)
-            End If
+                $"[Conference:{roomId}] translation engine '{roomKey}' (backend {If(String.IsNullOrEmpty(backendName), "default", backendName)})")
         End Sub
 
         ''' <summary>

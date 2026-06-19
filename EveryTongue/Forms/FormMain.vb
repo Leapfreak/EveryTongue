@@ -30,6 +30,12 @@ Public Class FormMain
     Private _langPack As LanguagePackService
     Private _translationService As TranslationService
     ''' <summary>
+    ''' Pool of ADDITIONAL offline translation sidecars (one per distinct model+precision)
+    ''' so rooms can run different offline models concurrently. The global-default model
+    ''' stays the "Local" sidecar above; the pool only holds non-default models.
+    ''' </summary>
+    Private _translationPool As Services.Translation.TranslationSidecarPool
+    ''' <summary>
     ''' The CTranslate2 compute_type the NLLB sidecar is currently loaded with.
     ''' Tracked alongside _config.TranslationModelPath because int8 and float16
     ''' variants of the same model size share a DefaultModelPath and differ only
@@ -356,7 +362,8 @@ Public Class FormMain
                                       Function() TryCast(_serverController?.KestrelHost?.Services?.GetService(
                                           GetType(Services.Interfaces.ITranslationService)), Services.Interfaces.ITranslationService),
                                       Function() _serverController.GetRoomManager(),
-                                      Sub(engineKey, mayReload) EnsureTranslationSidecarForKey(engineKey, mayReload),
+                                      Function(roomId, engineKey) AcquireRoomTranslationBackend(roomId, engineKey),
+                                      Sub(roomId) ReleaseRoomTranslationBackend(roomId),
                                       AddressOf WriteDebugLog,
                                       Me)
                                   _conferenceController.WireEndpointHandlers()
@@ -991,6 +998,76 @@ del ""%~f0""
 #End Region
 
     Private _translationStarting As Boolean = False
+
+    Private Function GetTranslationPool() As Services.Translation.TranslationSidecarPool
+        If _translationPool IsNot Nothing Then Return _translationPool
+        Dim orch = TryCast(_serverController?.KestrelHost?.Services?.GetService(
+            GetType(Services.Interfaces.ITranslationService)), Services.Translation.TranslationOrchestrator)
+        If orch Is Nothing Then Return Nothing
+        _translationPool = New Services.Translation.TranslationSidecarPool(orch, _config)
+        Return _translationPool
+    End Function
+
+    ''' <summary>
+    ''' Resolve + ensure the translation backend for a room's engine key and return the
+    ''' orchestrator backend NAME to use as backendOverride. Cloud → its backend name;
+    ''' inline/unknown → "" (global default); offline matching the global default →
+    ''' "Local" (shared default sidecar); any other offline model → a pooled per-model
+    ''' sidecar. Reference-counted by roomId; pair with ReleaseRoomTranslationBackend.
+    ''' </summary>
+    Private Function AcquireRoomTranslationBackend(roomId As String, engineKey As String) As String
+        Dim entry = Services.Translation.TranslationBackendRegistry.Find(engineKey)
+        If entry Is Nothing OrElse Not String.IsNullOrEmpty(entry.InlineWithStt) Then Return ""
+        If String.IsNullOrEmpty(entry.ModelType) Then Return entry.BackendName   ' cloud — configured at server start
+
+        Dim compute = Services.Translation.TranslationBackendRegistry.ComputeTypeForKey(engineKey)
+        Dim modelPath = entry.DefaultModelPath
+
+        ' Matches the configured GLOBAL DEFAULT offline model? Share the "Local" sidecar.
+        Dim defKey = Services.Translation.TranslationBackendRegistry.ResolveEffectiveBackendKey(_config)
+        Dim defEntry = Services.Translation.TranslationBackendRegistry.Find(defKey)
+        If defEntry IsNot Nothing AndAlso Not String.IsNullOrEmpty(defEntry.ModelType) Then
+            Dim defModel = If(String.IsNullOrEmpty(_config.TranslationModelPath), defEntry.DefaultModelPath, _config.TranslationModelPath)
+            Dim defCompute = Services.Translation.TranslationBackendRegistry.ComputeTypeForKey(defKey)
+            If Services.Translation.TranslationSidecarPool.Signature(modelPath, compute).Equals(
+                   Services.Translation.TranslationSidecarPool.Signature(defModel, defCompute), StringComparison.OrdinalIgnoreCase) Then
+                EnsureDefaultTranslationRunning()
+                Return "Local"
+            End If
+        End If
+
+        ' Non-default offline model → its own pooled sidecar.
+        Dim resolved = AppConfig.ResolvePath(modelPath)
+        If Not IO.Directory.Exists(resolved) Then
+            AppLogger.Log(LogEvents.TRANS_ERROR, $"Room engine '{engineKey}' model folder not found ({resolved}) — using the default translation engine instead")
+            EnsureDefaultTranslationRunning()
+            Return "Local"
+        End If
+        Dim pool = GetTranslationPool()
+        If pool Is Nothing Then
+            EnsureDefaultTranslationRunning()
+            Return "Local"
+        End If
+        Return pool.Acquire(roomId, engineKey, modelPath, entry.ModelType, compute)
+    End Function
+
+    Private Sub ReleaseRoomTranslationBackend(roomId As String)
+        _translationPool?.Release(roomId)
+    End Sub
+
+    ''' <summary>Start the global-default ("Local") translation sidecar if it isn't already running.</summary>
+    Private Sub EnsureDefaultTranslationRunning()
+        If _translationService IsNot Nothing AndAlso _translationService.IsRunning Then
+            EnsureSidecarBackendRegistered()
+            Return
+        End If
+        Dim deps = Pipeline.TranslationService.CheckDependenciesInstalled()
+        If Not deps.pythonOk OrElse Not deps.depsOk OrElse Not deps.modelOk Then Return
+        Dim wasEnabled = _config.TranslationEnabled
+        _config.TranslationEnabled = True
+        StartTranslationService()
+        If Not wasEnabled Then _config.TranslationEnabled = wasEnabled
+    End Sub
 
     ''' <summary>
     ''' Ensure the NLLB sidecar is running for a specific translation engine KEY
