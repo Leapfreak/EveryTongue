@@ -676,6 +676,7 @@ function connect(){
       else if(msg.type==='virtualMemberAdded'){addVirtualMemberToRoom(msg)}
       else if(msg.type==='virtualMemberRemoved'){removeVirtualMemberFromRoom(msg.id)}
       else if(msg.type==='speaking'){handleSpeakingIndicator(msg)}
+      else if(msg.type==='roomStatus'){handleRoomStatus(msg)}
       else{LOG('WS unknown msg type: '+msg.type)}
     }catch(ex){LOG('WS msg error: '+ex+' data='+String(e.data).substring(0,100))}
   }
@@ -1716,11 +1717,70 @@ function createPttButton(){
   },false);
   btn.addEventListener('mouseleave',function(e){if(pttActive&&pttMode!=='toggle')cancelRecording(btn,label)},false);
 
+  /* If a readiness 'preparing' message already arrived before the button existed, reflect it now */
+  setPttEnabled(_sttReady);
+
   /* Insert text chat area at the bottom of the dock (below PTT) */
   initTextChat();
 }
 
+/* ── Engine-readiness indicator (transient: shown while loading, removed once ready) ── */
+var _sttReady=true;            /* mic gating — disabled while the speech engine loads */
+var _sttSafetyTimer=null;      /* fail-safe: never leave the mic permanently disabled */
+
+function rsEl(){
+  var e=document.getElementById('roomStatusInd');
+  if(!e){
+    e=document.createElement('div');
+    e.id='roomStatusInd';
+    e.style.cssText='position:fixed;top:46px;left:50%;transform:translateX(-50%);background:#2a2a44;color:#fff;padding:7px 14px;border-radius:8px;font-size:13px;line-height:1.5;z-index:200;box-shadow:0 2px 10px rgba(0,0,0,.45);text-align:center;max-width:90%;transition:opacity .3s';
+    document.body.appendChild(e);
+  }
+  return e;
+}
+function rsSetLine(scope,text){
+  var e=rsEl();
+  var line=document.getElementById('rs-'+scope);
+  if(!line){line=document.createElement('div');line.id='rs-'+scope;e.appendChild(line)}
+  line.textContent=text;
+  e.style.opacity='1';
+}
+function rsRemoveLine(scope){
+  var line=document.getElementById('rs-'+scope);
+  if(line&&line.parentNode)line.parentNode.removeChild(line);
+  var e=document.getElementById('roomStatusInd');
+  if(e&&!e.firstChild){
+    e.style.opacity='0';
+    setTimeout(function(){if(e&&!e.firstChild&&e.parentNode)e.parentNode.removeChild(e)},350);
+  }
+}
+function setPttEnabled(on){
+  var btn=document.getElementById('ptt-btn');
+  if(btn){btn.style.opacity=on?'1':'0.4';btn.style.pointerEvents=on?'auto':'none'}
+}
+function handleRoomStatus(msg){
+  var scope=msg.scope||'stt',state=msg.state||'';
+  if(scope==='stt'){
+    if(state==='preparing'){
+      _sttReady=false;setPttEnabled(false);
+      rsSetLine('stt','Preparing speech engine...');
+      if(_sttSafetyTimer)clearTimeout(_sttSafetyTimer);
+      /* If a 'ready' message is ever lost, re-enable after 90s so the mic can't be trapped */
+      _sttSafetyTimer=setTimeout(function(){_sttReady=true;setPttEnabled(true);rsRemoveLine('stt')},90000);
+    }else if(state==='ready'){
+      _sttReady=true;setPttEnabled(true);
+      if(_sttSafetyTimer){clearTimeout(_sttSafetyTimer);_sttSafetyTimer=null}
+      rsSetLine('stt','Ready');
+      setTimeout(function(){rsRemoveLine('stt')},1500);
+    }
+  }else if(scope==='translation'){
+    if(state==='preparing')rsSetLine('trans','Translation warming up...');
+    else if(state==='ready')rsRemoveLine('trans');
+  }
+}
+
 function startRecording(btn,label){
+  if(!_sttReady){if(label)label.textContent='Preparing speech engine...';return}
   if(pttActive)return;
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
     label.textContent='Microphone not available';

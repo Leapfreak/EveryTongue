@@ -20,15 +20,18 @@ Namespace Server.Hubs
         Private ReadOnly _subtitleService As ISubtitleService
         Private ReadOnly _roomManager As RoomManager
         Private ReadOnly _audioHandler As ConversationAudioHandler
+        Private ReadOnly _readiness As RoomReadinessNotifier
         Private ReadOnly _logger As ILogger(Of SubtitleHub)
 
         Public Sub New(subtitleService As ISubtitleService,
                        roomManager As RoomManager,
                        audioHandler As ConversationAudioHandler,
+                       readiness As RoomReadinessNotifier,
                        logger As ILogger(Of SubtitleHub))
             _subtitleService = subtitleService
             _roomManager = roomManager
             _audioHandler = audioHandler
+            _readiness = readiness
             _logger = logger
         End Sub
 
@@ -102,6 +105,17 @@ Namespace Server.Hubs
             ' Broadcast memberJoined to room
             If Not String.IsNullOrEmpty(client.RoomId) Then
                 BroadcastToRoom(client.RoomId, "{""type"":""memberJoined"",""clientId"":""" & clientId & """,""displayName"":""Guest"",""language"":""""}", clientId)
+
+                ' Engine-readiness: warm the room's engines on JOIN (not on first audio) so the
+                ' mic can be gated until STT is actually capturing. Conversation rooms start the
+                ' shared live-server here; conference rooms are already warmed at room creation.
+                ' Either way, re-send the current readiness state to THIS client so a late joiner
+                ' isn't left with a stuck-disabled mic.
+                Dim joinedRoom = _roomManager.GetRoom(client.RoomId)
+                If joinedRoom IsNot Nothing AndAlso joinedRoom.Type = RoomType.Conversation Then
+                    Try : _audioHandler?.BeginWarmUp(client.RoomId) : Catch : End Try
+                End If
+                _readiness?.ResendStateToClient(client.RoomId, clientId)
             End If
 
             Try
@@ -183,7 +197,7 @@ Namespace Server.Hubs
 
                         ' Process audio in background (don't block the read loop)
                         If Not String.IsNullOrEmpty(client.RoomId) AndAlso _audioHandler IsNot Nothing Then
-                            _logger.LogInformation("PTT audio received from {Endpoint} ({Bytes} bytes, room {Room})",
+                            _logger.LogDebug("PTT audio received from {Endpoint} ({Bytes} bytes, room {Room})",
                                 client.RemoteEndpoint, audioData.Length, client.RoomId)
                             Dim capturedClient = client
                             Dim capturedAudio = audioData

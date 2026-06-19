@@ -34,6 +34,13 @@ Namespace Services.Input
 
         ''' <summary>Receives the final text to insert (already translated if applicable).</summary>
         Public Property TextSink As Action(Of String)
+
+        ''' <summary>
+        ''' Raised with True when the armed engine is actually capturing (model loaded), so the
+        ''' controller can tell the user when to start talking — the engine process starts before
+        ''' the model finishes loading, and words spoken in that window are otherwise lost.
+        ''' </summary>
+        Public Property ReadinessChanged As Action(Of Boolean)
         Public ReadOnly Property IsArmed As Boolean
             Get
                 Return _armed
@@ -80,6 +87,9 @@ Namespace Services.Input
                 End If
                 _armed = True
                 _log(LogEvents.DICT_SESSION_STARTED, $"Dictation armed (engine={backendKey}, port={cfg.ServerPort})")
+                ' The process is up but the model may still be loading — poll readiness so the
+                ' controller can notify the user when capture is actually live.
+                StartReadinessPoll(_backend)
                 Return True
             Catch ex As Exception
                 _log(LogEvents.DICT_SESSION_ERROR, $"Dictation arm failed: {ex.Message}")
@@ -87,6 +97,28 @@ Namespace Services.Input
                 Return False
             End Try
         End Function
+
+        ''' <summary>Poll the engine health until it's capturing, then raise ReadinessChanged(True). Fail-open after 60s.</summary>
+        Private Sub StartReadinessPoll(backend As ISttBackend)
+            Dim cb = ReadinessChanged
+            If cb Is Nothing Then Return
+            Dim b = backend
+            Task.Run(Async Function()
+                         Dim startTick = Environment.TickCount64
+                         While Environment.TickCount64 - startTick < 60000
+                             If Not _armed OrElse Not Object.ReferenceEquals(b, _backend) Then Return
+                             Dim ok = False
+                             Try : ok = Await b.CheckHealthAsync(CancellationToken.None).ConfigureAwait(False) : Catch : ok = False : End Try
+                             If ok Then
+                                 Try : cb.Invoke(True) : Catch : End Try
+                                 Return
+                             End If
+                             Await Task.Delay(400).ConfigureAwait(False)
+                         End While
+                         ' Timed out — assume ready so the user isn't left waiting on a notification.
+                         If _armed Then Try : cb.Invoke(True) : Catch : End Try
+                     End Function)
+        End Sub
 
         Public Sub Disarm()
             _armed = False

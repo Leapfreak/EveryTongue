@@ -224,7 +224,7 @@ Public Class FormMain
                 .Level = Services.Infrastructure.LogSeverity.Info, .Source = source, .Message = msg, .Color = clr
             }),
             AddressOf GetString,
-            AddressOf WriteDebugLog,
+            Sub(m) Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogCategory.Pipeline, Services.Infrastructure.LogSeverity.Info, m),
             Sub(msg, title, icon) MessageBox.Show(Me, msg, title, MessageBoxButtons.OK, icon),
             Function() _serverController?.GetTranslationOrchestrator())
         _transcribeController.WireEvents()
@@ -262,7 +262,7 @@ Public Class FormMain
         _serverController = New Controllers.ServerController(
             _config,
             AddressOf UpdateShellStatus,
-            AddressOf WriteDebugLog,
+            Sub(m) Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogCategory.Server, Services.Infrastructure.LogSeverity.Info, m),
             Sub(msg, title, icon) MessageBox.Show(Me, msg, title, MessageBoxButtons.OK, icon))
 
         ' Dictation: system-wide voice typing. We're in Form Load, so the window handle
@@ -277,7 +277,8 @@ Public Class FormMain
             _config, Me, _dictationService, _globalHotkeys, trayMenuDictation,
             AddressOf GetString,
             Function(flores) _langCodeService.GetDisplayName(flores),
-            Sub() Models.ConfigManager.Save(_config))
+            Sub() Models.ConfigManager.Save(_config),
+            Sub(title, text) trayIcon.ShowBalloonTip(3000, title, text, ToolTipIcon.Info))
         _dictationController.WireEvents()
         _dictationController.ApplyHotkeys()
 
@@ -364,7 +365,9 @@ Public Class FormMain
                                       Function() _serverController.GetRoomManager(),
                                       Function(roomId, engineKey) AcquireRoomTranslationBackend(roomId, engineKey),
                                       Sub(roomId) ReleaseRoomTranslationBackend(roomId),
-                                      AddressOf WriteDebugLog,
+                                      TryCast(_serverController?.KestrelHost?.Services?.GetService(
+                                          GetType(Services.Rooms.RoomReadinessNotifier)), Services.Rooms.RoomReadinessNotifier),
+                                      Sub(m) Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogCategory.Conference, Services.Infrastructure.LogSeverity.Info, m),
                                       Me)
                                   _conferenceController.WireEndpointHandlers()
 
@@ -1325,10 +1328,6 @@ del ""%~f0""
     Friend Shared Function GetPipelineLogPath() As String
         Return Services.Infrastructure.AppLogger.GetLogPath()
     End Function
-
-    Friend Shared Sub WriteDebugLog(msg As String)
-        Services.Infrastructure.AppLogger.Log(LogEvents.LEGACY, msg)
-    End Sub
 
     ' Subtitle Server — delegated to ServerController
 

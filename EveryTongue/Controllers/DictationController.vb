@@ -20,6 +20,9 @@ Namespace Controllers
         Private ReadOnly _getString As Func(Of String, String)
         Private ReadOnly _nameForLang As Func(Of String, String)
         Private ReadOnly _saveConfig As Action
+        ' (title, text) → transient systray balloon. Tells the user when the engine is
+        ' preparing vs ready so the first words aren't lost to a still-loading model.
+        Private ReadOnly _showBalloon As Action(Of String, String)
 
         Private _miEnable As ToolStripMenuItem
         Private _miOutput As ToolStripMenuItem
@@ -28,7 +31,8 @@ Namespace Controllers
         Public Sub New(config As AppConfig, ownerForm As Form, service As DictationService,
                        hotkeys As GlobalHotkeys, trayRoot As ToolStripMenuItem,
                        getString As Func(Of String, String), nameForLang As Func(Of String, String),
-                       saveConfig As Action)
+                       saveConfig As Action,
+                       Optional showBalloon As Action(Of String, String) = Nothing)
             _config = config
             _ownerForm = ownerForm
             _service = service
@@ -37,12 +41,21 @@ Namespace Controllers
             _getString = getString
             _nameForLang = nameForLang
             _saveConfig = saveConfig
+            _showBalloon = showBalloon
         End Sub
 
         Public Sub WireEvents()
             AddHandler _hotkeys.HotkeyToggle, Sub() _ownerForm.BeginInvoke(Sub() ToggleDictation())
             AddHandler _hotkeys.PttDown, Sub() _service.SetPttHeld(True)
             AddHandler _hotkeys.PttUp, Sub() _service.SetPttHeld(False)
+
+            ' Notify the user (transient balloon) when the engine is actually capturing.
+            _service.ReadinessChanged = Sub(ready)
+                                            Try
+                                                If _ownerForm.IsHandleCreated Then _ownerForm.BeginInvoke(Sub() OnEngineReady(ready))
+                                            Catch
+                                            End Try
+                                        End Sub
 
             _service.TextSink = Sub(text)
                                     Try
@@ -124,9 +137,19 @@ Namespace Controllers
             Else
                 If Not _service.Arm() Then
                     AppLogger.PromptDownloadManager(_getString("Dict_EngineMissing"), _getString("Tray_Dictation"))
+                Else
+                    ' Transient "preparing" balloon — ReadinessChanged follows with "ready".
+                    _showBalloon?.Invoke(_getString("Tray_Dictation"), _getString("Dict_Preparing"))
                 End If
             End If
             RefreshChecks()
+        End Sub
+
+        ''' <summary>Engine reached capture-ready — tell the user it's safe to start talking.</summary>
+        Private Sub OnEngineReady(ready As Boolean)
+            If ready AndAlso _service.IsArmed Then
+                _showBalloon?.Invoke(_getString("Tray_Dictation"), _getString("Dict_Ready"))
+            End If
         End Sub
 
         Private Sub SetOutputLanguage(flores As String)

@@ -30,6 +30,8 @@ Namespace Controllers
         ' NAME to route by (per-model offline sidecars run concurrently). Paired with release.
         Private ReadOnly _acquireTranslationBackend As Func(Of String, String, String)
         Private ReadOnly _releaseTranslationBackend As Action(Of String)
+        ' Relays per-room engine readiness ("preparing" → "ready") to web room clients.
+        Private ReadOnly _readiness As Services.Rooms.RoomReadinessNotifier
         ' Per-room resolved translation backend name (what AcquireRoomTranslationBackend returned).
         Private ReadOnly _roomTranslationBackendName As New Concurrent.ConcurrentDictionary(Of String, String)()
         Private ReadOnly _log As Action(Of String)
@@ -67,6 +69,7 @@ Namespace Controllers
                        getRoomManager As Func(Of Services.Rooms.RoomManager),
                        acquireTranslationBackend As Func(Of String, String, String),
                        releaseTranslationBackend As Action(Of String),
+                       readiness As Services.Rooms.RoomReadinessNotifier,
                        log As Action(Of String),
                        ownerForm As Form)
             _config = config
@@ -76,6 +79,7 @@ Namespace Controllers
             _getRoomManager = getRoomManager
             _acquireTranslationBackend = acquireTranslationBackend
             _releaseTranslationBackend = releaseTranslationBackend
+            _readiness = readiness
             _log = log
             _ownerForm = ownerForm
 
@@ -259,6 +263,7 @@ Namespace Controllers
 
             If backend.IsRunning Then
                 _log($"[Conference] Backend started for room {roomId}")
+                StartReadinessWatch(roomId, backend)
             Else
                 _log($"[Conference] Backend FAILED to start for room {roomId}")
                 DropKey(_sttBackends, roomId)
@@ -462,7 +467,38 @@ Namespace Controllers
             _sttBackends(roomId) = newBackend
             _log($"[Pipeline:{roomId}] Restarting backend (port={sttConfig.ServerPort})")
             newBackend.Start(sttConfig)
+            If newBackend.IsRunning Then StartReadinessWatch(roomId, newBackend)
         End Sub
+
+        ''' <summary>
+        ''' Relay this room's engine readiness ("preparing" → "ready") to its web clients.
+        ''' STT readiness gates the (informational, no web mic) indicator; translation readiness
+        ''' is shown separately and only for OFFLINE engines that need to load (cloud/inline = instant).
+        ''' </summary>
+        Private Sub StartReadinessWatch(roomId As String, backend As ISttBackend)
+            If _readiness Is Nothing Then Return
+            Dim capturedBackend = backend
+            Dim sttProbe As Func(Of Threading.CancellationToken, Task(Of Boolean)) =
+                Function(ct) capturedBackend.CheckHealthAsync(ct)
+            _readiness.Watch(roomId, sttProbe, BuildConferenceTranslationProbe(roomId))
+        End Sub
+
+        ''' <summary>Translation-readiness probe for a conference room, or Nothing when no note is needed.</summary>
+        Private Function BuildConferenceTranslationProbe(roomId As String) As Func(Of Threading.CancellationToken, Task(Of Boolean))
+            Dim roomKey = RoomTranslationKey(roomId)
+            If TranslationBackendRegistry.IsInlineEngine(roomKey) Then Return Nothing
+            Dim entry = TranslationBackendRegistry.Find(roomKey)
+            Dim isOffline = entry IsNot Nothing AndAlso Not String.IsNullOrEmpty(entry.ModelType)
+            If Not isOffline Then Return Nothing  ' cloud — instant
+            Dim nm As String = Nothing
+            _roomTranslationBackendName.TryGetValue(roomId, nm)
+            If String.IsNullOrEmpty(nm) Then nm = TranslationBackendRegistry.BackendNameForKey(roomKey)
+            Dim orch = _getTranslationOrchestrator?.Invoke()
+            If orch Is Nothing OrElse String.IsNullOrEmpty(nm) Then Return Nothing
+            Dim capturedName = nm
+            Return Function(ct) Task.FromResult(
+                orch.GetAllBackends().Any(Function(b) b.Name.Equals(capturedName, StringComparison.OrdinalIgnoreCase) AndAlso b.IsAvailable))
+        End Function
 
         ''' <summary>
         ''' Assemble loose field overrides for STT resolution. When the conference
@@ -521,6 +557,7 @@ Namespace Controllers
             ' Lock any pending Speechmatics clause before stopping.
             _clauseCoordinator.ForceLockClause(roomId)
             _clauseCoordinator.ClearRoom(roomId)
+            _readiness?.ClearRoom(roomId)
             DropKey(_roomFilters, roomId)
             DropKey(_roomTranslationKey, roomId)
             ' Release this room's offline translation sidecar (refcounted; frees VRAM when last room leaves).

@@ -161,7 +161,7 @@ Namespace Services.Subtitle
                             Dim oldLang = info.Language
                             info.Language = If(lang, "")
                             If oldLang <> info.Language Then
-                                RaiseEvent LogMessage(Me, $"[SUBTITLE] LANG CHANGE {info.RemoteEndpoint}: '{oldLang}' -> '{info.Language}'")
+                                AppLogger.Log(LogEvents.SUB_LANG_CHANGE, $"client {info.RemoteEndpoint}: '{oldLang}' -> '{info.Language}'")
                                 RaiseEvent ActiveLanguagesChanged(Me, EventArgs.Empty)
                             End If
                         End If
@@ -182,7 +182,7 @@ Namespace Services.Subtitle
                         Dim langProp As JsonElement = Nothing
                         If Not root.TryGetProperty("language", langProp) Then Return
                         Dim lang = If(langProp.GetString(), "auto")
-                        RaiseEvent LogMessage(Me, $"[SUBTITLE] INPUT LANG CHANGE -> '{lang}'")
+                        AppLogger.Log(LogEvents.SUB_INPUT_LANG_CHANGE, $"-> '{lang}'")
                         RaiseEvent InputLanguageChanged(Me, lang)
 
                     ElseIf typeStr = "requestTts" Then
@@ -252,7 +252,7 @@ Namespace Services.Subtitle
                     If Not String.IsNullOrEmpty(kvp.Value.RoomId) Then Continue For
                     If Not String.IsNullOrEmpty(kvp.Value.Language) Then Continue For
                     If Not TrySendToClient(kvp.Value, buffer) Then
-                        RaiseEvent LogMessage(Me, $"[WS] BroadcastUpdate send failed: {kvp.Value.RemoteEndpoint}")
+                        AppLogger.Log(LogEvents.SUB_SEND_ERROR, $"BroadcastUpdate send failed: {kvp.Value.RemoteEndpoint}")
                         deadKeys.Add(kvp.Key)
                     End If
                 Catch ex As Exception
@@ -470,6 +470,38 @@ Namespace Services.Subtitle
                 End Try
             Next
             CleanupDeadClients(deadKeys)
+        End Sub
+
+        ' ── Raw room-scoped relay ──
+
+        ''' <summary>
+        ''' Send a raw JSON message to every client in a room (optionally excluding one).
+        ''' Used for low-frequency room signals (engine-readiness status) that aren't
+        ''' transcript commits. Unlike BroadcastClear/SystemMessage this is NOT gated on
+        ''' IsRunning — readiness must reach clients even before the desktop STT is "running".
+        ''' </summary>
+        Public Sub BroadcastRawToRoom(roomId As String, json As String, excludeClientId As String) Implements ISubtitleService.BroadcastRawToRoom
+            If String.IsNullOrEmpty(roomId) Then Return
+            Dim buffer = Encoding.UTF8.GetBytes(json)
+            For Each kvp In _clients
+                Try
+                    If kvp.Value.RoomId <> roomId Then Continue For
+                    If Not String.IsNullOrEmpty(excludeClientId) AndAlso kvp.Key = excludeClientId Then Continue For
+                    TrySendToClient(kvp.Value, buffer)
+                Catch
+                End Try
+            Next
+        End Sub
+
+        ''' <summary>Send a raw JSON message to a single client by ID.</summary>
+        Public Sub SendRawToClient(clientId As String, json As String) Implements ISubtitleService.SendRawToClient
+            If String.IsNullOrEmpty(clientId) Then Return
+            Dim c = GetClient(clientId)
+            If c Is Nothing Then Return
+            Try
+                TrySendToClient(c, Encoding.UTF8.GetBytes(json))
+            Catch
+            End Try
         End Sub
 
         ' ── History replay ──

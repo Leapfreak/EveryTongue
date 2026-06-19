@@ -311,6 +311,7 @@ Namespace Server
             services.AddSingleton(Of TemplateStore)()
             services.AddSingleton(Of RoomManager)()
             services.AddSingleton(Of ISubtitleService, SubtitleService)()
+            services.AddSingleton(Of RoomReadinessNotifier)()
             services.AddSingleton(Of ConversationAudioHandler)()
             services.AddTransient(Of SubtitleHub)()
             services.AddSingleton(Of IBibleService, BibleService)()
@@ -472,8 +473,44 @@ Namespace Server
                                    formatter As Func(Of TState, Exception, String)) Implements ILogger.Log
             If Not IsEnabled(logLevel) Then Return
             Dim message = formatter(state, exception)
-            If String.IsNullOrEmpty(message) Then Return
-            _callback($"[{_category}] {message}")
+            If String.IsNullOrEmpty(message) AndAlso exception Is Nothing Then Return
+            Dim text = $"[{_category}] {message}"
+            If exception IsNot Nothing Then text &= $" — {exception.GetType().Name}: {exception.Message}"
+            ' Route framework/service logs to their REAL category + severity instead of the
+            ' event-0 [Legacy] catch-all, so they're filterable and rate-limit independently.
+            AppLogger.Log(MapCategory(_category), MapLevel(logLevel), text)
         End Sub
+
+        Private Shared Function MapLevel(lvl As LogLevel) As LogSeverity
+            Select Case lvl
+                Case LogLevel.Critical, LogLevel.Error : Return LogSeverity.[Error]
+                Case LogLevel.Warning : Return LogSeverity.Warning
+                Case LogLevel.Debug, LogLevel.Trace : Return LogSeverity.Debug
+                Case Else : Return LogSeverity.Info
+            End Select
+        End Function
+
+        ''' <summary>Map a logger/class name to the closest structured category (else Server).</summary>
+        Private Shared Function MapCategory(name As String) As LogCategory
+            Dim n = If(name, "")
+            If n.IndexOf("Subtitle", StringComparison.OrdinalIgnoreCase) >= 0 Then Return LogCategory.Subtitle
+            If n.IndexOf("Conference", StringComparison.OrdinalIgnoreCase) >= 0 Then Return LogCategory.Conference
+            If n.IndexOf("Conversation", StringComparison.OrdinalIgnoreCase) >= 0 OrElse
+               n.IndexOf("Room", StringComparison.OrdinalIgnoreCase) >= 0 Then Return LogCategory.Rooms
+            If n.IndexOf("Translat", StringComparison.OrdinalIgnoreCase) >= 0 OrElse
+               n.IndexOf("Nllb", StringComparison.OrdinalIgnoreCase) >= 0 Then Return LogCategory.Translation
+            If n.IndexOf("Tts", StringComparison.OrdinalIgnoreCase) >= 0 OrElse
+               n.IndexOf("Piper", StringComparison.OrdinalIgnoreCase) >= 0 OrElse
+               n.IndexOf("Mms", StringComparison.OrdinalIgnoreCase) >= 0 Then Return LogCategory.Tts
+            If n.IndexOf("Stt", StringComparison.OrdinalIgnoreCase) >= 0 OrElse
+               n.IndexOf("Whisper", StringComparison.OrdinalIgnoreCase) >= 0 OrElse
+               n.IndexOf("Speechmatics", StringComparison.OrdinalIgnoreCase) >= 0 OrElse
+               n.IndexOf("LiveStream", StringComparison.OrdinalIgnoreCase) >= 0 Then Return LogCategory.Stt
+            If n.IndexOf("Bible", StringComparison.OrdinalIgnoreCase) >= 0 Then Return LogCategory.Bible
+            If n.IndexOf("Pipeline", StringComparison.OrdinalIgnoreCase) >= 0 OrElse
+               n.IndexOf("Sidecar", StringComparison.OrdinalIgnoreCase) >= 0 Then Return LogCategory.Pipeline
+            ' ASP.NET / Kestrel / hosting / generic server classes
+            Return LogCategory.Server
+        End Function
     End Class
 End Namespace

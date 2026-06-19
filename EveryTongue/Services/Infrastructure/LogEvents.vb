@@ -109,6 +109,7 @@ Namespace Services.Infrastructure
         Public Const ROOM_PAUSED As Integer = 5105
         Public Const ROOM_EXPIRED As Integer = 5106
         Public Const ROOM_TRANSLATION_ROUTING As Integer = 5107
+        Public Const ROOM_READINESS As Integer = 5108
 
         ' ── Subtitle (5200–5299) ──
         Public Const SUB_BROADCAST As Integer = 5200
@@ -116,6 +117,8 @@ Namespace Services.Infrastructure
         Public Const SUB_CLIENT_DISCONNECTED As Integer = 5202
         Public Const SUB_TTS_FIRED As Integer = 5203
         Public Const SUB_SEND_ERROR As Integer = 5204
+        Public Const SUB_LANG_CHANGE As Integer = 5205
+        Public Const SUB_INPUT_LANG_CHANGE As Integer = 5206
 
         ' ── Bible (6000–6099) ──
         Public Const BIBLE_LOOKUP As Integer = 6000
@@ -294,6 +297,7 @@ Namespace Services.Infrastructure
             R(ROOM_PAUSED, LogCategory.Rooms, LogSeverity.Info, "Room paused/resumed")
             R(ROOM_EXPIRED, LogCategory.Rooms, LogSeverity.Info, "Room expired due to inactivity")
             R(ROOM_TRANSLATION_ROUTING, LogCategory.Rooms, LogSeverity.Info, "Conversation-room translation routing (recipients, languages, targets)")
+            R(ROOM_READINESS, LogCategory.Rooms, LogSeverity.Info, "Room engine readiness (STT/translation preparing → ready) relayed to clients")
 
             ' Subtitle
             R(SUB_BROADCAST, LogCategory.Subtitle, LogSeverity.Debug, "Subtitle broadcast to clients")
@@ -301,6 +305,8 @@ Namespace Services.Infrastructure
             R(SUB_CLIENT_DISCONNECTED, LogCategory.Subtitle, LogSeverity.Info, "WebSocket client disconnected")
             R(SUB_TTS_FIRED, LogCategory.Subtitle, LogSeverity.Debug, "Server-side TTS triggered for commit")
             R(SUB_SEND_ERROR, LogCategory.Subtitle, LogSeverity.Warning, "WebSocket send failed")
+            R(SUB_LANG_CHANGE, LogCategory.Subtitle, LogSeverity.Debug, "Client display-language changed")
+            R(SUB_INPUT_LANG_CHANGE, LogCategory.Subtitle, LogSeverity.Info, "Desktop input language changed")
 
             ' Bible
             R(BIBLE_LOOKUP, LogCategory.Bible, LogSeverity.Debug, "Bible verse lookup")

@@ -121,7 +121,13 @@ Namespace Controllers
                     svc.FgColor = _config.SubtitleFgColor
 
                     AddHandler svc.StatusChanged, Sub(s, msg)
-                                                      _log($"[Server] {msg}")
+                                                      ' Route client lifecycle to structured Subtitle events (not the
+                                                      ' event-0 [Legacy] catch-all) so the rate-limiter counts them
+                                                      ' independently instead of lumping them with all other [Server] noise.
+                                                      Dim evt = If(msg.StartsWith("Client disconnected", StringComparison.OrdinalIgnoreCase),
+                                                          Services.Infrastructure.LogEvents.SUB_CLIENT_DISCONNECTED,
+                                                          Services.Infrastructure.LogEvents.SUB_CLIENT_CONNECTED)
+                                                      Services.Infrastructure.AppLogger.Log(evt, msg)
                                                       _updateShellStatus()
                                                   End Sub
 

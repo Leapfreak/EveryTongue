@@ -26,6 +26,7 @@ Namespace Services.Rooms
         Private ReadOnly _roomManager As RoomManager
         Private ReadOnly _subtitleService As SubtitleService
         Private ReadOnly _translationService As ITranslationService
+        Private ReadOnly _readiness As RoomReadinessNotifier
         Private ReadOnly _logger As ILogger(Of ConversationAudioHandler)
         Private _nextCommitId As Integer = 0
 
@@ -91,12 +92,69 @@ Namespace Services.Rooms
         Public Sub New(roomManager As RoomManager,
                        subtitleService As ISubtitleService,
                        translationService As ITranslationService,
+                       readiness As RoomReadinessNotifier,
                        logger As ILogger(Of ConversationAudioHandler))
             _roomManager = roomManager
             _subtitleService = TryCast(subtitleService, SubtitleService)
             _translationService = translationService
+            _readiness = readiness
             _logger = logger
         End Sub
+
+        ''' <summary>
+        ''' Warm the (shared) live-server + the room's translation engine on JOIN so the web
+        ''' client can gate the mic until STT is actually capturing — instead of warming lazily
+        ''' on the first audio frame (which would never fire while the mic is disabled). Idempotent:
+        ''' the live-server is shared across conversation rooms and translation acquire is refcounted.
+        ''' </summary>
+        Public Sub BeginWarmUp(roomId As String)
+            Dim room = _roomManager.GetRoom(roomId)
+            If room Is Nothing Then Return
+
+            ' Kick the STT load once (no-op if already ensured / in flight).
+            If Not _serverEnsured Then
+                Task.Run(Function() EnsureLiveServerAsync(CancellationToken.None))
+            End If
+
+            If _readiness Is Nothing Then Return
+            Dim sttProbe As Func(Of CancellationToken, Task(Of Boolean)) =
+                Function(ct) Task.FromResult(_serverEnsured)
+            Dim transProbe = BuildTranslationProbe(room)
+            _readiness.Watch(roomId, sttProbe, transProbe, sttAlreadyReady:=_serverEnsured)
+        End Sub
+
+        ''' <summary>
+        ''' Build a translation-readiness probe for a conversation room, or Nothing when no
+        ''' "warming up" note is needed (cloud/inline engine = instant, or no translation service).
+        ''' For an explicit room engine, the per-model sidecar is ensured here (refcounted) and the
+        ''' probe polls that backend; for the default path, the global active backend is warmed and
+        ''' polled only when it's offline.
+        ''' </summary>
+        Private Function BuildTranslationProbe(room As Room) As Func(Of CancellationToken, Task(Of Boolean))
+            If _translationService Is Nothing Then Return Nothing
+
+            Dim nm As String = Nothing
+            If AcquireTranslationBackend IsNot Nothing AndAlso Not String.IsNullOrEmpty(room.TranslationBackendKey) Then
+                Try : nm = AcquireTranslationBackend(room.Id, room.TranslationBackendKey) : Catch : End Try
+            End If
+
+            If String.IsNullOrEmpty(nm) Then
+                ' Default path — warm the global active backend; note only when it's offline.
+                Try : EnsureTranslationAvailable?.Invoke() : Catch : End Try
+                Dim active = _translationService.GetAllBackends().FirstOrDefault(Function(b) b.IsActive)
+                If active Is Nothing OrElse active.RequiresInternet Then Return Nothing
+                Return Function(ct) Task.FromResult(
+                    _translationService.GetAllBackends().Any(Function(b) b.IsActive AndAlso b.IsAvailable))
+            End If
+
+            Dim capturedName = nm
+            Dim binfo = _translationService.GetAllBackends().FirstOrDefault(
+                Function(b) b.Name.Equals(capturedName, StringComparison.OrdinalIgnoreCase))
+            If binfo IsNot Nothing AndAlso binfo.RequiresInternet Then Return Nothing  ' cloud — instant
+            Return Function(ct) Task.FromResult(
+                _translationService.GetAllBackends().Any(
+                    Function(b) b.Name.Equals(capturedName, StringComparison.OrdinalIgnoreCase) AndAlso b.IsAvailable))
+        End Function
 
         ''' <summary>
         ''' Process audio from a conversation room client.
@@ -106,7 +164,7 @@ Namespace Services.Rooms
         Public Async Function ProcessAudioAsync(client As ClientConnection,
                                                  audioData As Byte(),
                                                  ct As CancellationToken) As Task
-            _logger.LogInformation("ProcessAudioAsync: {Bytes} bytes from {Endpoint} room={Room}",
+            _logger.LogDebug("ProcessAudioAsync: {Bytes} bytes from {Endpoint} room={Room}",
                 audioData.Length, client.RemoteEndpoint, client.RoomId)
 
             If _subtitleService Is Nothing Then
@@ -139,14 +197,14 @@ Namespace Services.Rooms
             End If
 
             ' Convert WebM/Opus audio to WAV (16kHz mono PCM) using FFmpeg
-            _logger.LogInformation("Converting audio with FFmpeg (path={Path})", FfmpegPath)
+            _logger.LogDebug("Converting audio with FFmpeg (path={Path})", FfmpegPath)
             Dim wavData = Await ConvertToWavAsync(audioData, ct).ConfigureAwait(False)
             If wavData Is Nothing OrElse wavData.Length < 1000 Then
                 _logger.LogWarning("Audio conversion produced no usable data (input={InBytes} bytes, output={OutBytes} bytes)",
                     audioData.Length, If(wavData?.Length, 0))
                 Return
             End If
-            _logger.LogInformation("FFmpeg conversion OK: {InBytes} -> {OutBytes} bytes", audioData.Length, wavData.Length)
+            _logger.LogDebug("FFmpeg conversion OK: {InBytes} -> {OutBytes} bytes", audioData.Length, wavData.Length)
 
             ' Send WAV to live-server /transcribe endpoint
             Dim transcribeUrl = $"http://127.0.0.1:{LiveServerPort}/transcribe?beam_size={BeamSize}&best_of={BestOf}"
@@ -180,7 +238,7 @@ Namespace Services.Rooms
                 TranslationService.FloresToShortCode(clientLangFlores).ToLowerInvariant(), "")
             If Not String.IsNullOrEmpty(whisperLang) Then
                 transcribeUrl &= $"&lang={Uri.EscapeDataString(whisperLang)}"
-                _logger.LogInformation("Transcribe with forced language: {Lang} (from client {Flores})", whisperLang, clientLangFlores)
+                _logger.LogDebug("Transcribe with forced language: {Lang} (from client {Flores})", whisperLang, clientLangFlores)
             End If
 
             Try
@@ -212,7 +270,7 @@ Namespace Services.Rooms
                         detectedLang = If(langProp.GetString(), "")
                     End If
 
-                    _logger.LogInformation("Room {RoomId} [{Lang}] {Speaker}: {Text}",
+                    _logger.LogDebug("Room {RoomId} [{Lang}] {Speaker}: {Text}",
                         client.RoomId, detectedLang, speakerName, text)
 
                     ' Broadcast to room members
@@ -477,13 +535,13 @@ Namespace Services.Rooms
                 targetLangs.Add(speaker.Language)
             End If
 
-            _logger.LogInformation("BroadcastToRoom: {Count} recipients (incl. speaker), speaker={Speaker}, targetLangs=[{Langs}]",
+            _logger.LogDebug("BroadcastToRoom: {Count} recipients (incl. speaker), speaker={Speaker}, targetLangs=[{Langs}]",
                 roomClients.Count, speaker.RemoteEndpoint, String.Join(",", targetLangs))
 
             ' Convert detected whisper lang (e.g. "en") to FLORES code for source
             Dim sourceFlores = TranslationService.WhisperToFloresLang(sourceLang)
             Dim sourceShort = TranslationService.FloresToShortCode(sourceFlores)
-            _logger.LogInformation("BroadcastToRoom: sourceFlores={Source} sourceShort={Short}", sourceFlores, sourceShort)
+            _logger.LogDebug("BroadcastToRoom: sourceFlores={Source} sourceShort={Short}", sourceFlores, sourceShort)
 
             ' Remove source language from targets (no self-translation)
             targetLangs.Remove(sourceFlores)
@@ -576,10 +634,10 @@ Namespace Services.Rooms
             End If
 
             If translations IsNot Nothing Then
-                _logger.LogInformation("BroadcastToRoom: translations available for [{Langs}]",
+                _logger.LogDebug("BroadcastToRoom: translations available for [{Langs}]",
                     String.Join(",", translations.Keys))
             Else
-                _logger.LogInformation("BroadcastToRoom: no translations (sending original text)")
+                _logger.LogDebug("BroadcastToRoom: no translations (sending original text)")
             End If
 
             ' Determine if the room has virtual members (shared-device scenario)
@@ -615,7 +673,7 @@ Namespace Services.Rooms
                     transJson.Append("}")
                     Dim json = $"{{""type"":""commit"",""id"":{commitId},""speaker"":{SubtitleService.EscapeJson(speakerName)},""lang"":{SubtitleService.EscapeJson(sourceShort)},""time"":{SubtitleService.EscapeJson(ts)},""sourceLang"":{SubtitleService.EscapeJson(sourceFlores)},""translations"":{transJson.ToString()}}}"
                     Dim buffer = Encoding.UTF8.GetBytes(json)
-                    _logger.LogInformation("BroadcastToRoom: sending id={Id} to shared-device {Endpoint} with {Count} translations",
+                    _logger.LogDebug("BroadcastToRoom: sending id={Id} to shared-device {Endpoint} with {Count} translations",
                         commitId, client.RemoteEndpoint, allTranslations.Count)
                     TrySendToClient(client, buffer)
                 Else
@@ -644,7 +702,7 @@ Namespace Services.Rooms
                     Dim commitId = Interlocked.Increment(_nextCommitId)
                     Dim json = $"{{""type"":""commit"",""id"":{commitId},""text"":{SubtitleService.EscapeJson(clientText)},""lang"":{SubtitleService.EscapeJson(textLang)},""time"":{SubtitleService.EscapeJson(ts)},""speaker"":{SubtitleService.EscapeJson(speakerName)},""sourceLang"":{SubtitleService.EscapeJson(sourceFlores)}}}"
                     Dim buffer = Encoding.UTF8.GetBytes(json)
-                    _logger.LogInformation("BroadcastToRoom: sending id={Id} to {Endpoint} lang={Lang} text={Text}",
+                    _logger.LogDebug("BroadcastToRoom: sending id={Id} to {Endpoint} lang={Lang} text={Text}",
                         commitId, client.RemoteEndpoint, textLang, If(clientText.Length > 80, clientText.Substring(0, 80) & "...", clientText))
                     TrySendToClient(client, buffer)
                 End If
@@ -684,7 +742,7 @@ Namespace Services.Rooms
                                      Net.WebSockets.WebSocketMessageType.Text, True,
                                      CancellationToken.None).ConfigureAwait(False)
                                  Interlocked.Increment(client.MessagesSent)
-                                 _logger.LogInformation("TrySendToClient: sent {Bytes} bytes to {Endpoint} OK", data.Length, client.RemoteEndpoint)
+                                 _logger.LogDebug("TrySendToClient: sent {Bytes} bytes to {Endpoint} OK", data.Length, client.RemoteEndpoint)
                              Else
                                  _logger.LogWarning("TrySendToClient: WebSocket closed before send for {Endpoint}", client.RemoteEndpoint)
                              End If

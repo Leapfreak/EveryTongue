@@ -153,7 +153,7 @@ Partial Class FormMain
             AddressOf LangDisplayName,
             AddressOf LangCodeFromDisplay,
             AddressOf GetString,
-            AddressOf WriteDebugLog,
+            Sub(m) Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogCategory.Bible, Services.Infrastructure.LogSeverity.Info, m),
             _config)
         _bibleController.WireEvents()
         _bibleController.WireContextMenu(ctxBibleCopySelection, ctxBibleCopyVerse, ctxBibleCopyChapter)

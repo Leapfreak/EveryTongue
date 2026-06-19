@@ -589,6 +589,8 @@
   "Dict_ModeContinuous": "Continuous",
   "Dict_ModePushToTalk": "Push-to-talk (hold key)",
   "Dict_EngineMissing": "The speech engine isn't ready. Open the Download Manager to install it?",
+  "Dict_Preparing": "Preparing speech engine… please wait",
+  "Dict_Ready": "Ready — you can start talking",
   "Opt_DictSection": "Dictation (voice typing)",
   "Opt_DictEnabled": "Enable system-wide dictation",
   "Opt_DictToggleHotkey": "Toggle hotkey",

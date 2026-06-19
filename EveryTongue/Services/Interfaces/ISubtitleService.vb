@@ -56,6 +56,12 @@ Namespace Services.Interfaces
         Sub BroadcastClear()
         Sub BroadcastSystemMessage(text As String)
 
+        ' ── Raw room-scoped relay (engine-readiness status, etc.) ──
+        ''' <summary>Send a raw JSON message to every client in a room (optionally excluding one).</summary>
+        Sub BroadcastRawToRoom(roomId As String, json As String, excludeClientId As String)
+        ''' <summary>Send a raw JSON message to a single client by ID.</summary>
+        Sub SendRawToClient(clientId As String, json As String)
+
         ' ── History replay ──
 
         Function ReplayHistoryAsync(client As ClientConnection,

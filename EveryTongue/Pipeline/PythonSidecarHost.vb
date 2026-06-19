@@ -152,7 +152,7 @@ Namespace Pipeline
                                                     SyncLock _lock
                                                         Dim exitCode = -1
                                                         Try : exitCode = If(_process?.ExitCode, -1) : Catch : End Try
-                                                        AppLogger.Log(LogEvents.LEGACY, $"{Label} process exited with code {exitCode}")
+                                                        AppLogger.Log(LogCategory.Pipeline, LogSeverity.Info, $"{Label} process exited with code {exitCode}")
                                                         _isRunning = False
                                                         If MaxRestarts > 0 AndAlso _cts IsNot Nothing AndAlso Not _cts.IsCancellationRequested Then
                                                             _restartCount += 1

@@ -59,6 +59,12 @@ Namespace Services.Infrastructure
             Public Count As Integer
             Public WindowStart As Long  ' Stopwatch ticks
             Public LastMessage As String
+            ' Display context captured per call so the suppression summary can format
+            ' without a registry lookup (bridged logs have no registered event ID).
+            Public Category As LogCategory
+            Public Level As LogSeverity
+            Public DisplayId As Integer
+            Public HasId As Boolean
         End Class
 
         ''' <summary>
@@ -133,8 +139,28 @@ Namespace Services.Infrastructure
                 Return
             End If
 
-            Dim category = info.Category
-            Dim level = info.DefaultLevel
+            LogCore(eventId, eventId, True, info.Category, info.DefaultLevel, message)
+        End Sub
+
+        ''' <summary>
+        ''' Log with an explicit category + severity but no registered event ID. Used by the
+        ''' ILogger→AppLogger bridge so framework/service logs route to their REAL category
+        ''' (filterable, correct severity) and rate-limit per-category, instead of all
+        ''' collapsing onto the event-0 [Legacy] catch-all.
+        ''' </summary>
+        Public Sub Log(category As LogCategory, level As LogSeverity, message As String)
+            LogCore(BridgeRateKey(category), 0, False, category, level, message)
+        End Sub
+
+        ' Bridge rate-limit keys sit above the event-ID space so they never collide with
+        ' registered events; one counter per category (a noisy area collapses on its own).
+        Private Function BridgeRateKey(category As LogCategory) As Integer
+            Return 1000000 + CInt(category)
+        End Function
+
+        ''' <summary>Shared write path for structured (hasId=True) and bridged (hasId=False) logs.</summary>
+        Private Sub LogCore(rateKey As Integer, displayId As Integer, hasId As Boolean,
+                            category As LogCategory, level As LogSeverity, message As String)
             Dim routing = AppLogger.Routing
 
             ' Track session statistics
@@ -143,12 +169,12 @@ Namespace Services.Infrastructure
             If level >= LogSeverity.[Error] Then Threading.Interlocked.Increment(_errorCount)
 
             ' Rate limiting: collapse repeated events
-            Dim suppressed = CheckRateLimit(eventId, message)
-            If suppressed Then Return
+            If CheckRateLimit(rateKey, displayId, hasId, category, level, message) Then Return
 
             Dim levelTag = level.ToString().ToUpperInvariant()
             Dim catTag = category.ToString()
-            Dim formatted = $"[{eventId}] [{catTag}:{levelTag}] {message}"
+            Dim idTag = If(hasId, $"[{displayId}] ", "")
+            Dim formatted = $"{idTag}[{catTag}:{levelTag}] {message}"
 
             ' Write to file if routing allows
             If routing.ShouldLogToFile(category, level) Then
@@ -185,7 +211,7 @@ Namespace Services.Infrastructure
                         Dim color = GetColorForLevel(level, category)
                         cb(New LogEntry With {
                             .Time = DateTime.Now,
-                            .EventId = eventId,
+                            .EventId = displayId,
                             .Category = category,
                             .Level = level,
                             .Source = catTag,
@@ -202,20 +228,27 @@ Namespace Services.Infrastructure
         ''' Check rate limit for an event. Returns True if the event should be suppressed.
         ''' When the rate window expires, emits a summary line "(×N in last 10s)".
         ''' </summary>
-        Private Function CheckRateLimit(eventId As Integer, message As String) As Boolean
+        Private Function CheckRateLimit(rateKey As Integer, displayId As Integer, hasId As Boolean,
+                                        category As LogCategory, level As LogSeverity, message As String) As Boolean
             Dim now = Environment.TickCount64
-            Dim state = _rateCounts.GetOrAdd(eventId, Function(id) New RateState With {
+            Dim state = _rateCounts.GetOrAdd(rateKey, Function(id) New RateState With {
                 .Count = 0,
                 .WindowStart = now,
                 .LastMessage = ""
             })
 
             SyncLock state
+                ' Capture display context so the summary can format without a registry lookup.
+                state.Category = category
+                state.Level = level
+                state.DisplayId = displayId
+                state.HasId = hasId
+
                 ' Window expired — flush and reset
                 If now - state.WindowStart > RATE_WINDOW_MS Then
                     If state.Count > RATE_THRESHOLD Then
                         ' Emit the suppression summary
-                        EmitRateSummary(eventId, state)
+                        EmitRateSummary(state)
                     End If
                     state.Count = 1
                     state.WindowStart = now
@@ -236,13 +269,12 @@ Namespace Services.Infrastructure
             End SyncLock
         End Function
 
-        Private Sub EmitRateSummary(eventId As Integer, state As RateState)
-            Dim info = LogEventRegistry.Lookup(eventId)
-            If info Is Nothing Then Return
+        Private Sub EmitRateSummary(state As RateState)
             Dim suppressed = state.Count - RATE_THRESHOLD
             Dim msg = $"{state.LastMessage} ({ChrW(&H00D7)}{state.Count} in last {RATE_WINDOW_MS / 1000}s, {suppressed} suppressed)"
-            Dim catTag = info.Category.ToString()
-            Dim formatted = $"[{eventId}] [{catTag}:INFO] {msg}"
+            Dim catTag = state.Category.ToString()
+            Dim idTag = If(state.HasId, $"[{state.DisplayId}] ", "")
+            Dim formatted = $"{idTag}[{catTag}:INFO] {msg}"
 
             Try
                 SyncLock _fileLock
@@ -257,8 +289,8 @@ Namespace Services.Infrastructure
                 If cb IsNot Nothing Then
                     cb(New LogEntry With {
                         .Time = DateTime.Now,
-                        .EventId = eventId,
-                        .Category = info.Category,
+                        .EventId = state.DisplayId,
+                        .Category = state.Category,
                         .Level = LogSeverity.Info,
                         .Source = catTag,
                         .Message = formatted,
