@@ -762,7 +762,8 @@ Namespace Controllers
                 End Try
                 If translations.Count > 0 Then
                     AppLogger.Log(LogEvents.TRANS_RESULT,
-                        $"room={roomId} engine={engineLabel} backend={actualBackend} {sourceLang}→[{String.Join(",", translations.Keys)}] ok={translations.Count}/{targets.Count} {sw.ElapsedMilliseconds}ms")
+                        $"room={roomId} engine={engineLabel} backend={actualBackend} {sourceLang}→[{String.Join(",", translations.Keys)}] ok={translations.Count}/{targets.Count} {sw.ElapsedMilliseconds}ms" &
+                        FormatTransBlock(sourceLang, text, translations))
                     Return translations
                 End If
             End If
@@ -779,7 +780,8 @@ Namespace Controllers
                         For Each kvp In result : translations(kvp.Key) = kvp.Value : Next
                     End If
                     AppLogger.Log(LogEvents.TRANS_RESULT,
-                        $"room={roomId} backend=nllb-direct {sourceLang}→[{String.Join(",", translations.Keys)}] ok={translations.Count}/{targets.Count} {sw.ElapsedMilliseconds}ms")
+                        $"room={roomId} backend=nllb-direct {sourceLang}→[{String.Join(",", translations.Keys)}] ok={translations.Count}/{targets.Count} {sw.ElapsedMilliseconds}ms" &
+                        FormatTransBlock(sourceLang, text, translations))
                 Catch ex As Exception
                     AppLogger.Log(LogEvents.TRANS_ERROR,
                         $"room={roomId} backend=nllb-direct {sourceLang}→[{String.Join(",", targets)}] failed: {ex.Message}")
@@ -1231,6 +1233,28 @@ Namespace Controllers
         Private Shared Function Truncate(s As String, n As Integer) As String
             If String.IsNullOrEmpty(s) Then Return ""
             Return If(s.Length > n, s.Substring(0, n) & "…", s)
+        End Function
+
+        ''' <summary>
+        ''' Full (untruncated) source + per-language output as an indented multi-line block,
+        ''' appended to the TRANS_RESULT metadata line. One line per language keeps it readable
+        ''' whether a room serves 1 or 20 targets (a single physical line would be an unreadable
+        ''' wall at 5+ languages). Emitted as ONE log event so the rate limiter counts it once.
+        ''' </summary>
+        Public Shared Function FormatTransBlock(sourceLang As String, sourceText As String,
+                                                translations As Dictionary(Of String, String)) As String
+            Dim sb As New Text.StringBuilder()
+            sb.Append(Environment.NewLine).Append($"    {Pad(sourceLang)} (src): ""{sourceText}""")
+            If translations IsNot Nothing Then
+                For Each kvp In translations
+                    sb.Append(Environment.NewLine).Append($"    {Pad(kvp.Key)}      : ""{kvp.Value}""")
+                Next
+            End If
+            Return sb.ToString()
+        End Function
+
+        Private Shared Function Pad(code As String) As String
+            Return If(code, "").PadRight(8)
         End Function
 
         ''' <summary>

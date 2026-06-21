@@ -257,7 +257,7 @@ Namespace Services.Infrastructure
             R(TRANS_MODEL_LOADING, LogCategory.Translation, LogSeverity.Info, "Translation model loading")
             R(TRANS_MODEL_LOADED, LogCategory.Translation, LogSeverity.Info, "Translation model loaded")
             R(TRANS_REQUEST, LogCategory.Translation, LogSeverity.Debug, "Translation request sent")
-            R(TRANS_RESULT, LogCategory.Translation, LogSeverity.Info, "Translation result (backend, source→targets, timing)")
+            R(TRANS_RESULT, LogCategory.Translation, LogSeverity.Info, "Translation result (backend, source→targets, timing, full source + output text)")
             R(TRANS_ERROR, LogCategory.Translation, LogSeverity.[Error], "Translation failed")
             R(TRANS_CUDA_FALLBACK, LogCategory.Translation, LogSeverity.Warning, "CUDA error, falling back to CPU")
             R(TRANS_CLOUD_REQUEST, LogCategory.Translation, LogSeverity.Debug, "Cloud translation API request")

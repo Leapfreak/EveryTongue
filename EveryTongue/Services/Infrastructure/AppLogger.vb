@@ -158,6 +158,15 @@ Namespace Services.Infrastructure
             Return 1000000 + CInt(category)
         End Function
 
+        ' Events never collapsed by the rate limiter — they ARE the product/transcript, and
+        ' each line is unique text we must not lose (translation output is bounded by speech
+        ' rate, so it can't truly runaway).
+        Private ReadOnly _rateExempt As New HashSet(Of Integer) From {LogEvents.TRANS_RESULT}
+
+        Private Function IsRateExempt(rateKey As Integer) As Boolean
+            Return _rateExempt.Contains(rateKey)
+        End Function
+
         ''' <summary>Shared write path for structured (hasId=True) and bridged (hasId=False) logs.</summary>
         Private Sub LogCore(rateKey As Integer, displayId As Integer, hasId As Boolean,
                             category As LogCategory, level As LogSeverity, message As String)
@@ -168,8 +177,10 @@ Namespace Services.Infrastructure
             _categoryCounts.AddOrUpdate(category, 1, Function(k, v) v + 1)
             If level >= LogSeverity.[Error] Then Threading.Interlocked.Increment(_errorCount)
 
-            ' Rate limiting: collapse repeated events
-            If CheckRateLimit(rateKey, displayId, hasId, category, level, message) Then Return
+            ' Rate limiting: collapse repeated events. Exempt events are the actual product /
+            ' transcript (e.g. translation output) — collapsing them would silently DROP unique
+            ' text we logged on purpose, so they always pass through.
+            If Not IsRateExempt(rateKey) AndAlso CheckRateLimit(rateKey, displayId, hasId, category, level, message) Then Return
 
             Dim levelTag = level.ToString().ToUpperInvariant()
             Dim catTag = category.ToString()

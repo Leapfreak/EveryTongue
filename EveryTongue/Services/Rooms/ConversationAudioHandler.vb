@@ -633,9 +633,15 @@ Namespace Services.Rooms
                 End Try
             End If
 
-            If translations IsNot Nothing Then
+            If translations IsNot Nothing AndAlso translations.Count > 0 Then
                 _logger.LogDebug("BroadcastToRoom: translations available for [{Langs}]",
                     String.Join(",", translations.Keys))
+                ' Full (untruncated) source + per-language output (one line each) so translation
+                ' quality is auditable; same readable block format as conference rooms.
+                Dim backendLbl = If(String.IsNullOrEmpty(roomBackend), If(_translationService?.ActiveBackend, "?"), roomBackend)
+                AppLogger.Log(LogEvents.TRANS_RESULT,
+                    $"room={room.Id} backend={backendLbl} {sourceFlores}→[{String.Join(",", translations.Keys)}] ok={translations.Count}" &
+                    ConferenceController.FormatTransBlock(sourceFlores, text, translations))
             Else
                 _logger.LogDebug("BroadcastToRoom: no translations (sending original text)")
             End If
