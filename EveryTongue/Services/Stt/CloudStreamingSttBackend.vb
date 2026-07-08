@@ -114,6 +114,11 @@ Namespace Services.Stt
             Return _runner.UpdateConfigAsync(params)
         End Function
 
+        ''' <summary>Split a held clause into sentences via live-server's SaT segmenter (blocking; used by the clause accumulator flush).</summary>
+        Public Function Segment(text As String, thresholdPercent As Integer, model As String) As List(Of String)
+            Return _runner.Segment(text, thresholdPercent, model)
+        End Function
+
         ''' <summary>The engine key this backend was created for (e.g. "speechmatics").</summary>
         Public ReadOnly Property BackendKey As String
             Get

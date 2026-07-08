@@ -254,11 +254,9 @@
   "web.voice": "Voice",
   "web.wakeDesc": "A secure connection is needed (one-time setup):",
   "web.wakeTitle": "Keep Screen On",
-
   "Opt_Title": "Options",
   "Opt_OK": "OK",
   "Opt_Cancel": "Cancel",
-
   "Opt_NavGeneral": "General",
   "Opt_NavPaths": "Tool Paths",
   "Opt_NavServer": "Server & Subtitles",
@@ -266,7 +264,6 @@
   "Opt_NavTts": "Text-to-Speech",
   "Opt_NavHardware": "Hardware",
   "Opt_NavAdvanced": "Advanced",
-
   "Opt_AppearanceHeader": "Appearance",
   "Opt_UiLanguage": "UI Language:",
   "Opt_Theme": "Theme:",
@@ -276,7 +273,6 @@
   "Opt_StartMinimized": "Start minimized to tray",
   "Opt_MinimizeToTray": "Minimize to tray on close",
   "Opt_ResetFirstRun": "Re-run first-time setup on next start",
-
   "Opt_ToolPathsHeader": "Tool Paths",
   "Opt_WhisperPath": "Whisper CLI (job):",
   "Opt_YtdlpPath": "yt-dlp:",
@@ -297,7 +293,6 @@
   "Opt_LogsPath": "Logs directory:",
   "Opt_PathsAdvancedHeader": "Advanced",
   "Opt_YtdlpFormat": "yt-dlp format:",
-
   "Opt_NetworkHeader": "Network",
   "Opt_SubtitlePort": "Subtitle server port:",
   "Opt_LivePort": "Live server port:",
@@ -310,18 +305,14 @@
   "Opt_Font": "Font:",
   "Opt_FontSize": "Size:",
   "Opt_Bold": "Bold",
-
   "Opt_TranslationHeader": "Translation",
   "Opt_TransEnabled": "Translation enabled",
   "Opt_ClauseHeader": "Speechmatics clause buffering",
   "Opt_HoldClauses": "Hold & merge fragments into whole clauses before translating",
-  "Opt_ClauseLockOnPunct": "Lock immediately on sentence-final punctuation",
   "Opt_ClauseGraceMs": "Grace (ms)",
   "Opt_ClauseMaxMs": "Max (ms)",
   "Opt_ClauseMaxChars": "Max (chars)",
-  "Opt_ClauseMinLockChars": "Min lock (ch)",
   "Opt_ClauseTimerMs": "Poll (ms)",
-  "Opt_ClauseSentenceEnders": "Sentence enders",
   "Opt_TransBackend": "Engine:",
   "Opt_TransApiKey": "API Key:",
   "Opt_TransEndpoint": "Endpoint / Region:",
@@ -330,7 +321,6 @@
   "Opt_TransUsageBudget": " / budget {0:N0}",
   "Opt_TransUsageLatency": " (avg {0:N0} ms)",
   "Opt_TransDevice": "Device:",
-
   "Opt_TtsHeader": "Text-to-Speech",
   "Opt_TtsPref1": "1st preference:",
   "Opt_TtsPref2": "2nd preference:",
@@ -339,7 +329,6 @@
   "Opt_TtsKeyEngine": "Cloud engine keys:",
   "Opt_TtsApiKey": "API Key:",
   "Opt_TtsEndpoint": "Endpoint / Region:",
-
   "Opt_HwHeader": "Hardware Readiness",
   "Opt_HwOverallCaption": "Overall Score:",
   "Opt_HwVerdict": "Click Re-scan to check hardware.",
@@ -375,7 +364,6 @@
   "Opt_HwRecLowRam": "With {0}GB RAM, running transcription and translation simultaneously may cause slowdowns. Close other applications before starting.",
   "Opt_HwRecLowDisk": "Only {0}GB free disk space. You may not have room for all language models. Free up space or use an external drive.",
   "Opt_HwRecNo64Bit": "A 64-bit version of Windows is required for optimal performance.",
-
   "Opt_AdvPipelineHeader": "Transcription Pipeline",
   "Opt_ParallelJobs": "Parallel jobs:",
   "Opt_ChunkSize": "Chunk size (seconds):",
@@ -422,7 +410,6 @@
   "Opt_AdvLivePipelineHeader": "Live Pipeline",
   "Opt_TranslationConcurrency": "Translation concurrency:",
   "Opt_TtsConcurrency": "TTS concurrency:",
-
   "DM_Title": "Download Manager",
   "DM_TabComponents": "Components",
   "DM_ColComponent": "Component",
@@ -498,7 +485,6 @@
   "DM_DownloadedLangPacks": "Downloaded {0} of {1} language pack(s)",
   "DM_NoInstalledSelected": "No installed language packs selected for uninstall",
   "DM_UninstalledLangPacks": "Uninstalled {0} language pack(s)",
-
   "CC_Title": "Connected Clients",
   "CC_ServerNotRunning": "Server not running",
   "CC_OriginalLang": "(original)",
@@ -517,7 +503,6 @@
   "CC_GpuNa": "N/A",
   "CC_GpuNoNvidia": "N/A (no NVIDIA GPU)",
   "CC_GpuNotFound": "N/A (nvidia-smi not found)",
-
   "SW_HwScanFailed": "Hardware scan failed.",
   "SW_NetworkConnected": "Network: Connected ({0})",
   "SW_NetworkNoIp": "Network: Could not determine IP address",
@@ -537,9 +522,7 @@
   "SW_StepNumber": "Step {0} of {1}",
   "SW_BtnStart": "Start!",
   "SW_BtnNext": "Next >",
-
   "Live_DefaultDevice": "0: Default Device",
-
   "Trans_UnsupportedLang": "Unsupported target language: {0}",
   "Trans_Translating": "Translating ({0} segment(s))...",
   "Trans_TranslatingProgress": "Translating {0}/{1}...",
@@ -558,10 +541,8 @@
   "Trans_Synthesizing": "Synthesizing speech...",
   "Trans_SpeakFailed": "Speech synthesis failed",
   "Trans_SpeakServerRequired": "Start the server to use speech output",
-
   "Transcribe_Error": "Error",
   "Transcribe_SelectFolder": "Select an existing output folder to resume",
-
   "Bible_Books": "Books",
   "Bible_NotFound": "Could not find: {0}",
   "Bible_NoVerses": "No verses found for: {0}",
@@ -571,10 +552,8 @@
   "Bible_TranslateServerRequired": "Start the server to translate or read aloud",
   "Bible_ReadAloud": "Read aloud",
   "Bible_ReadStop": "Stop",
-
   "Server_AllPathsOk": "All paths verified successfully.",
   "Server_PathsMissing": "Some paths are missing or not set:",
-
   "Tray_WarmingUpStt": "Warming up STT engine...",
   "Tray_WarmingUpTranslation": "Warming up translation engine...",
   "Tray_Ready": "Every Tongue — Ready",
@@ -616,7 +595,6 @@
   "Shell_IntegrityResult": "Result: {0} passed, {1} failed, {2} missing",
   "Shell_IntegrityAllOk": "All Files OK",
   "Shell_IntegrityIssues": "Integrity Issues Found",
-
   "Main_SmallUpdate": "A small app update is available.",
   "Main_UpdateAvailable": "An update is available.",
   "Main_OpeningReleasePage": "Opening release page instead.",
@@ -624,12 +602,9 @@
   "Main_UpdateFailed": "Update failed: {0}",
   "Main_HelpNotFound": "Help file not found.",
   "Main_HelpLoadError": "Error loading help: {0}",
-
   "QR_Copied": "Copied!",
   "QR_CopyUrl": "Copy URL",
-
   "App_AlreadyRunning": "Every Tongue is already running.",
-
   "Tmpl_Title": "Conference Templates",
   "Tmpl_Add": "Add",
   "Tmpl_Edit": "Edit",
@@ -659,7 +634,6 @@
   "Tmpl_ModeOnline": "Online",
   "Tmpl_ModeOffline": "Offline",
   "Tmpl_Speakers": "Speakers",
-
   "Tmpl_DisplayTemplate": "Display",
   "Tmpl_DisplayDefault": "(app default)",
   "Opt_ManageDisplayTemplates": "Manage Display Templates...",
@@ -667,7 +641,6 @@
   "Opt_ManageTtsTemplates": "Manage TTS Templates...",
   "EngTpl_TitleTranslate": "Translation Templates",
   "EngTpl_TitleTts": "TTS Templates",
-
   "Disp_Title": "Display Templates",
   "Disp_Details": "Display Details",
   "Disp_Background": "Background",
@@ -680,7 +653,6 @@
   "Disp_Offered": "Offered languages (none checked = all)",
   "Disp_OfferedShort": "Offered Languages",
   "Disp_AllLanguages": "All",
-
   "Spk_Title": "Speakers",
   "Spk_Details": "Speaker Details",
   "Spk_OnlineStt": "Online STT template",
@@ -690,7 +662,6 @@
   "Spk_Glossary": "Glossary set",
   "Spk_GlossaryGlobal": "(global)",
   "Spk_None": "(none)",
-
   "Tmpl_FilterSet": "Filter set",
   "FSet_Title": "Filter Sets",
   "FSet_Details": "Filter Set Details",
@@ -699,7 +670,6 @@
   "FSet_Hallucinations": "Hallucinations file",
   "FSet_CopyGlobal": "Copy global files into this set",
   "FSet_OpenFolder": "Open set folder",
-
   "EngTpl_Title": "STT Templates",
   "EngTpl_Engine": "Engine",
   "EngTpl_Details": "Template Details",
@@ -710,7 +680,6 @@
   "Opt_NavDisplay": "Display",
   "Opt_ManageSttTemplates": "Manage STT Templates...",
   "SW_SaveTemplate": "Save as session template",
-
   "EngineCfg_ModelPath": "Model path",
   "EngineCfg_BeamSize": "Beam size",
   "EngineCfg_BestOf": "Best of",
@@ -725,20 +694,21 @@
   "EngineCfg_SmRegion": "Region",
   "EngineCfg_SmOperatingPoint": "Operating point",
   "EngineCfg_SmEouSilenceMs": "End-of-utterance silence (ms)",
+  "EngineCfg_SmMaxDelayMs": "Max delay / finalization lookahead (ms)",
+  "EngineCfg_SmAutoTuneEou": "Auto-tune EOU to speaker pace",
   "EngineCfg_SmHoldClauses": "Hold clauses (merge fragments)",
   "EngineCfg_SmClauseGraceMs": "Clause grace (ms)",
   "EngineCfg_SmClauseMaxMs": "Clause max duration (ms)",
   "EngineCfg_SmClauseMaxChars": "Clause max characters",
-  "EngineCfg_SmClauseLockOnPunctuation": "Lock on sentence punctuation",
-  "EngineCfg_SmClauseMinLockChars": "Min characters before lock",
-  "EngineCfg_SmClauseSentenceEnders": "Sentence-ending characters",
+  "EngineCfg_SmUseSat": "Split sentences with SaT (list-free, any language)",
+  "EngineCfg_SmSatThreshold": "SaT split threshold (×100)",
+  "EngineCfg_SmBiblicalVocab": "Boost biblical names (dictionary)",
   "EngineCfg_DgModel": "Deepgram model",
   "EngineCfg_DgEndpointingMs": "Endpointing silence (ms)",
   "EngineCfg_GlEndpointingMs": "Endpointing silence (ms)",
   "EngineCfg_AzRegion": "Region",
   "EngineCfg_AzSegmentationMs": "Segmentation silence (ms)",
   "EngineCfg_AzAutoDetectLanguages": "Auto-detect languages (CSV)",
-
   "Web_HostConference": "Host Conference",
   "Web_SelectTemplate": "Select Template",
   "Web_EnterHostingCode": "Enter Hosting Code",
@@ -749,7 +719,6 @@
   "Web_PipelineVadSilence": "VAD Silence",
   "Web_PipelineBeamSize": "Beam Size",
   "Web_PipelinePrompt": "Initial Prompt",
-
   "LogViewer_Title": "Session Logs",
   "LogViewer_SessionLabel": "Session:",
   "LogViewer_CategoryFilter": "Category:",
@@ -759,5 +728,13 @@
   "LogViewer_Close": "Close",
   "LogViewer_NoSessions": "No log sessions found",
   "LogViewer_Lines": "{0} lines",
-  "LogViewer_FilterAll": "All"
+  "LogViewer_FilterAll": "All",
+  "DM_TabBiblicalVocab": "Biblical Vocabulary",
+  "DM_VocabInfo": "Biblical name dictionaries help Speechmatics recognise proper nouns (Elies, Nabucodonosor, Getsemani) instead of garbling them.\n\nThe lists are generated on-device from the Bibles you have installed - any language, no download. Install a Bible first, then generate.",
+  "DM_VocabGenerate": "Generate from installed Bibles",
+  "DM_VocabGenerating": "Generating biblical vocabulary from installed Bibles...",
+  "DM_VocabGenerated": "Generated: {0}",
+  "DM_VocabNotGenerated": "Not generated yet - click Generate.",
+  "DM_VocabNoBibles": "No Bible installed - install one on the Bibles tab first, then generate.",
+  "DM_VocabDone": "Biblical vocabulary generated."
 }

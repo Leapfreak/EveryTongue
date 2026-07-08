@@ -139,13 +139,10 @@ Public Class FormOptions
         chkTransEnabled.Text = langPack.GetString("Opt_TransEnabled")
         lblClauseHeader.Text = langPack.GetString("Opt_ClauseHeader")
         chkSpeechmaticsHoldClauses.Text = langPack.GetString("Opt_HoldClauses")
-        chkClauseLockOnPunctuation.Text = langPack.GetString("Opt_ClauseLockOnPunct")
         lblClauseGraceMs.Text = langPack.GetString("Opt_ClauseGraceMs")
         lblClauseMaxMs.Text = langPack.GetString("Opt_ClauseMaxMs")
         lblClauseMaxChars.Text = langPack.GetString("Opt_ClauseMaxChars")
-        lblClauseMinLockChars.Text = langPack.GetString("Opt_ClauseMinLockChars")
         lblClauseTimerMs.Text = langPack.GetString("Opt_ClauseTimerMs")
-        lblClauseSentenceEnders.Text = langPack.GetString("Opt_ClauseSentenceEnders")
         lblTransBackend.Text = langPack.GetString("Opt_TransBackend")
         lblTransApiKey.Text = langPack.GetString("Opt_TransApiKey")
         lblTransEndpoint.Text = langPack.GetString("Opt_TransEndpoint")
@@ -399,13 +396,10 @@ Public Class FormOptions
         UpdateTransApiKeyVisibility()
         chkTransEnabled.Checked = _config.TranslationEnabled
         chkSpeechmaticsHoldClauses.Checked = _config.SpeechmaticsHoldClauses
-        chkClauseLockOnPunctuation.Checked = _config.SpeechmaticsClauseLockOnPunctuation
         nudClauseGraceMs.Value = ClampNud(nudClauseGraceMs, _config.SpeechmaticsClauseGraceMs)
         nudClauseMaxMs.Value = ClampNud(nudClauseMaxMs, _config.SpeechmaticsClauseMaxMs)
         nudClauseMaxChars.Value = ClampNud(nudClauseMaxChars, _config.SpeechmaticsClauseMaxChars)
-        nudClauseMinLockChars.Value = ClampNud(nudClauseMinLockChars, _config.SpeechmaticsClauseMinLockChars)
         nudClauseTimerMs.Value = ClampNud(nudClauseTimerMs, _config.SpeechmaticsClauseTimerMs)
-        txtClauseSentenceEnders.Text = _config.SpeechmaticsClauseSentenceEnders
         SelectItem(cboDevice, _config.TranslationDevice)
         nudTransPort.Value = _config.TranslationPort
 
@@ -569,13 +563,10 @@ Public Class FormOptions
         End If
         _config.TranslationEnabled = chkTransEnabled.Checked
         _config.SpeechmaticsHoldClauses = chkSpeechmaticsHoldClauses.Checked
-        _config.SpeechmaticsClauseLockOnPunctuation = chkClauseLockOnPunctuation.Checked
         _config.SpeechmaticsClauseGraceMs = CInt(nudClauseGraceMs.Value)
         _config.SpeechmaticsClauseMaxMs = CInt(nudClauseMaxMs.Value)
         _config.SpeechmaticsClauseMaxChars = CInt(nudClauseMaxChars.Value)
-        _config.SpeechmaticsClauseMinLockChars = CInt(nudClauseMinLockChars.Value)
         _config.SpeechmaticsClauseTimerMs = CInt(nudClauseTimerMs.Value)
-        _config.SpeechmaticsClauseSentenceEnders = txtClauseSentenceEnders.Text
         If cboDevice.SelectedItem IsNot Nothing Then _config.TranslationDevice = cboDevice.SelectedItem.ToString()
         _config.TranslationPort = CInt(nudTransPort.Value)
 

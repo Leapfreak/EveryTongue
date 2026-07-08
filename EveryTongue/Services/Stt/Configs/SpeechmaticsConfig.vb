@@ -17,17 +17,28 @@ Namespace Services.Stt.Configs
         Public Property OperatingPoint As String = "enhanced"
         ''' <summary>End-of-utterance silence trigger (ms). 0 = engine default.</summary>
         Public Property EouSilenceMs As Integer = 0
+        ''' <summary>Real-time max_delay (ms) — finalization lookahead. 0 = engine default.</summary>
+        Public Property MaxDelayMs As Integer = 0
+        ''' <summary>Continuously auto-tune the EOU silence trigger to each speaker's pace (default on).</summary>
+        Public Property AutoTuneEou As Boolean = True
 
         ' Clause hold-and-lock dials. HYBRID semantics: a template that stores
         ' these pins them for the session; when a template doesn't, the room
         ' keeps reading the live app-global dials (Options stays live-tunable).
         Public Property HoldClauses As Boolean = False
-        Public Property ClauseGraceMs As Integer = 1200
+        Public Property ClauseGraceMs As Integer = 1400
         Public Property ClauseMaxMs As Integer = 8000
         Public Property ClauseMaxChars As Integer = 300
-        Public Property ClauseLockOnPunctuation As Boolean = True
-        Public Property ClauseMinLockChars As Integer = 12
-        Public Property ClauseSentenceEnders As String = ".?!…。？！۔؟"
+
+        ''' <summary>Re-segment each held clause into proper sentences with SaT at the pause (engine-agnostic, list-free). Requires HoldClauses on.</summary>
+        Public Property UseSat As Boolean = False
+        ''' <summary>SaT split threshold ×100 (10 = 0.10).</summary>
+        Public Property SatThresholdPercent As Integer = 10
+        ''' <summary>SaT model name (wtpsplit).</summary>
+        Public Property SatModel As String = "sat-3l-sm"
+
+        ''' <summary>Feed biblical proper-noun additional_vocab (auto-selected by language). Default OFF — see AppConfig.SpeechmaticsBiblicalVocab.</summary>
+        Public Property BiblicalVocab As Boolean = False
 
         ''' <summary>Session-computed, not template content: inline translation toggle.</summary>
         <JsonIgnore>
@@ -40,13 +51,18 @@ Namespace Services.Stt.Configs
             Region = If(String.IsNullOrEmpty(cfg.SpeechmaticsRegion), "eu2", cfg.SpeechmaticsRegion)
             OperatingPoint = If(String.IsNullOrEmpty(cfg.SpeechmaticsOperatingPoint), "enhanced", cfg.SpeechmaticsOperatingPoint)
             EouSilenceMs = cfg.SpeechmaticsEouSilenceMs
+            MaxDelayMs = cfg.SpeechmaticsMaxDelayMs
             HoldClauses = cfg.SpeechmaticsHoldClauses
             ClauseGraceMs = cfg.SpeechmaticsClauseGraceMs
             ClauseMaxMs = cfg.SpeechmaticsClauseMaxMs
             ClauseMaxChars = cfg.SpeechmaticsClauseMaxChars
-            ClauseLockOnPunctuation = cfg.SpeechmaticsClauseLockOnPunctuation
-            ClauseMinLockChars = cfg.SpeechmaticsClauseMinLockChars
-            ClauseSentenceEnders = If(String.IsNullOrEmpty(cfg.SpeechmaticsClauseSentenceEnders), ClauseSentenceEnders, cfg.SpeechmaticsClauseSentenceEnders)
+            AutoTuneEou = cfg.SpeechmaticsAutoTuneEou
+            UseSat = cfg.SpeechmaticsUseSat
+            SatThresholdPercent = cfg.SpeechmaticsSatThresholdPercent
+            SatModel = If(String.IsNullOrEmpty(cfg.SpeechmaticsSatModel), "sat-3l-sm", cfg.SpeechmaticsSatModel)
+            BiblicalVocab = cfg.SpeechmaticsBiblicalVocab
+            ' SaT runs on the hold/buffer path, so turning it on implies Hold & merge.
+            If UseSat Then HoldClauses = True
         End Sub
 
         Public Sub ConfigureRunner(runner As LiveStreamRunner, runnerConfig As AppConfig) Implements ICloudSttEngineConfig.ConfigureRunner
@@ -65,6 +81,16 @@ Namespace Services.Stt.Configs
             If EouSilenceMs > 0 Then
                 sb.Append($",""speechmatics_eou_silence_s"":{(EouSilenceMs / 1000.0).ToString(Globalization.CultureInfo.InvariantCulture)}")
             End If
+            If MaxDelayMs > 0 Then
+                sb.Append($",""speechmatics_max_delay_s"":{(MaxDelayMs / 1000.0).ToString(Globalization.CultureInfo.InvariantCulture)}")
+            End If
+            sb.Append($",""speechmatics_auto_tune_eou"":{If(AutoTuneEou, "true", "false")}")
+            If UseSat Then
+                ' Tell live-server to warm the SaT model now (so the first pause isn't slow).
+                sb.Append(",""speechmatics_sat"":true")
+                sb.Append($",""sat_model"":""{EscapeJsonUnquoted(SatModel)}""")
+            End If
+            sb.Append($",""speechmatics_biblical_vocab"":{If(BiblicalVocab, "true", "false")}")
             sb.Append($",""enable_translation"":{If(EnableTranslation, "true", "false")}")
             sb.Append($",""translation_targets"":{SerializeStringArray(TranslationTargets)}")
             Return sb.ToString()
@@ -103,13 +129,15 @@ Namespace Services.Stt.Configs
             New EngineConfigField With {.Key = "Region", .LabelKey = "EngineCfg_SmRegion", .FieldType = EngineConfigFieldType.Choice, .Choices = New List(Of String) From {"eu2", "us"}},
             New EngineConfigField With {.Key = "OperatingPoint", .LabelKey = "EngineCfg_SmOperatingPoint", .FieldType = EngineConfigFieldType.Choice, .Choices = New List(Of String) From {"enhanced", "standard"}},
             New EngineConfigField With {.Key = "EouSilenceMs", .LabelKey = "EngineCfg_SmEouSilenceMs", .FieldType = EngineConfigFieldType.Integer, .Min = 0, .Max = 5000},
+            New EngineConfigField With {.Key = "MaxDelayMs", .LabelKey = "EngineCfg_SmMaxDelayMs", .FieldType = EngineConfigFieldType.Integer, .Min = 0, .Max = 6000},
+            New EngineConfigField With {.Key = "AutoTuneEou", .LabelKey = "EngineCfg_SmAutoTuneEou", .FieldType = EngineConfigFieldType.Toggle, .Advanced = True},
             New EngineConfigField With {.Key = "HoldClauses", .LabelKey = "EngineCfg_SmHoldClauses", .FieldType = EngineConfigFieldType.Toggle, .Advanced = True},
             New EngineConfigField With {.Key = "ClauseGraceMs", .LabelKey = "EngineCfg_SmClauseGraceMs", .FieldType = EngineConfigFieldType.Integer, .Min = 200, .Max = 5000, .Advanced = True},
             New EngineConfigField With {.Key = "ClauseMaxMs", .LabelKey = "EngineCfg_SmClauseMaxMs", .FieldType = EngineConfigFieldType.Integer, .Min = 1000, .Max = 30000, .Advanced = True},
             New EngineConfigField With {.Key = "ClauseMaxChars", .LabelKey = "EngineCfg_SmClauseMaxChars", .FieldType = EngineConfigFieldType.Integer, .Min = 50, .Max = 2000, .Advanced = True},
-            New EngineConfigField With {.Key = "ClauseLockOnPunctuation", .LabelKey = "EngineCfg_SmClauseLockOnPunctuation", .FieldType = EngineConfigFieldType.Toggle, .Advanced = True},
-            New EngineConfigField With {.Key = "ClauseMinLockChars", .LabelKey = "EngineCfg_SmClauseMinLockChars", .FieldType = EngineConfigFieldType.Integer, .Min = 0, .Max = 200, .Advanced = True},
-            New EngineConfigField With {.Key = "ClauseSentenceEnders", .LabelKey = "EngineCfg_SmClauseSentenceEnders", .FieldType = EngineConfigFieldType.Text, .Advanced = True}
+            New EngineConfigField With {.Key = "UseSat", .LabelKey = "EngineCfg_SmUseSat", .FieldType = EngineConfigFieldType.Toggle, .Advanced = True},
+            New EngineConfigField With {.Key = "SatThresholdPercent", .LabelKey = "EngineCfg_SmSatThreshold", .FieldType = EngineConfigFieldType.Integer, .Min = 1, .Max = 90, .Advanced = True},
+            New EngineConfigField With {.Key = "BiblicalVocab", .LabelKey = "EngineCfg_SmBiblicalVocab", .FieldType = EngineConfigFieldType.Toggle, .Advanced = True}
         }
 
         Public Overrides ReadOnly Property Fields As IReadOnlyList(Of EngineConfigField)

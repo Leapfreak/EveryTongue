@@ -69,6 +69,7 @@ except Exception as _vad_pipe_err:
 # engine, drop a module in engines/ (see engines/common.py for the contract).
 # ---------------------------------------------------------------------------
 import engines
+import sat_segmenter
 from engines.common import (
     SAMPLE_RATE, SegmentInfo, WordInfo, TranscribeInfo, audio_to_wav_bytes,
 )
@@ -787,6 +788,12 @@ async def start_capture_endpoint(request: Request):
     body = await request.json()
     current_config = body
 
+    # SaT sentence segmentation (downstream, engine-agnostic). Warm the model in
+    # a background thread so the first real /segment on a pause isn't slow.
+    if body.get("speechmatics_sat") or body.get("sat_segment"):
+        sat_model = body.get("sat_model") or None
+        threading.Thread(target=sat_segmenter.load, args=(sat_model,), daemon=True).start()
+
     # Per-session hallucination filter set (empty = the default file).
     global _hallucinations_path_override
     new_halluc_path = body.get("hallucinations_path", "") or ""
@@ -945,12 +952,30 @@ async def update_config(request: Request):
             current_config[key] = body[key]
             updated.append(key)
 
-    # Forward to pipeline for runtime update
-    if _vad_pipeline:
-        _vad_pipeline.update_config(**{k: body[k] for k in updated if k in body})
+    # Forward to pipeline for runtime update. reset_pace is a transient command
+    # (not stored in current_config) — the host-pause / context reset trigger.
+    forward = {k: body[k] for k in updated if k in body}
+    if body.get("reset_pace"):
+        forward["reset_pace"] = True
+        updated.append("reset_pace")
+    if _vad_pipeline and forward:
+        _vad_pipeline.update_config(**forward)
 
-    logger.info(f"CONFIG UPDATE: {', '.join(f'{k}={current_config.get(k)}' for k in updated)}")
+    logger.info(f"CONFIG UPDATE: {', '.join(str(k) for k in updated)}")
     return {"status": "ok", "updated": updated}
+
+
+@app.post("/segment")
+async def segment_text(request: Request):
+    """Split a buffered clause into proper sentences via SaT (engine-agnostic).
+    Called by the .NET clause accumulator at a real pause. Falls back to the
+    text unchanged if SaT is unavailable — never fails the caller."""
+    body = await request.json()
+    text = body.get("text", "") or ""
+    threshold = float(body.get("threshold", 0.1))
+    model = body.get("model") or None
+    sentences = sat_segmenter.segment(text, threshold=threshold, model_name=model)
+    return {"sentences": sentences, "available": sat_segmenter._available}
 
 
 @app.get("/stats")

@@ -29,6 +29,10 @@ Namespace Services.Stt
         Private ReadOnly _onClauseLocked As Action(Of String, String, String)
         Private ReadOnly _onTimerTick As Action
         Private ReadOnly _log As Action(Of String)
+        ' (roomId, clauseText) → sentences. Splits a held clause into proper
+        ' sentences at the pause via live-server's SaT segmenter (list-free,
+        ' engine-agnostic). Nothing = SaT segmentation unavailable → single emit.
+        Private ReadOnly _segment As Func(Of String, String, List(Of String))
 
         ' Speechmatics-only clause hold-and-lock accumulators (one per room). Gated
         ' behind AppConfig.SpeechmaticsHoldClauses + backend == "speechmatics".
@@ -43,16 +47,19 @@ Namespace Services.Stt
         ''' <param name="roomBackendKey">Resolves a room's STT backend key (room template override, else global config).</param>
         ''' <param name="onClauseLocked">(roomId, text, detectedLang) — broadcast a locked clause; execution stays with the caller.</param>
         ''' <param name="onTimerTick">Caller hook run on each flush-timer tick BEFORE expired clauses are locked (NLLB sentence-buffer flush).</param>
+        ''' <param name="segment">(roomId, clauseText) → sentences; splits a held clause via SaT at the pause. Nothing = feature off (single emit).</param>
         Public Sub New(config As AppConfig,
                        roomBackendKey As Func(Of String, String),
                        onClauseLocked As Action(Of String, String, String),
                        onTimerTick As Action,
-                       log As Action(Of String))
+                       log As Action(Of String),
+                       Optional segment As Func(Of String, String, List(Of String)) = Nothing)
             _config = config
             _roomBackendKey = roomBackendKey
             _onClauseLocked = onClauseLocked
             _onTimerTick = onTimerTick
             _log = log
+            _segment = segment
 
             ' Timer to flush expired sentence buffers (NLLB path, via onTimerTick)
             ' and lock expired Speechmatics clause accumulators. Re-arms itself
@@ -86,15 +93,18 @@ Namespace Services.Stt
         ''' <summary>Whether clause hold-and-lock applies to this room (pinned template value, else live master switch; Speechmatics only).</summary>
         Public Function IsHoldEnabled(roomId As String) As Boolean
             Dim pinned As Configs.SpeechmaticsConfig = Nothing
-            If _pinnedClauseDials.TryGetValue(roomId, pinned) Then Return pinned.HoldClauses
-            Return _config.SpeechmaticsHoldClauses AndAlso
+            ' SaT segmentation needs the buffering path, so enabling "Split with SaT"
+            ' implies Hold & merge — the operator only has to tick one switch.
+            If _pinnedClauseDials.TryGetValue(roomId, pinned) Then Return pinned.HoldClauses OrElse pinned.UseSat
+            Return (_config.SpeechmaticsHoldClauses OrElse _config.SpeechmaticsUseSat) AndAlso
                    _roomBackendKey(roomId).Equals(HoldEngineKey, StringComparison.OrdinalIgnoreCase)
         End Function
 
         ''' <summary>
-        ''' Clause dials for a room: the template-pinned values when the room's STT
-        ''' template set them, otherwise a live read of the app-global dials
-        ''' (Options changes apply immediately to unpinned rooms).
+        ''' Buffer-to-pause dials for a room: the template-pinned values when the
+        ''' room's STT template set them, otherwise a live read of the app-global
+        ''' dials (Options changes apply immediately to unpinned rooms). Segmentation
+        ''' of the merged clause is done downstream by SaT, not here.
         ''' </summary>
         Private Function CurrentThresholds(roomId As String) As SpeechmaticsClauseAccumulator.Thresholds
             Dim pinned As Configs.SpeechmaticsConfig = Nothing
@@ -102,20 +112,23 @@ Namespace Services.Stt
                 Return New SpeechmaticsClauseAccumulator.Thresholds With {
                     .GraceMs = pinned.ClauseGraceMs,
                     .MaxMs = pinned.ClauseMaxMs,
-                    .MaxChars = pinned.ClauseMaxChars,
-                    .LockOnPunctuation = pinned.ClauseLockOnPunctuation,
-                    .MinLockChars = pinned.ClauseMinLockChars,
-                    .SentenceEnders = pinned.ClauseSentenceEnders
+                    .MaxChars = pinned.ClauseMaxChars
                 }
             End If
             Return New SpeechmaticsClauseAccumulator.Thresholds With {
                 .GraceMs = _config.SpeechmaticsClauseGraceMs,
                 .MaxMs = _config.SpeechmaticsClauseMaxMs,
-                .MaxChars = _config.SpeechmaticsClauseMaxChars,
-                .LockOnPunctuation = _config.SpeechmaticsClauseLockOnPunctuation,
-                .MinLockChars = _config.SpeechmaticsClauseMinLockChars,
-                .SentenceEnders = _config.SpeechmaticsClauseSentenceEnders
+                .MaxChars = _config.SpeechmaticsClauseMaxChars
             }
+        End Function
+
+        ''' <summary>Whether SaT sentence-splitting is active for this room (needs the segment delegate, the hold/buffering path, and the toggle — pinned template value else app-global).</summary>
+        Private Function IsSatEnabled(roomId As String) As Boolean
+            If _segment Is Nothing Then Return False
+            Dim pinned As Configs.SpeechmaticsConfig = Nothing
+            If _pinnedClauseDials.TryGetValue(roomId, pinned) Then Return pinned.UseSat
+            Return _config.SpeechmaticsUseSat AndAlso
+                   _roomBackendKey(roomId).Equals(HoldEngineKey, StringComparison.OrdinalIgnoreCase)
         End Function
 
         ''' <summary>
@@ -199,8 +212,28 @@ Namespace Services.Stt
             AppLogger.Log(LogEvents.CONF_CLAUSE_LOCK,
                 $"room={roomId} reason={locked.Reason} frags={locked.FragmentCount} durMs={locked.DurationMs} " &
                 $"chars={If(locked.Text, "").Length} maxGapMs={maxGap} gaps=[{gaps}] " &
-                $"dials(graceMs={t.GraceMs},maxMs={t.MaxMs},maxChars={t.MaxChars},minLockChars={t.MinLockChars},lockPunct={t.LockOnPunctuation}) " &
+                $"dials(graceMs={t.GraceMs},maxMs={t.MaxMs},maxChars={t.MaxChars}) " &
                 $"text=""{Truncate(locked.Text, 120)}""")
+
+            ' SaT path: split the buffered clause into proper sentences at the pause
+            ' (list-free, engine-agnostic) and emit each. Falls back to a single emit
+            ' if SaT is off/unavailable (segment returns {text}).
+            If IsSatEnabled(roomId) AndAlso Not String.IsNullOrWhiteSpace(locked.Text) Then
+                Dim sentences = _segment(roomId, locked.Text)
+                If sentences Is Nothing OrElse sentences.Count = 0 Then
+                    sentences = New List(Of String) From {locked.Text}
+                End If
+                If sentences.Count > 1 Then
+                    AppLogger.Log(LogEvents.CONF_CLAUSE_SAT_SEGMENT,
+                        $"room={roomId} lang={locked.DetectedLanguage} chars={If(locked.Text, "").Length} " &
+                        $"split into {sentences.Count} sentences: ""{Truncate(locked.Text, 120)}""")
+                End If
+                For Each s In sentences
+                    If Not String.IsNullOrWhiteSpace(s) Then _onClauseLocked(roomId, s, locked.DetectedLanguage)
+                Next
+                Return
+            End If
+
             _onClauseLocked(roomId, locked.Text, locked.DetectedLanguage)
         End Sub
 

@@ -46,6 +46,9 @@ Namespace Forms
             tabMmsTts.Text = lp.GetString("DM_TabMmsTts")
             lblMmsTtsInfo.Text = lp.GetString("DM_MmsTtsInfo")
             btnInstallMmsTts.Text = lp.GetString("DM_Install")
+            tabBiblicalVocab.Text = lp.GetString("DM_TabBiblicalVocab")
+            lblVocabInfo.Text = lp.GetString("DM_VocabInfo")
+            btnGenerateVocab.Text = lp.GetString("DM_VocabGenerate")
             tabBibles.Text = lp.GetString("DM_TabBibles")
             btnFetchCatalog.Text = lp.GetString("DM_FetchCatalog")
             btnDownloadBibles.Text = lp.GetString("DM_DownloadSelected")
@@ -181,6 +184,9 @@ Namespace Forms
             ' Load MMS-TTS status
             LoadMmsTtsStatus()
 
+            ' Load biblical vocabulary status
+            LoadVocabStatus()
+
             ' Load language packs
             LoadLangPacks()
 
@@ -222,6 +228,50 @@ Namespace Forms
                 btnInstallMmsTts.Text = lp.GetString("DM_MmsTtsInstallSize")
                 btnInstallMmsTts.Enabled = True
             End If
+        End Sub
+
+        Private Shared Function VocabLangName(code As String) As String
+            ' Resolve a display name from the app's language database (no hardcoding).
+            Return Services.Infrastructure.LanguageCodeService.Instance.GetDisplayNameForCode(code)
+        End Function
+
+        Private Sub LoadVocabStatus()
+            Dim lp = Services.Infrastructure.LanguagePackService.Instance
+            Dim installed = _mgr.BiblicalVocabInstalledCodes()
+            If installed.Count > 0 Then
+                lblVocabStatus.Text = String.Format(lp.GetString("DM_VocabGenerated"),
+                    String.Join(", ", installed.Select(AddressOf VocabLangName)))
+            ElseIf _mgr.AnyBibleInstalled() Then
+                lblVocabStatus.Text = lp.GetString("DM_VocabNotGenerated")
+            Else
+                lblVocabStatus.Text = lp.GetString("DM_VocabNoBibles")
+            End If
+            btnGenerateVocab.Enabled = _mgr.AnyBibleInstalled()
+        End Sub
+
+        Private Async Sub btnGenerateVocab_Click(sender As Object, e As EventArgs) Handles btnGenerateVocab.Click
+            If _downloading Then Return
+            Dim lp = Services.Infrastructure.LanguagePackService.Instance
+            _downloading = True
+            SetAllButtonsEnabled(False)
+            btnGenerateVocab.Enabled = False
+            Try
+                lblProgress.Text = lp.GetString("DM_VocabGenerating")
+                pbProgress.Value = 0
+                pbProgress.Style = ProgressBarStyle.Marquee
+                Await _mgr.GenerateBiblicalVocabAsync()
+                pbProgress.Style = ProgressBarStyle.Continuous
+                pbProgress.Value = 100
+                LoadVocabStatus()
+                lblProgress.Text = lp.GetString("DM_VocabDone")
+            Catch ex As Exception
+                pbProgress.Style = ProgressBarStyle.Continuous
+                lblProgress.Text = $"Error: {ex.Message}"
+            Finally
+                _downloading = False
+                SetAllButtonsEnabled(True)
+                btnGenerateVocab.Enabled = _mgr.AnyBibleInstalled()
+            End Try
         End Sub
 
         ' ── Bible Catalog ──

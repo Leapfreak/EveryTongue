@@ -36,6 +36,10 @@ Namespace Forms
             lblMmsTtsInfo = New Label()
             lblMmsTtsStatus = New Label()
             btnInstallMmsTts = New Button()
+            tabBiblicalVocab = New TabPage()
+            lblVocabInfo = New Label()
+            lblVocabStatus = New Label()
+            btnGenerateVocab = New Button()
             tabBibles = New TabPage()
             pnlBibleSearch = New Panel()
             txtBibleSearch = New TextBox()
@@ -64,6 +68,7 @@ Namespace Forms
             tabPiper.SuspendLayout()
             pnlVoicesButtons.SuspendLayout()
             tabMmsTts.SuspendLayout()
+            tabBiblicalVocab.SuspendLayout()
             tabBibles.SuspendLayout()
             pnlBibleSearch.SuspendLayout()
             pnlBiblesButtons.SuspendLayout()
@@ -78,6 +83,7 @@ Namespace Forms
             tabMain.Controls.Add(tabComponents)
             tabMain.Controls.Add(tabPiper)
             tabMain.Controls.Add(tabMmsTts)
+            tabMain.Controls.Add(tabBiblicalVocab)
             tabMain.Controls.Add(tabBibles)
             tabMain.Dock = DockStyle.Fill
             tabMain.Location = New Point(0, 0)
@@ -261,6 +267,44 @@ Namespace Forms
             btnInstallMmsTts.Size = New Size(160, 30)
             btnInstallMmsTts.TabIndex = 2
             btnInstallMmsTts.Text = "Install"
+            '
+            ' tabBiblicalVocab
+            '
+            tabBiblicalVocab.Controls.Add(lblVocabInfo)
+            tabBiblicalVocab.Controls.Add(lblVocabStatus)
+            tabBiblicalVocab.Controls.Add(btnGenerateVocab)
+            tabBiblicalVocab.Location = New Point(4, 26)
+            tabBiblicalVocab.Name = "tabBiblicalVocab"
+            tabBiblicalVocab.Padding = New Padding(16)
+            tabBiblicalVocab.Size = New Size(692, 418)
+            tabBiblicalVocab.TabIndex = 5
+            tabBiblicalVocab.Text = "Biblical Vocabulary"
+            '
+            ' lblVocabInfo
+            '
+            lblVocabInfo.Anchor = AnchorStyles.Top Or AnchorStyles.Left
+            lblVocabInfo.Location = New Point(16, 16)
+            lblVocabInfo.Name = "lblVocabInfo"
+            lblVocabInfo.Size = New Size(640, 120)
+            lblVocabInfo.TabIndex = 0
+            lblVocabInfo.Text = "Biblical name dictionaries help Speechmatics recognise proper nouns (Elies, Nabucodonosor, Getsemaní) instead of garbling them." & vbCrLf & vbCrLf & "The lists are generated on-device from the Bibles you have installed — no download. Install a language's Bible first, then generate."
+            '
+            ' lblVocabStatus
+            '
+            lblVocabStatus.Font = New Font("Segoe UI", 9F, FontStyle.Bold)
+            lblVocabStatus.Location = New Point(16, 146)
+            lblVocabStatus.Name = "lblVocabStatus"
+            lblVocabStatus.Size = New Size(640, 40)
+            lblVocabStatus.TabIndex = 1
+            lblVocabStatus.Text = "Checking..."
+            '
+            ' btnGenerateVocab
+            '
+            btnGenerateVocab.Location = New Point(16, 194)
+            btnGenerateVocab.Name = "btnGenerateVocab"
+            btnGenerateVocab.Size = New Size(240, 30)
+            btnGenerateVocab.TabIndex = 2
+            btnGenerateVocab.Text = "Generate from installed Bibles"
             '
             ' tabBibles
             '
@@ -460,6 +504,7 @@ Namespace Forms
             tabPiper.ResumeLayout(False)
             pnlVoicesButtons.ResumeLayout(False)
             tabMmsTts.ResumeLayout(False)
+            tabBiblicalVocab.ResumeLayout(False)
             tabBibles.ResumeLayout(False)
             pnlBibleSearch.ResumeLayout(False)
             pnlBiblesButtons.ResumeLayout(False)
@@ -492,6 +537,10 @@ Namespace Forms
         Friend WithEvents lblMmsTtsStatus As System.Windows.Forms.Label
         Friend WithEvents lblMmsTtsInfo As System.Windows.Forms.Label
         Friend WithEvents btnInstallMmsTts As System.Windows.Forms.Button
+        Friend WithEvents tabBiblicalVocab As System.Windows.Forms.TabPage
+        Friend WithEvents lblVocabInfo As System.Windows.Forms.Label
+        Friend WithEvents lblVocabStatus As System.Windows.Forms.Label
+        Friend WithEvents btnGenerateVocab As System.Windows.Forms.Button
         Friend WithEvents pnlBibleSearch As System.Windows.Forms.Panel
         Friend WithEvents txtBibleSearch As System.Windows.Forms.TextBox
         Friend WithEvents tvBibles As System.Windows.Forms.TreeView

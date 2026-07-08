@@ -211,10 +211,30 @@ Namespace Models
         ''' <summary>
         ''' Speechmatics end-of-utterance silence trigger (ms): how long a pause before
         ''' Speechmatics declares an utterance finished and emits a commit. The root
-        ''' control for fragmentation — raise it (e.g. 1500) for pause-heavy speakers so
-        ''' Speechmatics stops splitting mid-sentence. Default 800 = Speechmatics' own default.
+        ''' control for fragmentation — raise it for pause-heavy speakers so
+        ''' Speechmatics stops splitting mid-sentence. Default 1000: a two-speaker audio A/B
+        ''' proved NO single value serves both — a slow pauser wants ~1.4s (halves mid-phrase
+        ''' fragmentation) but a FAST reader balloons/collapses above ~1.0s (giant run-on
+        ''' commits, even text loss at 1.4s). 1000 is the best fixed compromise (full
+        ''' slow-speaker benefit, fast speakers chunky-but-not-broken). The failure modes are
+        ''' asymmetric — too-high is catastrophic for fast speakers, too-low only mildly
+        ''' fragments slow ones — so err toward this moderate value + per-speaker override.
+        ''' The real fix is EOU auto-adjust by detected pace (see PLAN.md).
         ''' </summary>
-        Public Property SpeechmaticsEouSilenceMs As Integer = 800
+        Public Property SpeechmaticsEouSilenceMs As Integer = 1000
+
+        ''' <summary>Speechmatics real-time max_delay (ms): how long the engine waits before
+        ''' finalizing a segment. Higher = more lookahead → fuller, better-punctuated, more
+        ''' accurate finals (live partials still stream in real-time; only the committed text
+        ''' lags). Default 2000 (was hardcoded 1000); doesn't affect fragmentation, only
+        ''' accuracy/fullness vs latency. 0 = engine default.</summary>
+        Public Property SpeechmaticsMaxDelayMs As Integer = 2000
+
+        ''' <summary>When True (default), the live-server continuously measures the speaker's
+        ''' pace (inter-word pauses) and auto-adjusts the EOU silence trigger per speaker —
+        ''' high for slow pausers, low for fast readers — reconnecting the session on a change.
+        ''' SpeechmaticsEouSilenceMs becomes the starting baseline. False = fixed EOU.</summary>
+        Public Property SpeechmaticsAutoTuneEou As Boolean = True
 
         ''' <summary>Resolve the API key for an STT backend from the per-engine store.</summary>
         Public Function GetSttApiKey(backendKey As String) As String
@@ -346,8 +366,8 @@ Namespace Models
         ''' <summary>Master switch for Speechmatics clause hold-and-lock. Default OFF (zero behaviour change).</summary>
         Public Property SpeechmaticsHoldClauses As Boolean = False
 
-        ''' <summary>Silence (ms) after the last fragment before an accumulated clause is locked and broadcast.</summary>
-        Public Property SpeechmaticsClauseGraceMs As Integer = 1200
+        ''' <summary>Silence (ms) after the last fragment before an accumulated clause is locked and broadcast. Default 1400: Phase 0 log analysis found natural mid-thought pauses reach ~p95=1400ms, so 1200 was locking slightly early.</summary>
+        Public Property SpeechmaticsClauseGraceMs As Integer = 1400
 
         ''' <summary>Hard cap (ms): lock a clause once it is this old, regardless of pauses (runaway guard).</summary>
         Public Property SpeechmaticsClauseMaxMs As Integer = 8000
@@ -355,17 +375,18 @@ Namespace Models
         ''' <summary>Hard cap (chars): lock a clause once it reaches this length (runaway guard).</summary>
         Public Property SpeechmaticsClauseMaxChars As Integer = 300
 
-        ''' <summary>When True, a fragment ending in sentence-final punctuation locks the clause immediately (lower latency).</summary>
-        Public Property SpeechmaticsClauseLockOnPunctuation As Boolean = True
-
-        ''' <summary>Minimum clause length (chars) required before punctuation can trigger an immediate lock (avoids "Yes." locking too eagerly).</summary>
-        Public Property SpeechmaticsClauseMinLockChars As Integer = 12
-
-        ''' <summary>Characters treated as sentence-final for the punctuation-lock rule (Latin + CJK + Arabic).</summary>
-        Public Property SpeechmaticsClauseSentenceEnders As String = ".?!…。？！۔؟"
-
         ''' <summary>How often (ms) the conference controller polls accumulators for grace-window expiry.</summary>
         Public Property SpeechmaticsClauseTimerMs As Integer = 300
+
+        ''' <summary>Use SaT (wtpsplit) to re-segment each held clause into proper sentences at the pause — engine-agnostic, list-free (replaces the function-word merge). Requires HoldClauses on. Needs the SaT lib+model available to live-server.</summary>
+        Public Property SpeechmaticsUseSat As Boolean = False
+        ''' <summary>SaT split threshold ×100 (e.g. 10 = 0.10). Lower = more merges (recovers more cuts, risks over-merge); higher = more splits.</summary>
+        Public Property SpeechmaticsSatThresholdPercent As Integer = 10
+        ''' <summary>SaT model name (wtpsplit): sat-3l-sm (default) or sat-12l-sm (heavier, more accurate).</summary>
+        Public Property SpeechmaticsSatModel As String = "sat-3l-sm"
+
+        ''' <summary>Feed biblical proper nouns to Speechmatics as additional_vocab (auto-selected by session language). DEFAULT OFF (2026-07-09): the whole-Bible list misfires (rare names like "Haixum" replacing common words) with no proven benefit — opt in only after a proper A/B, and prefer the book-scoped redesign.</summary>
+        Public Property SpeechmaticsBiblicalVocab As Boolean = False
 
         Public Property TranslationPort As Integer = 5090
         Public Property TranslationModelPath As String = ".\nllb-model"

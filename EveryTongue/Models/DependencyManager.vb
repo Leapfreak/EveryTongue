@@ -121,7 +121,8 @@ Namespace Models
                 CheckNllb33bModelAsync(),
                 CheckPiperAsync(),
                 CheckAwsSdkAsync(),
-                CheckWhisperCliAsync()
+                CheckWhisperCliAsync(),
+                CheckSatModelAsync()
             }
             Await Task.WhenAll(tasks)
             Return tasks.Select(Function(t) t.Result).ToList()
@@ -296,7 +297,9 @@ Namespace Models
                 Dim release = Await GetLatestReleaseAsync("SubtitleEdit/subtitleedit")
                 If release IsNot Nothing Then
                     state.LatestVersion = release.Value.TagName
-                    state.DownloadUrl = FindAsset(release.Value.Assets, "^SE\d+\.zip$")
+                    ' v5.0.0 renamed the portable zip SE<nn>.zip → SubtitleEdit-Windows-x64.zip
+                    ' (must not match -ARM64 or -Setup.exe). Keep the old name as a fallback.
+                    state.DownloadUrl = FindAsset(release.Value.Assets, "^(SubtitleEdit-Windows-x64\.zip|SE\d+\.zip)$")
 
                     If state.Status = ToolStatus.Installed Then
                         If String.IsNullOrEmpty(state.InstalledVersion) Then
@@ -553,6 +556,39 @@ Namespace Models
                     Dim stdout = Await stdoutTask
                     Throw New Exception($"Process exited with code {proc.ExitCode}: {If(stderr, stdout)}")
                 End If
+            End Using
+        End Function
+
+        ''' <summary>Like <see cref="RunProcessAsync"/> but returns the process stdout (both pipes drained per the 4KB-buffer rule).</summary>
+        Private Shared Async Function RunProcessCaptureAsync(exePath As String, args As String,
+                                                             workDir As String,
+                                                             Optional timeoutMs As Integer = 300000) As Task(Of String)
+            Dim psi As New Diagnostics.ProcessStartInfo With {
+                .FileName = exePath,
+                .Arguments = args,
+                .WorkingDirectory = workDir,
+                .UseShellExecute = False,
+                .RedirectStandardOutput = True,
+                .RedirectStandardError = True,
+                .CreateNoWindow = True
+            }
+            Using proc = Diagnostics.Process.Start(psi)
+                Dim stdoutTask = proc.StandardOutput.ReadToEndAsync()
+                Dim stderrTask = proc.StandardError.ReadToEndAsync()
+                Using cts As New Threading.CancellationTokenSource(timeoutMs)
+                    Try
+                        Await proc.WaitForExitAsync(cts.Token)
+                    Catch ex As OperationCanceledException
+                        Try : proc.Kill(True) : Catch killEx As Exception : End Try
+                        Throw New TimeoutException($"Process timed out after {timeoutMs / 1000}s")
+                    End Try
+                End Using
+                Dim stdout = Await stdoutTask
+                Dim stderr = Await stderrTask
+                If proc.ExitCode <> 0 Then
+                    Throw New Exception($"Process exited with code {proc.ExitCode}: {If(String.IsNullOrWhiteSpace(stderr), stdout, stderr)}")
+                End If
+                Return stdout
             End Using
         End Function
 
@@ -1002,6 +1038,135 @@ Namespace Models
         End Function
 
         ' ──────────────────────────────────────────
+        '  SaT Sentence Segmentation (wtpsplit lib + model) — optional, on demand
+        '  Zip contains sat-libs\ (wtpsplit + deps) and sat-cache\ (model weights);
+        '  extracted to <app>\sat\ where live-server's sat_segmenter auto-discovers it.
+        ' ──────────────────────────────────────────
+
+        ''' <summary>Where the SaT runtime is installed: &lt;app&gt;\sat\ (live-server finds it at ..\sat\).</summary>
+        Private Function SatInstalledDir() As String
+            Return Path.Combine(_toolsDir, "sat")
+        End Function
+
+        Private Function SatInstalled() As Boolean
+            Dim d = SatInstalledDir()
+            Dim libs = Path.Combine(d, "sat-libs")
+            Dim cache = Path.Combine(d, "sat-cache")
+            Return Directory.Exists(libs) AndAlso Directory.Exists(cache) AndAlso
+                   Directory.EnumerateFileSystemEntries(libs).Any() AndAlso
+                   Directory.EnumerateFileSystemEntries(cache).Any()
+        End Function
+
+        ''' <summary>Downloaded via embedded Python (pip + HuggingFace), like the faster-whisper/NLLB models — no hosted asset needed.</summary>
+        Public Function CheckSatModelAsync() As Task(Of ToolState)
+            Dim state As New ToolState With {.Name = "SaT Sentence Segmentation", .DownloadUrl = ""}
+            Try
+                If SatInstalled() Then
+                    state.Status = ToolStatus.UpToDate
+                    state.InstalledVersion = "installed"
+                End If
+            Catch ex As Exception
+                AppLogger.Log(LogEvents.DL_CHECK_RESULT, $"SaT model check failed: {ex.Message}")
+                state.Status = ToolStatus.CheckFailed
+            End Try
+            Return Task.FromResult(state)
+        End Function
+
+        ''' <summary>
+        ''' Installs the SaT runtime with the embedded Python: pip-installs wtpsplit
+        ''' into an isolated target dir (torch/tokenizers/onnxruntime already in
+        ''' python-embed are skipped by --target), then pulls the model from
+        ''' HuggingFace by loading it once. No self-hosted release asset required.
+        ''' </summary>
+        Public Async Function DownloadSatModelAsync(progress As IProgress(Of (downloaded As Long, total As Long))) As Task
+            Dim pythonPath = PythonExePath()
+            If Not File.Exists(pythonPath) Then
+                Throw New FileNotFoundException("Python not installed — install Python packages first")
+            End If
+            Dim libs = Path.Combine(SatInstalledDir(), "sat-libs")
+            Dim cache = Path.Combine(SatInstalledDir(), "sat-cache")
+            Directory.CreateDirectory(libs)
+            Directory.CreateDirectory(cache)
+
+            ' 1) wtpsplit + its missing pure-python deps into the isolated target.
+            AppLogger.Log(LogEvents.DL_DOWNLOAD_START, "SaT: pip installing wtpsplit into " & libs)
+            ' Pin the deps that matter to the tested combo: transformers 5.13.0, and
+            ' tokenizers 0.22.2 (embedded's 0.23.1 is too new for transformers 5.13).
+            Await RunProcessAsync(pythonPath, $"-m pip install --no-cache-dir --target ""{libs}"" wtpsplit==2.2.1 transformers==5.13.0 tokenizers==0.22.2", _toolsDir, 1800000)
+
+            ' 2) Fetch the model weights into sat-cache by loading it once.
+            AppLogger.Log(LogEvents.DL_DOWNLOAD_START, "SaT: downloading model sat-3l-sm from HuggingFace into " & cache)
+            Dim script = "import sys,os; sys.path.insert(0, r'" & libs & "'); os.environ['HF_HOME']=r'" & cache & "'; from wtpsplit import SaT; SaT('sat-3l-sm'); print('SAT_OK')"
+            Await RunProcessAsync(pythonPath, $"-c ""{script}""", _toolsDir, 1800000)
+
+            If Not SatInstalled() Then
+                Throw New InvalidOperationException("SaT install completed but files are missing — check the download log for pip/HuggingFace errors.")
+            End If
+        End Function
+
+        ' ──────────────────────────────────────────
+        '  Biblical Vocabulary (Speechmatics additional_vocab) — GENERATED on-device
+        '  from the installed Bibles (no hosted asset), written to live-server\vocab\.
+        ' ──────────────────────────────────────────
+
+        Private Shared ReadOnly _bibleExts As String() = {".sqlite3", ".sqlite", ".db"}
+
+        Private Function BiblicalVocabDir() As String
+            Return Path.Combine(_toolsDir, "live-server", "vocab")
+        End Function
+
+        ''' <summary>The Bibles root: the configured path when it exists, else the app's Bibles folder (robust to stale config paths).</summary>
+        Private Function BiblesRootDir() As String
+            Dim configured = AppConfig.ResolvePath(_config.BiblesDirectory)
+            If Not String.IsNullOrEmpty(configured) AndAlso Directory.Exists(configured) Then Return configured
+            Return Path.Combine(_toolsDir, "Bibles")
+        End Function
+
+        Private Function LangCodesJsonPath() As String
+            Return Path.Combine(_toolsDir, "wwwroot", "data", "language-codes.json")
+        End Function
+
+        Private Shared Function DirHasBible(dir As String) As Boolean
+            Return Directory.Exists(dir) AndAlso Directory.EnumerateFiles(dir).Any(
+                Function(f) _bibleExts.Any(Function(x) f.EndsWith(x, StringComparison.OrdinalIgnoreCase)))
+        End Function
+
+        ''' <summary>True if ANY language has an installed Bible (so vocab can be generated).</summary>
+        Public Function AnyBibleInstalled() As Boolean
+            Dim root = BiblesRootDir()
+            Return Directory.Exists(root) AndAlso Directory.EnumerateDirectories(root).Any(AddressOf DirHasBible)
+        End Function
+
+        ''' <summary>ISO 639-1 codes (es/ca/de/…) that already have a generated vocab list on disk.</summary>
+        Public Function BiblicalVocabInstalledCodes() As List(Of String)
+            Dim dir = BiblicalVocabDir()
+            If Not Directory.Exists(dir) Then Return New List(Of String)
+            Return Directory.EnumerateFiles(dir, "biblical-vocab-*.json").
+                Select(Function(f) Path.GetFileNameWithoutExtension(f).Substring("biblical-vocab-".Length)).
+                OrderBy(Function(c) c).ToList()
+        End Function
+
+        ''' <summary>Generate vocab lists from the installed Bibles for every language present. Returns build_vocab.py's per-language summary.</summary>
+        Public Async Function GenerateBiblicalVocabAsync() As Task(Of String)
+            Dim pythonPath = PythonExePath()
+            If Not File.Exists(pythonPath) Then
+                Throw New FileNotFoundException("Python not installed — install Python packages first")
+            End If
+            Dim script = Path.Combine(BiblicalVocabDir(), "build_vocab.py")
+            If Not File.Exists(script) Then
+                Throw New FileNotFoundException("build_vocab.py not found — reinstall the app", script)
+            End If
+            Directory.CreateDirectory(BiblicalVocabDir())
+            ' build_vocab.py maps Bible-dir (ISO 639-3) → session code (ISO 639-1) using
+            ' the app's canonical language-codes.json (passed explicitly).
+            Dim args = $"""{script}"" ""{BiblesRootDir()}"" ""{BiblicalVocabDir()}"" ""{LangCodesJsonPath()}"""
+            Dim output = Await RunProcessCaptureAsync(pythonPath, args, _toolsDir, 300000)
+            AppLogger.Log(LogEvents.DL_DOWNLOAD_DONE,
+                $"Biblical vocab generated: {output.Replace(vbCrLf, " ").Replace(vbLf, " ").Trim()}")
+            Return output
+        End Function
+
+        ' ──────────────────────────────────────────
         '  GGML Whisper Model (for whisper.cpp)
         ' ──────────────────────────────────────────
 
@@ -1141,6 +1306,8 @@ Namespace Models
                         Await DownloadAwsSdkAsync(state.DownloadUrl, progress)
                     Case "Whisper CLI + CUDA runtime"
                         Await DownloadWhisperCliAsync(state.DownloadUrl, progress)
+                    Case "SaT Sentence Segmentation"
+                        Await DownloadSatModelAsync(progress)
                     Case Else
                         AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"Unknown tool name: '{state.Name}' — no download handler")
                 End Select
@@ -1301,6 +1468,11 @@ Namespace Models
 
         Private Shared Async Function DownloadFileAsync(url As String, destPath As String,
                                                         progress As IProgress(Of (downloaded As Long, total As Long))) As Task
+            ' Clear message when a release asset couldn't be resolved (e.g. upstream
+            ' renamed it) instead of the opaque "invalid request URI" from HttpClient.
+            If String.IsNullOrWhiteSpace(url) Then
+                Throw New InvalidOperationException("No download URL available — the release asset couldn't be found (its name may have changed upstream).")
+            End If
             Using response = Await _downloadClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead)
                 response.EnsureSuccessStatusCode()
                 Dim totalBytes = response.Content.Headers.ContentLength.GetValueOrDefault(-1)

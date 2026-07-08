@@ -434,6 +434,8 @@ Namespace Server
                                                            ok = mgr.SetPaused(id, paused, requestingClientId)
                                                            If ok Then
                                                                hub.BroadcastToRoom(id, "{""type"":""pauseStateChanged"",""paused"":" & If(paused, "true", "false") & "}", "")
+                                                               ' Reset the STT per-speaker pace auto-tune on pause (context change).
+                                                               RoomPausedHandler?.Invoke(id, paused)
                                                            End If
                                                        Catch ex As Exception
                                                            AppLogger.Log(LogEvents.SERVER_ERROR, $"/rooms/{id}/pause error: {ex.Message}")

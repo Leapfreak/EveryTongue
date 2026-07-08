@@ -2,26 +2,24 @@ Namespace Services.Stt
 
     ''' <summary>
     ''' Accumulates Speechmatics END_OF_UTTERANCE fragments into a complete clause
-    ''' before it is translated and broadcast ("hold-until-locked"). This combats
+    ''' before it is translated and broadcast ("hold-until-pause"). This combats
     ''' fragmented speakers whose mid-clause pauses make Speechmatics fire an
     ''' utterance boundary on a partial thought — instead of translating "We need"
     ''' on its own, we wait and merge "a bit more time" into one clause.
     '''
-    ''' Deliberately separate from <see cref="SentenceBuffer"/> (used by the NLLB
-    ''' path) so this Speechmatics-only feature can't alter that behaviour.
+    ''' Pure buffer-to-pause: fragments accumulate until the grace window elapses
+    ''' (a real pause) or a runaway cap fires. Sentence SEGMENTATION of the merged
+    ''' clause is done downstream by SaT (engine-agnostic), which replaced the old
+    ''' lockPunct + per-language function-word lists.
     '''
     ''' Holds NO thresholds of its own — every dial is passed in via
     ''' <see cref="Thresholds"/> on each call, read fresh from AppConfig by the
     ''' caller, so Options changes apply live without restarting a room.
-    '''
-    ''' Each <see cref="LockResult"/> carries diagnostics (reason, fragment count,
-    ''' duration, inter-fragment gaps) so the dials can be tuned from real logs.
     ''' </summary>
     Friend Class SpeechmaticsClauseAccumulator
 
         ''' <summary>Why a clause was locked — drives the diagnostics that inform dial tuning.</summary>
         Friend Enum LockReason
-            Punctuation     ' fragment ended a sentence (lowest latency)
             MaxChars        ' runaway length cap hit
             MaxMs           ' runaway age cap hit
             GraceTimeout    ' silence after last fragment exceeded GraceMs (the common case)
@@ -34,9 +32,6 @@ Namespace Services.Stt
             Public GraceMs As Integer
             Public MaxMs As Integer
             Public MaxChars As Integer
-            Public LockOnPunctuation As Boolean
-            Public MinLockChars As Integer
-            Public SentenceEnders As String
         End Structure
 
         Private ReadOnly _buffer As New Text.StringBuilder()
@@ -72,10 +67,17 @@ Namespace Services.Stt
             End Get
         End Property
 
+        ''' <summary>Detected language of the clause currently accumulating.</summary>
+        Public ReadOnly Property CurrentLanguage As String
+            Get
+                Return _lang
+            End Get
+        End Property
+
         ''' <summary>
-        ''' Add a fragment. Returns a <see cref="LockResult"/> when the clause should
-        ''' be broadcast now (immediate punctuation lock, or a runaway cap was hit),
-        ''' otherwise Nothing (keep accumulating; the grace timer handles the tail).
+        ''' Add a fragment. Returns a <see cref="LockResult"/> only when a runaway cap
+        ''' was hit (length/age); otherwise Nothing — keep accumulating, the grace
+        ''' timer locks the clause once the speaker pauses.
         ''' </summary>
         Public Function Add(fragment As String, detectedLang As String, t As Thresholds) As LockResult
             If String.IsNullOrWhiteSpace(fragment) Then Return Nothing
@@ -91,12 +93,6 @@ Namespace Services.Stt
 
             AppendFragment(fragment, detectedLang, now)
 
-            ' Immediate lock on a clearly-complete sentence (low latency).
-            If t.LockOnPunctuation AndAlso _buffer.Length >= t.MinLockChars AndAlso
-               EndsWithSentenceEnder(fragment, t.SentenceEnders) Then
-                Return Flush(LockReason.Punctuation)
-            End If
-
             ' Runaway guards — never let a clause grow without bound.
             If _buffer.Length >= t.MaxChars Then Return Flush(LockReason.MaxChars)
             If t.MaxMs > 0 AndAlso (now - _startTick) >= t.MaxMs Then Return Flush(LockReason.MaxMs)
@@ -105,8 +101,8 @@ Namespace Services.Stt
         End Function
 
         ''' <summary>
-        ''' Lock the clause if the grace window has elapsed since the last fragment.
-        ''' Call periodically from the controller's timer.
+        ''' Lock the clause if the grace window has elapsed since the last fragment
+        ''' (the speaker paused). Call periodically from the controller's timer.
         ''' </summary>
         Public Function TryLockExpired(t As Thresholds) As LockResult
             If _buffer.Length = 0 Then Return Nothing
@@ -131,7 +127,7 @@ Namespace Services.Stt
             Else
                 _lastGapMs = CInt(Math.Min(Integer.MaxValue, now - _lastFragmentTick))
                 _gaps.Add(_lastGapMs)
-                If Not piece.StartsWith(" ") Then _buffer.Append(" ")
+                If piece.Length > 0 AndAlso Not piece.StartsWith(" ") Then _buffer.Append(" ")
             End If
             _buffer.Append(piece)
             _fragmentCount += 1
@@ -157,15 +153,6 @@ Namespace Services.Stt
             _fragmentCount = 0
             _gaps.Clear()
             Return result
-        End Function
-
-        Private Shared Function EndsWithSentenceEnder(text As String, enders As String) As Boolean
-            If String.IsNullOrEmpty(text) OrElse String.IsNullOrEmpty(enders) Then Return False
-            Dim trimmed = text.TrimEnd()
-            If trimmed.Length = 0 Then Return False
-            ' Trailing ellipsis = speaker trailed off mid-thought; not a sentence end.
-            If trimmed.EndsWith("...") OrElse trimmed.EndsWith("…") Then Return False
-            Return enders.IndexOf(trimmed(trimmed.Length - 1)) >= 0
         End Function
 
     End Class

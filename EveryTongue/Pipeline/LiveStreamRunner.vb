@@ -396,6 +396,51 @@ Namespace Pipeline
             End Try
         End Function
 
+        ''' <summary>
+        ''' Split a buffered clause into proper sentences via live-server's SaT
+        ''' segmenter (engine-agnostic, list-free). Returns {text} unchanged if the
+        ''' server isn't ready or SaT is unavailable — never throws.
+        ''' </summary>
+        Public Async Function SegmentAsync(text As String, thresholdPercent As Integer, model As String) As Task(Of List(Of String))
+            Dim fallback As New List(Of String) From {text}
+            If Not _serverReady OrElse String.IsNullOrWhiteSpace(text) Then Return fallback
+            Try
+                Dim payload As New Dictionary(Of String, Object) From {
+                    {"text", text},
+                    {"threshold", Math.Max(1, thresholdPercent) / 100.0},
+                    {"model", If(String.IsNullOrEmpty(model), "sat-3l-sm", model)}}
+                Dim json = System.Text.Json.JsonSerializer.Serialize(payload)
+                Dim content As New StringContent(json, System.Text.Encoding.UTF8, "application/json")
+                Dim resp = Await _httpClient.PostAsync($"http://127.0.0.1:{_host.Port}/segment", content)
+                Dim body = Await resp.Content.ReadAsStringAsync()
+                Using doc = JsonDocument.Parse(body)
+                    Dim arr As JsonElement = Nothing
+                    If doc.RootElement.TryGetProperty("sentences", arr) AndAlso arr.ValueKind = JsonValueKind.Array Then
+                        Dim list As New List(Of String)
+                        For Each el In arr.EnumerateArray()
+                            Dim s = el.GetString()
+                            If Not String.IsNullOrWhiteSpace(s) Then list.Add(s)
+                        Next
+                        If list.Count > 0 Then Return list
+                    End If
+                End Using
+            Catch ex As Exception
+                AppLogger.Log(LogEvents.STT_WHISPER_SERVER_ERROR, $"SegmentAsync failed: {ex.Message}")
+            End Try
+            Return fallback
+        End Function
+
+        ''' <summary>Blocking wrapper for the clause accumulator's flush (runs on the flush-timer thread). Bounded so a slow sidecar can't stall the timer; on timeout returns {text} unsplit.</summary>
+        Public Function Segment(text As String, thresholdPercent As Integer, model As String) As List(Of String)
+            Try
+                Dim t = SegmentAsync(text, thresholdPercent, model)
+                If t.Wait(1500) Then Return t.Result
+            Catch ex As Exception
+                AppLogger.Log(LogEvents.STT_WHISPER_SERVER_ERROR, $"Segment (sync) failed: {ex.Message}")
+            End Try
+            Return New List(Of String) From {text}
+        End Function
+
         Public Function SaveTranscript(filePath As String) As Boolean
             Try
                 File.WriteAllText(filePath, _transcript.ToString(), Encoding.UTF8)

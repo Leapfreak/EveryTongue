@@ -266,6 +266,18 @@ Namespace Server
             End Set
         End Property
 
+        ''' <summary>(roomId, paused) — fired when the host pauses/resumes a room, so the
+        ''' conference controller can reset the STT engine's per-speaker pace auto-tune.</summary>
+        Private _roomPausedHandler As Action(Of String, Boolean)
+        Public Property RoomPausedHandler As Action(Of String, Boolean)
+            Get
+                Return Threading.Volatile.Read(_roomPausedHandler)
+            End Get
+            Set(value As Action(Of String, Boolean))
+                Threading.Volatile.Write(_roomPausedHandler, value)
+            End Set
+        End Property
+
         ''' <summary>
         ''' Generates a QR code PNG for the given text.
         ''' </summary>

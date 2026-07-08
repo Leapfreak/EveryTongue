@@ -99,6 +99,8 @@ Namespace Services.Infrastructure
         Public Const CONF_CLAUSE_LOCK As Integer = 5009
         Public Const CONF_CLAUSE_FRAGMENT As Integer = 5010
         Public Const CONF_SPEAKER_SWITCHED As Integer = 5011
+        Public Const CONF_CLAUSE_SAT_SEGMENT As Integer = 5013
+        Public Const CONF_BACKEND_DISCONNECT As Integer = 5014
 
         ' ── Rooms (5100–5199) ──
         Public Const ROOM_CREATED As Integer = 5100
@@ -286,6 +288,8 @@ Namespace Services.Infrastructure
             R(CONF_COMMIT_DROPPED, LogCategory.Conference, LogSeverity.Debug, "Conference commit dropped (paused)")
             R(CONF_CLAUSE_LOCK, LogCategory.Conference, LogSeverity.Info, "Speechmatics clause locked (hold-and-lock diagnostics for tuning dials)")
             R(CONF_CLAUSE_FRAGMENT, LogCategory.Conference, LogSeverity.Debug, "Speechmatics clause fragment accumulated (inter-fragment gap trace)")
+            R(CONF_CLAUSE_SAT_SEGMENT, LogCategory.Conference, LogSeverity.Info, "SaT split a held clause into multiple sentences at the pause (list-free, engine-agnostic segmentation)")
+            R(CONF_BACKEND_DISCONNECT, LogCategory.Conference, LogSeverity.Info, "STT backend connection dropped or the live-server exited — benign at end-of-session; the engine auto-reconnects mid-service")
             R(CONF_SPEAKER_SWITCHED, LogCategory.Conference, LogSeverity.Info, "Conference active speaker or connectivity mode changed")
 
             ' Rooms

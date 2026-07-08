@@ -91,7 +91,17 @@ Namespace Controllers
                 roomBackendKey:=AddressOf RoomBackendKey,
                 onClauseLocked:=AddressOf BroadcastLockedClauseAsync,
                 onTimerTick:=Sub() FlushExpiredBuffers(),
-                log:=log)
+                log:=log,
+                segment:=Function(roomId As String, text As String) As List(Of String)
+                             ' Split a held clause into sentences via the room's
+                             ' live-server SaT segmenter (Speechmatics/cloud only).
+                             Dim backend As ISttBackend = Nothing
+                             If _sttBackends.TryGetValue(roomId, backend) AndAlso TypeOf backend Is CloudStreamingSttBackend Then
+                                 Return DirectCast(backend, CloudStreamingSttBackend).Segment(
+                                     text, config.SpeechmaticsSatThresholdPercent, config.SpeechmaticsSatModel)
+                             End If
+                             Return New List(Of String) From {text}
+                         End Function)
         End Sub
 
         ''' <summary>ConcurrentDictionary remove without the ByRef-out ceremony.</summary>
@@ -160,6 +170,20 @@ Namespace Controllers
                                                               _log($"[Conference] ERROR invoking room closed handler: {ex.Message}")
                                                           End Try
                                                       End Sub
+
+            ' Host pause → reset the STT per-speaker pace auto-tune (context change).
+            ' Speechmatics handles reset_pace; other engines' pipelines ignore it.
+            EndpointRegistration.RoomPausedHandler = Sub(roomId As String, paused As Boolean)
+                                                         If Not paused Then Return   ' reset on pause, not resume
+                                                         Try
+                                                             Dim backend As ISttBackend = Nothing
+                                                             If _sttBackends.TryGetValue(roomId, backend) AndAlso backend IsNot Nothing Then
+                                                                 backend.UpdateConfigAsync(New Dictionary(Of String, Object) From {{"reset_pace", True}})
+                                                             End If
+                                                         Catch ex As Exception
+                                                             _log($"[Conference] pace-reset-on-pause failed: {ex.Message}")
+                                                         End Try
+                                                     End Sub
         End Sub
 
         ''' <summary>
@@ -1124,9 +1148,30 @@ Namespace Controllers
                     If line.StartsWith(">>>") OrElse
                        line.Contains("ASGI callable returned without completing response") OrElse
                        _pythonLogLinePattern.IsMatch(line) Then Return
-                    AppLogger.Log(LogEvents.CONF_BACKEND_ERROR, $"room={roomId} engine={engineKey} {line}")
+                    ' Connection-lifecycle events (SSE stream ended, live-server exited,
+                    ' socket forcibly closed/reset) are benign at end-of-session and now
+                    ' auto-recover mid-service — log them Info, not a red ERROR.
+                    If IsBenignDisconnect(line) Then
+                        AppLogger.Log(LogEvents.CONF_BACKEND_DISCONNECT, $"room={roomId} engine={engineKey} {line}")
+                    Else
+                        AppLogger.Log(LogEvents.CONF_BACKEND_ERROR, $"room={roomId} engine={engineKey} {line}")
+                    End If
                 End Sub
         End Sub
+
+        ''' <summary>True if a backend error line is a benign connection-lifecycle event (disconnect / process exit / socket close) rather than a genuine engine error.</summary>
+        Private Shared Function IsBenignDisconnect(line As String) As Boolean
+            If String.IsNullOrEmpty(line) Then Return False
+            Dim l = line.ToLowerInvariant()
+            Return l.Contains("sse connection lost") OrElse
+                   l.Contains("exited unexpectedly") OrElse
+                   l.Contains("forcibly closed") OrElse
+                   l.Contains("connection reset") OrElse
+                   l.Contains("connection was aborted") OrElse
+                   l.Contains("connection closed") OrElse
+                   l.Contains("operation was canceled") OrElse
+                   l.Contains("operation was cancelled")
+        End Function
 
         ''' <summary>
         ''' Resolve the room's TRANSLATION engine key (template's TranslationBackendKey,
