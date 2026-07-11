@@ -121,15 +121,18 @@ Namespace Services.Translation
                             Return
                         End If
                         Dim form As New Dictionary(Of String, String) From {
-                            {"auth_key", ApiKey},
                             {"text", text},
                             {"target_lang", dlTarget.ToUpper()}
                         }
                         ' Unmapped source → omit and let DeepL auto-detect.
                         Dim dlSource = Services.Infrastructure.LanguageCodeService.Instance.FloresToDeepL(sourceLang)
                         If Not String.IsNullOrEmpty(dlSource) Then form("source_lang") = dlSource.ToUpper()
-                        Dim response = Await HttpClient.PostAsync(
-                            "https://api-free.deepl.com/v2/translate", New FormUrlEncodedContent(form), ct)
+                        ' DeepL dropped form-body auth_key ("legacy authentication") —
+                        ' the key must travel as an Authorization header.
+                        Dim req As New HttpRequestMessage(HttpMethod.Post, "https://api-free.deepl.com/v2/translate")
+                        req.Headers.TryAddWithoutValidation("Authorization", $"DeepL-Auth-Key {ApiKey}")
+                        req.Content = New FormUrlEncodedContent(form)
+                        Dim response = Await HttpClient.SendAsync(req, ct)
                         If response.IsSuccessStatusCode Then
                             Dim body = Await response.Content.ReadAsStringAsync()
                             Using doc = JsonDocument.Parse(body)
@@ -173,8 +176,10 @@ Namespace Services.Translation
         Public Overrides Async Function CheckHealthAsync(ct As CancellationToken) As Task(Of Boolean)
             If Not IsAvailable Then Return False
             Try
-                Dim response = Await HttpClient.GetAsync(
-                    $"https://api-free.deepl.com/v2/usage?auth_key={ApiKey}", ct)
+                ' Header-based auth (DeepL dropped legacy auth_key-in-URL/body).
+                Dim req As New HttpRequestMessage(HttpMethod.Get, "https://api-free.deepl.com/v2/usage")
+                req.Headers.TryAddWithoutValidation("Authorization", $"DeepL-Auth-Key {ApiKey}")
+                Dim response = Await HttpClient.SendAsync(req, ct)
                 Return response.IsSuccessStatusCode
             Catch ex As Exception
                 Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR, $"DeepLBackend.CheckHealthAsync: {ex.Message}")
