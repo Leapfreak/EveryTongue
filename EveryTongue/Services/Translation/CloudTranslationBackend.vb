@@ -111,14 +111,25 @@ Namespace Services.Translation
                 tasks.Add(Task.Run(Async Function()
                     Await gate.WaitAsync(ct)
                     Try
-                        Dim content As New FormUrlEncodedContent(New Dictionary(Of String, String) From {
+                        ' DeepL needs ITS OWN codes (CA/EN/…), not FLORES — sending
+                        ' "CAT_LATN" was rejected and silently swallowed, so every
+                        ' request fell back to the local engine wearing DeepL's label.
+                        Dim dlTarget = Services.Infrastructure.LanguageCodeService.Instance.FloresToDeepL(targetLang)
+                        If String.IsNullOrEmpty(dlTarget) Then
+                            Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR,
+                                $"DeepLBackend: no DeepL code for target '{targetLang}' — skipped")
+                            Return
+                        End If
+                        Dim form As New Dictionary(Of String, String) From {
                             {"auth_key", ApiKey},
                             {"text", text},
-                            {"source_lang", sourceLang.ToUpper()},
-                            {"target_lang", targetLang.ToUpper()}
-                        })
+                            {"target_lang", dlTarget.ToUpper()}
+                        }
+                        ' Unmapped source → omit and let DeepL auto-detect.
+                        Dim dlSource = Services.Infrastructure.LanguageCodeService.Instance.FloresToDeepL(sourceLang)
+                        If Not String.IsNullOrEmpty(dlSource) Then form("source_lang") = dlSource.ToUpper()
                         Dim response = Await HttpClient.PostAsync(
-                            "https://api-free.deepl.com/v2/translate", content, ct)
+                            "https://api-free.deepl.com/v2/translate", New FormUrlEncodedContent(form), ct)
                         If response.IsSuccessStatusCode Then
                             Dim body = Await response.Content.ReadAsStringAsync()
                             Using doc = JsonDocument.Parse(body)
@@ -126,6 +137,12 @@ Namespace Services.Translation
                                     GetProperty("translations")(0).
                                     GetProperty("text").GetString()
                             End Using
+                        Else
+                            ' A rejected request must be VISIBLE — silence here masked
+                            ' the FLORES-code bug behind the orchestrator's fallback.
+                            Dim errBody = Await response.Content.ReadAsStringAsync()
+                            Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR,
+                                $"DeepLBackend: HTTP {CInt(response.StatusCode)} for {If(dlSource, "auto")}→{dlTarget}: {If(errBody, "").Substring(0, Math.Min(120, If(errBody, "").Length))}")
                         End If
                     Catch ex As OperationCanceledException
                     Catch ex As Exception
@@ -281,9 +298,28 @@ Namespace Services.Translation
 
             Dim results As New Dictionary(Of String, String)()
             Try
-                ' Azure supports multiple target languages in one call
-                Dim targetParams = String.Join("", targetLangs.Select(Function(tl) $"&to={tl}"))
-                Dim url = $"https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&from={sourceLang}{targetParams}"
+                ' Azure needs ITS OWN codes (en/es/…), not FLORES — same class of bug
+                ' as the DeepL one: raw "cat_Latn" was rejected silently. Map the
+                ' targets AND remember azure→flores so results come back keyed the
+                ' way the caller (orchestrator) expects.
+                Dim svc = Services.Infrastructure.LanguageCodeService.Instance
+                Dim azToFlores As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
+                For Each tl In targetLangs
+                    Dim az = svc.FloresToAzure(tl)
+                    If String.IsNullOrEmpty(az) Then
+                        Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR,
+                            $"AzureBackend: no Azure code for target '{tl}' — skipped")
+                    Else
+                        azToFlores(az) = tl
+                    End If
+                Next
+                If azToFlores.Count = 0 Then Return results
+                ' Azure supports multiple target languages in one call; unmapped
+                ' source → omit &from= and let Azure auto-detect.
+                Dim targetParams = String.Join("", azToFlores.Keys.Select(Function(az) $"&to={az}"))
+                Dim azSource = svc.FloresToAzure(sourceLang)
+                Dim fromParam = If(String.IsNullOrEmpty(azSource), "", $"&from={azSource}")
+                Dim url = $"https://api.cognitive.microsofttranslator.com/translate?api-version=3.0{fromParam}{targetParams}"
 
                 Dim requestBody = $"[{{""Text"":{EscapeJson(text)}}}]"
                 Dim content As New StringContent(requestBody, Encoding.UTF8, "application/json")
@@ -301,10 +337,16 @@ Namespace Services.Translation
                         For Each trans In translations.EnumerateArray()
                             Dim toLang = trans.GetProperty("to").GetString()
                             Dim translated = trans.GetProperty("text").GetString()
-                            results(toLang) = translated
+                            ' Key by the FLORES code the caller asked for.
+                            Dim flores As String = Nothing
+                            results(If(azToFlores.TryGetValue(toLang, flores), flores, toLang)) = translated
                         Next
-                        CharactersUsed += text.Length * targetLangs.Count
+                        CharactersUsed += text.Length * azToFlores.Count
                     End Using
+                Else
+                    Dim errBody = Await response.Content.ReadAsStringAsync()
+                    Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR,
+                        $"AzureBackend: HTTP {CInt(response.StatusCode)}: {If(errBody, "").Substring(0, Math.Min(120, If(errBody, "").Length))}")
                 End If
             Catch ex As OperationCanceledException
             Catch ex As Exception

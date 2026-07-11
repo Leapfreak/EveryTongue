@@ -1,102 +1,400 @@
 {
   "eng_Latn": [
-    {"word": "fuck", "enabled": true},
-    {"word": "fucking", "enabled": true},
-    {"word": "fucked", "enabled": true},
-    {"word": "fucker", "enabled": true},
-    {"word": "fuckers", "enabled": true},
-    {"word": "fucks", "enabled": true},
-    {"word": "shit", "enabled": true},
-    {"word": "shitting", "enabled": true},
-    {"word": "shitty", "enabled": true},
-    {"word": "bitch", "enabled": true},
-    {"word": "bitches", "enabled": true},
-    {"word": "asshole", "enabled": true},
-    {"word": "assholes", "enabled": true},
-    {"word": "bastard", "enabled": true},
-    {"word": "bastards", "enabled": true},
-    {"word": "cunt", "enabled": true},
-    {"word": "cunts", "enabled": true},
-    {"word": "dick", "enabled": true},
-    {"word": "dicks", "enabled": true},
-    {"word": "piss", "enabled": true},
-    {"word": "pissed", "enabled": true},
-    {"word": "pissing", "enabled": true},
-    {"word": "whore", "enabled": true},
-    {"word": "whores", "enabled": true},
-    {"word": "slut", "enabled": true},
-    {"word": "sluts", "enabled": true},
-    {"word": "cock", "enabled": true},
-    {"word": "cocks", "enabled": true},
-    {"word": "bollocks", "enabled": true},
-    {"word": "wanker", "enabled": true},
-    {"word": "wankers", "enabled": true},
-    {"word": "motherfucker", "enabled": true},
-    {"word": "motherfuckers", "enabled": true},
-    {"word": "motherfucking", "enabled": true}
+    {
+      "word": "fuck",
+      "enabled": true
+    },
+    {
+      "word": "fucking",
+      "enabled": true
+    },
+    {
+      "word": "fucked",
+      "enabled": true
+    },
+    {
+      "word": "fucker",
+      "enabled": true
+    },
+    {
+      "word": "fuckers",
+      "enabled": true
+    },
+    {
+      "word": "fucks",
+      "enabled": true
+    },
+    {
+      "word": "shit",
+      "enabled": true
+    },
+    {
+      "word": "shitting",
+      "enabled": true
+    },
+    {
+      "word": "shitty",
+      "enabled": true
+    },
+    {
+      "word": "bitch",
+      "enabled": true
+    },
+    {
+      "word": "bitches",
+      "enabled": true
+    },
+    {
+      "word": "asshole",
+      "enabled": true
+    },
+    {
+      "word": "assholes",
+      "enabled": true
+    },
+    {
+      "word": "bastard",
+      "enabled": true
+    },
+    {
+      "word": "bastards",
+      "enabled": true
+    },
+    {
+      "word": "cunt",
+      "enabled": true
+    },
+    {
+      "word": "cunts",
+      "enabled": true
+    },
+    {
+      "word": "dick",
+      "enabled": true
+    },
+    {
+      "word": "dicks",
+      "enabled": true
+    },
+    {
+      "word": "piss",
+      "enabled": true
+    },
+    {
+      "word": "pissed",
+      "enabled": true
+    },
+    {
+      "word": "pissing",
+      "enabled": true
+    },
+    {
+      "word": "whore",
+      "enabled": true
+    },
+    {
+      "word": "whores",
+      "enabled": true
+    },
+    {
+      "word": "slut",
+      "enabled": true
+    },
+    {
+      "word": "sluts",
+      "enabled": true
+    },
+    {
+      "word": "cock",
+      "enabled": true
+    },
+    {
+      "word": "cocks",
+      "enabled": true
+    },
+    {
+      "word": "bollocks",
+      "enabled": true
+    },
+    {
+      "word": "wanker",
+      "enabled": true
+    },
+    {
+      "word": "wankers",
+      "enabled": true
+    },
+    {
+      "word": "motherfucker",
+      "enabled": true
+    },
+    {
+      "word": "motherfuckers",
+      "enabled": true
+    },
+    {
+      "word": "motherfucking",
+      "enabled": true
+    },
+    {
+      "word": "bullshit",
+      "enabled": true
+    },
+    {
+      "word": "bullshits",
+      "enabled": true
+    },
+    {
+      "word": "bullshitting",
+      "enabled": true
+    },
+    {
+      "word": "shits",
+      "enabled": true
+    }
   ],
   "spa_Latn": [
-    {"word": "joder", "enabled": true},
-    {"word": "jodido", "enabled": true},
-    {"word": "jodida", "enabled": true},
-    {"word": "jodidos", "enabled": true},
-    {"word": "jodidas", "enabled": true},
-    {"word": "mierda", "enabled": true},
-    {"word": "mierdas", "enabled": true},
-    {"word": "puta", "enabled": true},
-    {"word": "putas", "enabled": true},
-    {"word": "puto", "enabled": true},
-    {"word": "putos", "enabled": true},
-    {"word": "cabrón", "enabled": true},
-    {"word": "cabrones", "enabled": true},
-    {"word": "cabrona", "enabled": true},
-    {"word": "cabronas", "enabled": true},
-    {"word": "coño", "enabled": true},
-    {"word": "coños", "enabled": true},
-    {"word": "culo", "enabled": true},
-    {"word": "culos", "enabled": true},
-    {"word": "gilipollas", "enabled": true},
-    {"word": "hijoputa", "enabled": true},
-    {"word": "hijoputas", "enabled": true},
-    {"word": "hijo de puta", "enabled": true},
-    {"word": "hija de puta", "enabled": true},
-    {"word": "maricón", "enabled": true},
-    {"word": "maricones", "enabled": true},
-    {"word": "zorra", "enabled": true},
-    {"word": "zorras", "enabled": true},
-    {"word": "pendejo", "enabled": true},
-    {"word": "pendejos", "enabled": true},
-    {"word": "pendeja", "enabled": true},
-    {"word": "pendejas", "enabled": true},
-    {"word": "chingada", "enabled": true},
-    {"word": "chingar", "enabled": true},
-    {"word": "verga", "enabled": true}
+    {
+      "word": "joder",
+      "enabled": true
+    },
+    {
+      "word": "jodido",
+      "enabled": true
+    },
+    {
+      "word": "jodida",
+      "enabled": true
+    },
+    {
+      "word": "jodidos",
+      "enabled": true
+    },
+    {
+      "word": "jodidas",
+      "enabled": true
+    },
+    {
+      "word": "mierda",
+      "enabled": true
+    },
+    {
+      "word": "mierdas",
+      "enabled": true
+    },
+    {
+      "word": "puta",
+      "enabled": true
+    },
+    {
+      "word": "putas",
+      "enabled": true
+    },
+    {
+      "word": "puto",
+      "enabled": true
+    },
+    {
+      "word": "putos",
+      "enabled": true
+    },
+    {
+      "word": "cabrón",
+      "enabled": true
+    },
+    {
+      "word": "cabrones",
+      "enabled": true
+    },
+    {
+      "word": "cabrona",
+      "enabled": true
+    },
+    {
+      "word": "cabronas",
+      "enabled": true
+    },
+    {
+      "word": "coño",
+      "enabled": true
+    },
+    {
+      "word": "coños",
+      "enabled": true
+    },
+    {
+      "word": "culo",
+      "enabled": true
+    },
+    {
+      "word": "culos",
+      "enabled": true
+    },
+    {
+      "word": "gilipollas",
+      "enabled": true
+    },
+    {
+      "word": "hijoputa",
+      "enabled": true
+    },
+    {
+      "word": "hijoputas",
+      "enabled": true
+    },
+    {
+      "word": "hijo de puta",
+      "enabled": true
+    },
+    {
+      "word": "hija de puta",
+      "enabled": true
+    },
+    {
+      "word": "maricón",
+      "enabled": true
+    },
+    {
+      "word": "maricones",
+      "enabled": true
+    },
+    {
+      "word": "zorra",
+      "enabled": true
+    },
+    {
+      "word": "zorras",
+      "enabled": true
+    },
+    {
+      "word": "pendejo",
+      "enabled": true
+    },
+    {
+      "word": "pendejos",
+      "enabled": true
+    },
+    {
+      "word": "pendeja",
+      "enabled": true
+    },
+    {
+      "word": "pendejas",
+      "enabled": true
+    },
+    {
+      "word": "chingada",
+      "enabled": true
+    },
+    {
+      "word": "chingar",
+      "enabled": true
+    },
+    {
+      "word": "verga",
+      "enabled": true
+    }
   ],
   "cat_Latn": [
-    {"word": "fotre", "enabled": true},
-    {"word": "fotut", "enabled": true},
-    {"word": "fotuda", "enabled": true},
-    {"word": "fotuts", "enabled": true},
-    {"word": "fotudes", "enabled": true},
-    {"word": "merda", "enabled": true},
-    {"word": "merdes", "enabled": true},
-    {"word": "puta", "enabled": true},
-    {"word": "putes", "enabled": true},
-    {"word": "putó", "enabled": true},
-    {"word": "fill de puta", "enabled": true},
-    {"word": "filla de puta", "enabled": true},
-    {"word": "cony", "enabled": true},
-    {"word": "conys", "enabled": true},
-    {"word": "cul", "enabled": true},
-    {"word": "culs", "enabled": true},
-    {"word": "imbècil", "enabled": true},
-    {"word": "imbècils", "enabled": true},
-    {"word": "cabró", "enabled": true},
-    {"word": "cabrons", "enabled": true},
-    {"word": "cabrona", "enabled": true},
-    {"word": "cabrones", "enabled": true},
-    {"word": "collons", "enabled": true},
-    {"word": "mamó", "enabled": true},
-    {"word": "mamona", "enabled": true}
+    {
+      "word": "fotre",
+      "enabled": true
+    },
+    {
+      "word": "fotut",
+      "enabled": true
+    },
+    {
+      "word": "fotuda",
+      "enabled": true
+    },
+    {
+      "word": "fotuts",
+      "enabled": true
+    },
+    {
+      "word": "fotudes",
+      "enabled": true
+    },
+    {
+      "word": "merda",
+      "enabled": true
+    },
+    {
+      "word": "merdes",
+      "enabled": true
+    },
+    {
+      "word": "puta",
+      "enabled": true
+    },
+    {
+      "word": "putes",
+      "enabled": true
+    },
+    {
+      "word": "putó",
+      "enabled": true
+    },
+    {
+      "word": "fill de puta",
+      "enabled": true
+    },
+    {
+      "word": "filla de puta",
+      "enabled": true
+    },
+    {
+      "word": "cony",
+      "enabled": true
+    },
+    {
+      "word": "conys",
+      "enabled": true
+    },
+    {
+      "word": "cul",
+      "enabled": true
+    },
+    {
+      "word": "culs",
+      "enabled": true
+    },
+    {
+      "word": "imbècil",
+      "enabled": true
+    },
+    {
+      "word": "imbècils",
+      "enabled": true
+    },
+    {
+      "word": "cabró",
+      "enabled": true
+    },
+    {
+      "word": "cabrons",
+      "enabled": true
+    },
+    {
+      "word": "cabrona",
+      "enabled": true
+    },
+    {
+      "word": "cabrones",
+      "enabled": true
+    },
+    {
+      "word": "collons",
+      "enabled": true
+    },
+    {
+      "word": "mamó",
+      "enabled": true
+    },
+    {
+      "word": "mamona",
+      "enabled": true
+    }
   ]
 }
