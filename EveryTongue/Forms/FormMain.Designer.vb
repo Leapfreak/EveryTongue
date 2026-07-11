@@ -1589,31 +1589,38 @@ Partial Class FormMain
         '
         ' colLogTime
         '
+        ' Narrow columns size to their visible content (headers included) —
+        ' DisplayedCells, not AllCells, so thousands of log rows stay cheap.
+        colLogTime.AutoSizeMode = DataGridViewAutoSizeColumnMode.DisplayedCells
         colLogTime.HeaderText = "Time"
         colLogTime.Name = "colLogTime"
         colLogTime.ReadOnly = True
-        colLogTime.Width = 70
         '
         ' colLogCategory
         '
+        colLogCategory.AutoSizeMode = DataGridViewAutoSizeColumnMode.DisplayedCells
         colLogCategory.HeaderText = "Category"
         colLogCategory.Name = "colLogCategory"
         colLogCategory.ReadOnly = True
-        colLogCategory.Width = 80
         '
         ' colLogLevel
         '
+        colLogLevel.AutoSizeMode = DataGridViewAutoSizeColumnMode.DisplayedCells
         colLogLevel.HeaderText = "Level"
         colLogLevel.Name = "colLogLevel"
         colLogLevel.ReadOnly = True
-        colLogLevel.Width = 55
         '
         ' colLogMessage
         '
-        colLogMessage.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
+        ' NOT Fill — Fill squeezes columns to the grid width, which suppresses the
+        ' horizontal scrollbar and truncates long lines. A wide fixed column lets
+        ' long messages scroll horizontally (user-resizable; tooltips still show all).
+        colLogMessage.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
         colLogMessage.HeaderText = "Message"
         colLogMessage.Name = "colLogMessage"
         colLogMessage.ReadOnly = True
+        colLogMessage.Width = 1600
+        colLogMessage.MinimumWidth = 300
         '
         ' lblLogTitle
         '

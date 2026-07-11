@@ -262,6 +262,8 @@ Partial Class FormTemplateManager
         Me.cboTransEngine.Location = New System.Drawing.Point(130, 133)
         Me.cboTransEngine.Name = "cboTransEngine"
         Me.cboTransEngine.Size = New System.Drawing.Size(200, 23)
+        ' Open list wider than the closed box — VRAM-annotated NLLB names need ~300px.
+        Me.cboTransEngine.DropDownWidth = 320
         Me.cboTransEngine.TabIndex = 9
         '
         ' lblVisibility

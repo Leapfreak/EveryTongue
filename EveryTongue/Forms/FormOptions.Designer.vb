@@ -1608,6 +1608,9 @@ Partial Class FormOptions
         Me.cboTransBackend.Location = New System.Drawing.Point(12, 86)
         Me.cboTransBackend.Name = "cboTransBackend"
         Me.cboTransBackend.Size = New System.Drawing.Size(200, 23)
+        ' The closed box is layout-constrained (API key field at x=230), but the
+        ' OPEN list can be wider — the VRAM-annotated NLLB names need ~300px.
+        Me.cboTransBackend.DropDownWidth = 320
         Me.cboTransBackend.TabIndex = 4
         '
         ' lblTransApiKey
