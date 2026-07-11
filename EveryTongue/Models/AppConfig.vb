@@ -180,8 +180,10 @@ Namespace Models
         Public Property DictationActiveTargetLanguage As String = ""
         ''' <summary>STT input language ("auto" or a whisper code); used for capture + as translate source fallback.</summary>
         Public Property DictationSourceLanguage As String = "auto"
-        ''' <summary>Audio input device index for dictation (0 = default input device).</summary>
+        ''' <summary>Audio input device index for dictation (0 = default input device). Legacy fallback — prefer DictationDeviceName.</summary>
         Public Property DictationDeviceIndex As Integer = 0
+        ''' <summary>Dictation microphone by NAME (survives device-index drift, like ConferenceTemplate.AudioDeviceName). Empty = follow the Live workspace's last device.</summary>
+        Public Property DictationDeviceName As String = ""
 
         ' --- Live Server (STT + VAD) ---
 
@@ -467,7 +469,7 @@ Namespace Models
         Public Property ShowBibleCopyright As Boolean = True
 
         Public Property MinimizeToTray As Boolean = True
-        Public Property StartMinimized As Boolean = True
+        Public Property StartMinimized As Boolean = False
 
         Public Property LogsDirectory As String = ".\logs"
 

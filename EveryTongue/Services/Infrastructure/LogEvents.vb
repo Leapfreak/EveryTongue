@@ -361,7 +361,7 @@ Namespace Services.Infrastructure
             R(DICT_COMMIT, LogCategory.UI, LogSeverity.Info, "Dictation text injected")
             R(DICT_TRANSLATE, LogCategory.UI, LogSeverity.Debug, "Dictation translated before inject")
             R(DICT_INJECT_ERROR, LogCategory.UI, LogSeverity.[Error], "Dictation injection error")
-            R(DICT_HOTKEY, LogCategory.UI, LogSeverity.Debug, "Dictation hotkey event")
+            R(DICT_HOTKEY, LogCategory.UI, LogSeverity.Warning, "Dictation hotkey could not be registered (usually the key combo is owned by another application)")
 
             ' Python log lines (tailed from files) — base+0=Info, base+1=Debug, base+2=Warning, base+3=Error
             R(PYLOG_LIVE, LogCategory.PythonLog, LogSeverity.Info, "Live server log line")

@@ -206,6 +206,8 @@ Partial Class FormOptions
         Me.cboDictInsert = New System.Windows.Forms.ComboBox()
         Me.lblDictSource = New System.Windows.Forms.Label()
         Me.txtDictSource = New System.Windows.Forms.TextBox()
+        Me.lblDictDevice = New System.Windows.Forms.Label()
+        Me.cboDictDevice = New System.Windows.Forms.ComboBox()
         Me.lblDictTargets = New System.Windows.Forms.Label()
         Me.clbDictTargets = New System.Windows.Forms.CheckedListBox()
         ' ── Advanced panel controls ──
@@ -2320,6 +2322,8 @@ Partial Class FormOptions
         Me.pnlDictation.Controls.Add(Me.cboDictInsert)
         Me.pnlDictation.Controls.Add(Me.lblDictSource)
         Me.pnlDictation.Controls.Add(Me.txtDictSource)
+        Me.pnlDictation.Controls.Add(Me.lblDictDevice)
+        Me.pnlDictation.Controls.Add(Me.cboDictDevice)
         Me.pnlDictation.Controls.Add(Me.lblDictTargets)
         Me.pnlDictation.Controls.Add(Me.clbDictTargets)
         Me.pnlDictation.Dock = System.Windows.Forms.DockStyle.Fill
@@ -2410,10 +2414,25 @@ Partial Class FormOptions
         Me.txtDictSource.Size = New System.Drawing.Size(160, 23)
         Me.txtDictSource.TabIndex = 5
         '
+        ' lblDictDevice
+        '
+        Me.lblDictDevice.AutoSize = True
+        Me.lblDictDevice.Location = New System.Drawing.Point(16, 212)
+        Me.lblDictDevice.Name = "lblDictDevice"
+        Me.lblDictDevice.Text = "Microphone"
+        '
+        ' cboDictDevice
+        '
+        Me.cboDictDevice.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboDictDevice.Location = New System.Drawing.Point(180, 209)
+        Me.cboDictDevice.Name = "cboDictDevice"
+        Me.cboDictDevice.Size = New System.Drawing.Size(280, 23)
+        Me.cboDictDevice.TabIndex = 6
+        '
         ' lblDictTargets
         '
         Me.lblDictTargets.AutoSize = True
-        Me.lblDictTargets.Location = New System.Drawing.Point(16, 216)
+        Me.lblDictTargets.Location = New System.Drawing.Point(16, 248)
         Me.lblDictTargets.Name = "lblDictTargets"
         Me.lblDictTargets.Text = "Output languages (menu)"
         '
@@ -2421,7 +2440,7 @@ Partial Class FormOptions
         '
         Me.clbDictTargets.CheckOnClick = True
         Me.clbDictTargets.IntegralHeight = False
-        Me.clbDictTargets.Location = New System.Drawing.Point(16, 238)
+        Me.clbDictTargets.Location = New System.Drawing.Point(16, 270)
         Me.clbDictTargets.Name = "clbDictTargets"
         Me.clbDictTargets.Size = New System.Drawing.Size(384, 200)
         Me.clbDictTargets.TabIndex = 6
@@ -3659,6 +3678,8 @@ Partial Class FormOptions
     Friend WithEvents cboDictInsert As System.Windows.Forms.ComboBox
     Friend WithEvents lblDictSource As System.Windows.Forms.Label
     Friend WithEvents txtDictSource As System.Windows.Forms.TextBox
+    Friend WithEvents lblDictDevice As System.Windows.Forms.Label
+    Friend WithEvents cboDictDevice As System.Windows.Forms.ComboBox
     Friend WithEvents lblDictTargets As System.Windows.Forms.Label
     Friend WithEvents clbDictTargets As System.Windows.Forms.CheckedListBox
     Friend WithEvents pnlStt As System.Windows.Forms.Panel

@@ -50,6 +50,44 @@ Public Class FormOptions
             _dictTargetCodes.Add(lang.Flores)
             clbDictTargets.Items.Add($"{lang.Name} ({lang.Flores})")
         Next
+
+        ' Microphone combo — same pattern as the conference-template audio picker:
+        ' a "Default" entry + the enumerated devices, saved selection restored by name.
+        cboDictDevice.Items.Clear()
+        cboDictDevice.Items.Add(New Services.Models.AudioDeviceInfo(-1, lp.GetString("Live_DefaultDevice")))
+        cboDictDevice.Enabled = False
+        Dim pythonPath = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "python-embed", "python.exe")
+        Threading.Tasks.Task.Run(
+            Sub()
+                Try
+                    Dim devices = Services.Stt.SttBackendRegistry.CreateBackend().EnumerateDevicesAsync(pythonPath)
+                    Me.BeginInvoke(Sub()
+                                       For Each d In devices
+                                           cboDictDevice.Items.Add(d)
+                                       Next
+                                       Dim savedName = If(_config.DictationDeviceName, "").Trim()
+                                       Dim idx = 0
+                                       For i = 1 To cboDictDevice.Items.Count - 1
+                                           Dim dev = TryCast(cboDictDevice.Items(i), Services.Models.AudioDeviceInfo)
+                                           If dev IsNot Nothing AndAlso savedName.Length > 0 AndAlso
+                                              String.Equals(If(dev.Name, "").Trim(), savedName, StringComparison.OrdinalIgnoreCase) Then
+                                               idx = i
+                                               Exit For
+                                           End If
+                                       Next
+                                       cboDictDevice.SelectedIndex = idx
+                                       cboDictDevice.Enabled = True
+                                   End Sub)
+                Catch
+                    Try
+                        Me.BeginInvoke(Sub()
+                                           cboDictDevice.SelectedIndex = 0
+                                           cboDictDevice.Enabled = True
+                                       End Sub)
+                    Catch
+                    End Try
+                End Try
+            End Sub)
     End Sub
 
     ' ═══════════════════════════════════════════════════════════════
@@ -78,6 +116,7 @@ Public Class FormOptions
         lblDictStyle.Text = langPack.GetString("Opt_DictStyle")
         lblDictInsert.Text = langPack.GetString("Opt_DictInsertMode")
         lblDictSource.Text = langPack.GetString("Opt_DictSourceLang")
+        lblDictDevice.Text = langPack.GetString("Opt_DictDevice")
         lblDictTargets.Text = langPack.GetString("Opt_DictTargets")
         treeNav.Nodes("advanced").Text = langPack.GetString("Opt_NavAdvanced")
         btnManageSttTemplatesOpt.Text = langPack.GetString("Opt_ManageSttTemplates")
@@ -488,6 +527,7 @@ Public Class FormOptions
         cboDictStyle.SelectedIndex = If(_config.DictationStyle = DictationStyle.PushToTalk, 1, 0)
         cboDictInsert.SelectedIndex = If(_config.DictationInsertMode = DictationInsertMode.ClipboardPaste, 1, 0)
         txtDictSource.Text = If(String.IsNullOrEmpty(_config.DictationSourceLanguage), "auto", _config.DictationSourceLanguage)
+        ' (Microphone selection is restored by the enumeration callback in PopulateDictation.)
         For i = 0 To _dictTargetCodes.Count - 1
             clbDictTargets.SetItemChecked(i, _config.DictationTargetLanguages.Contains(_dictTargetCodes(i)))
         Next
@@ -659,6 +699,11 @@ Public Class FormOptions
         _config.DictationStyle = If(cboDictStyle.SelectedIndex = 1, DictationStyle.PushToTalk, DictationStyle.Continuous)
         _config.DictationInsertMode = If(cboDictInsert.SelectedIndex = 1, DictationInsertMode.ClipboardPaste, DictationInsertMode.SendInput)
         _config.DictationSourceLanguage = If(String.IsNullOrWhiteSpace(txtDictSource.Text), "auto", txtDictSource.Text.Trim())
+        ' Store the selected device by NAME ("Default" = empty → legacy fallback chain).
+        Dim selDev = TryCast(cboDictDevice.SelectedItem, Services.Models.AudioDeviceInfo)
+        If selDev IsNot Nothing Then
+            _config.DictationDeviceName = If(selDev.Id < 0, "", If(selDev.Name, "").Trim())
+        End If
         Dim picked As New List(Of String)
         For Each idx As Integer In clbDictTargets.CheckedIndices
             If idx >= 0 AndAlso idx < _dictTargetCodes.Count Then picked.Add(_dictTargetCodes(idx))

@@ -203,8 +203,29 @@ Namespace Services.Input
             _log(LogEvents.DICT_SESSION_ERROR, $"Dictation engine error: {msg}")
         End Sub
 
-        ''' <summary>Dictation mic: explicit DictationDeviceIndex if set, else the device last used in Live, else default (0).</summary>
+        ''' <summary>
+        ''' Dictation mic: the configured device NAME re-resolved to its current index
+        ''' (survives index drift — same approach as the conference AudioDeviceName fix),
+        ''' else explicit DictationDeviceIndex, else the device last used in Live, else 0.
+        ''' Enumeration runs once per Arm, never per frame.
+        ''' </summary>
         Private Function ResolveDeviceIndex() As Integer
+            Dim wantName = If(_config.DictationDeviceName, "").Trim()
+            If wantName.Length > 0 Then
+                Try
+                    Dim pythonPath = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "python-embed", "python.exe")
+                    Dim devices = SttBackendRegistry.CreateBackend().EnumerateDevicesAsync(pythonPath)
+                    Dim byName = devices?.FirstOrDefault(Function(d) d IsNot Nothing AndAlso d.Id >= 0 AndAlso
+                        String.Equals(If(d.Name, "").Trim(), wantName, StringComparison.OrdinalIgnoreCase))
+                    If byName IsNot Nothing Then
+                        _log(LogEvents.DICT_SESSION_STARTED, $"Dictation mic '{wantName}' resolved to device index {byName.Id}")
+                        Return byName.Id
+                    End If
+                    _log(LogEvents.DICT_SESSION_ERROR, $"Dictation mic '{wantName}' not found among current input devices — falling back")
+                Catch ex As Exception
+                    _log(LogEvents.DICT_SESSION_ERROR, $"Dictation device enumeration failed ({ex.Message}) — falling back")
+                End Try
+            End If
             If _config.DictationDeviceIndex > 0 Then Return _config.DictationDeviceIndex
             Dim idx As Integer
             If Integer.TryParse(If(_config.LastLiveDeviceId, ""), idx) AndAlso idx >= 0 Then Return idx

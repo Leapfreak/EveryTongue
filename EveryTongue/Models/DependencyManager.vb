@@ -34,13 +34,63 @@ Namespace Models
 
         Private Shared ReadOnly _downloadClient As New HttpClient()
 
-        ' Short-lived cache of GitHub "releases" responses, keyed by URL. Several
-        ' tool checks hit the same EveryTongue releases endpoint in one refresh —
-        ' caching dedups them, and a stale entry is reused if the API rate-limits
-        ' (HTTP 403), so a burst of checks can't exhaust the 60/hour anon budget.
+        ' Cache of GitHub "releases" responses, keyed by URL. Several tool checks hit
+        ' the same endpoint in one refresh — caching dedups them, and a stale entry is
+        ' reused if the API rate-limits (HTTP 403). PERSISTED to disk so app RESTARTS
+        ' within the TTL make ZERO GitHub calls — a dev session of many restarts was
+        ' burning the anonymous 60/hour budget (UPDATE_ERROR 6402) because the old
+        ' in-memory cache died with each process.
         Private Shared ReadOnly _releaseListCacheLock As New Object()
         Private Shared ReadOnly _releaseListCache As New Dictionary(Of String, (FetchedUtc As DateTime, Json As String))()
-        Private Shared ReadOnly _releaseListTtl As TimeSpan = TimeSpan.FromMinutes(5)
+        Private Shared ReadOnly _releaseListTtl As TimeSpan = TimeSpan.FromMinutes(30)
+        Private Shared _releaseCacheLoaded As Boolean
+
+        Private Shared ReadOnly Property ReleaseCachePath As String
+            Get
+                Return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                                    "EveryTongue", "github-cache.json")
+            End Get
+        End Property
+
+        ''' <summary>Load the persisted release cache once per process (best-effort). Callers hold the lock.</summary>
+        Private Shared Sub EnsureReleaseCacheLoaded()
+            If _releaseCacheLoaded Then Return
+            _releaseCacheLoaded = True
+            Try
+                If Not File.Exists(ReleaseCachePath) Then Return
+                Using doc = JsonDocument.Parse(File.ReadAllText(ReleaseCachePath))
+                    For Each prop In doc.RootElement.EnumerateObject()
+                        Dim fetched = prop.Value.GetProperty("fetchedUtc").GetDateTime()
+                        Dim body = prop.Value.GetProperty("json").GetString()
+                        If Not String.IsNullOrEmpty(body) Then _releaseListCache(prop.Name) = (fetched, body)
+                    Next
+                End Using
+            Catch
+                ' Corrupt/unreadable cache is not an error — it just means fresh fetches.
+            End Try
+        End Sub
+
+        ''' <summary>Persist the release cache (best-effort). Callers hold the lock.</summary>
+        Private Shared Sub SaveReleaseCache()
+            Try
+                Directory.CreateDirectory(Path.GetDirectoryName(ReleaseCachePath))
+                Using ms As New MemoryStream()
+                    Using w As New Utf8JsonWriter(ms)
+                        w.WriteStartObject()
+                        For Each kvp In _releaseListCache
+                            w.WriteStartObject(kvp.Key)
+                            w.WriteString("fetchedUtc", kvp.Value.FetchedUtc)
+                            w.WriteString("json", kvp.Value.Json)
+                            w.WriteEndObject()
+                        Next
+                        w.WriteEndObject()
+                    End Using
+                    File.WriteAllBytes(ReleaseCachePath, ms.ToArray())
+                End Using
+            Catch
+                ' Best-effort — a failed save just means a fetch after the next restart.
+            End Try
+        End Sub
 
         Shared Sub New()
             _client.DefaultRequestHeaders.UserAgent.ParseAdd("EveryTongue-DependencyManager")
@@ -1361,20 +1411,12 @@ Namespace Models
         End Structure
 
         Private Shared Async Function GetLatestReleaseAsync(repo As String) As Task(Of ReleaseInfo?)
+            ' Routed through the persisted cache — this path used to bypass it, so
+            ' every yt-dlp/FFmpeg/Subtitle-Edit check was a fresh GitHub API call.
             Dim url = $"https://api.github.com/repos/{repo}/releases/latest"
-            Dim response = Await _client.GetAsync(url)
+            Dim json = Await GetReleaseListJsonAsync(url)
+            If String.IsNullOrEmpty(json) Then Return Nothing
 
-            ' Follow redirect if repo was moved
-            If response.StatusCode = Net.HttpStatusCode.MovedPermanently Then
-                Dim redirectUrl = response.Headers.Location?.ToString()
-                If Not String.IsNullOrEmpty(redirectUrl) Then
-                    response = Await _client.GetAsync(redirectUrl)
-                End If
-            End If
-
-            If Not response.IsSuccessStatusCode Then Return Nothing
-
-            Dim json = Await response.Content.ReadAsStringAsync()
             Using doc = JsonDocument.Parse(json)
                 Dim root = doc.RootElement
                 Dim tagName = root.GetProperty("tag_name").GetString()
@@ -1412,6 +1454,7 @@ Namespace Models
         ''' </summary>
         Private Shared Async Function GetReleaseListJsonAsync(url As String) As Task(Of String)
             SyncLock _releaseListCacheLock
+                EnsureReleaseCacheLoaded()
                 Dim hit As (FetchedUtc As DateTime, Json As String) = Nothing
                 If _releaseListCache.TryGetValue(url, hit) AndAlso (DateTime.UtcNow - hit.FetchedUtc) < _releaseListTtl Then
                     Return hit.Json
@@ -1420,10 +1463,16 @@ Namespace Models
 
             Try
                 Dim response = Await _client.GetAsync(url)
+                ' Follow a moved-repo redirect (kept from the old GetLatestReleaseAsync path).
+                If response.StatusCode = Net.HttpStatusCode.MovedPermanently Then
+                    Dim redirectUrl = response.Headers.Location?.ToString()
+                    If Not String.IsNullOrEmpty(redirectUrl) Then response = Await _client.GetAsync(redirectUrl)
+                End If
                 If response.IsSuccessStatusCode Then
                     Dim json = Await response.Content.ReadAsStringAsync()
                     SyncLock _releaseListCacheLock
                         _releaseListCache(url) = (DateTime.UtcNow, json)
+                        SaveReleaseCache()
                     End SyncLock
                     Return json
                 End If

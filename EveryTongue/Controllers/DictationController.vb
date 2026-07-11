@@ -172,12 +172,19 @@ Namespace Controllers
                 _hotkeys.ClearPttHotkey()
                 Return
             End If
-            _hotkeys.SetToggleHotkey(_config.DictationToggleHotkey)
+            ' Log the registration RESULT visibly — a silent RegisterHotKey failure
+            ' looks like "hotkey does nothing" with no trace (failures also log
+            ' DICT_HOTKEY at Warning with the likely cause).
+            Dim toggleOk = _hotkeys.SetToggleHotkey(_config.DictationToggleHotkey)
+            Dim pttNote = ""
             If _config.DictationStyle = DictationStyle.PushToTalk Then
-                _hotkeys.SetPttHotkey(_config.DictationPttHotkey)
+                Dim pttOk = _hotkeys.SetPttHotkey(_config.DictationPttHotkey)
+                pttNote = $", PTT '{_config.DictationPttHotkey}'={If(pttOk, "ok", "FAILED")}"
             Else
                 _hotkeys.ClearPttHotkey()
             End If
+            AppLogger.Log(LogCategory.UI, LogSeverity.Info,
+                $"Dictation hotkeys: toggle '{_config.DictationToggleHotkey}'={If(toggleOk, "ok", "FAILED")}{pttNote}")
         End Sub
 
         ''' <summary>Re-apply everything after the Options dialog changes settings.</summary>

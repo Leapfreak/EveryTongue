@@ -160,9 +160,15 @@ Namespace Controllers
         ''' <summary>Translate the displayed chapter verse-by-verse, then re-render with translations.</summary>
         Private Async Sub TranslateDisplayedChapterAsync(verses As List(Of BibleVerse))
             Dim targetFlores = ActiveTargetFlores()
+            If String.IsNullOrEmpty(targetFlores) Then Return   ' translation off
             Dim srcFlores = SourceFlores()
-            If String.IsNullOrEmpty(targetFlores) OrElse String.IsNullOrEmpty(srcFlores) Then Return
-            If targetFlores.Equals(srcFlores, StringComparison.OrdinalIgnoreCase) Then Return
+            If String.IsNullOrEmpty(srcFlores) Then
+                ' Was a silent Return — the combo looked dead with no explanation.
+                Dim biblLang = TryCast(_cboBibleTrans.SelectedItem, BibleTranslation)?.Language
+                _log($"[Bible] verse translation skipped: Bible language '{biblLang}' has no FLORES mapping")
+                Return
+            End If
+            If targetFlores.Equals(srcFlores, StringComparison.OrdinalIgnoreCase) Then Return   ' same language
 
             Dim orchestrator = _getTranslationOrchestrator()
             If orchestrator Is Nothing Then
@@ -199,6 +205,11 @@ Namespace Controllers
             For Each kvp In results : _txCache(kvp.Key) = kvp.Value : Next
             If _txCache.Count > 0 Then
                 DisplayVerses(_lastTitle, _lastChapterNum, _lastVerses, _bibleViewVerseStart, _bibleViewVerseEnd)
+            Else
+                ' Every verse failed (typically: translation engine not running) —
+                ' say so instead of quietly reverting the title.
+                _lblBibleNavTitle.Text = _getString("Bible_TranslateServerRequired")
+                _log($"[Bible] chapter translation produced 0/{verses.Count} verses — is the translation engine running?")
             End If
         End Sub
 

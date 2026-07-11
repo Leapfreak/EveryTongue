@@ -333,10 +333,13 @@ Public Class FormMain
             If _config.StartWithWindows Then RegisterStartup() Else UnregisterStartup()
         End If
 
-        ' Start minimized to tray if configured and not first-run
+        ' Start minimized to tray if configured and not first-run; otherwise open
+        ' maximized (matches the tray-restore behaviour — the tray icon is always there).
         If _config.FirstRunComplete AndAlso _config.StartMinimized Then
             Me.WindowState = FormWindowState.Minimized
             Me.ShowInTaskbar = False
+        Else
+            Me.WindowState = FormWindowState.Maximized
         End If
 
         ' Build shell chrome (menu, toolbar, nav rail, status bar)
@@ -1392,11 +1395,17 @@ del ""%~f0""
         ' Always save settings
         SaveUiToConfig()
 
-        If Not _exitForReal AndAlso _config.MinimizeToTray Then
-            ' Minimize to system tray instead of closing
-            e.Cancel = True
-            Me.Hide()
-            Return
+        ' On a user-initiated close, offer the tray instead of silently hiding.
+        ' (Never prompts/cancels on Windows shutdown or task-manager close.)
+        If Not _exitForReal AndAlso _config.MinimizeToTray AndAlso e.CloseReason = CloseReason.UserClosing Then
+            Dim answer = MessageBox.Show(Me, GetString("Msg_StayInTray"), Me.Text,
+                                         MessageBoxButtons.YesNo, MessageBoxIcon.Question)
+            If answer = DialogResult.Yes Then
+                ' Minimize to system tray instead of closing
+                e.Cancel = True
+                Me.Hide()
+                Return
+            End If
         End If
         _exitForReal = True
 
