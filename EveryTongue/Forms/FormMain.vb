@@ -316,16 +316,7 @@ Public Class FormMain
             End Using
         End Sub
         AddHandler trayMenuQR.Click, Sub(s, ev) ShowQrCode()
-        AddHandler trayMenuBrowser.Click, Sub(s, ev)
-            If _serverController Is Nothing OrElse _serverController.Port = 0 Then Return
-            Dim localIp = Controllers.ServerController.GetLocalIpAddress()
-            Dim url = $"https://{localIp}:{_serverController.Port + 1}"
-            Try
-                Process.Start(New ProcessStartInfo(url) With {.UseShellExecute = True})
-            Catch ex As Exception
-                AppLogger.Log(LogEvents.UI_ERROR, $"Failed to open browser: {ex.Message}")
-            End Try
-        End Sub
+        AddHandler trayMenuBrowser.Click, Sub(s, ev) OpenWebClientInBrowser()
         AddHandler trayMenuExit.Click, Sub(s, ev) ExitApplication()
 
         ' Apply saved startup preference (first-run setup happens after dependency download)
@@ -428,6 +419,18 @@ Public Class FormMain
     Private Sub ExitApplication()
         _exitForReal = True
         Me.Close()
+    End Sub
+
+    ''' <summary>Open the phone web client in the default browser (tray "Open in Browser" + the Web nav button).</summary>
+    Friend Sub OpenWebClientInBrowser()
+        If _serverController Is Nothing OrElse _serverController.Port = 0 Then Return
+        Dim localIp = Controllers.ServerController.GetLocalIpAddress()
+        Dim url = $"https://{localIp}:{_serverController.Port + 1}"
+        Try
+            Process.Start(New ProcessStartInfo(url) With {.UseShellExecute = True})
+        Catch ex As Exception
+            AppLogger.Log(LogEvents.UI_ERROR, $"Failed to open browser: {ex.Message}")
+        End Try
     End Sub
 
     Private Async Sub CheckForUpdatesAsync()
@@ -881,6 +884,7 @@ del ""%~f0""
             btnNavTranscribe.Text = GetString("Nav_Transcribe")
             btnNavTranslate.Text = GetString("Nav_Translate")
             btnNavBible.Text = GetString("Nav_Bible")
+            btnNavWeb.Text = GetString("Nav_Web")
 
             ' Translate workspace TTS + Bible verse translation controls
             btnTransSpeak.Text = GetString("Trans_Speak")

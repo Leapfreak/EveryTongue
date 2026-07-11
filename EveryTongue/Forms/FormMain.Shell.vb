@@ -65,6 +65,8 @@ Partial Class FormMain
         btnNavTranslate.ForeColor = inactiveFg
         btnNavBible.Image = RenderFontIcon(ChrW(&HE736), 28, inactiveFg)
         btnNavBible.ForeColor = inactiveFg
+        btnNavWeb.Image = RenderFontIcon(ChrW(&HE8A7), 28, inactiveFg)   ' MDL2 "open in new window"
+        btnNavWeb.ForeColor = inactiveFg
 
         ' Custom renderer for toolbar theme
         tsNavBar.Renderer = New NavToolStripRenderer()
@@ -130,6 +132,8 @@ Partial Class FormMain
         AddHandler btnNavBible.Click, Sub(s, e)
                                           SwitchWorkspace(tabPageBibleWs, btnNavBible)
                                       End Sub
+        ' Launcher, not a workspace — same action as the tray "Open in Browser".
+        AddHandler btnNavWeb.Click, Sub(s, e) OpenWebClientInBrowser()
 
         ' ── Restore log panel height from config ────────────────
         If _config.LogPanelHeight > 50 Then pnlLogPanel.Height = _config.LogPanelHeight
@@ -312,6 +316,7 @@ Partial Class FormMain
             Case "btnNavTranscribe" : Return ChrW(&HE8D4)
             Case "btnNavTranslate" : Return ChrW(&HE774)
             Case "btnNavBible" : Return ChrW(&HE736)
+            Case "btnNavWeb" : Return ChrW(&HE8A7)
             Case Else : Return ChrW(&HE700)
         End Select
     End Function

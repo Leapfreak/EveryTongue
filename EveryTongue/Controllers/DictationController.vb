@@ -134,21 +134,29 @@ Namespace Controllers
             If Not _config.DictationEnabled Then Return
             If _service.IsArmed Then
                 _service.Disarm()
+                ' Unmissable OFF cue: balloon + low tone. (No MessageBox — a modal
+                ' steals focus from the very window dictation types into.)
+                _showBalloon?.Invoke(_getString("Tray_Dictation"), _getString("Dict_Off"))
+                Try : Media.SystemSounds.Hand.Play() : Catch : End Try
             Else
                 If Not _service.Arm() Then
                     AppLogger.PromptDownloadManager(_getString("Dict_EngineMissing"), _getString("Tray_Dictation"))
                 Else
-                    ' Transient "preparing" balloon — ReadinessChanged follows with "ready".
+                    ' Transient "preparing" balloon — ReadinessChanged follows with the
+                    ' "ready" balloon + chime once the engine is actually capturing.
                     _showBalloon?.Invoke(_getString("Tray_Dictation"), _getString("Dict_Preparing"))
                 End If
             End If
             RefreshChecks()
         End Sub
 
-        ''' <summary>Engine reached capture-ready — tell the user it's safe to start talking.</summary>
+        ''' <summary>Engine reached capture-ready — tell the user it's safe to start talking.
+        ''' Balloon + chime: Focus Assist can silently suppress balloons, so the sound is
+        ''' the reliable "you can talk now" signal (arming takes several seconds).</summary>
         Private Sub OnEngineReady(ready As Boolean)
             If ready AndAlso _service.IsArmed Then
                 _showBalloon?.Invoke(_getString("Tray_Dictation"), _getString("Dict_Ready"))
+                Try : Media.SystemSounds.Asterisk.Play() : Catch : End Try
             End If
         End Sub
 

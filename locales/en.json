@@ -739,5 +739,7 @@
   "DM_VocabDone": "Biblical vocabulary generated.",
   "Opt_DictDevice": "Microphone",
   "Opt_ShadowTrans": "Log 2nd-opinion translations for engine comparison",
-  "Msg_ExitApp": "Exit Every Tongue completely?\n\nChoose No to keep it running in the system tray."
+  "Msg_ExitApp": "Exit Every Tongue completely?\n\nChoose No to keep it running in the system tray.",
+  "Dict_Off": "Dictation OFF",
+  "Nav_Web": "Web"
 }

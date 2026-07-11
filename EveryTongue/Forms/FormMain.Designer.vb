@@ -68,6 +68,7 @@ Partial Class FormMain
         btnNavTranscribe = New ToolStripButton()
         btnNavTranslate = New ToolStripButton()
         btnNavBible = New ToolStripButton()
+        btnNavWeb = New ToolStripButton()
         statusMain = New StatusStrip()
         tslServerStatus = New ToolStripStatusLabel()
         tslClients = New ToolStripStatusLabel()
@@ -528,7 +529,7 @@ Partial Class FormMain
         tsNavBar.Dock = DockStyle.Top
         tsNavBar.GripStyle = ToolStripGripStyle.Hidden
         tsNavBar.ImageScalingSize = New Size(28, 28)
-        tsNavBar.Items.AddRange(New ToolStripItem() {btnNavLog, btnNavTranscribe, btnNavTranslate, btnNavBible})
+        tsNavBar.Items.AddRange(New ToolStripItem() {btnNavLog, btnNavTranscribe, btnNavTranslate, btnNavBible, btnNavWeb})
         tsNavBar.Location = New Point(0, 0)
         tsNavBar.Name = "tsNavBar"
         tsNavBar.Padding = New Padding(4, 2, 4, 2)
@@ -579,6 +580,18 @@ Partial Class FormMain
         btnNavBible.Padding = New Padding(8, 2, 8, 2)
         btnNavBible.Text = "Bible"
         btnNavBible.TextImageRelation = TextImageRelation.ImageBeforeText
+        '
+        ' btnNavWeb — launcher, not a workspace: opens the phone web client in the
+        ' default browser (same action as the tray "Open in Browser").
+        '
+        btnNavWeb.AutoSize = True
+        btnNavWeb.ForeColor = Color.FromArgb(CByte(60), CByte(60), CByte(60))
+        btnNavWeb.ImageScaling = ToolStripItemImageScaling.None
+        btnNavWeb.Margin = New Padding(0, 0, 2, 0)
+        btnNavWeb.Name = "btnNavWeb"
+        btnNavWeb.Padding = New Padding(8, 2, 8, 2)
+        btnNavWeb.Text = "Web"
+        btnNavWeb.TextImageRelation = TextImageRelation.ImageBeforeText
         ' 
         ' statusMain
         ' 
@@ -1612,14 +1625,15 @@ Partial Class FormMain
         '
         ' colLogMessage
         '
-        ' NOT Fill — Fill squeezes columns to the grid width, which suppresses the
-        ' horizontal scrollbar and truncates long lines. A wide fixed column lets
-        ' long messages scroll horizontally (user-resizable; tooltips still show all).
-        colLogMessage.AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+        ' NOT Fill (suppresses h-scroll) and NOT a fixed width (a DataGridView never
+        ' scrolls text clipped INSIDE a column — the scrollbar only appears when the
+        ' COLUMNS outgrow the viewport). DisplayedCells sizes the column to the
+        ' longest visible message, so long lines widen the grid and become reachable
+        ' via the horizontal scrollbar.
+        colLogMessage.AutoSizeMode = DataGridViewAutoSizeColumnMode.DisplayedCells
         colLogMessage.HeaderText = "Message"
         colLogMessage.Name = "colLogMessage"
         colLogMessage.ReadOnly = True
-        colLogMessage.Width = 1600
         colLogMessage.MinimumWidth = 300
         '
         ' lblLogTitle
@@ -1928,6 +1942,7 @@ Partial Class FormMain
     Friend WithEvents btnNavTranscribe As ToolStripButton
     Friend WithEvents btnNavTranslate As ToolStripButton
     Friend WithEvents btnNavBible As ToolStripButton
+    Friend WithEvents btnNavWeb As ToolStripButton
 
     ' Shell: Status bar
     Friend WithEvents statusMain As StatusStrip

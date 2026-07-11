@@ -179,10 +179,11 @@ Namespace Controllers
             _txRunId += 1
             Dim runId = _txRunId
             Dim savedTitle = _lblBibleNavTitle.Text
-            _lblBibleNavTitle.Text = _getString("Bible_Translating")
+            _lblBibleNavTitle.Text = $"{_getString("Bible_Translating")} (0/{verses.Count})"
 
             Dim results As New Dictionary(Of Integer, String)
             Try
+                Dim done = 0
                 For Each v In verses
                     If runId <> _txRunId Then Return ' superseded by chapter/target change
                     Try
@@ -195,6 +196,12 @@ Namespace Controllers
                     Catch ex As Exception
                         _log($"[Bible] Verse {v.Verse} translation failed: {ex.Message}")
                     End Try
+                    ' Live progress — a whole chapter takes ~15-30s verse-by-verse, and
+                    ' a static "Translating…" looked like a hang.
+                    done += 1
+                    If runId = _txRunId Then
+                        _lblBibleNavTitle.Text = $"{_getString("Bible_Translating")} ({done}/{verses.Count})"
+                    End If
                 Next
             Finally
                 If runId = _txRunId Then _lblBibleNavTitle.Text = savedTitle
