@@ -1395,12 +1395,13 @@ del ""%~f0""
         ' Always save settings
         SaveUiToConfig()
 
-        ' On a user-initiated close, offer the tray instead of silently hiding.
+        ' On a user-initiated close, ask whether to exit fully — Yes matches the
+        ' X-click intent (exit); No keeps the server alive in the system tray.
         ' (Never prompts/cancels on Windows shutdown or task-manager close.)
         If Not _exitForReal AndAlso _config.MinimizeToTray AndAlso e.CloseReason = CloseReason.UserClosing Then
-            Dim answer = MessageBox.Show(Me, GetString("Msg_StayInTray"), Me.Text,
+            Dim answer = MessageBox.Show(Me, GetString("Msg_ExitApp"), Me.Text,
                                          MessageBoxButtons.YesNo, MessageBoxIcon.Question)
-            If answer = DialogResult.Yes Then
+            If answer = DialogResult.No Then
                 ' Minimize to system tray instead of closing
                 e.Cancel = True
                 Me.Hide()

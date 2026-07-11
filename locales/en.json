@@ -738,6 +738,6 @@
   "DM_VocabNoBibles": "No Bible installed - install one on the Bibles tab first, then generate.",
   "DM_VocabDone": "Biblical vocabulary generated.",
   "Opt_DictDevice": "Microphone",
-  "Msg_StayInTray": "Stay in the system tray?",
-  "Opt_ShadowTrans": "Log 2nd-opinion translations for engine comparison"
+  "Opt_ShadowTrans": "Log 2nd-opinion translations for engine comparison",
+  "Msg_ExitApp": "Exit Every Tongue completely?\n\nChoose No to keep it running in the system tray."
 }

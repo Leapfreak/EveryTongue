@@ -34,6 +34,11 @@ Namespace Controllers
         Private ReadOnly _readiness As Services.Rooms.RoomReadinessNotifier
         ' Per-room resolved translation backend name (what AcquireRoomTranslationBackend returned).
         Private ReadOnly _roomTranslationBackendName As New Concurrent.ConcurrentDictionary(Of String, String)()
+        ' Resolved backend name per warmed SHADOW engine, keyed "roomId|engineKey".
+        ' BackendNameForKey returns "Local" for every NLLB variant, so without this
+        ' a pooled shadow (e.g. int8) mis-routes to the default sidecar and only
+        ' reaches the right model via the orchestrator's fallback (a 4009 per commit).
+        Private ReadOnly _shadowBackendNames As New Concurrent.ConcurrentDictionary(Of String, String)()
         Private ReadOnly _log As Action(Of String)
         Private ReadOnly _ownerForm As Form
 
@@ -295,6 +300,7 @@ Namespace Controllers
                 DropKey(_roomTranslationKey, roomId)
                 _releaseTranslationBackend?.Invoke(roomId)
                 DropKey(_roomTranslationBackendName, roomId)
+                DropShadowBackendNames(roomId)
             End If
         End Sub
 
@@ -587,6 +593,7 @@ Namespace Controllers
             ' Release this room's offline translation sidecar (refcounted; frees VRAM when last room leaves).
             _releaseTranslationBackend?.Invoke(roomId)
             DropKey(_roomTranslationBackendName, roomId)
+            DropShadowBackendNames(roomId)
 
             ' Flush any remaining buffered text before stopping
             Dim buffer As SentenceBuffer = Nothing
@@ -843,7 +850,12 @@ Namespace Controllers
                 If engineKey.Length = 0 Then Continue For
                 If engineKey.Equals(primary, StringComparison.OrdinalIgnoreCase) Then Continue For   ' opinion must differ from primary
                 If TranslationBackendRegistry.IsInlineEngine(engineKey) Then Continue For
-                Dim backendName = TranslationBackendRegistry.BackendNameForKey(engineKey)
+                ' Warmed offline shadows resolved to a specific sidecar (pool name);
+                ' fall back to the registry name for cloud engines.
+                Dim backendName As String = Nothing
+                If Not _shadowBackendNames.TryGetValue($"{roomId}|{engineKey}", backendName) Then
+                    backendName = TranslationBackendRegistry.BackendNameForKey(engineKey)
+                End If
                 If String.IsNullOrEmpty(backendName) OrElse
                    Not available.Any(Function(b) b.Name = backendName AndAlso b.IsAvailable) Then Continue For
                 ' Different key but SAME resolved backend as the primary (e.g. "nllb"
@@ -1283,6 +1295,14 @@ Namespace Controllers
         ''' inline engines need no warm-up. Runs in the background — never delays
         ''' room start.
         ''' </summary>
+        ''' <summary>Drop all warmed-shadow backend names for a room (keys are "roomId|engineKey").</summary>
+        Private Sub DropShadowBackendNames(roomId As String)
+            Dim prefix = roomId & "|"
+            For Each k In _shadowBackendNames.Keys.Where(Function(x) x.StartsWith(prefix, StringComparison.Ordinal)).ToList()
+                DropKey(_shadowBackendNames, k)
+            Next
+        End Sub
+
         Private Sub WarmShadowEngines(roomId As String)
             If Not _config.ShadowTranslationsEnabled Then Return
             Dim raw = _config.ShadowTranslationEngines
@@ -1298,6 +1318,9 @@ Namespace Controllers
                                  Dim entry = TranslationBackendRegistry.Find(key)
                                  If entry Is Nothing OrElse String.IsNullOrEmpty(entry.ModelType) Then Continue For   ' cloud/inline: nothing to warm
                                  Dim name = _acquireTranslationBackend(roomId, key)
+                                 ' Remember the RESOLVED backend (pool name or "Local") so the
+                                 ' shadow requests route directly to the warmed sidecar.
+                                 If Not String.IsNullOrEmpty(name) Then _shadowBackendNames($"{roomId}|{key}") = name
                                  AppLogger.Log(LogCategory.Translation, LogSeverity.Info,
                                      $"[Conference:{roomId}] shadow engine '{key}' warmed for 2nd-opinion logging (backend {If(name, "?")})")
                              Catch ex As Exception
