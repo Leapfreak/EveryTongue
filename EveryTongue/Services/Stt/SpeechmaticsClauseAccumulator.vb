@@ -144,6 +144,7 @@ Namespace Services.Stt
                 .Reason = reason,
                 .FragmentCount = _fragmentCount,
                 .DurationMs = If(_startTick > 0, CInt(Math.Min(Integer.MaxValue, now - _startTick)), 0),
+                .HoldMs = If(_lastFragmentTick > 0, CInt(Math.Min(Integer.MaxValue, now - _lastFragmentTick)), 0),
                 .Gaps = New List(Of Integer)(_gaps)
             }
             _buffer.Clear()
@@ -164,6 +165,8 @@ Namespace Services.Stt
         Public Property Reason As SpeechmaticsClauseAccumulator.LockReason
         Public Property FragmentCount As Integer
         Public Property DurationMs As Integer
+        ''' <summary>Time (ms) from the LAST fragment's arrival to the lock — the latency the grace/hold actually spent before this clause could broadcast.</summary>
+        Public Property HoldMs As Integer
         ''' <summary>Inter-fragment silences (ms) that were merged into this clause — the key signal for tuning GraceMs.</summary>
         Public Property Gaps As List(Of Integer)
     End Class

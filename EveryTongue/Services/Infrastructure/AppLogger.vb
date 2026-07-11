@@ -161,7 +161,7 @@ Namespace Services.Infrastructure
         ' Events never collapsed by the rate limiter — they ARE the product/transcript, and
         ' each line is unique text we must not lose (translation output is bounded by speech
         ' rate, so it can't truly runaway).
-        Private ReadOnly _rateExempt As New HashSet(Of Integer) From {LogEvents.TRANS_RESULT}
+        Private ReadOnly _rateExempt As New HashSet(Of Integer) From {LogEvents.TRANS_RESULT, LogEvents.TRANS_SHADOW}
 
         Private Function IsRateExempt(rateKey As Integer) As Boolean
             Return _rateExempt.Contains(rateKey)

@@ -43,6 +43,39 @@ Namespace Services.Stt
         Private ReadOnly _pinnedClauseDials As New Concurrent.ConcurrentDictionary(Of String, Configs.SpeechmaticsConfig)()
         Private _bufferFlushTimer As System.Threading.Timer
 
+        ' ── Grace auto-tune ─────────────────────────────────────────────────
+        ' The EOU auto-tune adapts where SPEECHMATICS cuts; this adapts whether WE
+        ' stitch across those cuts. A burst-pause speaker ("three words … pause")
+        ' has inter-commit gaps longer than the fixed GraceMs, so every burst locked
+        ' alone as a tiny fragment. Track the rolling inter-commit gaps per room and
+        ' widen grace toward their p75 (never below the configured value, capped —
+        ' grace is pure latency). Over-merged sentences are split downstream by SaT.
+        ' Pinned template dials (the manual override) are never adapted.
+        Private Const GraceWindowSize As Integer = 40     ' rolling inter-commit gaps kept
+        Private Const GraceMinSamples As Integer = 12     ' don't adapt on thin data
+        Private Const GraceCapMs As Integer = 3000        ' latency ceiling
+        Private Const GraceGapCapMs As Integer = 8000     ' longer = real silence, not pace
+        Private Const GraceHeadroomMs As Integer = 250    ' stitch margin above the p75 gap
+        Private ReadOnly _interCommitGaps As New Concurrent.ConcurrentDictionary(Of String, Concurrent.ConcurrentQueue(Of Integer))()
+        Private ReadOnly _lastFeedTick As New Concurrent.ConcurrentDictionary(Of String, Long)()
+        Private ReadOnly _adaptiveGraceMs As New Concurrent.ConcurrentDictionary(Of String, Integer)()
+
+        ' ── Per-room STT quality scoreboard ─────────────────────────────────
+        ' One summary line at room close (CONF_ROOM_STT_SUMMARY) so tuning changes
+        ' can be A/B'd across services without hand-mining the per-event log.
+        Private Class RoomSttStats
+            Public ReadOnly Gate As New Object()
+            Public Commits As Integer            ' raw Speechmatics commits fed in
+            Public DupCommits As Integer         ' consecutive identical commits (repetition signal)
+            Public LastCommitText As String = ""
+            Public Merged As Integer             ' locks that stitched >1 fragment
+            Public SatSplits As Integer          ' locks SaT split into >1 sentence
+            Public ReadOnly LockChars As New List(Of Integer)   ' clause sizes
+            Public ReadOnly HoldMs As New List(Of Integer)      ' latency spent holding
+        End Class
+        Private ReadOnly _roomStats As New Concurrent.ConcurrentDictionary(Of String, RoomSttStats)()
+        Private Const StatsListCap As Integer = 5000   ' ~8h of locks; plenty, bounded
+
         ''' <param name="config">Live AppConfig reference — dials are read fresh on every call (never cached) so Options stays live-tunable.</param>
         ''' <param name="roomBackendKey">Resolves a room's STT backend key (room template override, else global config).</param>
         ''' <param name="onClauseLocked">(roomId, text, detectedLang) — broadcast a locked clause; execution stays with the caller.</param>
@@ -109,18 +142,64 @@ Namespace Services.Stt
         Private Function CurrentThresholds(roomId As String) As SpeechmaticsClauseAccumulator.Thresholds
             Dim pinned As Configs.SpeechmaticsConfig = Nothing
             If _pinnedClauseDials.TryGetValue(roomId, pinned) Then
+                ' Pinned template dials = explicit operator override — never adapted.
                 Return New SpeechmaticsClauseAccumulator.Thresholds With {
                     .GraceMs = pinned.ClauseGraceMs,
                     .MaxMs = pinned.ClauseMaxMs,
                     .MaxChars = pinned.ClauseMaxChars
                 }
             End If
+            Dim graceMs = _config.SpeechmaticsClauseGraceMs
+            ' Grace auto-tune (rides the same master switch as the EOU auto-tune):
+            ' widen — never shrink — toward the room's observed inter-commit gaps.
+            If _config.SpeechmaticsAutoTuneEou Then
+                Dim adaptive As Integer
+                If _adaptiveGraceMs.TryGetValue(roomId, adaptive) AndAlso adaptive > graceMs Then graceMs = adaptive
+            End If
             Return New SpeechmaticsClauseAccumulator.Thresholds With {
-                .GraceMs = _config.SpeechmaticsClauseGraceMs,
+                .GraceMs = graceMs,
                 .MaxMs = _config.SpeechmaticsClauseMaxMs,
                 .MaxChars = _config.SpeechmaticsClauseMaxChars
             }
         End Function
+
+        ''' <summary>Record the gap since the room's previous Speechmatics commit and recompute the adaptive grace.</summary>
+        Private Sub TrackInterCommitGap(roomId As String)
+            Dim now = Environment.TickCount64
+            Dim last As Long
+            If _lastFeedTick.TryGetValue(roomId, last) Then
+                Dim gap = CInt(Math.Min(Integer.MaxValue, now - last))
+                If gap > 0 AndAlso gap <= GraceGapCapMs Then
+                    Dim q = _interCommitGaps.GetOrAdd(roomId, Function(k) New Concurrent.ConcurrentQueue(Of Integer)())
+                    q.Enqueue(gap)
+                    Dim dropped As Integer
+                    While q.Count > GraceWindowSize
+                        q.TryDequeue(dropped)
+                    End While
+                    UpdateAdaptiveGrace(roomId, q)
+                End If
+            End If
+            _lastFeedTick(roomId) = now
+        End Sub
+
+        Private Sub UpdateAdaptiveGrace(roomId As String, q As Concurrent.ConcurrentQueue(Of Integer))
+            Dim gaps = q.ToArray()
+            If gaps.Length < GraceMinSamples Then Return
+            Array.Sort(gaps)
+            Dim p75 = gaps(CInt(Math.Min(gaps.Length - 1, Math.Floor(gaps.Length * 0.75))))
+            Dim target = Math.Min(GraceCapMs, p75 + GraceHeadroomMs)
+            Dim baseMs = _config.SpeechmaticsClauseGraceMs
+            If target < baseMs Then target = baseMs   ' config is the floor
+            Dim previous As Integer = 0
+            _adaptiveGraceMs.TryGetValue(roomId, previous)
+            If previous = 0 Then previous = baseMs
+            If Math.Abs(target - previous) >= 250 Then
+                _adaptiveGraceMs(roomId) = target
+                AppLogger.Log(LogCategory.Conference, LogSeverity.Info,
+                    $"[Conference:{roomId}] grace auto-tune {previous}ms -> {target}ms " &
+                    $"(p75 inter-commit gap {p75}ms over {gaps.Length} commits)")
+            End If
+        End Sub
 
         ''' <summary>Whether SaT sentence-splitting is active for this room (needs the segment delegate, the hold/buffering path, and the toggle — pinned template value else app-global).</summary>
         Private Function IsSatEnabled(roomId As String) As Boolean
@@ -154,6 +233,16 @@ Namespace Services.Stt
         ''' <summary>Feed a Speechmatics fragment into the room's clause accumulator; broadcast if it locks.</summary>
         Public Sub FeedClause(roomId As String, text As String, detectedLang As String)
             If String.IsNullOrWhiteSpace(text) Then Return
+            TrackInterCommitGap(roomId)
+            ' Scoreboard: raw commit count + consecutive-duplicate detection (the
+            ' "repetitions" the audience sees — STT re-emitting the same clause).
+            Dim stats = _roomStats.GetOrAdd(roomId, Function(k) New RoomSttStats())
+            SyncLock stats.Gate
+                stats.Commits += 1
+                Dim norm = text.Trim().ToLowerInvariant()
+                If norm.Length > 0 AndAlso norm = stats.LastCommitText Then stats.DupCommits += 1
+                stats.LastCommitText = norm
+            End SyncLock
             Dim acc = _clauseAccumulators.GetOrAdd(roomId, Function(k) New SpeechmaticsClauseAccumulator())
             Dim locked = acc.Add(text, detectedLang, CurrentThresholds(roomId))
 
@@ -190,13 +279,53 @@ Namespace Services.Stt
                 If locked IsNot Nothing Then OnClauseLocked(kvp.Key, locked)
             Next
             _clauseAccumulators.Clear()
+            ' App shutdown bypasses ClearRoom — still emit each room's scoreboard.
+            For Each roomId In _roomStats.Keys.ToList()
+                EmitRoomSummary(roomId)
+            Next
+            _roomStats.Clear()
         End Sub
 
         ''' <summary>Drop a room's accumulator + pinned dials (room closed). Does NOT force-lock — call <see cref="ForceLockClause"/> first.</summary>
         Public Sub ClearRoom(roomId As String)
+            EmitRoomSummary(roomId)
             DropKey(_clauseAccumulators, roomId)
             DropKey(_pinnedClauseDials, roomId)
+            DropKey(_interCommitGaps, roomId)
+            DropKey(_lastFeedTick, roomId)
+            DropKey(_adaptiveGraceMs, roomId)
+            DropKey(_roomStats, roomId)
         End Sub
+
+        ''' <summary>One-line STT quality scoreboard for the room — the A/B line for tuning changes.</summary>
+        Private Sub EmitRoomSummary(roomId As String)
+            Dim stats As RoomSttStats = Nothing
+            If Not _roomStats.TryGetValue(roomId, stats) Then Return
+            Dim line As String
+            SyncLock stats.Gate
+                If stats.LockChars.Count = 0 Then Return
+                Dim chars = stats.LockChars.ToArray()
+                Array.Sort(chars)
+                Dim holds = stats.HoldMs.ToArray()
+                Array.Sort(holds)
+                Dim n = chars.Length
+                Dim tiny = chars.TakeWhile(Function(c) c < 20).Count()
+                Dim grace As Integer = 0
+                _adaptiveGraceMs.TryGetValue(roomId, grace)
+                line = $"room={roomId} locks={n} medianChars={Pct(chars, 50)} tiny(<20ch)={CInt(100 * tiny / n)}% " &
+                       $"merged={CInt(100 * stats.Merged / n)}% satSplits={stats.SatSplits} " &
+                       $"commits={stats.Commits} dupCommits={stats.DupCommits} " &
+                       $"holdMs(p50/p95)={Pct(holds, 50)}/{Pct(holds, 95)} " &
+                       $"grace={If(grace > 0, grace, _config.SpeechmaticsClauseGraceMs)}ms"
+            End SyncLock
+            AppLogger.Log(LogEvents.CONF_ROOM_STT_SUMMARY, line)
+        End Sub
+
+        ''' <summary>Percentile of a SORTED array (nearest-rank).</summary>
+        Private Shared Function Pct(sorted As Integer(), p As Integer) As Integer
+            If sorted Is Nothing OrElse sorted.Length = 0 Then Return 0
+            Return sorted(Math.Min(sorted.Length - 1, CInt(Math.Floor(sorted.Length * p / 100.0))))
+        End Function
 
         ''' <summary>
         ''' Emit per-lock tuning diagnostics, then broadcast the clause. The log line is
@@ -215,6 +344,14 @@ Namespace Services.Stt
                 $"dials(graceMs={t.GraceMs},maxMs={t.MaxMs},maxChars={t.MaxChars}) " &
                 $"text=""{Truncate(locked.Text, 120)}""")
 
+            ' Scoreboard: clause size, merge success, hold latency.
+            Dim stats = _roomStats.GetOrAdd(roomId, Function(k) New RoomSttStats())
+            SyncLock stats.Gate
+                If stats.LockChars.Count < StatsListCap Then stats.LockChars.Add(If(locked.Text, "").Length)
+                If stats.HoldMs.Count < StatsListCap Then stats.HoldMs.Add(locked.HoldMs)
+                If locked.FragmentCount > 1 Then stats.Merged += 1
+            End SyncLock
+
             ' SaT path: split the buffered clause into proper sentences at the pause
             ' (list-free, engine-agnostic) and emit each. Falls back to a single emit
             ' if SaT is off/unavailable (segment returns {text}).
@@ -227,6 +364,9 @@ Namespace Services.Stt
                     AppLogger.Log(LogEvents.CONF_CLAUSE_SAT_SEGMENT,
                         $"room={roomId} lang={locked.DetectedLanguage} chars={If(locked.Text, "").Length} " &
                         $"split into {sentences.Count} sentences: ""{Truncate(locked.Text, 120)}""")
+                    SyncLock stats.Gate
+                        stats.SatSplits += 1
+                    End SyncLock
                 End If
                 For Each s In sentences
                     If Not String.IsNullOrWhiteSpace(s) Then _onClauseLocked(roomId, s, locked.DetectedLanguage)

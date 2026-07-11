@@ -195,17 +195,38 @@ Namespace Controllers
         End Sub
 
         Private Sub RouteText(text As String)
-            ' Never type into our own window — system-wide dictation targets OTHER apps.
-            ' If EveryTongue is focused, there's nowhere to type; log it so it's not silent
-            ' (the operator must click into the target textbox in another app).
+            ' In our own window, dictation types ONLY into an editable textbox the user
+            ' has focused (e.g. the Translate workspace's From box) — inserted directly
+            ' at the caret, never via synthetic keystrokes. Any other focused control
+            ' keeps the original self-window guard (an armed mic must not spray text
+            ' into the log filter, room names, etc.).
             Dim fg = TextInjector.ForegroundWindow()
             If fg = _ownerForm.Handle Then
-                AppLogger.Log(LogEvents.DICT_COMMIT, $"Skipped ""{text}"" — EveryTongue is focused; click into the target app's textbox")
+                Dim tb = FocusedEditableTextBox(_ownerForm)
+                If tb IsNot Nothing Then
+                    tb.SelectedText = text & " "   ' insert at caret (preserves undo)
+                    AppLogger.Log(LogEvents.DICT_COMMIT, $"Injected {text.Length} chars into own control '{tb.Name}'")
+                Else
+                    AppLogger.Log(LogEvents.DICT_COMMIT, $"Skipped ""{text}"" — EveryTongue is focused but no editable textbox has focus")
+                End If
                 Return
             End If
             TextInjector.InjectText(text & " ", _config.DictationInsertMode = DictationInsertMode.ClipboardPaste)
             AppLogger.Log(LogEvents.DICT_COMMIT, $"Injected {text.Length} chars")
         End Sub
+
+        ''' <summary>The focused editable TextBox/RichTextBox inside our form, or Nothing.</summary>
+        Private Shared Function FocusedEditableTextBox(root As ContainerControl) As TextBoxBase
+            Dim c As Control = root.ActiveControl
+            ' ActiveControl can be a nested container (tab page hosts, split panels) —
+            ' drill down to the actual focused control.
+            While TypeOf c Is ContainerControl AndAlso DirectCast(c, ContainerControl).ActiveControl IsNot Nothing
+                c = DirectCast(c, ContainerControl).ActiveControl
+            End While
+            Dim tb = TryCast(c, TextBoxBase)
+            If tb IsNot Nothing AndAlso tb.Enabled AndAlso Not tb.ReadOnly Then Return tb
+            Return Nothing
+        End Function
 
         Public Sub Shutdown()
             _service.Disarm()

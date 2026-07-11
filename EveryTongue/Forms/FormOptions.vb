@@ -27,11 +27,33 @@ Public Class FormOptions
         WireEvents()
         PopulateFontCombo()
         PopulateDictation()
+        PopulateShadowEngines()
         LoadFromConfig()
         ApplyLocale()
     End Sub
 
     Private ReadOnly _dictTargetCodes As New List(Of String)
+    Private ReadOnly _shadowEngineKeys As New List(Of String)
+
+    ''' <summary>
+    ''' Engines eligible as log-only 2nd-opinion translators: everything except
+    ''' inline engines (no standalone text API — Speechmatics' inline output is
+    ''' logged as its own opinion when it's the primary). Offline (NLLB) shadows
+    ''' work when their sidecar is running; otherwise they're skipped silently.
+    ''' </summary>
+    Private Sub PopulateShadowEngines()
+        clbShadowEngines.Items.Clear()
+        _shadowEngineKeys.Clear()
+        For Each entry In Services.Translation.TranslationBackendRegistry.GetAll()
+            If Services.Translation.TranslationBackendRegistry.IsInlineEngine(entry.Key) Then Continue For
+            _shadowEngineKeys.Add(entry.Key)
+            clbShadowEngines.Items.Add(entry.DisplayName)
+        Next
+    End Sub
+
+    Private Sub chkShadowTrans_CheckedChanged(sender As Object, e As EventArgs) Handles chkShadowTrans.CheckedChanged
+        clbShadowEngines.Enabled = chkShadowTrans.Checked
+    End Sub
 
     ''' <summary>Fill the dictation combos + the available-languages checklist (codes tracked in _dictTargetCodes).</summary>
     Private Sub PopulateDictation()
@@ -182,6 +204,7 @@ Public Class FormOptions
         lblClauseMaxMs.Text = langPack.GetString("Opt_ClauseMaxMs")
         lblClauseMaxChars.Text = langPack.GetString("Opt_ClauseMaxChars")
         lblClauseTimerMs.Text = langPack.GetString("Opt_ClauseTimerMs")
+        chkShadowTrans.Text = langPack.GetString("Opt_ShadowTrans")
         lblTransBackend.Text = langPack.GetString("Opt_TransBackend")
         lblTransApiKey.Text = langPack.GetString("Opt_TransApiKey")
         lblTransEndpoint.Text = langPack.GetString("Opt_TransEndpoint")
@@ -439,6 +462,14 @@ Public Class FormOptions
         nudClauseMaxMs.Value = ClampNud(nudClauseMaxMs, _config.SpeechmaticsClauseMaxMs)
         nudClauseMaxChars.Value = ClampNud(nudClauseMaxChars, _config.SpeechmaticsClauseMaxChars)
         nudClauseTimerMs.Value = ClampNud(nudClauseTimerMs, _config.SpeechmaticsClauseTimerMs)
+        chkShadowTrans.Checked = _config.ShadowTranslationsEnabled
+        Dim shadowSel = New HashSet(Of String)(
+            If(_config.ShadowTranslationEngines, "").Split(","c).Select(Function(s) s.Trim().ToLowerInvariant()),
+            StringComparer.OrdinalIgnoreCase)
+        For i = 0 To _shadowEngineKeys.Count - 1
+            clbShadowEngines.SetItemChecked(i, shadowSel.Contains(_shadowEngineKeys(i)))
+        Next
+        clbShadowEngines.Enabled = chkShadowTrans.Checked
         SelectItem(cboDevice, _config.TranslationDevice)
         nudTransPort.Value = _config.TranslationPort
 
@@ -607,6 +638,12 @@ Public Class FormOptions
         _config.SpeechmaticsClauseMaxMs = CInt(nudClauseMaxMs.Value)
         _config.SpeechmaticsClauseMaxChars = CInt(nudClauseMaxChars.Value)
         _config.SpeechmaticsClauseTimerMs = CInt(nudClauseTimerMs.Value)
+        _config.ShadowTranslationsEnabled = chkShadowTrans.Checked
+        Dim shadowKeys As New List(Of String)
+        For i = 0 To _shadowEngineKeys.Count - 1
+            If clbShadowEngines.GetItemChecked(i) Then shadowKeys.Add(_shadowEngineKeys(i))
+        Next
+        _config.ShadowTranslationEngines = String.Join(",", shadowKeys)
         If cboDevice.SelectedItem IsNot Nothing Then _config.TranslationDevice = cboDevice.SelectedItem.ToString()
         _config.TranslationPort = CInt(nudTransPort.Value)
 

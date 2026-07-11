@@ -76,6 +76,7 @@ Namespace Services.Infrastructure
         Public Const TRANS_BACKEND_FALLBACK As Integer = 4009
         Public Const TRANS_BACKEND_ACTIVE As Integer = 4010
         Public Const TRANS_BUDGET_EXCEEDED As Integer = 4011
+        Public Const TRANS_SHADOW As Integer = 4012
 
         ' ── TTS (4100–4199) ──
         Public Const TTS_SYNTHESISE As Integer = 4100
@@ -101,6 +102,7 @@ Namespace Services.Infrastructure
         Public Const CONF_SPEAKER_SWITCHED As Integer = 5011
         Public Const CONF_CLAUSE_SAT_SEGMENT As Integer = 5013
         Public Const CONF_BACKEND_DISCONNECT As Integer = 5014
+        Public Const CONF_ROOM_STT_SUMMARY As Integer = 5015
 
         ' ── Rooms (5100–5199) ──
         Public Const ROOM_CREATED As Integer = 5100
@@ -266,6 +268,7 @@ Namespace Services.Infrastructure
             R(TRANS_BACKEND_FALLBACK, LogCategory.Translation, LogSeverity.Warning, "Translation backend failed/unavailable — fell back to the local sidecar")
             R(TRANS_BACKEND_ACTIVE, LogCategory.Translation, LogSeverity.Info, "Active translation backend changed")
             R(TRANS_BUDGET_EXCEEDED, LogCategory.Translation, LogSeverity.Warning, "Cloud translation monthly character budget exceeded (translation continues)")
+            R(TRANS_SHADOW, LogCategory.Translation, LogSeverity.Info, "Second/third-opinion translation from a non-primary engine — log-only, never broadcast; pairs with the TRANS_RESULT of the same source text for post-session engine comparison")
 
             ' TTS
             R(TTS_SYNTHESISE, LogCategory.Tts, LogSeverity.Debug, "TTS synthesis requested")
@@ -290,6 +293,7 @@ Namespace Services.Infrastructure
             R(CONF_CLAUSE_FRAGMENT, LogCategory.Conference, LogSeverity.Debug, "Speechmatics clause fragment accumulated (inter-fragment gap trace)")
             R(CONF_CLAUSE_SAT_SEGMENT, LogCategory.Conference, LogSeverity.Info, "SaT split a held clause into multiple sentences at the pause (list-free, engine-agnostic segmentation)")
             R(CONF_BACKEND_DISCONNECT, LogCategory.Conference, LogSeverity.Info, "STT backend connection dropped or the live-server exited — benign at end-of-session; the engine auto-reconnects mid-service")
+            R(CONF_ROOM_STT_SUMMARY, LogCategory.Conference, LogSeverity.Info, "Room STT quality scoreboard at close: clause sizes, tiny-fragment %, merge rate, SaT splits, duplicate commits, hold latency — the A/B line for tuning changes")
             R(CONF_SPEAKER_SWITCHED, LogCategory.Conference, LogSeverity.Info, "Conference active speaker or connectivity mode changed")
 
             ' Rooms

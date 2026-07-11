@@ -159,6 +159,8 @@ Partial Class FormOptions
         Me.nudClauseMaxChars = New System.Windows.Forms.NumericUpDown()
         Me.lblClauseTimerMs = New System.Windows.Forms.Label()
         Me.nudClauseTimerMs = New System.Windows.Forms.NumericUpDown()
+        Me.chkShadowTrans = New System.Windows.Forms.CheckBox()
+        Me.clbShadowEngines = New System.Windows.Forms.CheckedListBox()
         Me.lblTranslationSep = New System.Windows.Forms.Label()
         Me.lblTranslationHeader = New System.Windows.Forms.Label()
         Me.chkBold = New System.Windows.Forms.CheckBox()
@@ -1381,6 +1383,24 @@ Partial Class FormOptions
         Me.nudClauseTimerMs.TabIndex = 22
         Me.nudClauseTimerMs.Value = New Decimal(New Integer() {300, 0, 0, 0})
         '
+        ' chkShadowTrans
+        '
+        Me.chkShadowTrans.AutoSize = True
+        Me.chkShadowTrans.Location = New System.Drawing.Point(12, 404)
+        Me.chkShadowTrans.Name = "chkShadowTrans"
+        Me.chkShadowTrans.TabIndex = 30
+        Me.chkShadowTrans.Text = "Log 2nd-opinion translations for engine comparison"
+        Me.chkShadowTrans.UseVisualStyleBackColor = True
+        '
+        ' clbShadowEngines
+        '
+        Me.clbShadowEngines.CheckOnClick = True
+        Me.clbShadowEngines.IntegralHeight = False
+        Me.clbShadowEngines.Location = New System.Drawing.Point(12, 428)
+        Me.clbShadowEngines.Name = "clbShadowEngines"
+        Me.clbShadowEngines.Size = New System.Drawing.Size(384, 92)
+        Me.clbShadowEngines.TabIndex = 31
+        '
         ' chkFirewall
         '
         Me.chkFirewall.AutoSize = True
@@ -1837,6 +1857,8 @@ Partial Class FormOptions
         Me.pnlTranslation.Controls.Add(Me.nudClauseMaxChars)
         Me.pnlTranslation.Controls.Add(Me.lblClauseTimerMs)
         Me.pnlTranslation.Controls.Add(Me.nudClauseTimerMs)
+        Me.pnlTranslation.Controls.Add(Me.chkShadowTrans)
+        Me.pnlTranslation.Controls.Add(Me.clbShadowEngines)
         Me.pnlTranslation.Controls.Add(Me.nudTransPort)
         Me.pnlTranslation.Controls.Add(Me.lblTransPort)
         Me.pnlTranslation.Controls.Add(Me.cboDevice)
@@ -3601,6 +3623,8 @@ Partial Class FormOptions
     Friend WithEvents nudClauseMaxChars As System.Windows.Forms.NumericUpDown
     Friend WithEvents lblClauseTimerMs As System.Windows.Forms.Label
     Friend WithEvents nudClauseTimerMs As System.Windows.Forms.NumericUpDown
+    Friend WithEvents chkShadowTrans As System.Windows.Forms.CheckBox
+    Friend WithEvents clbShadowEngines As System.Windows.Forms.CheckedListBox
     Friend WithEvents lblSttEouSilence As System.Windows.Forms.Label
     Friend WithEvents nudSttEouSilence As System.Windows.Forms.NumericUpDown
     Friend WithEvents lblTransBackend As System.Windows.Forms.Label

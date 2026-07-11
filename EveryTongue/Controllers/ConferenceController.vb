@@ -749,6 +749,11 @@ Namespace Controllers
             Dim translations As New Dictionary(Of String, String)()
             If targets Is Nothing OrElse targets.Count = 0 Then Return translations
 
+            ' Second/third-opinion shadow translations (log-only, never broadcast,
+            ' lowest scheduler priority) — fire-and-forget so the live path is never
+            ' delayed. Pairs with this commit's TRANS_RESULT by source text.
+            FireShadowTranslations(roomId, text, sourceLang, targets)
+
             ' The room translates with ITS OWN engine (template's, else the global
             ' default), passed as a per-call override so it wins over the global
             ' orchestrator active backend and any per-language overrides.
@@ -814,6 +819,65 @@ Namespace Controllers
             Return translations
         End Function
 
+        ''' <summary>
+        ''' LOG-ONLY "second opinion" translations of a commit from the engines in
+        ''' AppConfig.ShadowTranslationEngines, for post-session engine comparison
+        ''' (which engine handles Catalan best?). Never broadcast. Raw engine output —
+        ''' no glossary/profanity filters — so the comparison is engine-vs-engine.
+        ''' Runs at Benchmark (lowest) priority and never blocks the live path.
+        ''' </summary>
+        Private Sub FireShadowTranslations(roomId As String, text As String, sourceLang As String, targets As List(Of String))
+            If Not _config.ShadowTranslationsEnabled Then Return
+            Dim raw = _config.ShadowTranslationEngines
+            If String.IsNullOrWhiteSpace(raw) Then Return
+            Dim orchestrator = _getTranslationOrchestrator?.Invoke()
+            If orchestrator Is Nothing Then Return
+            Dim primary = RoomTranslationKey(roomId)
+            Dim available = orchestrator.GetAllBackends()
+            Dim targetsCopy = targets.ToList()
+            Dim primaryBackend As String = Nothing
+            _roomTranslationBackendName.TryGetValue(roomId, primaryBackend)
+
+            For Each engineRaw In raw.Split(","c)
+                Dim engineKey = engineRaw.Trim().ToLowerInvariant()
+                If engineKey.Length = 0 Then Continue For
+                If engineKey.Equals(primary, StringComparison.OrdinalIgnoreCase) Then Continue For   ' opinion must differ from primary
+                If TranslationBackendRegistry.IsInlineEngine(engineKey) Then Continue For
+                Dim backendName = TranslationBackendRegistry.BackendNameForKey(engineKey)
+                If String.IsNullOrEmpty(backendName) OrElse
+                   Not available.Any(Function(b) b.Name = backendName AndAlso b.IsAvailable) Then Continue For
+                ' Different key but SAME resolved backend as the primary (e.g. "nllb"
+                ' shadow while primary is "nllb-3.3b" — both = Local) → duplicate, skip.
+                If Not String.IsNullOrEmpty(primaryBackend) AndAlso backendName = primaryBackend Then Continue For
+
+                Dim key = engineKey
+                Dim bn = backendName
+                Task.Run(Async Function()
+                             Dim sw = Diagnostics.Stopwatch.StartNew()
+                             Try
+                                 Using cts As New Threading.CancellationTokenSource(TimeSpan.FromSeconds(15))
+                                     Dim result = Await orchestrator.TranslateAsync(
+                                         text, sourceLang, targetsCopy, cts.Token,
+                                         Services.Scheduling.TranslationPriority.Benchmark,
+                                         filters:=Nothing, backendOverride:=bn)
+                                     If result IsNot Nothing AndAlso result.Count > 0 Then
+                                         AppLogger.Log(LogEvents.TRANS_SHADOW,
+                                             $"room={roomId} opinion={key} {sourceLang}→[{String.Join(",", result.Keys)}] {sw.ElapsedMilliseconds}ms" &
+                                             FormatTransBlock(sourceLang, text, result))
+                                     Else
+                                         AppLogger.Log(LogEvents.TRANS_SHADOW,
+                                             $"room={roomId} opinion={key} {sourceLang}→[{String.Join(",", targetsCopy)}] no result ({sw.ElapsedMilliseconds}ms)")
+                                     End If
+                                 End Using
+                             Catch ex As Exception
+                                 ' Best-effort — a failed opinion is data, not an error.
+                                 AppLogger.Log(LogEvents.TRANS_SHADOW,
+                                     $"room={roomId} opinion={key} {sourceLang}→[{String.Join(",", targetsCopy)}] failed: {ex.Message}")
+                             End Try
+                         End Function)
+            Next
+        End Sub
+
         Private Shared Sub BroadcastTranslated(subtitleSvc As ISubtitleService, roomId As String,
                                                text As String, sourceShort As String, sourceLang As String,
                                                translations As Dictionary(Of String, String))
@@ -877,6 +941,18 @@ Namespace Controllers
                     merged(flores) = kvp.Value
                 End If
             Next
+            ' Shadow comparison: log the engine's own inline translations as an opinion
+            ' (RAW, pre-glossary — engine-vs-engine) and fire the configured shadow
+            ' engines on the SAME commit text, so every engine translates identical
+            ' units. Only the inline-covered targets are shadowed here; the uncovered
+            ' `remaining` targets go through TranslateTargetsAsync, which shadows them.
+            If _config.ShadowTranslationsEnabled AndAlso merged.Count > 0 Then
+                AppLogger.Log(LogEvents.TRANS_SHADOW,
+                    $"room={roomId} opinion=speechmatics-inline {sourceLang}→[{String.Join(",", merged.Keys)}] inline" &
+                    FormatTransBlock(sourceLang, args.Text, merged))
+                FireShadowTranslations(roomId, args.Text, sourceLang, merged.Keys.ToList())
+            End If
+
             If merged.Count > 0 Then
                 ' Apply glossary + profanity locally (self-contained, file-based) so the
                 ' fixes land regardless of whether the NLLB sidecar is running. The old
@@ -1195,6 +1271,41 @@ Namespace Controllers
             _roomTranslationBackendName(roomId) = If(backendName, "")
             AppLogger.Log(LogEvents.CONFIG_TEMPLATE_RESOLVED,
                 $"[Conference:{roomId}] translation engine '{roomKey}' (backend {If(String.IsNullOrEmpty(backendName), "default", backendName)})")
+            WarmShadowEngines(roomId)
+        End Sub
+
+        ''' <summary>
+        ''' Warm any OFFLINE shadow-opinion engines at room start so their opinions
+        ''' actually appear in the log — shadows never start engines themselves, and
+        ''' an unavailable sidecar would be skipped silently ("can't trust myself to
+        ''' remember to start it"). Acquired under the room's ID (idempotent,
+        ''' refcounted) so the normal room-close release frees them too. Cloud and
+        ''' inline engines need no warm-up. Runs in the background — never delays
+        ''' room start.
+        ''' </summary>
+        Private Sub WarmShadowEngines(roomId As String)
+            If Not _config.ShadowTranslationsEnabled Then Return
+            Dim raw = _config.ShadowTranslationEngines
+            If String.IsNullOrWhiteSpace(raw) OrElse _acquireTranslationBackend Is Nothing Then Return
+            Dim primary = RoomTranslationKey(roomId)
+            Dim keys = raw.Split(","c).Select(Function(s) s.Trim().ToLowerInvariant()).
+                           Where(Function(s) s.Length > 0 AndAlso Not s.Equals(primary, StringComparison.OrdinalIgnoreCase)).
+                           Distinct().ToList()
+            If keys.Count = 0 Then Return
+            Task.Run(Sub()
+                         For Each key In keys
+                             Try
+                                 Dim entry = TranslationBackendRegistry.Find(key)
+                                 If entry Is Nothing OrElse String.IsNullOrEmpty(entry.ModelType) Then Continue For   ' cloud/inline: nothing to warm
+                                 Dim name = _acquireTranslationBackend(roomId, key)
+                                 AppLogger.Log(LogCategory.Translation, LogSeverity.Info,
+                                     $"[Conference:{roomId}] shadow engine '{key}' warmed for 2nd-opinion logging (backend {If(name, "?")})")
+                             Catch ex As Exception
+                                 AppLogger.Log(LogCategory.Translation, LogSeverity.Warning,
+                                     $"[Conference:{roomId}] shadow engine '{key}' warm-up failed: {ex.Message}")
+                             End Try
+                         Next
+                     End Sub)
         End Sub
 
         ''' <summary>

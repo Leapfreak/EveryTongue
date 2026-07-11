@@ -55,6 +55,8 @@ PACE_WINDOW = 200            # rolling inter-word gaps kept (samples)
 PACE_MIN_SAMPLES = 40        # need at least this many before tuning
 PACE_CHECK_INTERVAL_S = 10   # recompute the target EOU this often
 RETUNE_COOLDOWN_S = 45       # min seconds between EOU changes (each = a WS reconnect)
+EOU_HYST_UP = 0.10           # p85 must exceed the bucket boundary by 10% to go LONGER
+EOU_HYST_DOWN = 0.25         # ...and undercut it by 25% to go SHORTER (err long)
 
 # Auto-reconnect on an unexpected Speechmatics drop (network blip, server-side idle
 # close during a long silence). The audio queue keeps buffering during the gap so
@@ -552,7 +554,16 @@ class SpeechmaticsStreamingPipeline:
 
     def _maybe_retune(self, now):
         """Recompute the EOU target from the speaker's pace; if it crosses a bucket and
-        the cooldown has elapsed, update self._eou_silence and signal a reconnect."""
+        the cooldown has elapsed, update self._eou_silence and signal a reconnect.
+
+        BOUNDARY HYSTERESIS (2026-07-12): a speaker whose p85 sits ON a bucket
+        boundary (observed: 313-484ms straddling the 400ms line) ping-pongs between
+        buckets every window, and every flip is a full session reconnect. A bucket
+        change now requires p85 to CLEAR the crossed boundary by a margin — and the
+        margins are asymmetric (going shorter needs 25%, longer only 10%) so a
+        borderline speaker settles on the LONGER EOU, which is the safer side
+        (fewer mid-thought cuts; slightly later commits).
+        """
         if len(self._pace_gaps) < PACE_MIN_SAMPLES:
             return False
         p85 = _percentile(self._pace_gaps, 85)
@@ -561,6 +572,15 @@ class SpeechmaticsStreamingPipeline:
             return False   # same bucket, nothing to do
         if (now - self._last_retune) < RETUNE_COOLDOWN_S:
             return False   # too soon since the last change
+        # Hysteresis: p85 must clear the boundary between the buckets by a margin.
+        if target > self._eou_silence:
+            boundary = 400.0 if target >= 1.35 else 100.0
+            if p85 <= boundary * (1 + EOU_HYST_UP):
+                return False   # not clearly past the line — stay put
+        else:
+            boundary = 100.0 if target <= 0.7 else 400.0
+            if p85 >= boundary * (1 - EOU_HYST_DOWN):
+                return False   # borderline — prefer staying on the longer EOU
         old = self._eou_silence
         self._eou_silence = target
         self._last_retune = now

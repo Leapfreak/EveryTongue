@@ -205,6 +205,17 @@ Namespace Pipeline
                         Dim actualDevice = doc.RootElement.GetProperty("device").GetString()
                         _modelLoaded = doc.RootElement.GetProperty("model_loaded").GetBoolean()
                         RaiseEvent StatusChanged(Me, $"Translation model loaded on {actualDevice}")
+                        ' A silent CUDA→CPU fallback (model too big for the GPU) makes live
+                        ' translation time out on every sentence — say it loudly up front.
+                        If _modelLoaded AndAlso
+                           _device.StartsWith("cuda", StringComparison.OrdinalIgnoreCase) AndAlso
+                           String.Equals(actualDevice, "cpu", StringComparison.OrdinalIgnoreCase) Then
+                            AppLogger.Log(Services.Infrastructure.LogCategory.Translation,
+                                          Services.Infrastructure.LogSeverity.Warning,
+                                          "Translation model loaded on CPU although GPU was requested — the model is " &
+                                          "likely too large for this GPU's VRAM. Live translation will be far too slow; " &
+                                          "switch to an int8 or smaller NLLB model in Options → Translation.")
+                        End If
                     End Using
                     _host.ResetRestartCount()
                 End If
