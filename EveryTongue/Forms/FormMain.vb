@@ -1414,6 +1414,11 @@ del ""%~f0""
         End If
         _exitForReal = True
 
+        ' Tell every sidecar watchdog the exits about to happen are deliberate —
+        ' otherwise a kill can race the per-host cancel and schedule a pointless
+        ' restart of a dying app's sidecar.
+        Pipeline.PythonSidecarHost.GlobalShutdown = True
+
         ' Hide tray icon immediately so it looks closed
         Try : trayIcon.Visible = False : Catch : End Try
         Try : trayIcon.Dispose() : Catch : End Try

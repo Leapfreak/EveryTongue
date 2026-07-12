@@ -137,7 +137,7 @@ Namespace Controllers
                 ' Unmissable OFF cue: balloon + low tone. (No MessageBox — a modal
                 ' steals focus from the very window dictation types into.)
                 _showBalloon?.Invoke(_getString("Tray_Dictation"), _getString("Dict_Off"))
-                Try : Media.SystemSounds.Hand.Play() : Catch : End Try
+                PlayCue(rising:=False)
             Else
                 If Not _service.Arm() Then
                     AppLogger.PromptDownloadManager(_getString("Dict_EngineMissing"), _getString("Tray_Dictation"))
@@ -155,9 +155,33 @@ Namespace Controllers
         ''' the reliable "you can talk now" signal (arming takes several seconds).</summary>
         Private Sub OnEngineReady(ready As Boolean)
             If ready AndAlso _service.IsArmed Then
+                ' Timestamp the ding in the log — "chimed ready before it was ready"
+                ' reports need this moment on record to compare against engine events.
+                AppLogger.Log(LogEvents.DICT_SESSION_STARTED, "Dictation ready signal fired (balloon + chime)")
                 _showBalloon?.Invoke(_getString("Tray_Dictation"), _getString("Dict_Ready"))
-                Try : Media.SystemSounds.Asterisk.Play() : Catch : End Try
+                PlayCue(rising:=True)
             End If
+        End Sub
+
+        ''' <summary>
+        ''' Unmistakable audio state cues, independent of the Windows sound scheme:
+        ''' rising two-tone = capturing NOW (safe to talk), falling = dictation off.
+        ''' Beeps block, so they run off-thread.
+        ''' </summary>
+        Private Shared Sub PlayCue(rising As Boolean)
+            Task.Run(Sub()
+                         Try
+                             If rising Then
+                                 Console.Beep(600, 120)
+                                 Console.Beep(950, 180)
+                             Else
+                                 Console.Beep(950, 120)
+                                 Console.Beep(450, 220)
+                             End If
+                         Catch
+                             ' No beep device — balloons still carry the state.
+                         End Try
+                     End Sub)
         End Sub
 
         Private Sub SetOutputLanguage(flores As String)

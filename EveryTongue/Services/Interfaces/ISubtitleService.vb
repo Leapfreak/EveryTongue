@@ -32,6 +32,9 @@ Namespace Services.Interfaces
         Function RemoveClient(clientId As String) As Boolean
         Function GetActiveTranslationLanguages() As List(Of String)
         Function GetClientSnapshots() As List(Of Models.ClientSnapshot)
+        ''' <summary>True when the client has a genuinely OPEN WebSocket right now —
+        ''' room membership alone can be stale (a refreshed page's old connection).</summary>
+        Function IsClientConnected(clientId As String) As Boolean
 
         ' ── Message processing ──
 

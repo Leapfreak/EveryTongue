@@ -385,6 +385,33 @@ Namespace Pipeline
             DoShutdown(5000)
         End Sub
 
+        ''' <summary>
+        ''' TRUE only when the engine is ACTUALLY CAPTURING audio — not merely when the
+        ''' live-server's HTTP is up. /health has always reported `capturing` and
+        ''' `pipeline_alive`, but the old checks ignored them, so "ready" fired seconds
+        ''' before the model was loaded and words spoken in that gap were lost.
+        ''' </summary>
+        Public Async Function CheckCapturingAsync(ct As Threading.CancellationToken) As Task(Of Boolean)
+            If Not _serverReady Then Return False
+            Try
+                Dim response = Await _httpClient.GetAsync($"http://127.0.0.1:{_host.Port}/health", ct)
+                If Not response.IsSuccessStatusCode Then Return False
+                Dim body = Await response.Content.ReadAsStringAsync()
+                Using doc = JsonDocument.Parse(body)
+                    Dim root = doc.RootElement
+                    Dim statusProp As JsonElement = Nothing
+                    If root.TryGetProperty("status", statusProp) AndAlso statusProp.GetString() <> "ok" Then Return False
+                    Dim capProp As JsonElement = Nothing
+                    If Not (root.TryGetProperty("capturing", capProp) AndAlso capProp.GetBoolean()) Then Return False
+                    Dim pipeProp As JsonElement = Nothing
+                    If root.TryGetProperty("pipeline_alive", pipeProp) AndAlso Not pipeProp.GetBoolean() Then Return False
+                    Return True
+                End Using
+            Catch
+                Return False
+            End Try
+        End Function
+
         Public Async Function UpdateConfigAsync(config As Dictionary(Of String, Object)) As Task
             If Not _serverReady Then Return
             Try

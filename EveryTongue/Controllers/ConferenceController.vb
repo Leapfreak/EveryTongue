@@ -1239,13 +1239,31 @@ Namespace Controllers
                     ' Connection-lifecycle events (SSE stream ended, live-server exited,
                     ' socket forcibly closed/reset) are benign at end-of-session and now
                     ' auto-recover mid-service — log them Info, not a red ERROR.
-                    If IsBenignDisconnect(line) Then
+                    If IsEngineStatsLine(line) Then
+                        ' Continuation lines of the engine's multi-line SESSION STATS
+                        ' record (no timestamp prefix, so the python-line filter misses
+                        ' them) — a summary printout, not an error. Red stats blocks in
+                        ' the log viewer read like a crash dump to the operator.
+                        AppLogger.Log(LogCategory.Conference, LogSeverity.Info, $"[Conference:{roomId}] {line}")
+                    ElseIf IsBenignDisconnect(line) Then
                         AppLogger.Log(LogEvents.CONF_BACKEND_DISCONNECT, $"room={roomId} engine={engineKey} {line}")
                     Else
                         AppLogger.Log(LogEvents.CONF_BACKEND_ERROR, $"room={roomId} engine={engineKey} {line}")
                     End If
                 End Sub
         End Sub
+
+        ''' <summary>True if the line belongs to the engine's end-of-session SESSION STATS block (vad/segment.py summary()) — informational, not an error.</summary>
+        Private Shared Function IsEngineStatsLine(line As String) As Boolean
+            If String.IsNullOrWhiteSpace(line) Then Return False
+            Dim t = line.Trim()
+            If System.Text.RegularExpressions.Regex.IsMatch(t, "^=+$") Then Return True
+            For Each prefix In {"SESSION STATS", "Commits:", "Commit types:", "Languages:",
+                                "Utterance durations", "Word counts", "Char counts", "min=", "avg="}
+                If t.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then Return True
+            Next
+            Return False
+        End Function
 
         ''' <summary>True if a backend error line is a benign connection-lifecycle event (disconnect / process exit / socket close) rather than a genuine engine error.</summary>
         Private Shared Function IsBenignDisconnect(line As String) As Boolean

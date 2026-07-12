@@ -156,9 +156,10 @@ Namespace Services.Stt
             Return result
         End Function
 
-        Public Async Function CheckHealthAsync(ct As CancellationToken) As Task(Of Boolean) Implements ISttBackend.CheckHealthAsync
-            Await Task.CompletedTask
-            Return _runner.IsServerReady
+        Public Function CheckHealthAsync(ct As CancellationToken) As Task(Of Boolean) Implements ISttBackend.CheckHealthAsync
+            ' Deep check: healthy = actually CAPTURING (model loaded, pipeline alive),
+            ' not merely "HTTP is up" — the shallow check fired ready-chimes early.
+            Return _runner.CheckCapturingAsync(ct)
         End Function
 
         Public Function GetStatsAsync() As Task(Of String) Implements ISttBackend.GetStatsAsync

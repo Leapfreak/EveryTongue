@@ -776,65 +776,31 @@ var rOpts=rateSelect.options;rOpts[0].textContent=t('slow');rOpts[1].textContent
   if(!_qs.get('bibleLang')){showLangPicker()}
 })();
 
-/* ── Keep screen on (Wake Lock) ── */
+/* ── Keep screen on (Wake Lock) — ALWAYS ON, no button.
+   Silent no-op where unsupported (plain HTTP, iOS before 16.4) — those users
+   just keep their normal auto-lock behaviour. The lock auto-releases when the
+   page is hidden; we re-acquire on return-to-visible. Failures only LOG. */
 var wakeLockObj=null;
-var wakeActive=false;
-var btnWake=document.getElementById('btnWake');
-btnWake.title=t('keepScreen');
 
-function setWakeActive(on){
-  wakeActive=on;
-  if(on){btnWake.classList.add('active');ssSet('wakeActive','1')}else{btnWake.classList.remove('active');ssRemove('wakeActive')}
-}
-
-async function acquireWakeLock(){
-  if(window.isSecureContext&&'wakeLock' in navigator){
-    try{
-      wakeLockObj=await navigator.wakeLock.request('screen');
-      setWakeActive(true);
-      wakeLockObj.addEventListener('release',function(){wakeLockObj=null;if(wakeActive)acquireWakeLock()});
-      return;
-    }catch(e){}
+function acquireWakeLock(){
+  if(!window.isSecureContext||!('wakeLock' in navigator)){
+    LOG('Wake lock unavailable (secureContext='+window.isSecureContext+')');
+    return;
   }
-  showCertSetup();
-}
-
-function releaseWakeLock(){
-  wakeActive=false;
-  if(wakeLockObj){try{wakeLockObj.release()}catch(e){}wakeLockObj=null}
-  setWakeActive(false);
-}
-
-function toggleWakeLock(){if(wakeActive)releaseWakeLock();else acquireWakeLock()}
-
-function showCertSetup(){
-  var hp=parseInt(location.port||80)+1;
-  var url='https://'+location.hostname+':'+hp;
-  var d=document.createElement('div');
-  d.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.95);z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;color:#fff;font-size:16px;line-height:1.6';
-  var c=document.createElement('div');c.style.cssText='max-width:400px;text-align:left';
-  var h=document.createElement('h2');h.style.cssText='color:#ffdd57;margin-bottom:16px;text-align:center';h.textContent=t('wakeTitle');c.appendChild(h);
-  var p0=document.createElement('p');p0.style.cssText='margin-bottom:16px;text-align:center';p0.textContent=t('wakeDesc');c.appendChild(p0);
-  var isFF=navigator.userAgent.indexOf('Firefox')>-1;
-  var isSafari=/Safari/.test(navigator.userAgent)&&!/Chrome/.test(navigator.userAgent);
-  var steps;
-  if(isFF){steps=[t('stepTap'),t('stepWarn'),t('stepAdv'),t('stepAccept'),t('stepRetry')]}
-  else if(isSafari){steps=[t('stepTap'),t('stepWarn'),t('stepDetails'),t('stepVisit'),t('stepRetry')]}
-  else{steps=[t('stepTap'),t('stepWarn'),t('stepAdv'),t('stepProceed').replace('{0}',location.hostname),t('stepRetry')]}
-  for(var i=0;i<steps.length;i++){var s=document.createElement('p');s.style.cssText='margin-bottom:8px;padding-left:8px';s.textContent=(i+1)+'. '+steps[i];c.appendChild(s)}
-  var br=document.createElement('div');br.style.cssText='text-align:center;margin-top:20px';
-  var a1=document.createElement('a');a1.href=url;a1.textContent=t('openSecure');a1.style.cssText='display:inline-block;background:#47f;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-size:18px;margin-bottom:16px';br.appendChild(a1);
-  br.appendChild(document.createElement('br'));
-  var b2=document.createElement('button');b2.textContent=t('cancel');b2.style.cssText='background:#333;color:#aaa;border:1px solid #555;padding:8px 20px;border-radius:6px;font-size:14px;cursor:pointer;margin-top:8px';b2.onclick=function(){d.remove()};br.appendChild(b2);
-  c.appendChild(br);d.appendChild(c);document.body.appendChild(d);
+  navigator.wakeLock.request('screen').then(function(lock){
+    wakeLockObj=lock;
+    LOG('Wake lock acquired');
+    lock.addEventListener('release',function(){wakeLockObj=null});
+  },function(e){
+    LOG('Wake lock denied: '+e);
+  });
 }
 
 document.addEventListener('visibilitychange',function(){
-  if(document.visibilityState==='visible'&&wakeActive&&!wakeLockObj)acquireWakeLock();
+  if(document.visibilityState==='visible'&&!wakeLockObj)acquireWakeLock();
 });
 
-/* Restore wake lock from previous page (survives Home → lobby → back) */
-if(ss('wakeActive')==='1')acquireWakeLock();
+acquireWakeLock();
 
 /* ── Admin remote control ── */
 var adminPanel=document.getElementById('adminPanel');
@@ -1911,8 +1877,12 @@ function showRoomError(msg){
   el.style.display='block';
 }
 
-/* Auto-reclaim host via stored token, or fall back to admin PIN */
-function tryClaimHost(){
+/* Auto-reclaim host via stored token, or fall back to admin PIN.
+   Retries a few times: right after a page refresh the server may still list the
+   PREVIOUS connection as the live host until its socket is reaped, so the first
+   claim can be rejected even though we hold the valid token. */
+function tryClaimHost(attempt){
+  attempt=attempt||0;
   var roomMatch=location.search.match(/[?&]room=([^&]+)/);
   if(!roomMatch||!myClientId)return;
   var roomId=roomMatch[1];
@@ -1923,17 +1893,26 @@ function tryClaimHost(){
     var token=(mine&&mine.hostToken)?mine.hostToken:'';
     var pin=sessionStorage.getItem('adminPin')||'';
     if(!token&&!pin)return;
+    var retry=function(){
+      if(attempt<4&&!isHost){
+        LOG('Host claim not accepted yet, retrying ('+(attempt+1)+'/4)');
+        setTimeout(function(){tryClaimHost(attempt+1)},2500);
+      }
+    };
     var xhr=new XMLHttpRequest();
     xhr.open('POST','/api/rooms/'+encodeURIComponent(roomId)+'/claim-host',true);
     xhr.setRequestHeader('Content-Type','application/json');
     xhr.onload=function(){
+      var claimed=false;
       if(xhr.status===200){
         try{
           var res=JSON.parse(xhr.responseText);
-          if(res.ok){isHost=true;LOG('Host reclaimed');showHostControls()}
+          if(res.ok){claimed=true;isHost=true;LOG('Host reclaimed');showHostControls()}
         }catch(e){}
       }
+      if(!claimed)retry();
     };
+    xhr.onerror=retry;
     var body={clientId:myClientId};
     if(token)body.hostToken=token;
     if(pin)body.pin=pin;

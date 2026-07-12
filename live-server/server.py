@@ -272,11 +272,33 @@ def _start_whisper_server(server_path: str, model_path: str, port: int, no_gpu: 
             with urllib.request.urlopen(req, timeout=1) as resp:
                 if resp.status == 200:
                     logger.info(f"WHISPER-SERVER READY on port {port} (took ~{i * 0.5:.0f}s)")
+                    _warmup_whisper_server(port)
                     return
         except Exception:
             pass
         time.sleep(0.5)
     raise RuntimeError("whisper-server startup timeout (60s)")
+
+
+def _warmup_whisper_server(port: int):
+    """Run one throwaway inference so the first REAL request doesn't pay GPU
+    warm-up (CUDA graph init / Vulkan shader compile — 15-30s on some GPUs).
+    /health returns 200 once the model WEIGHTS are loaded, so without this the
+    app's readiness signals (dictation chime, room banners) fire before the
+    engine can actually transcribe promptly."""
+    try:
+        t0 = time.time()
+        silence = np.zeros(SAMPLE_RATE, dtype=np.float32)  # 1s of silence
+        wav_data = audio_to_wav_bytes(silence)
+        _post_multipart(
+            f"http://127.0.0.1:{port}/inference",
+            {"temperature": "0.0", "response_format": "verbose_json"},
+            {"file": ("warmup.wav", wav_data, "audio/wav")},
+            timeout=120,
+        )
+        logger.info(f"WHISPER-SERVER warm-up inference done in {time.time() - t0:.1f}s")
+    except Exception as e:
+        logger.warning(f"WHISPER-SERVER warm-up inference failed (non-fatal): {e}")
 
 
 def _stop_whisper_server():

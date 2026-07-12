@@ -98,14 +98,16 @@ Namespace Services.Input
             End Try
         End Function
 
-        ''' <summary>Poll the engine health until it's capturing, then raise ReadinessChanged(True). Fail-open after 60s.</summary>
+        ''' <summary>Poll the engine health until it's capturing, then raise ReadinessChanged(True).
+        ''' Fail-open after 2 min — /start now includes a GPU warm-up inference, so a cold
+        ''' Vulkan start (model load + shader compile) can legitimately take over a minute.</summary>
         Private Sub StartReadinessPoll(backend As ISttBackend)
             Dim cb = ReadinessChanged
             If cb Is Nothing Then Return
             Dim b = backend
             Task.Run(Async Function()
                          Dim startTick = Environment.TickCount64
-                         While Environment.TickCount64 - startTick < 60000
+                         While Environment.TickCount64 - startTick < 120000
                              If Not _armed OrElse Not Object.ReferenceEquals(b, _backend) Then Return
                              Dim ok = False
                              Try : ok = Await b.CheckHealthAsync(CancellationToken.None).ConfigureAwait(False) : Catch : ok = False : End Try

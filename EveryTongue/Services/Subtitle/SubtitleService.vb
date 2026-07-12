@@ -133,6 +133,11 @@ Namespace Services.Subtitle
             Return client
         End Function
 
+        Public Function IsClientConnected(clientId As String) As Boolean Implements ISubtitleService.IsClientConnected
+            Dim c = GetClient(clientId)
+            Return c IsNot Nothing AndAlso c.WebSocket IsNot Nothing AndAlso c.WebSocket.State = WebSocketState.Open
+        End Function
+
         Public Function GetActiveTranslationLanguages() As List(Of String) Implements ISubtitleService.GetActiveTranslationLanguages
             Dim langs As New HashSet(Of String)()
             For Each kvp In _clients

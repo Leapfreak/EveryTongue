@@ -11,8 +11,12 @@ Namespace Services.Rooms
 
         Private ReadOnly _rooms As New ConcurrentDictionary(Of String, Room)()
         Private ReadOnly _idleTimer As System.Timers.Timer
+        ' Real socket-liveness probe for ClaimHost. Room membership alone is stale during
+        ' a page refresh: the old connection is still listed while the same person reclaims.
+        Private ReadOnly _subtitles As Interfaces.ISubtitleService
 
-        Public Sub New()
+        Public Sub New(Optional subtitles As Interfaces.ISubtitleService = Nothing)
+            _subtitles = subtitles
             ' Check for idle rooms every 60 seconds
             _idleTimer = New System.Timers.Timer(60000)
             AddHandler _idleTimer.Elapsed, Sub(s, e) CleanupIdleRooms()
@@ -113,7 +117,7 @@ Namespace Services.Rooms
 
         ''' <summary>
         ''' Reclaim host via stored host token or admin PIN. Returns True on success.
-        ''' Rejects if the current host is still connected (prevents second tab stealing host).
+        ''' A valid credential always wins (last claimer becomes host) — see comment below.
         ''' </summary>
         Public Function ClaimHost(roomId As String, hostToken As String, newClientId As String,
                                   Optional adminPinValid As Boolean = False) As Boolean
@@ -121,12 +125,19 @@ Namespace Services.Rooms
             If room Is Nothing Then Return False
             Dim tokenOk = Not String.IsNullOrEmpty(hostToken) AndAlso room.HostToken = hostToken
             If Not tokenOk AndAlso Not adminPinValid Then Return False
-            ' Reject if current host is still connected (different client)
+            ' A valid host token (or admin PIN) ALWAYS wins — the token is the room-ownership
+            ' credential, held only by the creator's browser. The old "reject while current
+            ' host still connected" guard locked owners out for MINUTES after a page refresh:
+            ' an abruptly-killed phone connection stays half-open (membership listed, socket
+            ' nominally Open) until a send fails, and no timer reaps it. Field evidence
+            ' 20260712_103107: reclaim rejections persisted 30s-2min after every refresh.
+            ' Cost of accepting: a second tab of the SAME browser can take host over (it has
+            ' the same token) — last-claimer-wins, which is what an owner expects anyway.
             If Not String.IsNullOrEmpty(room.HostClientId) AndAlso
                room.HostClientId <> newClientId AndAlso
-               room.ClientIds.ContainsKey(room.HostClientId) Then
-                AppLogger.Log(LogEvents.ROOM_LOCKED, $"Host claim rejected for room '{room.Name}' — current host {room.HostClientId} still connected")
-                Return False
+               room.ClientIds.ContainsKey(room.HostClientId) AndAlso
+               (_subtitles Is Nothing OrElse _subtitles.IsClientConnected(room.HostClientId)) Then
+                AppLogger.Log(LogEvents.ROOM_CLIENT_JOINED, $"Host transferred for room '{room.Name}' — previous host {room.HostClientId} appears connected but claimant presented a valid credential")
             End If
             room.HostClientId = newClientId
             room.TouchActivity()

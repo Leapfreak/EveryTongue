@@ -12,6 +12,14 @@ Namespace Pipeline
     Public Class PythonSidecarHost
         Implements IDisposable
 
+        ''' <summary>
+        ''' Set to True when the app is shutting down (FormMain.FormClosing).
+        ''' Sidecar exits during shutdown are deliberate kills — the watchdog must
+        ''' not treat them as crashes and schedule restarts (which raced the
+        ''' per-host cancel and could orphan a freshly spawned process).
+        ''' </summary>
+        Public Shared Property GlobalShutdown As Boolean = False
+
         Private _process As Process
         Private _isRunning As Boolean = False
         Private _isRestarting As Boolean = False
@@ -154,7 +162,11 @@ Namespace Pipeline
                                                         Try : exitCode = If(_process?.ExitCode, -1) : Catch : End Try
                                                         AppLogger.Log(LogCategory.Pipeline, LogSeverity.Info, $"{Label} process exited with code {exitCode}")
                                                         _isRunning = False
-                                                        If MaxRestarts > 0 AndAlso _cts IsNot Nothing AndAlso Not _cts.IsCancellationRequested Then
+                                                        ' GlobalShutdown gate: at app close the sidecars are killed
+                                                        ' DELIBERATELY, and the per-host cancel can race the Exited
+                                                        ' event — the watchdog then scheduled a restart of a dying
+                                                        ' app's sidecar (potentially orphaning a fresh process).
+                                                        If Not GlobalShutdown AndAlso MaxRestarts > 0 AndAlso _cts IsNot Nothing AndAlso Not _cts.IsCancellationRequested Then
                                                             _restartCount += 1
                                                             If _restartCount <= MaxRestarts Then
                                                                 Dim delay = Math.Min(5000 * _restartCount, 15000)
@@ -162,7 +174,7 @@ Namespace Pipeline
                                                                 RaiseEvent StatusMessage(Me, $"{Label} exited (code={exitCode}), restarting in {delay / 1000}s...")
                                                                 Task.Delay(delay).ContinueWith(
                                                                     Sub(t)
-                                                                        If _cts IsNot Nothing AndAlso Not _cts.IsCancellationRequested Then
+                                                                        If Not GlobalShutdown AndAlso _cts IsNot Nothing AndAlso Not _cts.IsCancellationRequested Then
                                                                             StartProcess(_scriptPath, _extraArgs)
                                                                         Else
                                                                             _isRestarting = False
