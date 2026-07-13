@@ -30,26 +30,44 @@ On first launch, the app will prompt you to download the required tools (whisper
 
 ## Features
 
-**Live Transcription**
-- Real-time speech-to-text using whisper.cpp with Silero VAD for natural speech boundary detection
-- GPU-accelerated inference via Vulkan (all GPUs) or CUDA (NVIDIA)
-- Intelligent commit system: VAD-commit on pauses, sentence-commit at boundaries, force-commit safety valve
-- Hallucination filtering with consecutive-skip buffer management
-- Adjustable VAD silence threshold and max segment duration (live tuning via sliders)
-- Session statistics with commit type breakdown, speaking rate, and silence gap analysis
+**Speech-to-Text — 9 pluggable engines**
+- Offline: whisper.cpp (Vulkan — any GPU, CUDA, or CPU), faster-whisper (CUDA)
+- Online streaming: Speechmatics, Google Cloud STT, Deepgram, Gladia, Azure AI Speech
+- Silero VAD boundary detection for offline engines; self-endpointing for streaming engines
+- Speechmatics quality stack: per-speaker end-of-utterance auto-tune (adapts to speaking pace via diarization), buffer-to-pause clause merging, SaT (wtpsplit) sentence re-segmentation before translation, auto-reconnect with no audio loss
+- Hallucination filtering, per-session filter sets, session statistics
 
-**Live Translation (NLLB-200)**
-- Real-time translation of transcribed text using NLLB-200 1.3B (CTranslate2)
-- Per-client language selection on phone subtitle display
-- Glossary system for domain-specific corrections (biblical/church terminology)
-- Profanity filter with per-language word lists
+**Translation — 12 pluggable engines**
+- Offline: NLLB-200 1.3B / 3.3B (CTranslate2, float16 or int8) — different rooms can run different models concurrently
+- Online: Google Translate, DeepL, Azure Translator, Amazon Translate, OpenAI, DeepSeek, LibreTranslate (self-hostable endpoint), Speechmatics inline
+- Per-room engine selection; optional "shadow" second/third-opinion translations logged per commit for engine comparison
+- Glossary corrections and profanity masking applied uniformly across offline AND cloud engines
+- Usage tracking with per-engine monthly character budgets
 
-**Phone Subtitle Display**
-- Built-in HTTP + HTTPS subtitle server with WebSocket streaming
-- Self-signed certificate for secure context (enables Wake Lock API on phones)
-- Admin panel: remote start/stop/restart, input language selector, tune button
-- Client-side i18n in 8 languages
-- Wake Lock keeps phone screen on during display (HTTPS only)
+**Rooms — multi-room translation server**
+- Conference rooms (one speaker → many listeners) and conversation rooms (everyone speaks, each reads in their own language)
+- **Web-Mic Broadcast**: the room microphone can be any browser — a phone on the pulpit, a laptop, no cable to the server
+- Room templates with hosting codes, speaker profiles, per-room engines, display templates, QR-code joining
+- Host controls from any phone: pause, clear, lock, speaker/language switching, kick
+- Engine-readiness indicators so nobody speaks before the models are loaded
+
+**Text-to-Speech — 6 pluggable engines**
+- Offline: Piper, MMS-TTS · Online: Edge TTS, Azure AI Speech, Google Cloud TTS, OpenAI TTS
+- Per-listener voice on phones + optional local playback to a PA/NDI output device
+
+**System-wide Dictation (Windows)**
+- Speak → text is typed into whatever app has focus (global hotkey, continuous or push-to-talk)
+- Optional translate-while-dictating (speak one language, type another)
+- Audio cues when the engine is genuinely capturing; own microphone selection
+
+**Bible Integration**
+- Downloadable Bibles (eBible.org); desktop reader and phone panel with verse lookup and search
+- Scripture reference detection; chapter translation; biblical proper-noun vocabulary for STT boosting
+
+**Phone Web Client**
+- HTTPS + WebSocket subtitle streaming, per-client language, TTS read-aloud, transcript save
+- Automatic keep-screen-on, browser-language detection, font/size/color settings
+- PIN-gated admin: engine start/stop, input language, server settings (engines + API keys) and log viewer from the browser
 
 **Batch Processing**
 - **YouTube -> Subtitles** -- Download a YouTube video (or use a local file), optionally trim to a time range, and generate subtitles
@@ -60,9 +78,10 @@ On first launch, the app will prompt you to download the required tools (whisper
 - Multiple output formats: SRT, VTT, TXT, JSON, CSV, LRC
 
 **Other**
-- Configurable whisper parameters (beam size, temperature, VAD, threading, etc.)
-- Multi-language UI: English, Spanish, French, German, Catalan, Portuguese, Chinese (Simplified), Japanese
+- Filter Editor (glossary / profanity / hallucinations), structured event logging with configurable routing, benchmark suite (STT/translation/TTS comparison + concurrency)
+- Multi-language UI with downloadable language packs (any language)
 - Light/Dark/System theme support
+- Centralized Download Manager for all tools, models, and optional components
 - Automatic app and tool update checking via GitHub Releases
 - Start with Windows option
 
@@ -88,16 +107,24 @@ cd EveryTongue
 dotnet build
 ```
 
-To publish a release build:
+The solution has three projects: `EveryTongue.Core` (the WinForms-free server — Kestrel, rooms, engines, web client), `EveryTongue` (Windows desktop head), and `EveryTongue.Lite` (cross-platform headless console host).
+
+To publish the desktop release build (output goes to `EveryTongue/bin/Publish`):
 
 ```bash
-dotnet publish EveryTongue/EveryTongue.vbproj -c Release -o EveryTongue/bin/Publish
+dotnet publish EveryTongue/EveryTongue.vbproj -c Release -r win-x64 --self-contained false
 ```
 
 To build the installer (requires [Inno Setup 6](https://jrsoftware.org/isinfo.php)):
 
 ```bash
 iscc setup.iss
+```
+
+To build the Lite container image:
+
+```bash
+docker build -t everytongue-lite .
 ```
 
 ## Dependencies
