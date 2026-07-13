@@ -1,0 +1,24 @@
+# EveryTongue Lite — self-hosted online-only translation server.
+#
+#   docker compose up -d
+#   open https://<this-machine>:5081  →  Administrator (PIN 1234)  →  Settings:
+#   choose engines, paste YOUR API keys (Speechmatics/Google/DeepL), change the PIN.
+#
+# Everything you configure lives in ./et-config (survives updates: just
+# `docker compose pull && docker compose up -d`).
+#
+# Stage 6 (domain + automatic HTTPS): put a Caddy reverse proxy in front —
+# see PLAN.md "EveryTongue Lite" Stage 6.
+
+services:
+  everytongue:
+    build: .
+    # For a published image instead of building locally:
+    # image: ghcr.io/leapfreak/everytongue-lite:latest
+    container_name: everytongue
+    restart: unless-stopped
+    ports:
+      - "5080:5080"   # HTTP
+      - "5081:5081"   # HTTPS (self-signed — phones accept the cert once)
+    volumes:
+      - ./et-config:/config

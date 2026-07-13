@@ -1,4 +1,4 @@
-Imports System.Collections.Concurrent
+﻿Imports System.Collections.Concurrent
 Imports System.IO
 Imports System.Threading
 Imports Microsoft.Extensions.Logging
@@ -11,7 +11,7 @@ Namespace Services.Audio
     ''' directly to a physical output device.
     ''' </summary>
     Public Class TtsAudioOutput
-        Implements IDisposable
+        Implements ITtsAudioSink
 
         Private ReadOnly _logger As ILogger(Of TtsAudioOutput)
         Private ReadOnly _queue As New BlockingCollection(Of String)(50)
@@ -21,7 +21,7 @@ Namespace Services.Audio
         Private _volume As Single = 1.0F
         Private _isRunning As Boolean = False
 
-        Public Sub New(logger As ILogger(Of TtsAudioOutput))
+        Public Sub New(Optional logger As ILogger(Of TtsAudioOutput) = Nothing)
             _logger = logger
         End Sub
 
@@ -48,7 +48,7 @@ Namespace Services.Audio
             End Set
         End Property
 
-        Public ReadOnly Property IsRunning As Boolean
+        Public ReadOnly Property IsRunning As Boolean Implements ITtsAudioSink.IsRunning
             Get
                 Return _isRunning
             End Get
@@ -76,7 +76,7 @@ Namespace Services.Audio
         ''' <summary>
         ''' Start the playback loop on a background thread.
         ''' </summary>
-        Public Sub Start()
+        Public Sub Start() Implements ITtsAudioSink.Start
             If _isRunning Then Return
             _cts = New CancellationTokenSource()
             _playbackThread = New Thread(AddressOf PlaybackLoop) With {
@@ -85,19 +85,19 @@ Namespace Services.Audio
             }
             _isRunning = True
             _playbackThread.Start()
-            _logger.LogInformation("TTS audio output started on device {Device}", _deviceNumber)
+            _logger?.LogInformation("TTS audio output started on device {Device}", _deviceNumber)
         End Sub
 
         ''' <summary>
         ''' Stop the playback loop.
         ''' </summary>
-        Public Sub [Stop]()
+        Public Sub [Stop]() Implements ITtsAudioSink.Stop
             If Not _isRunning Then Return
             _isRunning = False
             _cts?.Cancel()
             _queue.CompleteAdding()
             _playbackThread?.Join(3000)
-            _logger.LogInformation("TTS audio output stopped")
+            _logger?.LogInformation("TTS audio output stopped")
         End Sub
 
         ''' <summary>
@@ -116,7 +116,7 @@ Namespace Services.Audio
         ''' <summary>
         ''' Enqueue a TTS cache URL (converts /tts/cache/file to actual path).
         ''' </summary>
-        Public Sub EnqueueFromUrl(url As String, cacheDirectory As String)
+        Public Sub EnqueueFromUrl(url As String, cacheDirectory As String) Implements ITtsAudioSink.EnqueueFromUrl
             If String.IsNullOrEmpty(url) OrElse String.IsNullOrEmpty(cacheDirectory) Then Return
             ' Extract filename from URL like /tts/cache/fra_commit_42.mp3
             Dim fileName = url
@@ -141,7 +141,7 @@ Namespace Services.Audio
                     Try
                         PlayFile(filePath)
                     Catch ex As Exception
-                        _logger.LogDebug(ex, "Failed to play TTS audio: {File}", filePath)
+                        _logger?.LogDebug(ex, "Failed to play TTS audio: {File}", filePath)
                     End Try
                 End While
             Catch ex As OperationCanceledException
@@ -189,14 +189,10 @@ Namespace Services.Audio
             End Select
         End Function
 
-        Public Sub Dispose() Implements IDisposable.Dispose
+        Public Sub Dispose() Implements IDisposable.Dispose  ' ITtsAudioSink inherits IDisposable
             [Stop]()
             _cts?.Dispose()
         End Sub
     End Class
 
-    Public Class AudioOutputDevice
-        Public Property DeviceNumber As Integer
-        Public Property Name As String
-    End Class
 End Namespace

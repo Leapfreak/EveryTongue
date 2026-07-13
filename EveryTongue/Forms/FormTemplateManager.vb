@@ -98,6 +98,15 @@ Public Class FormTemplateManager
         _deviceList.Add(defaultDev)
         cboAudioDevice.Items.Add(defaultDev)
 
+        ' Web-mic pseudo-devices (sentinel ids): the room's audio comes from the HOST'S
+        ' BROWSER (Broadcast button in the web host panel), not a device on this machine.
+        ' -2 = processed capture (echo-cancel etc., for laptop/phone mics),
+        ' -3 = raw capture (PA/soundboard feeds, which processing would mangle).
+        Dim webMic As New AudioDeviceInfo(-2, LanguagePackService.Instance.GetString("Tmpl_WebMic"))
+        Dim webMicRaw As New AudioDeviceInfo(-3, LanguagePackService.Instance.GetString("Tmpl_WebMicRaw"))
+        _deviceList.Add(webMic) : cboAudioDevice.Items.Add(webMic)
+        _deviceList.Add(webMicRaw) : cboAudioDevice.Items.Add(webMicRaw)
+
         cboAudioDevice.Enabled = False
         btnRefreshDevices.Enabled = False
 
@@ -332,9 +341,21 @@ Public Class FormTemplateManager
         ' Translation engine
         SelectEngineCombo(cboTransEngine, t.TranslationBackendKey)
 
-        ' Audio device — prefer matching by NAME (PortAudio indices drift), else by ID
+        ' Audio device — web-mic templates select their sentinel entry; local templates
+        ' prefer matching by NAME (PortAudio indices drift), else by ID
         Dim deviceFound = False
-        If Not String.IsNullOrEmpty(t.AudioDeviceName) Then
+        If String.Equals(t.AudioSource, "web", StringComparison.OrdinalIgnoreCase) Then
+            Dim wantId = If(t.WebMicRaw, -3, -2)
+            For i = 0 To cboAudioDevice.Items.Count - 1
+                Dim dev = TryCast(cboAudioDevice.Items(i), AudioDeviceInfo)
+                If dev IsNot Nothing AndAlso dev.Id = wantId Then
+                    cboAudioDevice.SelectedIndex = i
+                    deviceFound = True
+                    Exit For
+                End If
+            Next
+        End If
+        If Not deviceFound AndAlso Not String.IsNullOrEmpty(t.AudioDeviceName) Then
             For i = 0 To cboAudioDevice.Items.Count - 1
                 Dim dev = TryCast(cboAudioDevice.Items(i), AudioDeviceInfo)
                 If dev IsNot Nothing AndAlso
@@ -526,13 +547,25 @@ Public Class FormTemplateManager
         t.SourceLanguage = If(cboSourceLang.SelectedItem IsNot Nothing, cboSourceLang.SelectedItem.ToString(), "auto")
         t.SttBackendKey = ExtractEngineKey(cboSttEngine)
         t.TranslationBackendKey = ExtractEngineKey(cboTransEngine)
-        ' Audio device from combo — store BOTH id and name (name survives PortAudio index drift)
+        ' Audio device from combo — store BOTH id and name (name survives PortAudio index drift).
+        ' The sentinel web-mic entries (-2 processed / -3 raw) set AudioSource="web" instead
+        ' of a device: the room's audio then comes from the host's browser Broadcast button.
         Dim selDev = TryCast(cboAudioDevice.SelectedItem, AudioDeviceInfo)
-        If selDev IsNot Nothing Then
+        If selDev IsNot Nothing AndAlso (selDev.Id = -2 OrElse selDev.Id = -3) Then
+            t.AudioSource = "web"
+            t.WebMicRaw = (selDev.Id = -3)
+            t.AudioDeviceId = -1
+            t.AudioDeviceName = ""
+            t.AudioSourceLabel = selDev.Name
+        ElseIf selDev IsNot Nothing Then
+            t.AudioSource = "local"
+            t.WebMicRaw = False
             t.AudioDeviceId = selDev.Id
             t.AudioDeviceName = If(selDev.Id >= 0, If(selDev.Name, ""), "")
             t.AudioSourceLabel = selDev.Name
         Else
+            t.AudioSource = "local"
+            t.WebMicRaw = False
             t.AudioDeviceId = -1
             t.AudioDeviceName = ""
             t.AudioSourceLabel = ""

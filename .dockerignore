@@ -1,0 +1,17 @@
+# Keep the build context small — the repo carries gigabytes of runtime
+# artifacts (embedded python, models, publish output) the image never needs.
+.git
+**/bin
+**/obj
+**/python-embed
+tools
+test-data
+Help
+*.md
+!THIRD_PARTY_NOTICES.md
+logs
+sat
+Bibles
+*.wav
+*.mp3
+function-words.json

@@ -621,6 +621,8 @@
   "Tmpl_Visibility": "Default Visibility",
   "Tmpl_DeleteConfirm": "Delete template '{0}'?",
   "Tmpl_AudioDevice": "Audio Device",
+  "Tmpl_WebMic": "Web broadcast — host's browser mic",
+  "Tmpl_WebMicRaw": "Web broadcast — PA/soundboard feed (raw)",
   "Tmpl_ModelPath": "Model",
   "Tmpl_ModelDefault": "(Default)",
   "Tmpl_SttTemplate": "STT Template",

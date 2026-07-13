@@ -1,0 +1,96 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- EveryTongue.Core — the WinForms-free server: Kestrel, rooms, engines,
+       translation/TTS orchestration, web client. Referenced by the Windows
+       desktop head (EveryTongue) and the headless console head (EveryTongue.Lite).
+       MUST stay net8.0 (not -windows) with zero WinForms references — that is
+       the compile-enforced boundary the Lite/Docker builds depend on. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>EveryTongue</RootNamespace>
+    <AssemblyName>EveryTongue.Core</AssemblyName>
+    <Version>2.7.0</Version>
+    <IsPackable>false</IsPackable>
+    <NoWarn>MSB3277;NU5118</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Import Include="System.Data" />
+    <Import Include="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.Translate" Version="3.7.501.59" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.8" />
+    <PackageReference Include="QRCoder" Version="1.8.0" />
+    <PackageReference Include="USFMToolsSharp" Version="1.18.0" />
+  </ItemGroup>
+
+  <!-- Both heads consume ~20 Friend types (registries, coordinators, controllers) -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>EveryTongue</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>EveryTongue.Lite</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <!-- LanguagePackService loads this via GetExecutingAssembly — it MUST live in
+       the same assembly as that service (Core). -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\locales\en.json">
+      <LogicalName>EveryTongue.Assets.en.json</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <!-- Kestrel static web content (owned by the server, shipped to both heads
+       transitively through the ProjectReference content flow) -->
+  <ItemGroup>
+    <Content Include="wwwroot\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <!-- Python sidecars + shared data files (linked from repo root) -->
+  <ItemGroup>
+    <Content Include="..\translate-server\server.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>translate-server\server.py</Link></Content>
+    <Content Include="..\translate-server\glossary.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>translate-server\glossary.json</Link></Content>
+    <Content Include="..\translate-server\profanity.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>translate-server\profanity.json</Link></Content>
+    <Content Include="..\translate-server\requirements.txt"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>translate-server\requirements.txt</Link></Content>
+    <Content Include="..\live-server\server.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\server.py</Link></Content>
+    <Content Include="..\live-server\sat_segmenter.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\sat_segmenter.py</Link></Content>
+    <Content Include="..\live-server\vocab\build_vocab.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vocab\build_vocab.py</Link></Content>
+    <Content Include="..\live-server\requirements.txt"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\requirements.txt</Link></Content>
+    <Content Include="..\live-server\requirements-lite.txt"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\requirements-lite.txt</Link></Content>
+    <Content Include="..\live-server\hallucinations.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\hallucinations.json</Link></Content>
+    <Content Include="..\live-server\vad\__init__.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vad\__init__.py</Link></Content>
+    <Content Include="..\live-server\vad\buffers.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vad\buffers.py</Link></Content>
+    <Content Include="..\live-server\vad\frame_vad.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vad\frame_vad.py</Link></Content>
+    <Content Include="..\live-server\vad\merger.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vad\merger.py</Link></Content>
+    <Content Include="..\live-server\vad\pipeline.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vad\pipeline.py</Link></Content>
+    <Content Include="..\live-server\vad\segment.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vad\segment.py</Link></Content>
+    <Content Include="..\live-server\vad\state_machine.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vad\state_machine.py</Link></Content>
+    <Content Include="..\live-server\vad\accumulating_pipeline.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vad\accumulating_pipeline.py</Link></Content>
+    <Content Include="..\live-server\engines\__init__.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\engines\__init__.py</Link></Content>
+    <Content Include="..\live-server\engines\common.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\engines\common.py</Link></Content>
+    <Content Include="..\live-server\engines\azure_speech.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\engines\azure_speech.py</Link></Content>
+    <Content Include="..\live-server\engines\deepgram.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\engines\deepgram.py</Link></Content>
+    <Content Include="..\live-server\engines\gladia.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\engines\gladia.py</Link></Content>
+    <Content Include="..\live-server\engines\google.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\engines\google.py</Link></Content>
+    <Content Include="..\live-server\engines\speechmatics.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\engines\speechmatics.py</Link></Content>
+    <Content Include="..\mms-tts-server\server.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>mms-tts-server\server.py</Link></Content>
+    <Content Include="..\mms-tts-server\requirements.txt"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>mms-tts-server\requirements.txt</Link></Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\LICENSE"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>LICENSE</Link></Content>
+    <Content Include="..\THIRD_PARTY_NOTICES.md"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>THIRD_PARTY_NOTICES.md</Link></Content>
+    <Content Include="..\locales\en.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>locales\en.json</Link></Content>
+  </ItemGroup>
+
+</Project>

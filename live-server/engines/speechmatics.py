@@ -121,9 +121,14 @@ class SpeechmaticsStreamingPipeline:
     def __init__(self, api_key, config, broadcast_fn, stats,
                  region=DEFAULT_REGION, operating_point=DEFAULT_OPERATING_POINT,
                  translation_targets=None, eou_silence_s=None, max_delay_s=None,
-                 auto_tune_eou=True, biblical_vocab=False):
+                 auto_tune_eou=True, biblical_vocab=False, audio_source="local"):
         self._api_key = api_key
         self._config = config
+        # Who fills _audio_queue: "local" = sounddevice capture on this machine,
+        # "web" = frames pushed by the app via feed() (browser mic relayed through
+        # /audio-in). Everything downstream of the queue is source-agnostic.
+        self.audio_source = audio_source if audio_source in ("local", "web") else "local"
+        self._last_feed_monotonic = 0.0
         self._broadcast_fn = broadcast_fn
         self._stats = stats
         self._region = region if region in REGION_URLS else DEFAULT_REGION
@@ -176,23 +181,27 @@ class SpeechmaticsStreamingPipeline:
         cfg = self._config
         self._stop_event.clear()  # allow restart (stop() sets the event)
         logger.info(
-            f"[SPEECHMATICS] Starting: device={cfg.device_index} lang={self._language} "
-            f"region={self._region} operating_point={self._operating_point} "
+            f"[SPEECHMATICS] Starting: source={self.audio_source} device={cfg.device_index} "
+            f"lang={self._language} region={self._region} operating_point={self._operating_point} "
             f"eou_silence={self._eou_silence}s max_delay={self._max_delay}s "
             f"translation_targets={self._translation_targets}")
 
-        self._stream = sd.InputStream(
-            samplerate=SAMPLE_RATE, channels=1, dtype="int16",
-            blocksize=_CHUNK_SAMPLES, device=cfg.device_index,
-            callback=self._audio_callback,
-        )
+        if self.audio_source == "local":
+            self._stream = sd.InputStream(
+                samplerate=SAMPLE_RATE, channels=1, dtype="int16",
+                blocksize=_CHUNK_SAMPLES, device=cfg.device_index,
+                callback=self._audio_callback,
+            )
 
         self._thread = threading.Thread(
             target=self._thread_main, name="speechmatics-stream", daemon=True)
         self._thread.start()
 
-        self._stream.start()
-        logger.info("[SPEECHMATICS] Audio capture started")
+        if self._stream is not None:
+            self._stream.start()
+            logger.info("[SPEECHMATICS] Audio capture started")
+        else:
+            logger.info("[SPEECHMATICS] Waiting for web-mic frames via /audio-in")
 
     def stop(self):
         logger.info("[SPEECHMATICS] Stopping...")
@@ -275,6 +284,23 @@ class SpeechmaticsStreamingPipeline:
         except Exception as e:
             if self._audio_callback_count < 5:
                 logger.error(f"[SPEECHMATICS] Audio callback error: {e}")
+
+    def feed(self, frame_bytes):
+        """Web-mic path: push a 16kHz mono s16 PCM frame into the queue —
+        the exact hand-off the sounddevice callback does for the local mic,
+        so everything downstream (sender, EOU tune, reconnect) is untouched."""
+        try:
+            self._audio_queue.put_nowait(frame_bytes)
+        except queue.Full:
+            pass  # drop frame rather than block (matches local behaviour)
+        self._audio_callback_count += 1
+        self._last_feed_monotonic = time.monotonic()
+
+    def web_feed_recent(self, window_s=5.0):
+        """True when web-mic frames arrived within the window — the honest
+        'capturing' signal for /health when audio_source == 'web'."""
+        return (self._last_feed_monotonic > 0
+                and (time.monotonic() - self._last_feed_monotonic) < window_s)
 
     def _thread_main(self):
         try:
@@ -610,6 +636,7 @@ def _create_streaming(api_key, config, broadcast_fn, stats, options):
         max_delay_s=options.get("speechmatics_max_delay_s"),
         auto_tune_eou=options.get("speechmatics_auto_tune_eou", True),
         biblical_vocab=options.get("speechmatics_biblical_vocab", False),
+        audio_source=options.get("audio_source", "local"),
     )
 
 

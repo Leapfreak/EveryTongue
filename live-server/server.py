@@ -28,7 +28,7 @@ if _script_dir not in sys.path:
 import numpy as np
 import sounddevice as sd
 from difflib import SequenceMatcher
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
@@ -50,7 +50,10 @@ except Exception as _vad_err:
 try:
     from vad import VadPipeline, VadConfig
     from vad.segment import SessionStats
-    _has_vad_pipeline = True
+    # The vad package itself imports without torch (VadConfig/SessionStats are
+    # torch-free); VadPipeline is None when torch is absent — streaming engines
+    # still work, only the offline whisper path is unavailable.
+    _has_vad_pipeline = VadPipeline is not None
 except Exception as _vad_pipe_err:
     _has_vad_pipeline = False
     VadPipeline = None
@@ -155,7 +158,8 @@ app = FastAPI()
 logger.debug(f"Silero VAD: {'loaded' if _has_silero_vad else 'NOT AVAILABLE'}")
 logger.debug(f"VAD pipeline: {'loaded' if _has_vad_pipeline else 'NOT AVAILABLE'}")
 if not _has_vad_pipeline:
-    logger.error(f"VAD pipeline import failed — /start will be blocked")
+    logger.warning("VAD pipeline unavailable (torch not installed) — offline whisper "
+                   "engines are blocked; online streaming engines still work")
 
 # ---------------------------------------------------------------------------
 # Global state
@@ -781,7 +785,40 @@ async def health():
         result["pipeline_status"] = reason
         if not alive:
             result["status"] = "degraded"
+        # Web-mic sessions: "capturing" must mean frames are actually FLOWING,
+        # not merely "session started" — readiness banners/chimes depend on it.
+        if getattr(_vad_pipeline, "audio_source", "local") == "web":
+            connected = bool(getattr(_vad_pipeline, "web_feed_recent", lambda: False)())
+            result["web_mic_connected"] = connected
+            result["capturing"] = capturing and connected
     return result
+
+
+@app.websocket("/audio-in")
+async def audio_ingest(ws: WebSocket):
+    """Web-mic ingest: binary 16kHz mono s16 PCM frames pushed into the active
+    streaming pipeline's queue (the app's hub relays the host browser's mic here).
+    Only valid while a web-source session is capturing."""
+    pipeline = _vad_pipeline
+    if (not capturing or pipeline is None
+            or getattr(pipeline, "audio_source", "local") != "web"
+            or not hasattr(pipeline, "feed")):
+        await ws.close(code=4003, reason="no web-audio session")
+        return
+    await ws.accept()
+    frames = 0
+    try:
+        while True:
+            data = await ws.receive_bytes()
+            if data:
+                pipeline.feed(data)
+                frames += 1
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        logger.warning(f"[AUDIO-IN] ingest closed with error after {frames} frames: {e}")
+    finally:
+        logger.info(f"[AUDIO-IN] web-mic stream ended ({frames} frames)")
 
 
 @app.get("/devices")
@@ -846,13 +883,9 @@ async def start_capture_endpoint(request: Request):
             return JSONResponse({"status": "error", "detail": detail}, status_code=500)
     model_path_global = requested_model_path
 
-    # Require Silero VAD + pipeline
-    if not _has_silero_vad or not _has_vad_pipeline:
-        detail = "Silero VAD not available" if not _has_silero_vad else "VAD pipeline import failed"
-        return JSONResponse(
-            {"status": "error", "detail": f"{detail} (torch/silero-vad not installed)"},
-            status_code=500
-        )
+    # NOTE: the Silero/torch requirement is checked AFTER the streaming branch below —
+    # self-endpointing streaming engines (Speechmatics, Deepgram, …) never touch the
+    # VAD pipeline, so a torch-less install (Lite/Docker) can still run them.
 
     # Create VAD config from request body
     vad_config = VadConfig(
@@ -902,6 +935,14 @@ async def start_capture_endpoint(request: Request):
             f"mode=streaming engine={_backend_mode}"
         )
         return {"status": "ok", "pipeline": "streaming", "engine": _backend_mode}
+
+    # Offline whisper path from here on — NOW torch/silero are genuinely required.
+    if not _has_silero_vad or not _has_vad_pipeline:
+        detail = "Silero VAD not available" if not _has_silero_vad else "VAD pipeline import failed"
+        return JSONResponse(
+            {"status": "error", "detail": f"{detail} (torch/silero-vad not installed)"},
+            status_code=500
+        )
 
     # VAD-pipeline path (offline whisper engines, or an online engine's fallback
     # such as Google REST). Let the engine tweak VAD config if it wants to.

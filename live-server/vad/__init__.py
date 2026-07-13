@@ -36,8 +36,16 @@ class VadConfig:
     accumulate_max_s: float = 20.0    # flush when accumulated audio exceeds this
 
 
-from .pipeline import VadPipeline  # noqa: E402
-from .segment import SessionStats  # noqa: E402
+from .segment import SessionStats  # noqa: E402  (torch-free — must always import)
+
+# VadPipeline pulls in torch via frame_vad. Streaming engines (Speechmatics etc.)
+# never touch it, so a torch-less install (the Lite/Docker image) must still be
+# able to import VadConfig/SessionStats from this package. Guard, don't die.
+try:
+    from .pipeline import VadPipeline  # noqa: E402
+except Exception as _pipe_err:
+    print(f"[VAD] WARNING: VadPipeline import failed (offline engines unavailable): {_pipe_err}", flush=True)
+    VadPipeline = None
 
 try:
     from .accumulating_pipeline import AccumulatingPipeline  # noqa: E402

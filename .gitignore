@@ -45,3 +45,6 @@ Desktop.ini
 *.log
 publish/
 __pycache__/
+
+# Docker Lite config volume — contains API keys in plaintext, NEVER commit
+et-config/

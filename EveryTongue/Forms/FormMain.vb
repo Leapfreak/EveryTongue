@@ -121,6 +121,11 @@ Public Class FormMain
     Private Sub FormMain_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Services.Infrastructure.AppLogger.UiCallback = Sub(entry) AppendUnifiedLog(entry)
         Services.Infrastructure.AppLogger.OpenDownloadManager = AddressOf OpenDownloadManager
+        ' Desktop supplies the Yes/No dialog for PromptDownloadManager; headless hosts
+        ' leave this unset (prompt becomes log-only) — keeps AppLogger WinForms-free.
+        Services.Infrastructure.AppLogger.ConfirmPrompt =
+            Function(message, title) MessageBox.Show(message, title,
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning) = DialogResult.Yes
         _langPack = LanguagePackService.Instance
 
         ' Load config
@@ -258,12 +263,21 @@ Public Class FormMain
         ' Load help content
         LoadHelpContent(_config.UiLanguage)
 
-        ' Create server controller
+        ' Create server controller. Its callback signatures are WinForms-free (headless
+        ' hosts reuse the controller); the desktop maps severities to MessageBox icons
+        ' and supplies the NAudio TTS sink + clipboard.
         _serverController = New Controllers.ServerController(
             _config,
             AddressOf UpdateShellStatus,
             Sub(m) Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogCategory.Server, Services.Infrastructure.LogSeverity.Info, m),
-            Sub(msg, title, icon) MessageBox.Show(Me, msg, title, MessageBoxButtons.OK, icon))
+            Sub(msg, title, severity) MessageBox.Show(Me, msg, title, MessageBoxButtons.OK,
+                If(severity >= Services.Infrastructure.LogSeverity.Warning, MessageBoxIcon.Warning, MessageBoxIcon.Information)))
+        _serverController.ClipboardSetter = Sub(text) Clipboard.SetText(text)
+        _serverController.TtsSinkFactory = Function(device, volume)
+                                               Return New Services.Audio.TtsAudioOutput() With {
+                                                   .DeviceNumber = device, .Volume = volume}
+                                           End Function
+        _serverController.AudioDeviceProvider = AddressOf Services.Audio.TtsAudioOutput.GetOutputDevices
 
         ' Dictation: system-wide voice typing. We're in Form Load, so the window handle
         ' exists (RegisterHotKey needs a valid HWND).
@@ -362,8 +376,14 @@ Public Class FormMain
                                       TryCast(_serverController?.KestrelHost?.Services?.GetService(
                                           GetType(Services.Rooms.RoomReadinessNotifier)), Services.Rooms.RoomReadinessNotifier),
                                       Sub(m) Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogCategory.Conference, Services.Infrastructure.LogSeverity.Info, m),
-                                      Me)
+                                      Sub(work) Me.BeginInvoke(work))
                                   _conferenceController.WireEndpointHandlers()
+
+                                  ' Browser settings (/api/settings) — same live config object the
+                                  ' desktop edits; plain persist (no SaveUiToConfig — the hidden-tab
+                                  ' overwrite trap must never run from a web request).
+                                  Server.EndpointRegistration.SettingsConfigProvider = Function() _config
+                                  Server.EndpointRegistration.SettingsSaveHandler = Sub() Models.ConfigManager.Save(_config)
 
                                   ' Wire conversation room translation callback
                                   Dim convAudioHandler = TryCast(_serverController.KestrelHost?.Services?.GetService(

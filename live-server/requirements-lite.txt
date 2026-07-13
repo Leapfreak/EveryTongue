@@ -1,0 +1,12 @@
+# EveryTongue Lite — live-server dependencies for the ONLINE-ONLY deployment
+# (Docker / headless). No torch, no silero: streaming engines (Speechmatics,
+# Deepgram, Gladia, Google) self-endpoint and never touch the VAD pipeline —
+# server.py degrades gracefully when these are absent (offline whisper path
+# returns a clear error instead).
+fastapi
+uvicorn
+numpy
+sounddevice
+sse-starlette
+websockets
+speechmatics-rt
