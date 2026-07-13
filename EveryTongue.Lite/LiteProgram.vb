@@ -31,6 +31,15 @@ Public Module LiteProgram
                                    Console.WriteLine($"{entry.Time:HH:mm:ss} [{entry.Category}] {entry.Message}")
                                End Sub
 
+        ' ── Bibles: a config copied from a Windows install points at a Windows
+        ' path. If the config volume carries a Bibles folder, it wins — drop the
+        ' .sqlite3 files into <config-dir>\Bibles and the phone Bible panel works.
+        Dim volumeBibles = IO.Path.Combine(ConfigManager.ConfigDirectory, "Bibles")
+        If IO.Directory.Exists(volumeBibles) Then
+            config.BiblesDirectory = volumeBibles
+            Console.WriteLine($"  Bibles: {volumeBibles} ({IO.Directory.GetFiles(volumeBibles, "*.sqlite3", IO.SearchOption.AllDirectories).Length} file(s))")
+        End If
+
         ' ── Online-only validation: warn LOUD but always start — a fresh install
         ' fixes all of this from the web settings page (/api/settings), which only
         ' exists once Kestrel is up. Exiting here would brick the bootstrap. ──

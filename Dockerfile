@@ -28,12 +28,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY --from=build /app/publish .
 
-# Online-only python deps (no torch, no models — see requirements-lite.txt).
-# A venv keeps Debian's externally-managed python happy; putting it first on
-# PATH makes FindPython()'s "python3" probe resolve to it.
+# Online-only python deps (see requirements-lite.txt). A venv keeps Debian's
+# externally-managed python happy; putting it first on PATH makes FindPython()'s
+# "python3" probe resolve to it.
 RUN python3 -m venv /opt/etpy \
     && /opt/etpy/bin/pip install --no-cache-dir -r live-server/requirements-lite.txt
 ENV PATH="/opt/etpy/bin:${PATH}"
+
+# SaT sentence segmentation (same pinned versions as the desktop's SaT component).
+# CPU-only torch from the pytorch index — the default linux torch drags in ~2.5GB
+# of CUDA libraries the container can never use. Costs ~1GB; buys the
+# buffer-to-pause → SaT split → per-sentence translation quality pipeline.
+# The sat-3l-sm model downloads on first use into HF_HOME on the /config volume
+# (survives container replacement; ~1 minute once).
+RUN /opt/etpy/bin/pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
+    && /opt/etpy/bin/pip install --no-cache-dir wtpsplit==2.2.1 transformers==5.13.0 tokenizers==0.22.2
+ENV HF_HOME=/config/sat-cache
 
 # Config, HTTPS certificate, and logs persist here across restarts/updates.
 ENV EVERYTONGUE_CONFIG_DIR=/config
