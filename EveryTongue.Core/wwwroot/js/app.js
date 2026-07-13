@@ -236,7 +236,10 @@ function initRoomShareButton(){
     }
   };
   xhr.send();
-  var joinUrl=location.origin+'/index.html?room='+encodeURIComponent(roomId);
+  /* Share link must be PHONE-reachable: prefer the server-reported public host
+     (never "localhost" — that would point each phone at itself). */
+  var base=serverPublicHost?location.protocol+'//'+serverPublicHost:location.origin;
+  var joinUrl=base+'/index.html?room='+encodeURIComponent(roomId);
   document.getElementById('roomQrImg').src='/api/rooms/'+encodeURIComponent(roomId)+'/qr';
   var qrUrlEl=document.getElementById('roomQrUrl');qrUrlEl.innerHTML='<a href="'+joinUrl+'" style="color:#7c9cf7;text-decoration:underline">'+joinUrl+'</a>';
 }
@@ -769,10 +772,12 @@ function verifyAdminPin(){
 /* Show admin button if already authenticated. The Administrator section on the
    picker is ALWAYS shown: with a PIN it asks for it; without one (fresh install)
    it opens Server Settings directly so headless deployments can be onboarded. */
+var serverPublicHost='';
 function checkAdminAccess(){
   if(isAdmin){document.getElementById('btnAdmin').style.display=''}
   fetch('/api/config').then(function(r){return r.json()}).then(function(cfg){
     hasAdminPin=cfg.hasAdminPin;
+    serverPublicHost=cfg.publicHost||'';
     document.getElementById('lpAdmin').style.display='';
   }).catch(function(){});
 }

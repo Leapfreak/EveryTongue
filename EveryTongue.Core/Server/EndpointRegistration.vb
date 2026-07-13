@@ -21,6 +21,27 @@ Namespace Server
     ''' </summary>
     Public Module EndpointRegistration
 
+        ''' <summary>
+        ''' The host[:port] PHONES should use to reach this server. Priority:
+        ''' EVERYTONGUE_PUBLIC_HOST env (containers/hosted); else the request's own
+        ''' Host header — except when the operator browsed via loopback on a native
+        ''' host, where the LAN IP is substituted (keeping the request's port) so
+        ''' QR codes and share links never encode "localhost".
+        ''' </summary>
+        Friend Function PublicHostFor(context As HttpContext) As String
+            Dim pub = Environment.GetEnvironmentVariable("EVERYTONGUE_PUBLIC_HOST")
+            If Not String.IsNullOrEmpty(pub) Then Return pub
+            Dim reqHost = context.Request.Host
+            Dim name = If(reqHost.Host, "")
+            Dim isLoopback = name.Equals("localhost", StringComparison.OrdinalIgnoreCase) OrElse
+                             name = "127.0.0.1" OrElse name = "::1" OrElse name = "[::1]"
+            If isLoopback AndAlso Not IO.File.Exists("/.dockerenv") Then
+                Dim ip = Controllers.ServerController.GetLocalIpAddress()
+                Return If(reqHost.Port.HasValue, $"{ip}:{reqHost.Port.Value}", ip)
+            End If
+            Return reqHost.ToString()
+        End Function
+
         Public Sub MapAllEndpoints(app As IEndpointRouteBuilder)
             MapWebSocketEndpoint(app)
             MapCoreEndpoints(app)
@@ -123,12 +144,14 @@ Namespace Server
                                               .httpsEnabled = True,
                                               .hasAdminPin = Not String.IsNullOrEmpty(serverOpts.AdminPin),
                                               .showBibleCopyright = serverOpts.ShowBibleCopyright,
+                                              .publicHost = PublicHostFor(context),
                                               .version = If(GetType(EndpointRegistration).Assembly.
                                                   GetName().Version?.ToString(), "unknown")
                                           })
                                       End Function)
 
             ' Admin PIN verification — returns {ok:true} if PIN matches
+            ' (PublicHostFor lives below MapAllEndpoints — shared by QR + config.)
             app.MapGet("/api/admin/verify",
                 Function(context As HttpContext) As IResult
                     Dim opts = context.RequestServices.

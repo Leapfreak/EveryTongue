@@ -258,8 +258,13 @@ Namespace Server
                                                   If room Is Nothing Then
                                                       Return Results.NotFound(New With {.error = "Room not found"})
                                                   End If
+                                                  ' The QR must encode an address PHONES can reach. Request.Host is
+                                                  ' whatever the operator's browser used — correct on a LAN IP, but
+                                                  ' "localhost" poisons the QR (each phone would dial itself).
+                                                  ' EVERYTONGUE_PUBLIC_HOST (host[:port]) wins when set; else prefer
+                                                  ' the request host unless it's loopback, falling back to it anyway.
                                                   Dim scheme = If(context.Request.IsHttps, "https", "http")
-                                                  Dim host = context.Request.Host.ToString()
+                                                  Dim host = PublicHostFor(context)
                                                   Dim joinUrl = $"{scheme}://{host}/index.html?room={id}"
                                                   Dim pngBytes = GenerateQrPng(joinUrl)
                                                   Return Results.File(pngBytes, "image/png", $"room-{id}.png")

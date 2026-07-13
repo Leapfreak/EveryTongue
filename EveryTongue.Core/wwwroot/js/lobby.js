@@ -240,9 +240,15 @@
     });
 
     // ── QR overlay ──
+    // Share link must be PHONE-reachable — prefer the server-reported public
+    // host over location.origin (which is "localhost" when the operator
+    // browses on the server machine and would point each phone at itself).
+    let serverPublicHost = "";
+    fetch("/api/config").then(r => r.json()).then(cfg => { serverPublicHost = cfg.publicHost || ""; }).catch(() => { });
     function showQrOverlay(room) {
         qrRoomName.textContent = room.name;
-        const joinUrl = location.origin + "/index.html?room=" + encodeURIComponent(room.id);
+        const base = serverPublicHost ? location.protocol + "//" + serverPublicHost : location.origin;
+        const joinUrl = base + "/index.html?room=" + encodeURIComponent(room.id);
         qrImage.src = "/api/rooms/" + encodeURIComponent(room.id) + "/qr";
         qrUrl.innerHTML = '<a href="' + joinUrl + '" style="color:#7c9cf7;text-decoration:underline">' + joinUrl + '</a>';
         createdRoom = room;
