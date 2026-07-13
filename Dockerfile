@@ -25,14 +25,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 python3-venv libportaudio2 ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-COPY --from=build /app/publish .
+# LAYER ORDER MATTERS for update size: the python environments (~1.3GB
+# compressed) are installed BEFORE the app is copied in, so app releases only
+# invalidate the small final layer — deployments pull tens of MB per update,
+# not the whole torch stack again. The requirements file is copied from the
+# build CONTEXT (not the publish output) so app rebuilds don't touch it.
 
 # Online-only python deps (see requirements-lite.txt). A venv keeps Debian's
 # externally-managed python happy; putting it first on PATH makes FindPython()'s
 # "python3" probe resolve to it.
+COPY live-server/requirements-lite.txt /tmp/requirements-lite.txt
 RUN python3 -m venv /opt/etpy \
-    && /opt/etpy/bin/pip install --no-cache-dir -r live-server/requirements-lite.txt
+    && /opt/etpy/bin/pip install --no-cache-dir -r /tmp/requirements-lite.txt
 ENV PATH="/opt/etpy/bin:${PATH}"
 
 # SaT sentence segmentation (same pinned versions as the desktop's SaT component).
@@ -44,6 +48,10 @@ ENV PATH="/opt/etpy/bin:${PATH}"
 RUN /opt/etpy/bin/pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
     && /opt/etpy/bin/pip install --no-cache-dir wtpsplit==2.2.1 transformers==5.13.0 tokenizers==0.22.2
 ENV HF_HOME=/config/sat-cache
+
+# The app itself — LAST, so it's the only layer that changes per release.
+WORKDIR /app
+COPY --from=build /app/publish .
 
 # Config, HTTPS certificate, and logs persist here across restarts/updates.
 ENV EVERYTONGUE_CONFIG_DIR=/config
