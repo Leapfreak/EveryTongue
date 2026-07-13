@@ -1,13 +1,28 @@
 # Every Tongue
 
-A Windows desktop application for speech-to-text transcription with real-time live captioning, multilingual translation, and phone subtitle display. Built on [whisper.cpp](https://github.com/ggerganov/whisper.cpp) with Silero VAD for both batch processing and live transcription.
+Real-time speech transcription and multilingual translation for live events — listeners follow along on their own phones in their own language. Ships in two editions:
 
-## Download
+- **Windows desktop** (full) — offline-capable: whisper.cpp / Speechmatics STT, NLLB or cloud translation, GPU acceleration, operator workspaces. Built on [whisper.cpp](https://github.com/ggerganov/whisper.cpp) with Silero VAD.
+- **EveryTongue Lite** (cross-platform container) — the online-only stack (cloud STT + cloud translation) as a Docker image for Windows, macOS, or Linux. The microphone is any browser, configuration is a web page, and **you bring your own API keys** (they stay on your machine — never in the image).
+
+## Quick start — Lite (any OS with Docker)
+
+```
+docker run -d --name everytongue-lite --restart unless-stopped \
+  -p 5080:5080 -p 5081:5081 \
+  -e EVERYTONGUE_PUBLIC_HOST=<your-lan-ip>:5081 \
+  -v ./et-config:/config \
+  ghcr.io/leapfreak/everytongue-lite:latest
+```
+
+Open `https://<your-lan-ip>:5081` (accept the one-time certificate warning) → **Administrator** (default PIN `1234`) → **Settings**: pick engines (e.g. Speechmatics + Google Translate), paste your API keys, change the PIN. Host a room, tap **🎙 Broadcast Mic**, and phones that scan the room's QR receive live translations. Config, HTTPS certificate, and logs persist in `./et-config` across updates (`docker pull` + re-run).
+
+## Download — Windows desktop
 
 Download the latest version from the [Releases](https://github.com/Leapfreak/EveryTongue/releases) page:
 
 - **EveryTongue_Setup_x.x.x.exe** (recommended) -- Installer with Start Menu shortcuts and uninstaller
-- **EveryTongue_vx.x.x.zip** -- Portable version, extract and run
+- **EveryTongue_App_vx.x.x.zip** -- Portable version, extract and run
 
 On first launch, the app will prompt you to download the required tools (whisper.cpp, yt-dlp, FFmpeg, Whisper model, and SubtitleEdit). This is a one-time setup that downloads everything automatically.
 
