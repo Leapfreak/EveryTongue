@@ -106,16 +106,38 @@ Namespace Pipeline
                     args &= " " & extraArgs
                 End If
 
-                Dim psi As New ProcessStartInfo() With {
-                    .FileName = pythonPath,
-                    .Arguments = args,
-                    .UseShellExecute = False,
-                    .RedirectStandardOutput = True,
-                    .RedirectStandardError = True,
-                    .CreateNoWindow = True,
-                    .StandardOutputEncoding = Encoding.UTF8,
-                    .StandardErrorEncoding = Encoding.UTF8
-                }
+                Dim psi As ProcessStartInfo
+                If OperatingSystem.IsWindows() Then
+                    psi = New ProcessStartInfo() With {
+                        .FileName = pythonPath,
+                        .Arguments = args,
+                        .UseShellExecute = False,
+                        .RedirectStandardOutput = True,
+                        .RedirectStandardError = True,
+                        .CreateNoWindow = True,
+                        .StandardOutputEncoding = Encoding.UTF8,
+                        .StandardErrorEncoding = Encoding.UTF8
+                    }
+                Else
+                    ' Linux/macOS (Lite/Docker): do NOT parent-pipe the child.
+                    ' Empirically (container test 2026-07-14), a python sidecar attached
+                    ' to this class's .NET pipes dies silently with exit 1 moments after
+                    ' start; the identical command with file-redirected stdio runs fine.
+                    ' So run via sh with stdio appended to a console log beside the
+                    ' session logs — which headless deployments want anyway (everything
+                    ' lands on the /config volume). TailLogFile still surfaces the
+                    ' python LOG lines; this console file catches prints/tracebacks.
+                    Dim consoleLog = IO.Path.Combine(logDir,
+                        $"{Label.ToLowerInvariant().Replace(" "c, "-"c)}-console.log")
+                    psi = New ProcessStartInfo() With {
+                        .FileName = "/bin/sh",
+                        .UseShellExecute = False,
+                        .RedirectStandardOutput = False,
+                        .RedirectStandardError = False
+                    }
+                    psi.ArgumentList.Add("-c")
+                    psi.ArgumentList.Add($"exec ""{pythonPath}"" {args} >> ""{consoleLog}"" 2>&1")
+                End If
 
                 ' Ensure Python writes UTF-8 to stdout/stderr (Windows defaults to cp1252)
                 psi.Environment("PYTHONIOENCODING") = "utf-8"
@@ -148,7 +170,8 @@ Namespace Pipeline
 
                 If pathParts.Count > 0 Then
                     Dim currentPath = If(Environment.GetEnvironmentVariable("PATH"), "")
-                    psi.Environment("PATH") = String.Join(";", pathParts) & ";" & currentPath
+                    Dim sep = IO.Path.PathSeparator  ' ';' on Windows, ':' on Unix
+                    psi.Environment("PATH") = String.Join(sep, pathParts) & sep & currentPath
                 End If
 
                 Try
@@ -194,13 +217,17 @@ Namespace Pipeline
 
                     ' Drain both pipes to nothing — prevents OS pipe buffer deadlock.
                     ' All meaningful logging goes to the Python log file, not the pipe.
-                    Dim proc = _process
-                    Task.Run(Sub()
-                                 Try : proc.StandardOutput.ReadToEnd() : Catch : End Try
-                             End Sub)
-                    Task.Run(Sub()
-                                 Try : proc.StandardError.ReadToEnd() : Catch : End Try
-                             End Sub)
+                    ' (Windows only — on Linux stdio goes straight to the console log
+                    ' file via the sh redirect above; there are no pipes to drain.)
+                    If OperatingSystem.IsWindows() Then
+                        Dim proc = _process
+                        Task.Run(Sub()
+                                     Try : proc.StandardOutput.ReadToEnd() : Catch : End Try
+                                 End Sub)
+                        Task.Run(Sub()
+                                     Try : proc.StandardError.ReadToEnd() : Catch : End Try
+                                 End Sub)
+                    End If
 
                     ' Start file tail to read Python log and raise StderrLine events.
                     ' Record initial file size BEFORE Python starts writing so we don't
