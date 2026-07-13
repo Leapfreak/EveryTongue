@@ -147,8 +147,16 @@ Namespace Controllers
                 End If
 
                 _log($"[Server] Server started on HTTP:{port} HTTPS:{port + 1}")
-                Dim localIp = GetLocalIpAddress()
-                _log($"[Server] Phones should open: https://{localIp}:{port + 1}")
+                ' In a container our own IP is the unreachable bridge address — the
+                ' host's LAN IP is unknowable from in here (network namespace isolation).
+                If IO.File.Exists("/.dockerenv") Then
+                    Dim pub = Environment.GetEnvironmentVariable("EVERYTONGUE_PUBLIC_HOST")
+                    _log(If(String.IsNullOrEmpty(pub),
+                        $"[Server] Phones should open: https://<host-machine-ip>:<port mapped to {port + 1}>",
+                        $"[Server] Phones should open: https://{pub}"))
+                Else
+                    _log($"[Server] Phones should open: https://{GetLocalIpAddress()}:{port + 1}")
+                End If
                 _log("[Server] (Accept the certificate warning on first visit)")
                 _updateShellStatus()
             Catch ex As Exception

@@ -94,10 +94,28 @@ Public Module LiteProgram
             convAudioHandler.AcquireTranslationBackend = Function(roomId, engineKey) AcquireRoomTranslationBackend(roomId, engineKey)
         End If
 
-        Dim localIp = Controllers.ServerController.GetLocalIpAddress()
+        ' Inside a container our own IP (172.17.x.x) is unreachable from outside —
+        ' only the HOST knows the phone-facing address. EVERYTONGUE_PUBLIC_HOST
+        ' (e.g. "192.168.1.20:6081") lets a deployment print the exact URL;
+        ' otherwise print an honest placeholder. Served pages are unaffected
+        ' (they build URLs from the request's Host header).
+        Dim publicHost = Environment.GetEnvironmentVariable("EVERYTONGUE_PUBLIC_HOST")
+        Dim inContainer = IO.File.Exists("/.dockerenv")
+        Dim shown As String
+        If Not String.IsNullOrEmpty(publicHost) Then
+            shown = publicHost
+        ElseIf inContainer Then
+            shown = $"<host-machine-ip>:<mapped {_serverController.Port + 1}>"
+        Else
+            shown = $"{Controllers.ServerController.GetLocalIpAddress()}:{_serverController.Port + 1}"
+        End If
         Console.WriteLine()
-        Console.WriteLine($"  Server running.  Phones: https://{localIp}:{_serverController.Port + 1}")
-        Console.WriteLine($"  Lobby:           https://{localIp}:{_serverController.Port + 1}/lobby.html")
+        Console.WriteLine($"  Server running.  Phones: https://{shown}")
+        Console.WriteLine($"  Lobby:           https://{shown}/lobby.html")
+        If inContainer AndAlso String.IsNullOrEmpty(publicHost) Then
+            Console.WriteLine("  (containerized: use the HOST machine's LAN IP with your -p mapped port,")
+            Console.WriteLine("   e.g. https://192.168.1.20:6081 — or set EVERYTONGUE_PUBLIC_HOST to show it here)")
+        End If
         Console.WriteLine("  Ctrl+C to stop.")
         Console.WriteLine()
 
