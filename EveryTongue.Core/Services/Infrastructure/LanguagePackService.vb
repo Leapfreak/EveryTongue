@@ -1,4 +1,4 @@
-Imports System.IO
+﻿Imports System.IO
 Imports System.Net.Http
 Imports System.Text.Json
 Imports System.Threading
@@ -6,9 +6,14 @@ Imports System.Threading
 Namespace Services.Infrastructure
 
     ''' <summary>
-    ''' JSON-based localization service. Loads locale strings from JSON files in the
-    ''' locales/ folder. Downloads missing packs from GitHub on demand.
-    ''' English is always built-in; all other languages are downloaded or generated via translation.
+    ''' JSON-based localization service. Two locale directories, mirroring the
+    ''' Bibles pattern: the CONFIG directory's locales\ (user/volume packs -
+    ''' survive app and Docker-image updates, checked FIRST) and the app
+    ''' directory's locales\ (packs shipped with the build). Every load starts
+    ''' from embedded English and OVERLAYS the pack, so a partial pack shows
+    ''' English for missing keys instead of raw key names. English is always
+    ''' built-in; other languages are downloaded (into the config dir) or
+    ''' generated via translation.
     ''' </summary>
     Public Class LanguagePackService
 
@@ -18,6 +23,7 @@ Namespace Services.Infrastructure
         Private Const GitHubBaseUrl As String = "https://raw.githubusercontent.com/LeapFreak/EveryTongue/main/locales/"
 
         Private ReadOnly _localesDir As String
+        Private ReadOnly _userLocalesDir As String
         Private ReadOnly _strings As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
         Private ReadOnly _httpClient As New HttpClient() With {
             .Timeout = TimeSpan.FromSeconds(15)
@@ -30,7 +36,24 @@ Namespace Services.Infrastructure
             If Not Directory.Exists(_localesDir) Then
                 Directory.CreateDirectory(_localesDir)
             End If
+            ' Config-dir packs (Docker: the /config volume; desktop: %APPDATA%\EveryTongue).
+            Try
+                _userLocalesDir = Path.Combine(EveryTongue.Models.ConfigManager.ConfigDirectory, "locales")
+            Catch
+                _userLocalesDir = ""
+            End Try
         End Sub
+
+        ''' <summary>User/volume pack path first, then the app-shipped pack; Nothing if neither exists.</summary>
+        Private Function ResolveLangPath(normalized As String) As String
+            If Not String.IsNullOrEmpty(_userLocalesDir) Then
+                Dim userPath = Path.Combine(_userLocalesDir, $"{normalized}.json")
+                If File.Exists(userPath) Then Return userPath
+            End If
+            Dim appPath = Path.Combine(_localesDir, $"{normalized}.json")
+            If File.Exists(appPath) Then Return appPath
+            Return Nothing
+        End Function
 
         ''' <summary>Gets the singleton instance.</summary>
         Public Shared ReadOnly Property Instance As LanguagePackService
@@ -74,16 +97,18 @@ Namespace Services.Infrastructure
 
             _strings.Clear()
 
-            ' Load from disk if available, otherwise fall back to embedded English
-            Dim langPath = Path.Combine(_localesDir, $"{normalized}.json")
-            If File.Exists(langPath) Then
+            ' English base first, then overlay the pack (config-dir wins over
+            ' app-dir) - a partial pack degrades to English, never to key names.
+            LoadEmbeddedEnglish(_strings)
+            Dim langPath = ResolveLangPath(normalized)
+            If langPath IsNot Nothing Then
                 LoadJsonInto(langPath, _strings)
-            Else
-                LoadEmbeddedEnglish(_strings)
             End If
 
             _currentLang = normalized
-            AppLogger.Log(LogEvents.LOCALE_LOADED, $"Loaded '{normalized}' with {_strings.Count} keys")
+            AppLogger.Log(LogEvents.LOCALE_LOADED,
+                $"Loaded '{normalized}' with {_strings.Count} keys" &
+                If(langPath IsNot Nothing, $" (pack: {langPath})", " (embedded English)"))
         End Sub
 
         ''' <summary>
@@ -124,13 +149,15 @@ Namespace Services.Infrastructure
                 Return GetWebStrings()
             End If
 
-            ' Try to load the requested locale file
-            Dim langPath = Path.Combine(_localesDir, $"{normalized}.json")
-            If Not File.Exists(langPath) Then
+            ' Try to load the requested locale file (config-dir pack wins)
+            Dim langPath = ResolveLangPath(normalized)
+            If langPath Is Nothing Then
                 Return GetWebStrings() ' Fall back to server language
             End If
 
+            ' English base + overlay so partial packs still return complete web strings
             Dim tempStrings As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
+            LoadEmbeddedEnglish(tempStrings)
             LoadJsonInto(langPath, tempStrings)
 
             Dim result As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
@@ -156,7 +183,10 @@ Namespace Services.Infrastructure
         Public Async Function DownloadLanguageAsync(langCode As String, Optional ct As CancellationToken = Nothing) As Task(Of Boolean)
             Dim normalized = NormalizeLangCode(langCode)
             Dim url = GitHubBaseUrl & normalized & ".json"
-            Dim localPath = Path.Combine(_localesDir, $"{normalized}.json")
+            ' Download into the CONFIG-dir packs (writable; survives app/image updates).
+            Dim targetDir = If(String.IsNullOrEmpty(_userLocalesDir), _localesDir, _userLocalesDir)
+            If Not Directory.Exists(targetDir) Then Directory.CreateDirectory(targetDir)
+            Dim localPath = Path.Combine(targetDir, $"{normalized}.json")
 
             Try
                 AppLogger.Log(LogEvents.LOCALE_LOADED, $"Downloading {normalized}.json from GitHub...")
@@ -184,9 +214,8 @@ Namespace Services.Infrastructure
         ''' </summary>
         Public Async Function EnsureLanguageAsync(langCode As String, Optional ct As CancellationToken = Nothing) As Task(Of Boolean)
             Dim normalized = NormalizeLangCode(langCode)
-            Dim localPath = Path.Combine(_localesDir, $"{normalized}.json")
 
-            If Not File.Exists(localPath) AndAlso Not normalized.Equals("en", StringComparison.OrdinalIgnoreCase) Then
+            If ResolveLangPath(normalized) Is Nothing AndAlso Not normalized.Equals("en", StringComparison.OrdinalIgnoreCase) Then
                 Dim ok = Await DownloadLanguageAsync(normalized, ct)
                 If Not ok Then Return False
             End If
@@ -199,12 +228,14 @@ Namespace Services.Infrastructure
         ''' Returns list of locally available language codes (based on files in locales/).
         ''' </summary>
         Public Function GetAvailableLanguages() As List(Of String)
-            Dim result As New List(Of String)()
-            If Not Directory.Exists(_localesDir) Then Return result
-            For Each f In Directory.GetFiles(_localesDir, "*.json")
-                Dim name = Path.GetFileNameWithoutExtension(f)
-                result.Add(name)
+            Dim seen As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+            For Each dirPath In {_userLocalesDir, _localesDir}
+                If String.IsNullOrEmpty(dirPath) OrElse Not Directory.Exists(dirPath) Then Continue For
+                For Each f In Directory.GetFiles(dirPath, "*.json")
+                    seen.Add(Path.GetFileNameWithoutExtension(f))
+                Next
             Next
+            Dim result = seen.ToList()
             result.Sort()
             Return result
         End Function
