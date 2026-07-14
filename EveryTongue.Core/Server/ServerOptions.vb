@@ -1,4 +1,4 @@
-Namespace Server
+﻿Namespace Server
     ''' <summary>
     ''' Configuration options for the Kestrel server.
     ''' Bound from AppConfig on startup.
@@ -57,6 +57,9 @@ Namespace Server
         ''' Empty string means admin features are hidden (no gear button shown).
         ''' </summary>
         Public Property AdminPin As String = ""
+
+        ''' <summary>Volunteer-tier code gating room creation from the lobby ("" = open).</summary>
+        Public Property CreatorCode As String = ""
 
         ''' <summary>Whether to display Bible copyright notices on the phone client.</summary>
         Public Property ShowBibleCopyright As Boolean = True

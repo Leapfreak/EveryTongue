@@ -144,12 +144,26 @@ Namespace Server
                                               .httpsEnabled = True,
                                               .hasAdminPin = Not String.IsNullOrEmpty(serverOpts.AdminPin),
                                               .hasLiveSession = (RemoteCommandHandler IsNot Nothing),
+                                              .creatorCodeRequired = Not String.IsNullOrEmpty(serverOpts.CreatorCode),
                                               .showBibleCopyright = serverOpts.ShowBibleCopyright,
                                               .publicHost = PublicHostFor(context),
                                               .version = If(GetType(EndpointRegistration).Assembly.
                                                   GetName().Version?.ToString(), "unknown")
                                           })
                                       End Function)
+
+            ' Creator (volunteer-tier) code verification — gates the lobby's
+            ' room-creation tools. Lower privilege than the admin PIN.
+            app.MapGet("/api/creator/verify",
+                Function(context As HttpContext) As IResult
+                    Dim opts2 = context.RequestServices.GetService(Of IOptions(Of ServerOptions))
+                    Dim so = If(opts2?.Value, New ServerOptions())
+                    If String.IsNullOrEmpty(so.CreatorCode) Then
+                        Return Results.Json(New With {.ok = True})   ' open mode — nothing to verify
+                    End If
+                    Dim code = context.Request.Query("code").ToString()
+                    Return Results.Json(New With {.ok = String.Equals(code, so.CreatorCode, StringComparison.Ordinal)})
+                End Function)
 
             ' Admin PIN verification — returns {ok:true} if PIN matches
             ' (PublicHostFor lives below MapAllEndpoints — shared by QR + config.)

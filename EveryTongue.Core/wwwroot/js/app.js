@@ -39,6 +39,7 @@ var T={connecting:'Connecting...',connected:'Connected',disconnected:'Disconnect
     setKeysStt:'Speech API keys',setKeysTrans:'Translation API keys',
     setKeySet:'•••• configured — leave blank to keep',setKeyEmpty:'not set — paste key',
     setPinLabel:'Admin PIN',setPinNew:'choose a PIN',setPinRequired:'Set an admin PIN to secure the server first',
+    setCreatorLabel:'Host tools code',setCreatorHint:'Volunteers enter this in the lobby to create rooms. Empty = anyone can create. Enter "-" to clear.',setCreatorEmpty:'not set — room creation is open',
     setSave:'Save',setSaved:'Saved ✓',setViewLog:'View server log',setBadPin:'Not authorized',
     bcStart:'Broadcast Mic',bcStop:'LIVE — tap to stop',bcStarting:'Starting mic…',
     bcTakenOver:'Another device took over the microphone',
@@ -834,7 +835,11 @@ function buildSettingsOverlay(s,pin){
       'style="width:100%;box-sizing:border-box;padding:7px;border-radius:6px;border:1px solid '+(e.keySet?'#3a5':'#555')+';background:#252540;color:#fff;margin-bottom:6px">'}
   h+='<div style="color:#aaa;font-size:13px;font-weight:600;margin:12px 0 4px">'+t('setPinLabel')+'</div>'+
     '<input type="password" id="setNewPin" inputmode="numeric" autocomplete="off" placeholder="'+(s.adminPinSet?t('setKeySet'):t('setPinNew'))+'" '+
-    'style="width:100%;box-sizing:border-box;padding:7px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;margin-bottom:14px">'+
+    'style="width:100%;box-sizing:border-box;padding:7px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;margin-bottom:8px">'+
+    '<div style="color:#aaa;font-size:13px;font-weight:600;margin:4px 0 4px">'+t('setCreatorLabel')+'</div>'+
+    '<div style="color:#777;font-size:11px;margin-bottom:4px">'+t('setCreatorHint')+'</div>'+
+    '<input type="text" id="setCreatorCode" autocomplete="off" placeholder="'+(s.creatorCodeSet?t('setKeySet'):t('setCreatorEmpty'))+'" '+
+    'style="width:100%;box-sizing:border-box;padding:7px;border-radius:6px;border:1px solid '+(s.creatorCodeSet?'#3a5':'#555')+';background:#252540;color:#fff;margin-bottom:14px">'+
     '<button id="setSave" style="width:100%;padding:12px;border:none;border-radius:8px;background:#7c9cf7;color:#1a1a2e;font-size:15px;font-weight:600;cursor:pointer">'+t('setSave')+'</button>'+
     '<button id="setLog" style="width:100%;padding:9px;border:1px solid #555;border-radius:8px;background:transparent;color:#aaa;font-size:13px;cursor:pointer;margin-top:8px">'+t('setViewLog')+'</button>'+
     '<button id="setClose" style="width:100%;padding:9px;border:none;border-radius:8px;background:#333;color:#ccc;font-size:13px;cursor:pointer;margin-top:8px">'+t('cancel')+'</button>'+
@@ -864,6 +869,8 @@ function buildSettingsOverlay(s,pin){
     for(k=0;k<inputs.length;k++){if(inputs[k].value)body.translationKeys[inputs[k].getAttribute('data-trans-key')]=inputs[k].value}
     var newPin=document.getElementById('setNewPin').value;
     if(newPin)body.adminPin=newPin;
+    var newCreator=document.getElementById('setCreatorCode').value;
+    if(newCreator)body.creatorCode=newCreator;
     if(!s.adminPinSet&&!newPin){
       var m=document.getElementById('setMsg');m.style.color='#f44';m.textContent=t('setPinRequired');return}
     /* Success is decided by the RESPONSE alone — any post-success UI hiccup must
@@ -1701,7 +1708,7 @@ function startBroadcastCapture(){
       if(!bcWant){stream.getTracks().forEach(function(tr){tr.stop()});return}
       bcStream=stream;
       bcCtx=new AudioContext();
-      return bcCtx.audioWorklet.addModule('/js/mic-worklet.js?v=2.7.7').then(function(){
+      return bcCtx.audioWorklet.addModule('/js/mic-worklet.js?v=2.7.8').then(function(){
         var src=bcCtx.createMediaStreamSource(stream);
         bcNode=new AudioWorkletNode(bcCtx,'mic-downsampler');
         bcAnalyser=bcCtx.createAnalyser();

@@ -21,6 +21,58 @@
     const conferenceError = document.getElementById("conference-error");
     const btnCreateConference = document.getElementById("btn-create-conference");
 
+    // ── Volunteer tier gate ─────────────────────────────────────────────
+    // When the server has a CreatorCode, guests see join-only; the creation
+    // tools unlock via the "Host tools" link (code kept for the session).
+    // Endpoints enforce the code server-side; this is only the door.
+    const creatorTools = document.getElementById("creator-tools");
+    const hostToolsGate = document.getElementById("host-tools-gate");
+    const hostToolsLink = document.getElementById("host-tools-link");
+    const hostToolsForm = document.getElementById("host-tools-form");
+    const creatorCodeInput = document.getElementById("creator-code-input");
+    const creatorCodeGo = document.getElementById("creator-code-go");
+    const creatorCodeMsg = document.getElementById("creator-code-msg");
+
+    function creatorCode() { return sessionStorage.getItem("creatorCode") || ""; }
+
+    fetch("/api/config").then(r => r.json()).then(cfg => {
+        if (!cfg.creatorCodeRequired) return;              // open mode — leave everything visible
+        if (creatorCode()) {
+            // already unlocked this session — re-verify silently (code may have changed)
+            fetch("/api/creator/verify?code=" + encodeURIComponent(creatorCode()))
+                .then(r => r.json()).then(v => { if (!v.ok) lockCreatorTools(); });
+            return;
+        }
+        lockCreatorTools();
+    }).catch(() => { });
+
+    function lockCreatorTools() {
+        sessionStorage.removeItem("creatorCode");
+        creatorTools.style.display = "none";
+        hostToolsGate.style.display = "block";
+    }
+
+    hostToolsLink.addEventListener("click", function (e) {
+        e.preventDefault();
+        hostToolsForm.style.display = hostToolsForm.style.display === "none" ? "block" : "none";
+        if (hostToolsForm.style.display === "block") creatorCodeInput.focus();
+    });
+    creatorCodeGo.addEventListener("click", tryUnlock);
+    creatorCodeInput.addEventListener("keydown", function (e) { if (e.key === "Enter") tryUnlock(); });
+    function tryUnlock() {
+        const code = creatorCodeInput.value.trim();
+        if (!code) return;
+        fetch("/api/creator/verify?code=" + encodeURIComponent(code)).then(r => r.json()).then(v => {
+            if (v.ok) {
+                sessionStorage.setItem("creatorCode", code);
+                hostToolsGate.style.display = "none";
+                creatorTools.style.display = "";
+            } else {
+                creatorCodeMsg.textContent = "Invalid code";
+            }
+        }).catch(() => { creatorCodeMsg.textContent = "Could not verify"; });
+    }
+
     // QR overlay
     const qrOverlay = document.getElementById("qr-overlay");
     const qrRoomName = document.getElementById("qr-room-name");
@@ -118,7 +170,8 @@
                     name: name,
                     type: "conversation",
                     visibility: isPrivate ? "private" : "public",
-                    translationEngine: engineVal
+                    translationEngine: engineVal,
+                    creatorCode: creatorCode()
                 })
             });
             if (!res.ok) throw new Error("Server returned " + res.status);

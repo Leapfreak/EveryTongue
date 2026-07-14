@@ -79,6 +79,7 @@ Namespace Controllers
                     .BgColor = _config.SubtitleBgColor,
                     .FgColor = _config.SubtitleFgColor,
                     .AdminPin = If(_config.AdminPin, ""),
+                    .CreatorCode = If(_config.CreatorCode, ""),
                     .BiblesDirectory = resolvedBiblesDir,
                     .TtsBackends = If(_config.TtsBackends, ""),
                     .ShowBibleCopyright = _config.ShowBibleCopyright,

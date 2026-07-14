@@ -1,4 +1,4 @@
-Imports System.Text.Json.Serialization
+﻿Imports System.Text.Json.Serialization
 
 Namespace Models
 
@@ -467,6 +467,11 @@ Namespace Models
         Public Property AllowFirewall As Boolean = True
 
         Public Property AdminPin As String = "1234"
+
+        ''' <summary>Lobby tier gate: when set, creating conversation/dictation rooms from the
+        ''' web lobby requires this code ("Host tools"). Empty = open creation (legacy behaviour).
+        ''' Lower-privilege than AdminPin — safe to hand to volunteers.</summary>
+        Public Property CreatorCode As String = ""
 
         Public Property ConferenceTemplates As List(Of ConferenceTemplate) = New List(Of ConferenceTemplate)()
 

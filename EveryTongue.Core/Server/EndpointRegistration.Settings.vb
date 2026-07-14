@@ -63,6 +63,7 @@ Namespace Server
 
                     Return Results.Json(New With {
                         .adminPinSet = Not String.IsNullOrEmpty(serverOpts.AdminPin),
+                        .creatorCodeSet = Not String.IsNullOrEmpty(serverOpts.CreatorCode),
                         .sttBackend = If(cfg.SttBackend, ""),
                         .translationBackend = If(cfg.TranslationBackend, ""),
                         .sttEngines = sttEngines,
@@ -125,6 +126,17 @@ Namespace Server
                             Dim opts = context.RequestServices.GetService(Of IOptions(Of ServerOptions))
                             If opts?.Value IsNot Nothing Then opts.Value.AdminPin = newPin
                             changed.Add("adminPin")
+                        End If
+
+                        ' Creator (volunteer) code: same live-apply treatment. "-" clears
+                        ' it (back to open creation); empty field = keep unchanged.
+                        Dim newCreator = getStr("creatorCode")
+                        If Not String.IsNullOrEmpty(newCreator) Then
+                            If newCreator = "-" Then newCreator = ""
+                            cfg.CreatorCode = newCreator
+                            Dim opts2 = context.RequestServices.GetService(Of IOptions(Of ServerOptions))
+                            If opts2?.Value IsNot Nothing Then opts2.Value.CreatorCode = newCreator
+                            changed.Add(If(newCreator = "", "creatorCode(cleared)", "creatorCode"))
                         End If
 
                         If changed.Count > 0 Then

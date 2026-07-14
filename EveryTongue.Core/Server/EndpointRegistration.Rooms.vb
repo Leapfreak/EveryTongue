@@ -199,6 +199,22 @@ Namespace Server
                                                Dim hostProp As JsonElement = Nothing
                                                If root.TryGetProperty("hostClientId", hostProp) Then hostId = If(hostProp.GetString(), "")
 
+                                               ' Volunteer-tier gate: when a CreatorCode is configured, ad-hoc room
+                                               ' creation requires it (guests join rooms; they don't mint them —
+                                               ' each room is an engine session on the operator's API keys).
+                                               ' Enforced HERE, not just hidden in the lobby UI.
+                                               Dim gateOpts = context.RequestServices.GetService(Of IOptions(Of ServerOptions))
+                                               Dim gateCode = If(gateOpts?.Value?.CreatorCode, "")
+                                               If Not String.IsNullOrEmpty(gateCode) Then
+                                                   Dim ccProp As JsonElement = Nothing
+                                                   Dim supplied = If(root.TryGetProperty("creatorCode", ccProp), If(ccProp.GetString(), ""), "")
+                                                   If Not String.Equals(supplied, gateCode, StringComparison.Ordinal) Then
+                                                       context.Response.StatusCode = 403
+                                                       Await context.Response.WriteAsJsonAsync(New With {.error = "creator code required"})
+                                                       Return
+                                                   End If
+                                               End If
+
                                                ' Optional per-room translation engine (conversation rooms); "" = global default.
                                                Dim engProp As JsonElement = Nothing
                                                Dim translationEngine = ""
