@@ -1,4 +1,4 @@
-Imports System.IO
+﻿Imports System.IO
 Imports System.Text.Json
 
 Namespace Services.Infrastructure
@@ -262,6 +262,23 @@ Namespace Services.Infrastructure
         ''' Returns all languages as a list of (FloresCode, NativeName, EnglishName, Iso1Code)
         ''' for serving to web clients. Only includes entries that have an ISO 639-1 code.
         ''' </summary>
+        ''' <summary>
+        ''' All languages carrying a whisper code, as (WhisperCode, Name, Native) sorted
+        ''' by English name — the STT language list for engines that don't declare their
+        ''' own SupportedLanguages (the whisper family, and a superset fallback).
+        ''' </summary>
+        Public Function GetAllWhisperLanguagesSorted() As List(Of (Code As String, Name As String, Native As String))
+            Dim result As New List(Of (String, String, String))()
+            Dim seen As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+            For Each kvp In _byWhisper
+                Dim e = kvp.Value
+                If Not seen.Add(kvp.Key) Then Continue For
+                result.Add((kvp.Key, If(e.Name, kvp.Key), If(e.Native, If(e.Name, kvp.Key))))
+            Next
+            result.Sort(Function(a, b) String.Compare(a.Item2, b.Item2, StringComparison.OrdinalIgnoreCase))
+            Return result
+        End Function
+
         Public Function GetAllLanguagesForWeb() As List(Of (Flores As String, Native As String, Name As String, Iso1 As String))
             Dim result As New List(Of (String, String, String, String))()
             Dim seenIso1 As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)

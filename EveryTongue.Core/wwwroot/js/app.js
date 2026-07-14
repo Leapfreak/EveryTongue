@@ -33,6 +33,7 @@ var T={connecting:'Connecting...',connected:'Connected',disconnected:'Disconnect
     openSecure:'Open Secure Page',cancel:'Cancel',
     dictCopy:'Copy',dictCopied:'Copied \u2713',dictDone:'Done',
     rsPreparing:'Preparing speech engine...',vmShared:'(shared)',
+    hostSpeakerLang:'Speaker Language',hostApply:'Apply',pipeReset:'Reset Pipeline',autoDetect:'Auto Detect',
     rsWaitMicHost:'Waiting for microphone — open Host Controls and tap Broadcast Mic',
     rsWaitMic:'Waiting for the host to start the microphone…',
     setTitle:'Server Settings',setBootstrap:'First-time setup: choose your engines, paste your API keys, and set an admin PIN to secure this server.',
@@ -94,6 +95,34 @@ function t(k){return T[k]||k}
 /* Server sends the literal "Guest" as the unnamed-client sentinel — swap it
    for the localized label at render. Empty stays empty (means "no speaker"). */
 function dispName(n){return n==='Guest'?t('guestLabel'):(n||'')}
+
+/* Rebuild a <select> with the active STT engine's languages from
+   /api/stt-languages (engine-declared list, or the whisper set). Native names
+   shown — locale-independent. Keeps the current selection; optionally keeps a
+   leading "auto" option. Hardcoded fallback options survive if the fetch fails. */
+function populateSttLangs(sel,withAuto){
+  if(!sel)return;
+  var xhr=new XMLHttpRequest();
+  xhr.open('GET','/api/stt-languages',true);
+  xhr.onload=function(){
+    if(xhr.status!==200)return;
+    try{
+      var langs=JSON.parse(xhr.responseText);
+      if(!langs||!langs.length)return;
+      var current=sel.value;
+      sel.innerHTML='';
+      if(withAuto){var ao=document.createElement('option');ao.value='auto';ao.textContent=t('autoDetect');sel.appendChild(ao)}
+      for(var i=0;i<langs.length;i++){
+        var o=document.createElement('option');
+        o.value=langs[i].code;
+        o.textContent=langs[i].native&&langs[i].native!==langs[i].name?langs[i].native+' ('+langs[i].name+')':langs[i].name;
+        sel.appendChild(o);
+      }
+      if(current){sel.value=current;if(sel.value!==current&&sel.options.length)sel.selectedIndex=0}
+    }catch(e){LOG('stt-languages parse error: '+e)}
+  };
+  xhr.send();
+}
 
 /* ── Language data: [floresCode, nativeName, englishName, bcp47Prefix] ── */
 /* Loaded from /api/languages; minimal fallback until fetch completes */
@@ -2542,16 +2571,16 @@ function toggleHostPanel(){
     var pipeHtml='<div style="border-top:1px solid #444;margin-top:12px;padding-top:12px">'+
       '<div style="color:#aaa;font-size:12px;font-weight:600;margin-bottom:8px">Pipeline</div>'+
       spkHtml+modeHtml+
-      '<label style="color:#888;font-size:11px">Speaker Language</label>'+
+      '<label style="color:#888;font-size:11px">'+t('hostSpeakerLang')+'</label>'+
       '<select id="hcPipeLang" style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:13px;margin-bottom:8px;box-sizing:border-box">'+
-      '<option value="auto">Auto Detect</option>'+
+      '<option value="auto">'+t('autoDetect')+'</option>'+
       '<option value="ca">Catalan</option><option value="es">Spanish</option><option value="en">English</option>'+
       '<option value="fr">French</option><option value="de">German</option><option value="it">Italian</option>'+
       '<option value="pt">Portuguese</option><option value="nl">Dutch</option><option value="ru">Russian</option>'+
       '<option value="zh">Chinese</option><option value="ja">Japanese</option><option value="ko">Korean</option>'+
       '<option value="ar">Arabic</option></select>'+
-      '<button id="hcPipeApply" style="width:100%;padding:8px;border:none;border-radius:8px;background:#7c9cf7;color:#1a1a2e;font-size:13px;font-weight:600;cursor:pointer">Apply</button>'+
-      '<button id="hcPipeReset" style="width:100%;padding:8px;border:none;border-radius:8px;background:#e67e22;color:#fff;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px">\u21BB Reset Pipeline</button>'+
+      '<button id="hcPipeApply" style="width:100%;padding:8px;border:none;border-radius:8px;background:#7c9cf7;color:#1a1a2e;font-size:13px;font-weight:600;cursor:pointer">'+t('hostApply')+'</button>'+
+      '<button id="hcPipeReset" style="width:100%;padding:8px;border:none;border-radius:8px;background:#e67e22;color:#fff;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px">\u21BB '+t('pipeReset')+'</button>'+
       '<div id="hcPipeStatus" style="color:#888;font-size:11px;margin-top:4px;text-align:center"></div>'+
       '</div>';
     panel.innerHTML+=pipeHtml;
@@ -2562,6 +2591,11 @@ function toggleHostPanel(){
   /* Pre-select pipeline values from room state */
   var pipeLang=document.getElementById('hcPipeLang');
   if(pipeLang&&roomSourceLang){pipeLang.value=roomSourceLang}
+
+  /* Replace the hardcoded fallback options with the ACTIVE engine's real
+     language list (/api/stt-languages) — one source of truth, no drift.
+     Shows native names; keeps "auto" first and the current selection. */
+  populateSttLangs(pipeLang,true);
 
   document.getElementById('hcEndRoom').addEventListener('click',function(){
     var xhr=new XMLHttpRequest();

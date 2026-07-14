@@ -9,7 +9,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>EveryTongue</RootNamespace>
     <AssemblyName>EveryTongue.Core</AssemblyName>
-    <Version>2.7.14</Version>
+    <Version>2.7.15</Version>
     <IsPackable>false</IsPackable>
     <NoWarn>MSB3277;NU5118</NoWarn>
   </PropertyGroup>

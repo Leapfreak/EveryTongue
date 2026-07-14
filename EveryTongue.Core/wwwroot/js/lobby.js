@@ -454,6 +454,31 @@
         refreshTimer = setInterval(loadRooms, 5000);
     }
 
+    // ── Dictation language list from the ACTIVE STT engine ─────────────
+    // /api/stt-languages is the single source (engine-declared list, or the
+    // whisper set) — replaces the hardcoded 8-language fallback in the HTML.
+    // Native names shown; the previous selection (default Catalan) is kept.
+    async function loadSttLanguages() {
+        const sel = document.getElementById("dict-lang");
+        if (!sel) return;
+        try {
+            const res = await fetch("/api/stt-languages");
+            if (!res.ok) return;
+            const langs = await res.json();
+            if (!langs || !langs.length) return;
+            const current = sel.value;
+            sel.innerHTML = "";
+            langs.forEach(function (l) {
+                const opt = document.createElement("option");
+                opt.value = l.code;
+                opt.textContent = (l.native && l.native !== l.name) ? l.native + " (" + l.name + ")" : l.name;
+                sel.appendChild(opt);
+            });
+            sel.value = current;
+            if (sel.value !== current && sel.options.length) sel.selectedIndex = 0;
+        } catch (e) { /* hardcoded fallback options remain */ }
+    }
+
     // ── Populate the conversation translation-engine dropdown ──
     async function loadEngines() {
         var sel = document.getElementById("conv-engine");
@@ -476,4 +501,5 @@
     startAutoRefresh();
     loadTemplates();
     loadEngines();
+    loadSttLanguages();
 })();

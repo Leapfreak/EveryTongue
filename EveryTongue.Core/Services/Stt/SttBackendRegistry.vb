@@ -26,6 +26,15 @@
             ''' engine module. Offline engines are one-shot-capable via their model instead.</summary>
             Public Property SupportsOneShotTranscribe As Boolean = False
             ''' <summary>
+            ''' Engine-native STT language codes this engine accepts (mostly ISO 639-1;
+            ''' engine quirks like Speechmatics "cmn"/"yue" included verbatim). Nothing =
+            ''' unspecified — callers derive the list from language-codes.json's whisper
+            ''' column (correct for the whisper family; a safe superset for online engines
+            ''' that haven't declared their list yet). Served to the web UI via
+            ''' GET /api/stt-languages so dropdowns never hardcode language lists.
+            ''' </summary>
+            Public Property SupportedLanguages As String() = Nothing
+            ''' <summary>
             ''' File glob used when scanning for selectable model files (e.g. "*.bin").
             ''' Empty string = models are DIRECTORIES containing config.json.
             ''' "-" = engine has NO local model selection (online engines).
@@ -56,7 +65,8 @@
             New Entry With {.Key = "whisper-cpp-cpu", .DisplayName = "whisper.cpp CPU (offline)", .RequiresInternet = False, .UseGpu = False, .SidecarMode = "whisper-cpp", .ModelScanPattern = "*.bin", .ModelMinSizeMB = 10, .ModelPathFromConfig = Function(cfg) cfg.PathWhisperCppModel, .Factory = Function() New WhisperCppBackend(useGpu:=False), .ConfigDescriptor = New Configs.WhisperCppConfigDescriptor("whisper-cpp-cpu")},
             New Entry With {.Key = "faster-whisper", .DisplayName = "faster-whisper CUDA (offline)", .RequiresInternet = False, .UseGpu = True, .SidecarMode = "faster-whisper", .ModelPathFromConfig = Function(cfg) cfg.PathFasterWhisperModel, .Factory = Function() New FasterWhisperBackend(), .ConfigDescriptor = New Configs.FasterWhisperConfigDescriptor()},
             New Entry With {.Key = "google-cloud-stt", .DisplayName = "Google Cloud STT (online)", .RequiresInternet = True, .UseGpu = False, .RequiresApiKey = True, .SidecarMode = "online", .ModelScanPattern = "-", .ModelPathFromConfig = Function(cfg) "", .CompanionTranslationKey = "google-translate", .Factory = Function() New CloudStreamingSttBackend("google-cloud-stt", "Google Cloud STT (online)"), .ConfigDescriptor = New Configs.GoogleSttConfigDescriptor()},
-            New Entry With {.Key = "speechmatics", .DisplayName = "Speechmatics (online)", .RequiresInternet = True, .UseGpu = False, .RequiresApiKey = True, .SidecarMode = "online", .SupportsOneShotTranscribe = True, .ModelScanPattern = "-", .ModelPathFromConfig = Function(cfg) "", .Factory = Function() New CloudStreamingSttBackend("speechmatics", "Speechmatics (online)"), .ConfigDescriptor = New Configs.SpeechmaticsConfigDescriptor()},
+            New Entry With {.Key = "speechmatics", .DisplayName = "Speechmatics (online)", .RequiresInternet = True, .UseGpu = False, .RequiresApiKey = True, .SidecarMode = "online", .SupportsOneShotTranscribe = True,
+                            .SupportedLanguages = {"ar", "ba", "eu", "be", "bn", "bg", "yue", "ca", "hr", "cs", "da", "nl", "en", "eo", "et", "fi", "fr", "gl", "de", "el", "he", "hi", "hu", "id", "ia", "ga", "it", "ja", "ko", "lv", "lt", "ms", "mt", "cmn", "mr", "mn", "no", "fa", "pl", "pt", "ro", "ru", "sk", "sl", "es", "sw", "sv", "ta", "th", "tr", "uk", "ur", "ug", "vi", "cy"}, .ModelScanPattern = "-", .ModelPathFromConfig = Function(cfg) "", .Factory = Function() New CloudStreamingSttBackend("speechmatics", "Speechmatics (online)"), .ConfigDescriptor = New Configs.SpeechmaticsConfigDescriptor()},
             New Entry With {.Key = "deepgram", .DisplayName = "Deepgram (online)", .RequiresInternet = True, .UseGpu = False, .RequiresApiKey = True, .SidecarMode = "online", .ModelScanPattern = "-", .ModelPathFromConfig = Function(cfg) "", .Factory = Function() New CloudStreamingSttBackend("deepgram", "Deepgram (online)"), .ConfigDescriptor = New Configs.DeepgramConfigDescriptor()},
             New Entry With {.Key = "gladia", .DisplayName = "Gladia (online)", .RequiresInternet = True, .UseGpu = False, .RequiresApiKey = True, .SidecarMode = "online", .ModelScanPattern = "-", .ModelPathFromConfig = Function(cfg) "", .Factory = Function() New CloudStreamingSttBackend("gladia", "Gladia (online)"), .ConfigDescriptor = New Configs.GladiaConfigDescriptor()},
             New Entry With {.Key = "azure-speech", .DisplayName = "Azure AI Speech (online)", .RequiresInternet = True, .UseGpu = False, .RequiresApiKey = True, .SidecarMode = "online", .ModelScanPattern = "-", .ModelPathFromConfig = Function(cfg) "", .Factory = Function() New CloudStreamingSttBackend("azure-speech", "Azure AI Speech (online)"), .ConfigDescriptor = New Configs.AzureSpeechConfigDescriptor()}
