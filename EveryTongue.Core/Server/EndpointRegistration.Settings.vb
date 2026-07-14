@@ -1,4 +1,4 @@
-Imports System.Text.Json
+﻿Imports System.Text.Json
 Imports Microsoft.AspNetCore.Builder
 Imports Microsoft.AspNetCore.Http
 Imports Microsoft.AspNetCore.Routing
@@ -71,10 +71,18 @@ Namespace Server
                     })
                 End Function)
 
+            ' NOTE: async VB lambdas declared As Task(Of IResult) are NOT executed
+            ' by minimal APIs when registered as a Delegate — every branch returned
+            ' an empty 200 (an invalid-PIN save looked like success to the client).
+            ' Write the response directly instead of returning IResult.
             app.MapPost("/api/settings",
-                Async Function(context As HttpContext) As Task(Of IResult)
+                Async Function(context As HttpContext) As Task
                     Dim cfg = SettingsConfigProvider?.Invoke()
-                    If cfg Is Nothing Then Return Results.Json(New With {.error = "settings not available"}, statusCode:=503)
+                    If cfg Is Nothing Then
+                        context.Response.StatusCode = 503
+                        Await context.Response.WriteAsJsonAsync(New With {.error = "settings not available"})
+                        Return
+                    End If
 
                     Using doc = Await JsonDocument.ParseAsync(context.Request.Body)
                         Dim root = doc.RootElement
@@ -85,7 +93,9 @@ Namespace Server
                                      End Function
 
                         If Not SettingsPinOk(context, getStr("pin")) Then
-                            Return Results.Json(New With {.error = "invalid pin"}, statusCode:=403)
+                            context.Response.StatusCode = 403
+                            Await context.Response.WriteAsJsonAsync(New With {.error = "invalid pin"})
+                            Return
                         End If
 
                         Dim changed As New List(Of String)
@@ -149,7 +159,7 @@ Namespace Server
                                 $"/api/settings applied: {String.Join(", ", changed)} (keys logged by name only)")
                         End If
 
-                        Return Results.Json(New With {.ok = True, .changed = changed.Count})
+                        Await context.Response.WriteAsJsonAsync(New With {.ok = True, .changed = changed.Count})
                     End Using
                 End Function)
 

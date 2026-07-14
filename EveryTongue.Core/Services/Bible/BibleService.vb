@@ -180,10 +180,17 @@ Namespace Services.Bible
             End If
 
             ' Scan in preference order: .sqlite3 first, then .sqlite, then .db
-            ' Skip files whose ID (filename without extension) is already loaded
+            ' Skip files whose ID (filename without extension) is already loaded.
+            ' MatchCasing.CaseInsensitive: downloaded Bibles arrive with mixed-case
+            ' extensions (e.g. BCI.SQLite3) — Windows matched them anyway, but the
+            ' Linux container silently skipped them (found by container testing).
+            Dim scanOpts As New EnumerationOptions With {
+                .RecurseSubdirectories = True,
+                .MatchCasing = MatchCasing.CaseInsensitive
+            }
             Dim extensions = {"*.sqlite3", "*.sqlite", "*.db"}
             For Each ext In extensions
-                For Each dbFile In Directory.GetFiles(_biblesDir, ext, SearchOption.AllDirectories)
+                For Each dbFile In Directory.GetFiles(_biblesDir, ext, scanOpts)
                     Dim id = Path.GetFileNameWithoutExtension(dbFile)
                     If _translations.ContainsKey(id) Then Continue For
                     Try

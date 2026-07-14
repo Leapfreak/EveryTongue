@@ -144,3 +144,6 @@
 - **Adding a new event**: Add a constant to `LogEvents.vb`, register it in the shared `Sub New()` block with `LogEventRegistry.Register(id, category, severity, description)`.
 - **Key files**: `LogEvents.vb`, `LogEventRegistry.vb`, `LogRoutingConfig.vb`, `LogCategory.vb`, `LogSeverity.vb`, `AppLogger.vb`, `FormLogConfig.vb` — all in `Services/Infrastructure/`.
 - Global exception handlers in Program.vb
+
+## Minimal API endpoints (VB gotcha)
+- **Never declare an endpoint lambda as `Async Function(...) As Task(Of IResult)`** — minimal APIs does not execute the returned IResult from a VB async lambda registered as a Delegate; every branch silently becomes an empty 200 (an invalid-PIN settings save looked like success). Async endpoint lambdas must be `As Task` and write the response directly (`context.Response.StatusCode` + `WriteAsJsonAsync`). Non-async `Function(...) As IResult` works fine.

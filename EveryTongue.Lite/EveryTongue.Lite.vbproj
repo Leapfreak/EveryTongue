@@ -10,9 +10,9 @@
     <RootNamespace>EveryTongue</RootNamespace>
     <AssemblyName>EveryTongue.Lite</AssemblyName>
     <StartupObject>EveryTongue.LiteProgram</StartupObject>
-    <Version>2.7.15</Version>
-    <AssemblyVersion>2.7.15.0</AssemblyVersion>
-    <FileVersion>2.7.15.0</FileVersion>
+    <Version>2.7.16</Version>
+    <AssemblyVersion>2.7.16.0</AssemblyVersion>
+    <FileVersion>2.7.16.0</FileVersion>
     <IsPackable>false</IsPackable>
     <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
