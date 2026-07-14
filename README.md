@@ -7,6 +7,23 @@ Real-time speech transcription and multilingual translation for live events — 
 
 ## Quick start — Lite (any OS with Docker)
 
+One command installs it, and the *same* command updates it later. It detects your LAN IP, creates the config folder, and starts the server:
+
+**macOS / Linux:**
+```
+curl -fsSL https://raw.githubusercontent.com/Leapfreak/EveryTongue/main/get-lite.sh | sh
+```
+
+**Windows (PowerShell):**
+```
+irm https://raw.githubusercontent.com/Leapfreak/EveryTongue/main/get-lite.ps1 | iex
+```
+
+The script prints your server's address. Open it (accept the one-time certificate warning) → **Administrator** (default PIN `1234`) → **Settings**: pick engines (e.g. Speechmatics + Google Translate), paste your API keys, change the PIN. Host a room, tap **🎙 Broadcast Mic**, and phones that scan the room's QR receive live translations. Everything you configure persists in `~/everytongue-lite` across updates.
+
+<details>
+<summary>Manual <code>docker run</code> (if you prefer no script)</summary>
+
 ```
 docker run -d --name everytongue-lite --restart unless-stopped \
   -p 5080:5080 -p 5081:5081 \
@@ -15,7 +32,8 @@ docker run -d --name everytongue-lite --restart unless-stopped \
   ghcr.io/leapfreak/everytongue-lite:latest
 ```
 
-Open `https://<your-lan-ip>:5081` (accept the one-time certificate warning) → **Administrator** (default PIN `1234`) → **Settings**: pick engines (e.g. Speechmatics + Google Translate), paste your API keys, change the PIN. Host a room, tap **🎙 Broadcast Mic**, and phones that scan the room's QR receive live translations. Config, HTTPS certificate, and logs persist in `./et-config` across updates (`docker pull` + re-run).
+Or use the repo's `docker-compose.yml`: `docker compose up -d`.
+</details>
 
 ## Download — Windows desktop
 
