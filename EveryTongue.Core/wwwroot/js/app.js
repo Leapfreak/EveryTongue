@@ -31,6 +31,7 @@ var T={connecting:'Connecting...',connected:'Connected',disconnected:'Disconnect
     stepDetails:'Tap "Show Details"',stepVisit:'Tap "visit this website"',
     stepRetry:'Tap the screen wake button again',
     openSecure:'Open Secure Page',cancel:'Cancel',
+    dictCopy:'Copy',dictCopied:'Copied \u2713',dictDone:'Done',
     rsPreparing:'Preparing speech engine...',
     rsWaitMicHost:'Waiting for microphone — open Host Controls and tap Broadcast Mic',
     rsWaitMic:'Waiting for the host to start the microphone…',
@@ -526,6 +527,15 @@ function insertLine(el){
   }else{lines.appendChild(el)}
 }
 function addCommitted(text,lang,time,refs,speaker,ttsLang){
+  /* Dictation view: commits accumulate in the editor, not the caption stream. */
+  if(pttRoomType==='dictation'){
+    var dta=document.getElementById('dictText');
+    if(dta){
+      var ds=(text||'').replace(/^\s+|\s+$/g,'');
+      if(ds){dta.value+=(dta.value&&!(/\s$/.test(dta.value))?' ':'')+ds;dta.scrollTop=dta.scrollHeight}
+      return;
+    }
+  }
   var el;
   if(currentEl){el=currentEl;currentEl=null;
     if(scrollMode==='down'&&el.parentNode){el.parentNode.removeChild(el);insertLine(el)}
@@ -1708,7 +1718,7 @@ function startBroadcastCapture(){
       if(!bcWant){stream.getTracks().forEach(function(tr){tr.stop()});return}
       bcStream=stream;
       bcCtx=new AudioContext();
-      return bcCtx.audioWorklet.addModule('/js/mic-worklet.js?v=2.7.8').then(function(){
+      return bcCtx.audioWorklet.addModule('/js/mic-worklet.js?v=2.7.10').then(function(){
         var src=bcCtx.createMediaStreamSource(stream);
         bcNode=new AudioWorkletNode(bcCtx,'mic-downsampler');
         bcAnalyser=bcCtx.createAnalyser();
@@ -1866,8 +1876,9 @@ function initPushToTalk(){
           if(lpOpen&&lpOpen.classList.contains('open'))renderLangList('');
         }
         if(room.isHost){isHost=true;showHostControls()}
+        if(pttRoomType==='dictation'){initDictationView()}
         /* Conversation: everyone gets PTT. Conference: no mic (audio from desktop). */
-        if(pttRoomType==='conversation'){
+        else if(pttRoomType==='conversation'){
           createPttButton();
           autoAssignDisplayName();
           initParticipantBar();
@@ -2107,6 +2118,61 @@ function sendAudioToServer(){
 }
 
 /* PTT init is now triggered by the 'welcome' WebSocket message (needs client ID for host check) */
+
+/* ── Dictation view: private room rendered as an editor ─────────────────
+   The mic is the existing web-mic broadcast (same button id the host panel
+   uses, so toggleBroadcast/updateBroadcastUi/startBcMeter drive it as-is).
+   Translation is the normal per-client room pipeline: pick a language on
+   the picker (or 'No translation') and commits arrive accordingly. */
+function initDictationView(){
+  if(document.getElementById('dictWrap'))return;
+  var cont=document.getElementById('container');
+  if(cont)cont.style.display='none';
+  var w=document.createElement('div');
+  w.id='dictWrap';
+  w.style.cssText='position:fixed;top:40px;left:0;right:0;bottom:0;display:flex;flex-direction:column;padding:12px;background:#12122a;z-index:50';
+  w.innerHTML=
+    '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">'+
+      '<button id="hcBroadcast" style="flex:1;padding:12px;border:none;border-radius:8px;background:#7c9cf7;color:#fff;font-size:15px;font-weight:600;cursor:pointer">🎙 '+t('bcStart')+'</button>'+
+      '<button id="dictCopy" style="padding:12px 16px;border:1px solid #555;border-radius:8px;background:#252540;color:#ccc;font-size:14px;cursor:pointer">'+t('dictCopy')+'</button>'+
+      '<button id="dictClear" style="padding:12px 16px;border:1px solid #555;border-radius:8px;background:#252540;color:#ccc;font-size:14px;cursor:pointer">'+t('clear')+'</button>'+
+      '<button id="dictDone" style="padding:12px 16px;border:none;border-radius:8px;background:#e74c3c;color:#fff;font-size:14px;cursor:pointer">'+t('dictDone')+'</button>'+
+    '</div>'+
+    '<div id="hcBcMeterWrap" style="height:8px;background:#333;border-radius:4px;margin-bottom:8px;overflow:hidden"><div id="hcBcMeter" style="height:100%;width:0%;background:#27ae60;transition:width 0.1s"></div></div>'+
+    '<textarea id="dictText" spellcheck="false" style="flex:1;width:100%;box-sizing:border-box;resize:none;padding:14px;border-radius:10px;border:1px solid #444;background:#1a1a2e;color:#fff;font-size:17px;line-height:1.6;outline:none"></textarea>';
+  document.body.appendChild(w);
+  document.getElementById('hcBroadcast').addEventListener('click',toggleBroadcast);
+  document.getElementById('dictCopy').addEventListener('click',function(){
+    var ta=document.getElementById('dictText');
+    ta.select();
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(ta.value).then(function(){flashDictBtn('dictCopy',t('dictCopied'))});
+    }else{
+      try{document.execCommand('copy');flashDictBtn('dictCopy',t('dictCopied'))}catch(e){}
+    }
+  });
+  document.getElementById('dictClear').addEventListener('click',function(){
+    document.getElementById('dictText').value='';
+  });
+  document.getElementById('dictDone').addEventListener('click',function(){
+    stopBroadcast(true);
+    var roomMatch=location.search.match(/[?&]room=([^&]+)/);
+    if(roomMatch){
+      var xhr=new XMLHttpRequest();
+      xhr.open('DELETE','/api/rooms/'+encodeURIComponent(roomMatch[1])+'?clientId='+encodeURIComponent(myClientId),true);
+      xhr.onload=function(){location.href='/lobby.html'};
+      xhr.onerror=function(){location.href='/lobby.html'};
+      xhr.send();
+    }else{location.href='/lobby.html'}
+  });
+}
+function flashDictBtn(id,txt){
+  var b=document.getElementById(id);
+  if(!b)return;
+  var old=b.textContent;
+  b.textContent=txt;
+  setTimeout(function(){b.textContent=old},1200);
+}
 
 /* ── Room Governance ── */
 var isHost=false;

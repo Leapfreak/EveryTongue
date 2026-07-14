@@ -1,4 +1,4 @@
-Imports System.Text.Json
+﻿Imports System.Text.Json
 Imports Microsoft.AspNetCore.Builder
 Imports Microsoft.AspNetCore.Http
 Imports Microsoft.AspNetCore.Routing
@@ -261,6 +261,21 @@ Namespace Server
             End Get
             Set(value As Action(Of String, String))
                 Threading.Volatile.Write(_conferenceRoomCreatedHandler, value)
+            End Set
+        End Property
+
+        Private _dictationRoomCreatedHandler As Action(Of String)
+
+        ''' <summary>
+        ''' Args: (roomId). Spins up the templateless dictation pipeline
+        ''' (web-mic + streaming engine). Set by ConferenceController.
+        ''' </summary>
+        Public Property DictationRoomCreatedHandler As Action(Of String)
+            Get
+                Return Threading.Volatile.Read(_dictationRoomCreatedHandler)
+            End Get
+            Set(value As Action(Of String))
+                Threading.Volatile.Write(_dictationRoomCreatedHandler, value)
             End Set
         End Property
 

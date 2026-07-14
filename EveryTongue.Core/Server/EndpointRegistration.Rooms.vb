@@ -1,4 +1,4 @@
-Imports System.Text.Json
+﻿Imports System.Text.Json
 Imports Microsoft.AspNetCore.Builder
 Imports Microsoft.AspNetCore.Http
 Imports Microsoft.AspNetCore.Routing
@@ -186,10 +186,11 @@ Namespace Server
                                                    Select Case typeStr.ToLower()
                                                        Case "conversation" : roomType = RoomType.Conversation
                                                        Case "workroom" : roomType = RoomType.Workroom
+                                                       Case "dictation" : roomType = RoomType.Dictation
                                                        Case Else : roomType = RoomType.Conference
                                                    End Select
                                                End If
-                                               Dim visibility As RoomVisibility = If(roomType = RoomType.Conversation,
+                                               Dim visibility As RoomVisibility = If(roomType = RoomType.Conversation OrElse roomType = RoomType.Dictation,
                                                    RoomVisibility.Private, RoomVisibility.Public)
                                                If root.TryGetProperty("visibility", visProp) Then
                                                    Dim visStr = If(visProp.GetString(), "")
@@ -221,6 +222,18 @@ Namespace Server
                                                If root.TryGetProperty("translationEngine", engProp) Then translationEngine = If(engProp.GetString(), "")
 
                                                Dim room = mgr.CreateRoom(name, roomType, visibility, hostId, "", translationEngine)
+
+                                               If roomType = RoomType.Dictation Then
+                                                   ' Web-mic is the only audio source a dictation room has; source
+                                                   ' language comes from the creator (engine needs it at start).
+                                                   If String.IsNullOrEmpty(room.Name) Then room.Name = "Dictation"
+                                                   room.AudioSource = "web"
+                                                   Dim slProp As JsonElement = Nothing
+                                                   If root.TryGetProperty("sourceLang", slProp) Then
+                                                       room.SourceLang = If(slProp.GetString(), "auto")
+                                                   End If
+                                                   DictationRoomCreatedHandler?.Invoke(room.Id)
+                                               End If
                                                context.Response.StatusCode = 201
                                                Await context.Response.WriteAsJsonAsync(New With {
                                                    .id = room.Id,

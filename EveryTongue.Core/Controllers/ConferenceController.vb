@@ -137,6 +137,20 @@ Namespace Controllers
                                                                      End Try
                                                                  End Sub
 
+            EndpointRegistration.DictationRoomCreatedHandler = Sub(roomId)
+                                                                    Try
+                                                                        _marshal.Invoke(Sub()
+                                                                                            Try
+                                                                                                HandleDictationRoomCreated(roomId)
+                                                                                            Catch ex As Exception
+                                                                                                _log($"[Dictation] ERROR in HandleDictationRoomCreated: {ex}")
+                                                                                            End Try
+                                                                                        End Sub)
+                                                                    Catch ex As Exception
+                                                                        _log($"[Dictation] ERROR invoking dictation room handler: {ex.Message}")
+                                                                    End Try
+                                                                End Sub
+
             EndpointRegistration.PipelineConfigHandler = Sub(roomId, params)
                                                               Try
                                                                   _marshal.Invoke(Sub()
@@ -204,7 +218,37 @@ Namespace Controllers
                 _log($"[Conference] Template '{templateId}' not found for room {roomId}")
                 Return
             End If
+            StartRoomBackend(roomId, templateId, template)
+        End Sub
 
+        ''' <summary>
+        ''' Dictation rooms have no stored template — synthesize one from the global
+        ''' config: web-mic source, a STREAMING-capable engine (dictation rides the
+        ''' conference pipeline; one-shot /transcribe engines can't stream), source
+        ''' language from the room (picked at creation).
+        ''' </summary>
+        Public Sub HandleDictationRoomCreated(roomId As String)
+            Dim room = _getRoomManager()?.GetRoom(roomId)
+            Dim engineKey = If(_config.SttBackend, "")
+            Dim entry = SttBackendRegistry.Find(engineKey)
+            If entry Is Nothing OrElse Not String.Equals(entry.SidecarMode, "online", StringComparison.OrdinalIgnoreCase) Then
+                _log($"[Dictation:{roomId}] global engine '{engineKey}' can't stream — using speechmatics")
+                engineKey = "speechmatics"
+            End If
+            Dim tpl As New ConferenceTemplate With {
+                .Id = "dictation",
+                .Name = "Dictation",
+                .SourceLanguage = If(room?.SourceLang, "auto"),
+                .SttBackendKey = engineKey,
+                .AudioSource = "web",
+                .WebMicRaw = False,
+                .Mode = Models.Templates.ConnectivityMode.Online
+            }
+            StartRoomBackend(roomId, "dictation", tpl)
+        End Sub
+
+        ''' <summary>Shared backend start for template-backed (conference) and synthetic (dictation) rooms.</summary>
+        Private Sub StartRoomBackend(roomId As String, templateId As String, template As ConferenceTemplate)
             If _sttBackends.ContainsKey(roomId) Then
                 _log($"[Conference] Backend already exists for room {roomId}")
                 Return

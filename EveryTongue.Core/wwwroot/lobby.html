@@ -252,6 +252,24 @@
 
         <button class="btn btn-primary" id="btn-create">Create Conversation</button>
 
+        <!-- Dictation: private single-user speech-to-text editor -->
+        <hr class="divider">
+        <div class="section-label">Dictation</div>
+        <div class="form-group">
+            <label for="dict-lang">Speaking language</label>
+            <select id="dict-lang" style="width:100%;padding:10px;border-radius:8px;border:1px solid #444;background:#1a1a2e;color:#e0e0e0;font-size:14px">
+                <option value="ca">Catalan</option>
+                <option value="es">Spanish</option>
+                <option value="en">English</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+                <option value="it">Italian</option>
+                <option value="pt">Portuguese</option>
+                <option value="nl">Dutch</option>
+            </select>
+        </div>
+        <button class="btn btn-primary" id="btn-dictate">Start Dictation</button>
+
         <!-- Host Conference (template-based) -->
         <div id="conference-section" style="display:none">
             <hr class="divider">
@@ -287,6 +305,6 @@
         <button class="btn btn-secondary btn-close-qr" id="btn-close-qr">Close</button>
     </div>
 
-    <script src="/js/lobby.js?v=2.7.8"></script>
+    <script src="/js/lobby.js?v=2.7.10"></script>
 </body>
 </html>

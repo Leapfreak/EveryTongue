@@ -1,4 +1,4 @@
-Imports System.Collections.Concurrent
+﻿Imports System.Collections.Concurrent
 
 Namespace Services.Rooms
 
@@ -6,6 +6,9 @@ Namespace Services.Rooms
         Conference
         Conversation
         Workroom
+        ''' <summary>Single-user speech-to-text editor: a private room whose view is a
+        ''' textarea instead of subtitles. Web-mic source; engine from global config.</summary>
+        Dictation
     End Enum
 
     Public Enum RoomVisibility

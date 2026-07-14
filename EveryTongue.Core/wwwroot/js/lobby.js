@@ -155,6 +155,35 @@
         togglePrivate.classList.toggle("on", isPrivate);
     });
 
+    // ── Dictation: private single-user room whose view is a text editor.
+    // Same creator-code gate and engine spend as any room — the server picks
+    // a streaming engine and waits for the browser's Broadcast Mic.
+    const btnDictate = document.getElementById("btn-dictate");
+    btnDictate.addEventListener("click", async function () {
+        btnDictate.disabled = true;
+        try {
+            const lang = document.getElementById("dict-lang").value;
+            const res = await fetch("/api/rooms", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: "Dictation",
+                    type: "dictation",
+                    sourceLang: lang,
+                    creatorCode: creatorCode()
+                })
+            });
+            if (!res.ok) throw new Error("Server returned " + res.status);
+            const room = await res.json();
+            addMyRoom(room);
+            location.href = "/index.html?room=" + encodeURIComponent(room.id);
+        } catch (err) {
+            alert("Failed to start dictation: " + err.message);
+        } finally {
+            btnDictate.disabled = false;
+        }
+    });
+
     // ── Create conversation room ──
     btnCreate.addEventListener("click", async function () {
         var suffix = Math.random().toString(36).substring(2, 6);
