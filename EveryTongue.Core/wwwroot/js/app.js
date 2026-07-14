@@ -31,6 +31,9 @@ var T={connecting:'Connecting...',connected:'Connected',disconnected:'Disconnect
     stepDetails:'Tap "Show Details"',stepVisit:'Tap "visit this website"',
     stepRetry:'Tap the screen wake button again',
     openSecure:'Open Secure Page',cancel:'Cancel',
+    rsPreparing:'Preparing speech engine...',
+    rsWaitMicHost:'Waiting for microphone — open Host Controls and tap Broadcast Mic',
+    rsWaitMic:'Waiting for the host to start the microphone…',
     setTitle:'Server Settings',setBootstrap:'First-time setup: choose your engines, paste your API keys, and set an admin PIN to secure this server.',
     setSttEngine:'Speech engine',setTransEngine:'Translation engine',
     setKeysStt:'Speech API keys',setKeysTrans:'Translation API keys',
@@ -1713,7 +1716,7 @@ function startBroadcastCapture(){
       if(!bcWant){stream.getTracks().forEach(function(tr){tr.stop()});return}
       bcStream=stream;
       bcCtx=new AudioContext();
-      return bcCtx.audioWorklet.addModule('/js/mic-worklet.js?v=2.7.4').then(function(){
+      return bcCtx.audioWorklet.addModule('/js/mic-worklet.js?v=2.7.6').then(function(){
         var src=bcCtx.createMediaStreamSource(stream);
         bcNode=new AudioWorkletNode(bcCtx,'mic-downsampler');
         bcAnalyser=bcCtx.createAnalyser();
@@ -1735,6 +1738,9 @@ function startBroadcastCapture(){
         bcActive=true;
         updateBroadcastUi('on');
         startBcMeter();
+        /* the room was waiting for THIS mic — reflect the handover instantly
+           (the readiness notifier confirms 'ready' a few seconds later) */
+        if(document.getElementById('rs-stt'))rsSetLine('stt',t('rsPreparing'));
         LOG('Broadcast capture running (device rate='+bcCtx.sampleRate+'Hz, processed='+proc+')');
       });
     })
@@ -1990,7 +1996,13 @@ function handleRoomStatus(msg){
   if(scope==='stt'){
     if(state==='preparing'){
       _sttReady=false;setPttEnabled(false);
-      rsSetLine('stt','Preparing speech engine...');
+      /* Web-mic rooms aren't "loading" — they're honestly waiting for a broadcaster.
+         Tell the host it's THEIR move; tell listeners what's happening. */
+      if(roomAudioSource==='web'&&!bcActive){
+        rsSetLine('stt',isHost?t('rsWaitMicHost'):t('rsWaitMic'));
+      }else{
+        rsSetLine('stt',t('rsPreparing'));
+      }
       if(_sttSafetyTimer)clearTimeout(_sttSafetyTimer);
       /* If a 'ready' message is ever lost, re-enable after 90s so the mic can't be trapped */
       _sttSafetyTimer=setTimeout(function(){_sttReady=true;setPttEnabled(true);rsRemoveLine('stt')},90000);
@@ -2388,6 +2400,11 @@ function updateSpeakingUI(){
 
 /* Host controls */
 function showHostControls(){
+  /* If the waiting-for-mic banner rendered before host status arrived,
+     upgrade the listener wording to the host call-to-action. */
+  if(roomAudioSource==='web'&&!bcActive&&document.getElementById('rs-stt')){
+    rsSetLine('stt',t('rsWaitMicHost'));
+  }
   if(document.getElementById('hostGearBtn'))return;
   var btn=document.createElement('button');
   btn.id='hostGearBtn';
