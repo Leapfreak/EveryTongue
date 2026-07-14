@@ -139,7 +139,14 @@ def register_engine(key, *, requires_model=True, create_streaming=None,
             fall back to the VAD pipeline. May itself return ``None`` at call
             time (e.g. Google returns None when the gRPC package is missing).
         transcribe_fn: optional ``(audio, language, beam_size, best_of,
-            initial_prompt) -> (segments, info)`` for the VAD-pipeline path.
+            initial_prompt) -> (segments, info)`` for the VAD-pipeline path
+            and one-shot POST /transcribe (conversation-room PTT). Local
+            engines get this via their model; of the online engines only
+            speechmatics implements it (short-lived session per utterance) —
+            deepgram/gladia/azure deliberately do not, and the .NET side
+            mirrors that in SttBackendRegistry.SupportsOneShotTranscribe so
+            servers on those engines hide conversation rooms instead of
+            failing at PTT time. Implement both sides together or neither.
         vad_preset: optional ``(vad_config) -> None`` to tweak VAD config when
             this engine uses the VAD-pipeline path.
         is_local: True for local engines registered by server.py

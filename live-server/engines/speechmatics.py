@@ -114,6 +114,24 @@ _SENTENCE_END = ".?!…。？！۔؟"
 _CHUNK_SAMPLES = int(SAMPLE_RATE * 0.1)
 
 
+def _apply_operating_point(kwargs, transcription_config_cls, tier):
+    """Set the accuracy tier on TranscriptionConfig kwargs, handling the SDK's
+    `operating_point` -> `model` deprecation (same tier names). The SDK is
+    unpinned in the Lite image, so a future build may drop the old field —
+    prefer `model` when the installed SDK exposes it, fall back otherwise.
+    Shared by the streaming pipeline and the one-shot /transcribe path."""
+    import inspect
+    if "model" in inspect.signature(transcription_config_cls.__init__).parameters:
+        kwargs["model"] = str(tier)
+    else:
+        from speechmatics.rt import OperatingPoint
+        try:
+            kwargs["operating_point"] = OperatingPoint(str(tier))
+        except Exception:
+            kwargs["operating_point"] = OperatingPoint.ENHANCED
+    return kwargs
+
+
 class SpeechmaticsStreamingPipeline:
     """Streams audio to Speechmatics real-time API via an AsyncClient on a
     background event loop."""
@@ -313,7 +331,7 @@ class SpeechmaticsStreamingPipeline:
         try:
             from speechmatics.rt import (
                 AsyncClient, AudioEncoding, AudioFormat, ConversationConfig,
-                OperatingPoint, ServerMessageType, TranscriptionConfig,
+                ServerMessageType, TranscriptionConfig,
                 TranscriptResult, TranslationConfig,
             )
         except ImportError as e:
@@ -322,11 +340,6 @@ class SpeechmaticsStreamingPipeline:
                 f"[SPEECHMATICS] speechmatics-rt not installed. "
                 f"Run: pip install speechmatics-rt\n{e}")
             return
-
-        try:
-            operating_point = OperatingPoint(self._operating_point)
-        except Exception:
-            operating_point = OperatingPoint.ENHANCED
 
         url = REGION_URLS.get(self._region, REGION_URLS[DEFAULT_REGION])
         loop = asyncio.get_running_loop()
@@ -489,15 +502,7 @@ class SpeechmaticsStreamingPipeline:
                         conversation_config=ConversationConfig(
                             end_of_utterance_silence_trigger=self._eou_silence),
                     )
-                    # Speechmatics deprecated `operating_point` in favour of `model`
-                    # (same tier names). The SDK is unpinned in the Lite image, so a
-                    # future build may drop the old field — prefer `model` when the
-                    # installed SDK exposes it, fall back otherwise.
-                    import inspect as _inspect
-                    if "model" in _inspect.signature(TranscriptionConfig.__init__).parameters:
-                        tc_kwargs["model"] = str(self._operating_point)
-                    else:
-                        tc_kwargs["operating_point"] = operating_point
+                    _apply_operating_point(tc_kwargs, TranscriptionConfig, self._operating_point)
                     transcription_config = TranscriptionConfig(**tc_kwargs)
                     audio_format = AudioFormat(
                         encoding=AudioEncoding.PCM_S16LE,
@@ -659,18 +664,13 @@ def _transcribe_speechmatics(audio_array, language=None,
         # Own thread + own event loop: /transcribe may be called from an async
         # context where asyncio.run() would be illegal.
         async def _run_once():
-            import inspect as _ins
             import io as _io
             from speechmatics.rt import (
-                AsyncClient, AudioEncoding, AudioFormat, OperatingPoint,
+                AsyncClient, AudioEncoding, AudioFormat,
                 ServerMessageType, TranscriptionConfig, TranscriptResult,
             )
             kwargs = dict(language=lang, enable_partials=False, max_delay=1.0)
-            # operating_point -> model deprecation: same dual-path as streaming.
-            if "model" in _ins.signature(TranscriptionConfig.__init__).parameters:
-                kwargs["model"] = DEFAULT_OPERATING_POINT
-            else:
-                kwargs["operating_point"] = OperatingPoint(DEFAULT_OPERATING_POINT)
+            _apply_operating_point(kwargs, TranscriptionConfig, DEFAULT_OPERATING_POINT)
             async with AsyncClient(api_key=api_key,
                                    url=REGION_URLS[DEFAULT_REGION]) as client:
                 @client.on(ServerMessageType.ADD_TRANSCRIPT)

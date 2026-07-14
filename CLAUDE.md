@@ -46,7 +46,7 @@
 - The translation pipeline (live/job) already does sentence splitting. The Translate workspace does its own splitting in `RunTranslateAsync` via `SplitIntoSentences()`.
 
 ### Web client (wwwroot/js/app.js)
-- Must be ES5-compatible (no arrow functions, no `let`/`const`, no template literals).
+- **app.js must be ES5-compatible** (no arrow functions, no `let`/`const`, no template literals) — it runs on old phone browsers. This rule is app.js-specific: lobby.js and mic-worklet.js are newer files where ES6 is fine (lobby.js documents this in its header; AudioWorklet scope requires a modern browser anyway).
 - WebView2 caches aggressively. Use `_cb={timestamp}` cache-busting URL params when navigating.
 - The `?bibleLang=` param triggers auto-opening the Bible panel and skipping the language picker.
 

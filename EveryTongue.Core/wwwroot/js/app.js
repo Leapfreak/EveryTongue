@@ -47,6 +47,15 @@ var T={connecting:'Connecting...',connected:'Connected',disconnected:'Disconnect
     bcRejected:'Microphone broadcast not allowed (host only)',
     bcUnsupported:'This browser cannot broadcast (needs HTTPS + a recent browser)',
     bcMicFailed:'Could not access the microphone — check permissions',
+    micUnavailable:'Microphone not available',micDenied:'Mic access denied',recording:'Recording...',
+    hostControls:'Host Controls',endRoom:'End Room',clearCaptions:'Clear Captions',
+    addGuest:'Add Guest',guestName:'Name',guestAdd:'Add',youLabel:'You',typeMessage:'Type a message...',
+    pipeResetting:'Resetting...',pipeResetOk:'Pipeline reset OK',netError:'Network error',
+    applying:'Applying...',applied:'Applied ({0} params)',failed:'Failed',errorLabel:'Error',
+    bibleNoBibles:'No Bibles installed for this language.',bibleNoBiblesHint:'Use the Download Manager to add Bibles.',
+    bibleLoadFail:'Failed to load',bibleTransFail:'Failed to load translations',bibleNoVerses:'No verses',
+    bibleBadRef:'Could not parse reference',bibleRefError:'Error looking up reference',
+    bibleSearching:'Searching...',bibleSearchFail:'Search failed',
     sending:'Sending...',cmdSent:' command sent',cmdFail:'Failed to send command',
     liveRun:'Live: RUNNING',stopped:'Status: STOPPED',
     noServer:'Unable to reach server',checking:'Checking...',
@@ -1041,12 +1050,12 @@ function loadBibleTranslations(){
   var lang=getBibleLang();
   fetch('/bible/translations?lang='+encodeURIComponent(lang),{cache:'no-store'}).then(function(r){return r.json()}).then(function(data){
     if(!data||!Array.isArray(data)||data.length===0){
-      bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">No Bibles installed for this language.<br>Use the Download Manager to add Bibles.</div>';
+      bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">'+t('bibleNoBibles')+'<br>'+t('bibleNoBiblesHint')+'</div>';
       return;
     }
     populateBibleData(data);
   }).catch(function(){
-    bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:40px">Failed to load translations</div>';
+    bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:40px">'+t('bibleTransFail')+'</div>';
   });
 }
 
@@ -1245,7 +1254,7 @@ function showChapters(book){
     bibleContent.appendChild(grid);
     bibleContent.scrollTop=0;
   }).catch(function(){
-    bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">Failed to load</div>';
+    bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleLoadFail')+'</div>';
   });
 }
 
@@ -1275,7 +1284,7 @@ function showVerses(book,chapter){
   fetch('/bible/'+encodeURIComponent(currentBibleTrans)+'/'+encodeURIComponent(book)+'/'+chapter).then(function(r){return r.json()}).then(function(data){
     bibleContent.innerHTML='';
     if(!data||!data.verses||data.verses.length===0){
-      bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:20px">No verses</div>';return;
+      bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:20px">'+t('bibleNoVerses')+'</div>';return;
     }
     for(var i=0;i<data.verses.length;i++){
       var v=data.verses[i];
@@ -1290,7 +1299,7 @@ function showVerses(book,chapter){
     appendCopyrightFooter();
     bibleContent.scrollTop=0;
   }).catch(function(){
-    bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">Failed to load</div>';
+    bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleLoadFail')+'</div>';
   });
 }
 
@@ -1305,7 +1314,7 @@ function lookupRef(){LOG('lookupRef');
   var input=document.getElementById('bibleRefInput').value.trim();
   if(!input||!currentBibleTrans)return;
   fetch('/bible/parse?ref='+encodeURIComponent(input)+'&translation='+encodeURIComponent(currentBibleTrans)).then(function(r){return r.json()}).then(function(ref){
-    if(!ref||!ref.isValid){bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">Could not parse reference</div>';return}
+    if(!ref||!ref.isValid){bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleBadRef')+'</div>';return}
     if(ref.verseStart>0){
       var versePath=ref.verseStart+(ref.verseEnd>ref.verseStart?'-'+ref.verseEnd:'');
       fetch('/bible/'+encodeURIComponent(currentBibleTrans)+'/'+encodeURIComponent(ref.book)+'/'+ref.chapter+'/'+versePath).then(function(r2){return r2.json()}).then(function(data){
@@ -1330,7 +1339,7 @@ function lookupRef(){LOG('lookupRef');
       showVerses(ref.book,ref.chapter);
     }
   }).catch(function(){
-    bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">Error looking up reference</div>';
+    bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleRefError')+'</div>';
   });
 }
 
@@ -1343,7 +1352,7 @@ function toggleBibleSearch(){
 function bibleSearch(){LOG('bibleSearch');
   var q=document.getElementById('bibleSearchInput').value.trim();
   if(!q||!currentBibleTrans)return;
-  bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">Searching...</div>';
+  bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">'+t('bibleSearching')+'</div>';
   bibleNavStack=[{type:'books'}];
   btnBibleBack.style.display='';
   bibleNavTitle.textContent=t('bibleSearch')+': '+q;
@@ -1371,7 +1380,7 @@ function bibleSearch(){LOG('bibleSearch');
     appendCopyrightFooter();
     bibleContent.scrollTop=0;
   }).catch(function(){
-    bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">Search failed</div>';
+    bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleSearchFail')+'</div>';
   });
 }
 
@@ -1404,7 +1413,7 @@ function openBibleRef(book,chapter,verseStart,verseEnd){
     }
     addReadAllBtn();
   }).catch(function(){
-    bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">Failed to load</div>';
+    bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleLoadFail')+'</div>';
   });
 }
 
@@ -2022,10 +2031,10 @@ function handleRoomStatus(msg){
 }
 
 function startRecording(btn,label){
-  if(!_sttReady){if(label)label.textContent='Preparing speech engine...';return}
+  if(!_sttReady){if(label)label.textContent=t('rsPreparing');return}
   if(pttActive)return;
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
-    label.textContent='Microphone not available';
+    label.textContent=t('micUnavailable');
     return;
   }
   pttActive=true;
@@ -2033,7 +2042,7 @@ function startRecording(btn,label){
   btn.style.background='#e74c3c';
   btn.style.transform='scale(1.15)';
   btn.classList.add('ptt-recording');
-  label.textContent='Recording...';
+  label.textContent=t('recording');
   localRecording=true;updateSpeakingUI();
   if(wsRef&&wsRef.readyState===1){wsRef.send(JSON.stringify({type:'startSpeaking'}))}
 
@@ -2067,7 +2076,7 @@ function startRecording(btn,label){
       pttActive=false;
       btn.style.background='#7c9cf7';
       btn.style.transform='';
-      label.textContent='Mic access denied';
+      label.textContent=t('micDenied');
       var dl=pttMode==='toggle'?'Tap to speak':'Hold to speak';
       setTimeout(function(){label.textContent=dl},2000);
     });
@@ -2079,7 +2088,7 @@ function stopRecording(btn,label){
   btn.style.background='#7c9cf7';
   btn.style.transform='';
   btn.classList.remove('ptt-recording');
-  label.textContent='Sending...';
+  label.textContent=t('sending');
   localRecording=false;updateSpeakingUI();
   if(pttRecorder&&pttRecorder.state==='recording'){
     pttRecorder.stop();
@@ -2444,7 +2453,7 @@ function updateSpeakingUI(){
     }
   }
   if(localRecording){
-    nameEl.textContent='Recording...';
+    nameEl.textContent=t('recording');
     banner.style.display='flex';
     banner.style.borderBottomColor='#e74c3c';
   }else if(otherNames.length>0){
@@ -2466,7 +2475,7 @@ function showHostControls(){
   if(document.getElementById('hostGearBtn'))return;
   var btn=document.createElement('button');
   btn.id='hostGearBtn';
-  btn.title='Host Controls';
+  btn.title=t('hostControls');
   btn.innerHTML='<img src="/img/icon.png" style="height:20px;width:20px;border-radius:50%;vertical-align:middle">';
   btn.addEventListener('click',toggleHostPanel);
   var toolbar=document.getElementById('toolbar');
@@ -2483,9 +2492,9 @@ function toggleHostPanel(){
   var roomMatch=location.search.match(/[?&]room=([^&]+)/);
   var roomId=roomMatch?roomMatch[1]:'';
   var hostHtml=
-    '<div style="color:#fff;font-weight:600;margin-bottom:12px">Host Controls</div>'+
-    '<button id="hcEndRoom" style="width:100%;padding:10px;border:none;border-radius:8px;background:#e74c3c;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">End Room</button>'+
-    '<button id="hcClear" style="width:100%;padding:10px;border:none;border-radius:8px;background:#555;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">✕ Clear Captions</button>';
+    '<div style="color:#fff;font-weight:600;margin-bottom:12px">'+t('hostControls')+'</div>'+
+    '<button id="hcEndRoom" style="width:100%;padding:10px;border:none;border-radius:8px;background:#e74c3c;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">'+t('endRoom')+'</button>'+
+    '<button id="hcClear" style="width:100%;padding:10px;border:none;border-radius:8px;background:#555;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">✕ '+t('clearCaptions')+'</button>';
   if(pttRoomType==='conference'){
     var isPaused=window._roomPaused||false;
     hostHtml+='<button id="hcPauseBtn" style="width:100%;padding:10px;border:none;border-radius:8px;background:'+(isPaused?'#e74c3c':'#27ae60')+';color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">'+(isPaused?'\u23F8 Paused':'\u25B6 Playing')+'</button>';
@@ -2499,7 +2508,7 @@ function toggleHostPanel(){
     hostHtml+=
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="color:#ccc;font-size:13px">Lock Room</span><div id="hcLockToggle" class="hc-toggle" style="width:40px;height:22px;background:#444;border-radius:11px;position:relative;cursor:pointer;transition:background 0.2s"><div style="width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s"></div></div></div>'+
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><span style="color:#ccc;font-size:13px">PTT: Tap to toggle</span><div id="hcPttToggle" class="hc-toggle" style="width:40px;height:22px;background:#444;border-radius:11px;position:relative;cursor:pointer;transition:background 0.2s"><div style="width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s"></div></div></div>'+
-      '<button id="hcAddGuest" style="width:100%;padding:10px;border:1px solid #7c9cf7;border-radius:8px;background:transparent;color:#7c9cf7;font-size:14px;cursor:pointer">+ Add Guest</button>';
+      '<button id="hcAddGuest" style="width:100%;padding:10px;border:1px solid #7c9cf7;border-radius:8px;background:transparent;color:#7c9cf7;font-size:14px;cursor:pointer">+ '+t('addGuest')+'</button>';
   }
   panel.innerHTML=hostHtml;
 
@@ -2621,18 +2630,18 @@ function toggleHostPanel(){
     var hcReset=document.getElementById('hcPipeReset');
     if(hcReset)hcReset.addEventListener('click',function(){
       var st=document.getElementById('hcPipeStatus');
-      if(st){st.textContent='Resetting...';st.style.color='#e67e22'}
+      if(st){st.textContent=t('pipeResetting');st.style.color='#e67e22'}
       var xhr=new XMLHttpRequest();
       xhr.open('POST','/api/control/pipeline/reset',true);
       xhr.setRequestHeader('Content-Type','application/json');
       xhr.onload=function(){
         try{
           var res=JSON.parse(xhr.responseText);
-          if(res.ok){if(st){st.textContent='Pipeline reset OK';st.style.color='#4f4'}}
+          if(res.ok){if(st){st.textContent=t('pipeResetOk');st.style.color='#4f4'}}
           else{if(st){st.textContent=res.error||'Reset failed';st.style.color='#f44'}}
         }catch(e){if(st){st.textContent='Error';st.style.color='#f44'}}
       };
-      xhr.onerror=function(){if(st){st.textContent='Network error';st.style.color='#f44'}};
+      xhr.onerror=function(){if(st){st.textContent=t('netError');st.style.color='#f44'}};
       xhr.send(JSON.stringify({roomId:roomId,clientId:myClientId}));
     });
 
@@ -2647,18 +2656,18 @@ function toggleHostPanel(){
       var mdSel=document.getElementById('hcMode');
       if(mdSel&&mdSel.value!==roomMode)params.mode=mdSel.value;
       var st=document.getElementById('hcPipeStatus');
-      if(st)st.textContent='Applying...';
+      if(st)st.textContent=t('applying');
       var xhr=new XMLHttpRequest();
       xhr.open('POST','/api/control/pipeline',true);
       xhr.setRequestHeader('Content-Type','application/json');
       xhr.onload=function(){
         try{
           var res=JSON.parse(xhr.responseText);
-          if(res.ok){if(st)st.textContent='Applied ('+res.changed+' params)';st.style.color='#4f4';if(params.language)roomSourceLang=params.language;if(params.speakerId!==undefined)roomActiveSpeakerId=params.speakerId;if(params.mode)roomMode=params.mode}
-          else{if(st){st.textContent=res.error||'Failed';st.style.color='#f44'}}
-        }catch(e){if(st){st.textContent='Error';st.style.color='#f44'}}
+          if(res.ok){if(st)st.textContent=t('applied').replace('{0}',res.changed);st.style.color='#4f4';if(params.language)roomSourceLang=params.language;if(params.speakerId!==undefined)roomActiveSpeakerId=params.speakerId;if(params.mode)roomMode=params.mode}
+          else{if(st){st.textContent=res.error||t('failed');st.style.color='#f44'}}
+        }catch(e){if(st){st.textContent=t('errorLabel');st.style.color='#f44'}}
       };
-      xhr.onerror=function(){if(st){st.textContent='Network error';st.style.color='#f44'}};
+      xhr.onerror=function(){if(st){st.textContent=t('netError');st.style.color='#f44'}};
       xhr.send(JSON.stringify(params));
     });
   }
@@ -2668,11 +2677,11 @@ function showAddGuestPrompt(roomId){
   var overlay=document.createElement('div');
   overlay.id='addGuestOverlay';
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:300;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:24px';
-  overlay.innerHTML='<div style="color:#fff;font-size:18px;margin-bottom:16px">Add Guest</div>'+
-    '<input id="guestNameInput" type="text" placeholder="Name" tabindex="1" style="padding:10px 14px;border-radius:8px;border:1px solid #555;background:#252540;color:#fff;font-size:16px;width:200px;outline:none;margin-bottom:12px">'+
+  overlay.innerHTML='<div style="color:#fff;font-size:18px;margin-bottom:16px">'+t('addGuest')+'</div>'+
+    '<input id="guestNameInput" type="text" placeholder="'+t('guestName')+'" tabindex="1" style="padding:10px 14px;border-radius:8px;border:1px solid #555;background:#252540;color:#fff;font-size:16px;width:200px;outline:none;margin-bottom:12px">'+
     '<select id="guestLangSelect" tabindex="2" style="padding:10px 14px;border-radius:8px;border:1px solid #555;background:#252540;color:#fff;font-size:14px;width:224px;outline:none;margin-bottom:16px"></select>'+
-    '<button id="guestAddBtn" tabindex="3" style="padding:10px 32px;border:none;border-radius:10px;background:#7c9cf7;color:#1a1a2e;font-size:16px;font-weight:600;cursor:pointer">Add</button>'+
-    '<button id="guestCancelBtn" tabindex="4" style="margin-top:10px;padding:8px 24px;border:none;border-radius:8px;background:#333;color:#ccc;font-size:14px;cursor:pointer">Cancel</button>';
+    '<button id="guestAddBtn" tabindex="3" style="padding:10px 32px;border:none;border-radius:10px;background:#7c9cf7;color:#1a1a2e;font-size:16px;font-weight:600;cursor:pointer">'+t('guestAdd')+'</button>'+
+    '<button id="guestCancelBtn" tabindex="4" style="margin-top:10px;padding:8px 24px;border:none;border-radius:8px;background:#333;color:#ccc;font-size:14px;cursor:pointer">'+t('cancel')+'</button>';
   document.body.appendChild(overlay);
   /* Populate language select */
   var sel=document.getElementById('guestLangSelect');
@@ -2735,7 +2744,7 @@ function updateVirtualMemberPtt(){
   selfBtn.className='vm-identity-btn';
   selfBtn.dataset.vmid='';
   selfBtn.style.cssText='padding:6px 14px;border-radius:20px;font-size:13px;cursor:pointer;border:2px solid '+(activeVirtualMemberId===''?'#7c9cf7':'#444')+';color:#fff;background:#252540';
-  selfBtn.textContent='You';
+  selfBtn.textContent=t('youLabel');
   area.appendChild(selfBtn);
   /* Virtual member identities */
   for(var i=0;i<virtualMembers.length;i++){
@@ -2880,7 +2889,7 @@ function initTextChat(){
   var input=document.createElement('textarea');
   input.id='chatInput';
   input.rows=1;
-  input.placeholder='Type a message...';
+  input.placeholder=t('typeMessage');
   input.style.cssText='flex:1;padding:10px 14px;border-radius:18px;border:1px solid #444;background:#252540;color:#fff;font-size:14px;outline:none;min-width:0;resize:none;overflow:hidden;max-height:120px;line-height:1.4;font-family:inherit';
   function autoResize(){input.style.height='auto';input.style.height=Math.min(input.scrollHeight,120)+'px'}
   input.addEventListener('input',autoResize);

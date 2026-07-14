@@ -11,7 +11,6 @@ import logging
 import logging.handlers
 import os
 import re
-import signal
 import subprocess
 import sys
 import tempfile

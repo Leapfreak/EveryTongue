@@ -104,9 +104,9 @@ Namespace Services.Stt
         ''' its STT engine is Speechmatics). Engine-owned: finds the engine's own
         ''' config block on the session (a non-Speechmatics session has none → no-op),
         ''' and computes the engine-native target codes. Callers stay blind to the
-        ''' engine's fields. cfg is unused for gating now (kept for signature stability).
+        ''' engine's fields.
         ''' </summary>
-        Public Sub ConfigureSession(sttConfig As SttSessionConfig, cfg As AppConfig,
+        Public Sub ConfigureSession(sttConfig As SttSessionConfig,
                                     sourceWhisperLang As String, activeLangs As List(Of String),
                                     enabled As Boolean)
             If Not enabled Then Return

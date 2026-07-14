@@ -319,7 +319,7 @@ Namespace Controllers
             ' overrides the global Options translation engine for this room's calls.
             ResolveRoomTranslationEngine(roomId, template)
 
-            SpeechmaticsTranslation.ConfigureSession(sttConfig, _config, sttConfig.Language,
+            SpeechmaticsTranslation.ConfigureSession(sttConfig, sttConfig.Language,
                                                      _getSubtitleSvc()?.GetActiveTranslationLanguages(),
                                                      ResolveInlineEnabled(roomId, backendKey))
             _clauseCoordinator.StorePinnedClauseDials(roomId, engineTpl, sttConfig)
@@ -534,7 +534,7 @@ Namespace Controllers
             ' translation so the inline-vs-fallback decision is current.
             ResolveRoomTranslationEngine(roomId, template)
 
-            SpeechmaticsTranslation.ConfigureSession(sttConfig, _config, cfgLang,
+            SpeechmaticsTranslation.ConfigureSession(sttConfig, cfgLang,
                                                      _getSubtitleSvc()?.GetActiveTranslationLanguages(),
                                                      ResolveInlineEnabled(roomId, restartBackendKey))
             _clauseCoordinator.StorePinnedClauseDials(roomId, engineTpl, sttConfig)
