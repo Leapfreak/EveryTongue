@@ -861,16 +861,22 @@ function buildSettingsOverlay(s,pin){
     if(newPin)body.adminPin=newPin;
     if(!s.adminPinSet&&!newPin){
       var m=document.getElementById('setMsg');m.style.color='#f44';m.textContent=t('setPinRequired');return}
+    /* Success is decided by the RESPONSE alone — any post-success UI hiccup must
+       never repaint as a failure (field bug: save applied server-side while the
+       overlay showed "failed to send command"). */
     fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-      .then(function(r){return r.json()}).then(function(res){
+      .then(function(r){return r.json().catch(function(){return {ok:r.status>=200&&r.status<300}})})
+      .then(function(res){
         var m=document.getElementById('setMsg');
         if(res.ok){
-          m.style.color='#4f4';m.textContent=t('setSaved');
-          if(newPin){sessionStorage.setItem('adminPin',newPin);sessionStorage.setItem('isAdmin','true');isAdmin=true;hasAdminPin=true;
-            document.getElementById('btnAdmin').style.display=''}
+          if(m){m.style.color='#4f4';m.textContent=t('setSaved')}
+          try{
+            if(newPin){sessionStorage.setItem('adminPin',newPin);sessionStorage.setItem('isAdmin','true');isAdmin=true;hasAdminPin=true;
+              var ab=document.getElementById('btnAdmin');if(ab)ab.style.display=''}
+          }catch(e){LOG('settings post-save UI: '+e)}
           setTimeout(function(){d.remove()},1200);
-        }else{m.style.color='#f44';m.textContent=res.error||t('setBadPin')}
-      }).catch(function(){var m=document.getElementById('setMsg');m.style.color='#f44';m.textContent=t('cmdFail')});
+        }else if(m){m.style.color='#f44';m.textContent=res.error||t('setBadPin')}
+      }).catch(function(e){LOG('settings save error: '+e);var m=document.getElementById('setMsg');if(m){m.style.color='#f44';m.textContent=t('cmdFail')}});
   });
 }
 var rOpts=rateSelect.options;rOpts[0].textContent=t('slow');rOpts[1].textContent=t('normal');rOpts[2].textContent=t('fast');rOpts[3].textContent=t('vfast');
@@ -1707,7 +1713,7 @@ function startBroadcastCapture(){
       if(!bcWant){stream.getTracks().forEach(function(tr){tr.stop()});return}
       bcStream=stream;
       bcCtx=new AudioContext();
-      return bcCtx.audioWorklet.addModule('/js/mic-worklet.js?v=2.7.0').then(function(){
+      return bcCtx.audioWorklet.addModule('/js/mic-worklet.js?v=2.7.4').then(function(){
         var src=bcCtx.createMediaStreamSource(stream);
         bcNode=new AudioWorkletNode(bcCtx,'mic-downsampler');
         bcAnalyser=bcCtx.createAnalyser();
