@@ -1065,6 +1065,11 @@ async def load_model_endpoint(request: Request):
     body = await request.json()
     requested_model_path = body.get("model_path", model_path_global)
 
+    # Conversation rooms deliver the STT key here (/start never runs on that path).
+    lm_key = body.get("stt_api_key", "")
+    if lm_key:
+        engines.set_api_key(_backend_mode, lm_key)
+
     if not engines.requires_model(_backend_mode):
         # Online engine — no local model to load.
         pass
@@ -1227,7 +1232,9 @@ async def benchmark_endpoint(request: Request):
         if not ready:
             return JSONResponse({"status": "error", "detail": detail}, status_code=503)
 
-    if not _has_silero_vad or not _has_vad_pipeline:
+    # VAD is only needed by LOCAL engines' chunking; online one-shot engines
+    # (Speechmatics) receive the complete utterance and endpoint server-side.
+    if engines.requires_model(_backend_mode) and (not _has_silero_vad or not _has_vad_pipeline):
         return JSONResponse({"status": "error", "detail": "VAD pipeline not available"}, status_code=503)
 
     # Load audio file

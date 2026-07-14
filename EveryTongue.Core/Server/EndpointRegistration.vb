@@ -44,10 +44,12 @@ Namespace Server
 
         ''' <summary>
         ''' Can this server serve one-shot POST /transcribe (conversation-room PTT)?
-        ''' Requires an OFFLINE whisper-family engine with its model present —
-        ''' streaming engines (Speechmatics etc.) cannot one-shot, and Lite ships no
-        ''' models. Reads the LIVE config when available (web settings can change the
-        ''' engine at runtime), falling back to the startup ServerOptions snapshot.
+        ''' True for an OFFLINE whisper-family engine with its model present, or an
+        ''' ONLINE engine whose python module implements one-shot transcription
+        ''' (SupportsOneShotTranscribe — e.g. Speechmatics via a short-lived session)
+        ''' with an API key configured. Reads the LIVE config when available (web
+        ''' settings can change the engine at runtime), falling back to the startup
+        ''' ServerOptions snapshot.
         ''' </summary>
         Friend Function TranscribeCapable(serverOpts As ServerOptions) As Boolean
             Dim backend = If(serverOpts.SttBackend, "")
@@ -60,7 +62,14 @@ Namespace Server
                     If(liveEntry?.ModelPathFromConfig?.Invoke(cfg), cfg.PathWhisperCppModel))
             End If
             Dim entry = Services.Stt.SttBackendRegistry.Find(backend)
-            If entry Is Nothing OrElse String.Equals(entry.SidecarMode, "online", StringComparison.OrdinalIgnoreCase) Then Return False
+            If entry Is Nothing Then Return False
+            If String.Equals(entry.SidecarMode, "online", StringComparison.OrdinalIgnoreCase) Then
+                ' Online engines: capable when the module implements one-shot
+                ' (short-lived session per utterance) AND a key is configured.
+                If Not entry.SupportsOneShotTranscribe Then Return False
+                Dim key = If(cfg IsNot Nothing, cfg.GetSttApiKey(backend), serverOpts.SttApiKey)
+                Return Not String.IsNullOrEmpty(key)
+            End If
             ' whisper-cpp models are FILES; faster-whisper models are DIRECTORIES
             Return Not String.IsNullOrEmpty(modelPath) AndAlso
                    (IO.File.Exists(modelPath) OrElse IO.Directory.Exists(modelPath))

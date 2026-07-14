@@ -631,6 +631,92 @@ class SpeechmaticsStreamingPipeline:
             return None
 
 
+def _transcribe_speechmatics(audio_array, language=None,
+                             beam_size=5, best_of=1, initial_prompt=""):
+    """One-shot transcription via a short-lived Speechmatics RT session.
+    Serves conversation-room PTT on servers with no offline whisper (Lite).
+    Billed by audio duration, same as any session. beam/best_of/prompt are
+    whisper-isms — accepted and ignored. Returns (segments, info) or (None, None)."""
+    api_key = common.get_api_key(_ENGINE_KEY)
+    if not api_key:
+        logger.error("[SPEECHMATICS] /transcribe: no API key configured")
+        return None, None
+
+    lang = (language or "").strip().lower()
+    if not lang or lang == "auto":
+        lang = "en"   # RT needs an explicit language; PTT callers pass the speaker's
+
+    import numpy as np
+    a = audio_array
+    if a.dtype != np.int16:
+        a = (np.clip(a, -1.0, 1.0) * 32767.0).astype(np.int16)
+    pcm = a.tobytes()
+    duration_s = len(a) / float(SAMPLE_RATE)
+
+    result = {"texts": [], "error": None}
+
+    def _worker():
+        # Own thread + own event loop: /transcribe may be called from an async
+        # context where asyncio.run() would be illegal.
+        async def _run_once():
+            import inspect as _ins
+            import io as _io
+            from speechmatics.rt import (
+                AsyncClient, AudioEncoding, AudioFormat, OperatingPoint,
+                ServerMessageType, TranscriptionConfig, TranscriptResult,
+            )
+            kwargs = dict(language=lang, enable_partials=False, max_delay=1.0)
+            # operating_point -> model deprecation: same dual-path as streaming.
+            if "model" in _ins.signature(TranscriptionConfig.__init__).parameters:
+                kwargs["model"] = DEFAULT_OPERATING_POINT
+            else:
+                kwargs["operating_point"] = OperatingPoint(DEFAULT_OPERATING_POINT)
+            async with AsyncClient(api_key=api_key,
+                                   url=REGION_URLS[DEFAULT_REGION]) as client:
+                @client.on(ServerMessageType.ADD_TRANSCRIPT)
+                def _collect(message):
+                    try:
+                        t = TranscriptResult.from_message(message).metadata.transcript or ""
+                    except Exception:
+                        t = (message.get("metadata", {}) or {}).get("transcript", "") or ""
+                    if t:
+                        result["texts"].append(t)
+                # transcribe() streams the buffer, waits for finals, returns on EOS.
+                await client.transcribe(
+                    _io.BytesIO(pcm),
+                    transcription_config=TranscriptionConfig(**kwargs),
+                    audio_format=AudioFormat(
+                        encoding=AudioEncoding.PCM_S16LE, sample_rate=SAMPLE_RATE,
+                        chunk_size=_CHUNK_SAMPLES * 2),
+                    timeout=max(20.0, duration_s * 2 + 15.0),
+                )
+        try:
+            asyncio.run(_run_once())
+        except Exception as e:
+            result["error"] = f"{type(e).__name__}: {e}"
+
+    t0 = time.time()
+    worker = threading.Thread(target=_worker, name="sm-oneshot", daemon=True)
+    worker.start()
+    worker.join(timeout=max(30.0, duration_s * 2 + 20.0))
+    if worker.is_alive():
+        logger.error("[SPEECHMATICS] /transcribe: session timed out")
+        return None, None
+    if result["error"]:
+        logger.error(f"[SPEECHMATICS] /transcribe failed: {result['error']}")
+        return None, None
+
+    text = "".join(result["texts"]).strip()
+    logger.info(f"[SPEECHMATICS] one-shot: {duration_s:.1f}s audio -> "
+                f"{time.time() - t0:.1f}s, {len(text)} chars, lang={lang}")
+    segments = []
+    if text:
+        segments.append(common.SegmentInfo(
+            start=0.0, end=duration_s, text=text,
+            no_speech_prob=0.0, avg_logprob=0.0, words=[]))
+    return segments, common.TranscribeInfo(language=lang)
+
+
 def _create_streaming(api_key, config, broadcast_fn, stats, options):
     options = options or {}
     targets = options.get("translation_targets") or []
@@ -653,4 +739,5 @@ common.register_engine(
     _ENGINE_KEY,
     requires_model=False,
     create_streaming=_create_streaming,
+    transcribe_fn=_transcribe_speechmatics,
 )

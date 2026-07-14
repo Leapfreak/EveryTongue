@@ -1,4 +1,4 @@
-Imports System.IO
+﻿Imports System.IO
 Imports System.Net.Http
 Imports System.Text
 Imports System.Text.Json
@@ -388,9 +388,24 @@ Namespace Services.Rooms
                     Return False
                 End If
 
-                ' Online engines don't need a local model — server up is enough
+                ' Online engines don't need a local model — but the sidecar needs the
+                ' API key for one-shot /transcribe sessions (only /start delivers it
+                ' otherwise, and the conversation path never calls /start).
                 If isCloudBackend Then
-                    _logger.LogInformation("Online STT backend ({Backend}) — no model to load", backendKey)
+                    If Not String.IsNullOrEmpty(SttApiKey) Then
+                        Try
+                            Dim keyBody = $"{{""stt_api_key"":{JsonSerializer.Serialize(SttApiKey)}}}"
+                            Dim keyContent As New StringContent(keyBody, Encoding.UTF8, "application/json")
+                            Dim keyResp = Await _httpClient.PostAsync(
+                                $"http://127.0.0.1:{LiveServerPort}/load-model", keyContent, ct).ConfigureAwait(False)
+                            _logger.LogInformation("Online STT backend ({Backend}) — API key delivered ({Status})",
+                                backendKey, keyResp.StatusCode)
+                        Catch ex As Exception
+                            _logger.LogWarning("API key delivery to sidecar failed: {Message}", ex.Message)
+                        End Try
+                    Else
+                        _logger.LogWarning("Online STT backend ({Backend}) has no API key — /transcribe will refuse", backendKey)
+                    End If
                     _serverEnsured = True
                     Return True
                 End If

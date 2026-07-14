@@ -1,4 +1,4 @@
-Namespace Services.Stt
+﻿Namespace Services.Stt
 
     ''' <summary>
     ''' Central registry of available STT backends.
@@ -21,6 +21,10 @@ Namespace Services.Stt
             ''' or "online" (cloud engine module, no local model).
             ''' </summary>
             Public Property SidecarMode As String = "whisper-cpp"
+            ''' <summary>Online engine can serve one-shot POST /transcribe (conversation-room
+            ''' PTT) via a short-lived session — requires a transcribe_fn in the python
+            ''' engine module. Offline engines are one-shot-capable via their model instead.</summary>
+            Public Property SupportsOneShotTranscribe As Boolean = False
             ''' <summary>
             ''' File glob used when scanning for selectable model files (e.g. "*.bin").
             ''' Empty string = models are DIRECTORIES containing config.json.
@@ -52,7 +56,7 @@ Namespace Services.Stt
             New Entry With {.Key = "whisper-cpp-cpu", .DisplayName = "whisper.cpp CPU (offline)", .RequiresInternet = False, .UseGpu = False, .SidecarMode = "whisper-cpp", .ModelScanPattern = "*.bin", .ModelMinSizeMB = 10, .ModelPathFromConfig = Function(cfg) cfg.PathWhisperCppModel, .Factory = Function() New WhisperCppBackend(useGpu:=False), .ConfigDescriptor = New Configs.WhisperCppConfigDescriptor("whisper-cpp-cpu")},
             New Entry With {.Key = "faster-whisper", .DisplayName = "faster-whisper CUDA (offline)", .RequiresInternet = False, .UseGpu = True, .SidecarMode = "faster-whisper", .ModelPathFromConfig = Function(cfg) cfg.PathFasterWhisperModel, .Factory = Function() New FasterWhisperBackend(), .ConfigDescriptor = New Configs.FasterWhisperConfigDescriptor()},
             New Entry With {.Key = "google-cloud-stt", .DisplayName = "Google Cloud STT (online)", .RequiresInternet = True, .UseGpu = False, .RequiresApiKey = True, .SidecarMode = "online", .ModelScanPattern = "-", .ModelPathFromConfig = Function(cfg) "", .CompanionTranslationKey = "google-translate", .Factory = Function() New CloudStreamingSttBackend("google-cloud-stt", "Google Cloud STT (online)"), .ConfigDescriptor = New Configs.GoogleSttConfigDescriptor()},
-            New Entry With {.Key = "speechmatics", .DisplayName = "Speechmatics (online)", .RequiresInternet = True, .UseGpu = False, .RequiresApiKey = True, .SidecarMode = "online", .ModelScanPattern = "-", .ModelPathFromConfig = Function(cfg) "", .Factory = Function() New CloudStreamingSttBackend("speechmatics", "Speechmatics (online)"), .ConfigDescriptor = New Configs.SpeechmaticsConfigDescriptor()},
+            New Entry With {.Key = "speechmatics", .DisplayName = "Speechmatics (online)", .RequiresInternet = True, .UseGpu = False, .RequiresApiKey = True, .SidecarMode = "online", .SupportsOneShotTranscribe = True, .ModelScanPattern = "-", .ModelPathFromConfig = Function(cfg) "", .Factory = Function() New CloudStreamingSttBackend("speechmatics", "Speechmatics (online)"), .ConfigDescriptor = New Configs.SpeechmaticsConfigDescriptor()},
             New Entry With {.Key = "deepgram", .DisplayName = "Deepgram (online)", .RequiresInternet = True, .UseGpu = False, .RequiresApiKey = True, .SidecarMode = "online", .ModelScanPattern = "-", .ModelPathFromConfig = Function(cfg) "", .Factory = Function() New CloudStreamingSttBackend("deepgram", "Deepgram (online)"), .ConfigDescriptor = New Configs.DeepgramConfigDescriptor()},
             New Entry With {.Key = "gladia", .DisplayName = "Gladia (online)", .RequiresInternet = True, .UseGpu = False, .RequiresApiKey = True, .SidecarMode = "online", .ModelScanPattern = "-", .ModelPathFromConfig = Function(cfg) "", .Factory = Function() New CloudStreamingSttBackend("gladia", "Gladia (online)"), .ConfigDescriptor = New Configs.GladiaConfigDescriptor()},
             New Entry With {.Key = "azure-speech", .DisplayName = "Azure AI Speech (online)", .RequiresInternet = True, .UseGpu = False, .RequiresApiKey = True, .SidecarMode = "online", .ModelScanPattern = "-", .ModelPathFromConfig = Function(cfg) "", .Factory = Function() New CloudStreamingSttBackend("azure-speech", "Azure AI Speech (online)"), .ConfigDescriptor = New Configs.AzureSpeechConfigDescriptor()}

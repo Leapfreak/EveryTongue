@@ -10,3 +10,4 @@ sounddevice
 sse-starlette
 websockets
 speechmatics-rt
+soundfile
