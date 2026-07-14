@@ -476,9 +476,8 @@ class SpeechmaticsStreamingPipeline:
                     def _on_error(message):
                         logger.error(f"[SPEECHMATICS] Server error: {message}")
 
-                    transcription_config = TranscriptionConfig(
+                    tc_kwargs = dict(
                         language=self._language,
-                        operating_point=operating_point,
                         enable_partials=True,
                         max_delay=self._max_delay,
                         # Biblical proper-noun boost (auto-selected by language) so STT
@@ -490,6 +489,16 @@ class SpeechmaticsStreamingPipeline:
                         conversation_config=ConversationConfig(
                             end_of_utterance_silence_trigger=self._eou_silence),
                     )
+                    # Speechmatics deprecated `operating_point` in favour of `model`
+                    # (same tier names). The SDK is unpinned in the Lite image, so a
+                    # future build may drop the old field — prefer `model` when the
+                    # installed SDK exposes it, fall back otherwise.
+                    import inspect as _inspect
+                    if "model" in _inspect.signature(TranscriptionConfig.__init__).parameters:
+                        tc_kwargs["model"] = str(self._operating_point)
+                    else:
+                        tc_kwargs["operating_point"] = operating_point
+                    transcription_config = TranscriptionConfig(**tc_kwargs)
                     audio_format = AudioFormat(
                         encoding=AudioEncoding.PCM_S16LE,
                         sample_rate=SAMPLE_RATE,
