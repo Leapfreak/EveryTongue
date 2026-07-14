@@ -143,6 +143,7 @@ Namespace Server
                                               .wsUrl = wsUrl,
                                               .httpsEnabled = True,
                                               .hasAdminPin = Not String.IsNullOrEmpty(serverOpts.AdminPin),
+                                              .hasLiveSession = (RemoteCommandHandler IsNot Nothing),
                                               .showBibleCopyright = serverOpts.ShowBibleCopyright,
                                               .publicHost = PublicHostFor(context),
                                               .version = If(GetType(EndpointRegistration).Assembly.

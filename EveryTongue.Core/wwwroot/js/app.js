@@ -776,11 +776,13 @@ function verifyAdminPin(){
    picker is ALWAYS shown: with a PIN it asks for it; without one (fresh install)
    it opens Server Settings directly so headless deployments can be onboarded. */
 var serverPublicHost='';
+var serverHasLiveSession=false; /* desktop Live session exists? Lite/containers: false */
 function checkAdminAccess(){
   if(isAdmin){document.getElementById('btnAdmin').style.display=''}
   fetch('/api/config').then(function(r){return r.json()}).then(function(cfg){
     hasAdminPin=cfg.hasAdminPin;
     serverPublicHost=cfg.publicHost||'';
+    serverHasLiveSession=!!cfg.hasLiveSession;
     document.getElementById('lpAdmin').style.display='';
   }).catch(function(){});
 }
@@ -936,7 +938,14 @@ var adminStatus=document.getElementById('adminStatus');
 var adminPollTimer=null;
 function toggleAdmin(){
   if(adminPanel.style.display==='block'){adminPanel.style.display='none';if(adminPollTimer){clearInterval(adminPollTimer);adminPollTimer=null}}
-  else{closeAllPanels();adminPanel.style.display='block';pollStatus();adminPollTimer=setInterval(pollStatus,3000)}
+  else{
+    closeAllPanels();adminPanel.style.display='block';
+    /* Session controls drive the DESKTOP Live pipeline — meaningless on a
+       rooms-only (Lite) server, so hide them and skip the status polling. */
+    var live=document.getElementById('adminLive');
+    if(live)live.style.display=serverHasLiveSession?'':'none';
+    if(serverHasLiveSession){pollStatus();adminPollTimer=setInterval(pollStatus,3000)}
+  }
 }
 function sendCommand(action){
   LOG('sendCommand: '+action);
@@ -950,34 +959,10 @@ function pollStatus(){
   fetch('/api/control?action=status').then(function(r){return r.json()}).then(function(d){
     if(d.live){adminStatus.textContent=t('liveRun');adminStatus.style.color='#4f4'}
     else{adminStatus.textContent=t('stopped');adminStatus.style.color='#f44'}
-    if(d.inputLang){document.getElementById('inputLangSelect').value=d.inputLang}
   }).catch(function(){adminStatus.textContent=t('noServer');adminStatus.style.color='#888'});
 }
-function setInputLang(lang){
-  if(wsRef&&wsRef.readyState===1){wsRef.send(JSON.stringify({type:'setInputLanguage',language:lang}))}
-}
-function requestTune(){
-  adminStatus.textContent='Fetching stats...';
-  fetch('/api/control?action=tune').then(function(r){return r.json()}).then(function(d){
-    if(d.error){adminStatus.textContent=d.error;return}
-    var msg='TUNING RECOMMENDATIONS\n\n';
-    for(var i=0;i<d.tips.length;i++){msg+=d.tips[i]+'\n'}
-    msg+='\nSession: '+d.commits+' commits, '+d.hallucinations+' hallucinations filtered';
-    msg+='\nAvg duration: '+d.durAvg+'s, Max: '+d.durMax+'s';
-    if(d.wpsAvg>0){msg+='\nSpeaking rate: '+d.wpsAvg+' words/sec'}
-    msg+='\n\nCurrent: Max Segment='+d.currentMaxSeg+'s, VAD Silence='+d.currentVadSilence+'ms';
-    msg+='\nSuggested: Max Segment='+d.suggestedMaxSeg+'s, VAD Silence='+d.suggestedVadSilence+'ms';
-    if(d.suggestedMaxSeg!==d.currentMaxSeg||d.suggestedVadSilence!==d.currentVadSilence){
-      msg+='\n\nApply suggested values?';
-      if(confirm(msg)){
-        fetch('/api/control?action=setsliders&maxSeg='+d.suggestedMaxSeg+'&vadSilence='+d.suggestedVadSilence).then(function(r){return r.json()}).then(function(r){
-          if(r.ok){adminStatus.textContent='Sliders updated!';adminStatus.style.color='#4f4'}
-          else{adminStatus.textContent='Failed to apply'}
-        }).catch(function(){adminStatus.textContent='Failed to apply'});
-      }else{adminStatus.textContent='Tune cancelled'}
-    }else{alert(msg);adminStatus.textContent='No changes needed'}
-  }).catch(function(){adminStatus.textContent='Failed to fetch stats'});
-}
+/* Tune + input-language controls removed (pre-rooms relics): tuning lives in
+   the desktop app; per-room language switching lives in the host panel. */
 
 /* ── Apply i18n to admin panel ── */
 adminStatus.textContent=t('checking');
@@ -1716,7 +1701,7 @@ function startBroadcastCapture(){
       if(!bcWant){stream.getTracks().forEach(function(tr){tr.stop()});return}
       bcStream=stream;
       bcCtx=new AudioContext();
-      return bcCtx.audioWorklet.addModule('/js/mic-worklet.js?v=2.7.6').then(function(){
+      return bcCtx.audioWorklet.addModule('/js/mic-worklet.js?v=2.7.7').then(function(){
         var src=bcCtx.createMediaStreamSource(stream);
         bcNode=new AudioWorkletNode(bcCtx,'mic-downsampler');
         bcAnalyser=bcCtx.createAnalyser();
