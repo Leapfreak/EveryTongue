@@ -36,6 +36,12 @@
     function creatorCode() { return sessionStorage.getItem("creatorCode") || ""; }
 
     fetch("/api/config").then(r => r.json()).then(cfg => {
+        // No offline transcribe engine (Lite, or desktop set to a streaming
+        // engine) → conversation rooms can't work; hide their creation block.
+        if (cfg.conversationRooms === false) {
+            const cc = document.getElementById("conv-create");
+            if (cc) cc.style.display = "none";
+        }
         if (!cfg.creatorCodeRequired) return;              // open mode — leave everything visible
         if (creatorCode()) {
             // already unlocked this session — re-verify silently (code may have changed)

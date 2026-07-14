@@ -1718,7 +1718,7 @@ function startBroadcastCapture(){
       if(!bcWant){stream.getTracks().forEach(function(tr){tr.stop()});return}
       bcStream=stream;
       bcCtx=new AudioContext();
-      return bcCtx.audioWorklet.addModule('/js/mic-worklet.js?v=2.7.10').then(function(){
+      return bcCtx.audioWorklet.addModule('/js/mic-worklet.js?v=2.7.11').then(function(){
         var src=bcCtx.createMediaStreamSource(stream);
         bcNode=new AudioWorkletNode(bcCtx,'mic-downsampler');
         bcAnalyser=bcCtx.createAnalyser();

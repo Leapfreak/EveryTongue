@@ -42,6 +42,30 @@ Namespace Server
             Return reqHost.ToString()
         End Function
 
+        ''' <summary>
+        ''' Can this server serve one-shot POST /transcribe (conversation-room PTT)?
+        ''' Requires an OFFLINE whisper-family engine with its model present —
+        ''' streaming engines (Speechmatics etc.) cannot one-shot, and Lite ships no
+        ''' models. Reads the LIVE config when available (web settings can change the
+        ''' engine at runtime), falling back to the startup ServerOptions snapshot.
+        ''' </summary>
+        Friend Function TranscribeCapable(serverOpts As ServerOptions) As Boolean
+            Dim backend = If(serverOpts.SttBackend, "")
+            Dim modelPath = If(serverOpts.WhisperModelPath, "")
+            Dim cfg = SettingsConfigProvider?.Invoke()
+            If cfg IsNot Nothing Then
+                backend = If(cfg.SttBackend, "")
+                Dim liveEntry = Services.Stt.SttBackendRegistry.Find(backend)
+                modelPath = Models.AppConfig.ResolvePath(
+                    If(liveEntry?.ModelPathFromConfig?.Invoke(cfg), cfg.PathWhisperCppModel))
+            End If
+            Dim entry = Services.Stt.SttBackendRegistry.Find(backend)
+            If entry Is Nothing OrElse String.Equals(entry.SidecarMode, "online", StringComparison.OrdinalIgnoreCase) Then Return False
+            ' whisper-cpp models are FILES; faster-whisper models are DIRECTORIES
+            Return Not String.IsNullOrEmpty(modelPath) AndAlso
+                   (IO.File.Exists(modelPath) OrElse IO.Directory.Exists(modelPath))
+        End Function
+
         Public Sub MapAllEndpoints(app As IEndpointRouteBuilder)
             MapWebSocketEndpoint(app)
             MapCoreEndpoints(app)
@@ -145,6 +169,7 @@ Namespace Server
                                               .hasAdminPin = Not String.IsNullOrEmpty(serverOpts.AdminPin),
                                               .hasLiveSession = (RemoteCommandHandler IsNot Nothing),
                                               .creatorCodeRequired = Not String.IsNullOrEmpty(serverOpts.CreatorCode),
+                                              .conversationRooms = TranscribeCapable(serverOpts),
                                               .showBibleCopyright = serverOpts.ShowBibleCopyright,
                                               .publicHost = PublicHostFor(context),
                                               .version = If(GetType(EndpointRegistration).Assembly.

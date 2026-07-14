@@ -235,7 +235,10 @@
         </div>
 
         <div id="creator-tools">
-        <!-- Create Conversation Room -->
+        <!-- Create Conversation Room — hidden when the server has no offline
+             transcribe engine (conversation PTT needs one-shot /transcribe,
+             which streaming engines / Lite cannot serve) -->
+        <div id="conv-create">
         <div class="section-label">Create Conversation</div>
 
         <div class="toggle-row">
@@ -251,6 +254,7 @@
         </div>
 
         <button class="btn btn-primary" id="btn-create">Create Conversation</button>
+        </div><!-- /conv-create -->
 
         <!-- Dictation: private single-user speech-to-text editor -->
         <hr class="divider">
@@ -305,6 +309,6 @@
         <button class="btn btn-secondary btn-close-qr" id="btn-close-qr">Close</button>
     </div>
 
-    <script src="/js/lobby.js?v=2.7.10"></script>
+    <script src="/js/lobby.js?v=2.7.11"></script>
 </body>
 </html>

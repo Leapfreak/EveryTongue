@@ -200,6 +200,19 @@ Namespace Server
                                                Dim hostProp As JsonElement = Nothing
                                                If root.TryGetProperty("hostClientId", hostProp) Then hostId = If(hostProp.GetString(), "")
 
+                                               ' Conversation rooms need one-shot /transcribe (whisper-family engine
+                                               ' with a model on disk) — streaming engines can't serve it, and Lite
+                                               ' ships no models. Fail LOUD instead of minting a room that silently
+                                               ' transcribes nothing.
+                                               Dim capOpts = context.RequestServices.GetService(Of IOptions(Of ServerOptions))
+                                               If roomType = RoomType.Conversation AndAlso
+                                                  Not TranscribeCapable(If(capOpts?.Value, New ServerOptions())) Then
+                                                   context.Response.StatusCode = 409
+                                                   Await context.Response.WriteAsJsonAsync(New With {
+                                                       .error = "This server has no offline speech model, so conversation rooms can't transcribe. Use a conference or dictation room instead."})
+                                                   Return
+                                               End If
+
                                                ' Volunteer-tier gate: when a CreatorCode is configured, ad-hoc room
                                                ' creation requires it (guests join rooms; they don't mint them —
                                                ' each room is an engine session on the operator's API keys).
