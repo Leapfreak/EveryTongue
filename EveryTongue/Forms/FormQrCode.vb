@@ -1,4 +1,4 @@
-' FormQrCode.vb — Floating QR code window for phone connection
+﻿' FormQrCode.vb — Floating QR code window for phone connection
 ' Phase 3 of the UI redesign — Feature #1
 
 Imports System.Diagnostics
@@ -15,6 +15,11 @@ Public Class FormQrCode
     Public Sub New(url As String)
         _url = url
         InitializeComponent()
+        Dim ls = Services.Infrastructure.LanguagePackService.Instance
+        Text = ls.GetString("QR_Title")
+        btnCopyUrl.Text = ls.GetString("QR_CopyUrl")
+        btnSaveImage.Text = ls.GetString("QR_SaveImage")
+        btnClose.Text = ls.GetString("QR_Close")
         lblUrl.Text = url
         AddHandler Me.MouseDown, AddressOf Form_MouseDown
         AddHandler Me.MouseMove, AddressOf Form_MouseMove

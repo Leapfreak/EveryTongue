@@ -1,4 +1,4 @@
-Imports EveryTongue.Services.Infrastructure
+﻿Imports EveryTongue.Services.Infrastructure
 
 ''' <summary>
 ''' Modal dialog that lets the user pick a language by display name.
@@ -29,6 +29,13 @@ Partial Public Class FormLanguageChooser
     ''' <param name="excludeCodes">Codes already present (will be excluded from the list)</param>
     Public Sub New(codeFormat As String, excludeCodes As IEnumerable(Of String))
         InitializeComponent()
+
+        ' Designer text is English placeholders — replace from the locale pack.
+        Dim ls = Services.Infrastructure.LanguagePackService.Instance
+        Text = ls.GetString("LangCh_Title")
+        lblPrompt.Text = ls.GetString("LangCh_Prompt")
+        btnOK.Text = ls.GetString("Opt_OK")
+        btnCancel.Text = ls.GetString("Opt_Cancel")
 
         Dim lcService = LanguageCodeService.Instance
         Dim allLangs = lcService.GetAllLanguagesSorted()

@@ -1,4 +1,4 @@
-' FormMain.Shell.vb — UI shell event wiring and logic
+﻿' FormMain.Shell.vb — UI shell event wiring and logic
 ' All controls are created in FormMain.Designer.vb / InitializeComponent().
 ' This file wires event handlers and contains shell logic only.
 
@@ -105,16 +105,16 @@ Partial Class FormMain
         AddHandler mnuHelpQuickStart.Click, Sub(s, e) ShowLegacyTab(tabPageHelp)
         AddHandler mnuHelpShortcuts.Click, Sub(s, e)
                                                 MessageBox.Show(
-                                                    "Ctrl+0" & vbTab & "Log workspace" & vbCrLf &
-                                                    "Ctrl+1" & vbTab & "Transcribe workspace" & vbCrLf &
-                                                    "Ctrl+2" & vbTab & "Translate workspace" & vbCrLf &
-                                                    "Ctrl+3" & vbTab & "Bible workspace" & vbCrLf &
-                                                    "Ctrl+N" & vbTab & "New Session wizard" & vbCrLf &
-                                                    "Ctrl+L" & vbTab & "Toggle Log Panel" & vbCrLf &
-                                                    "F12" & vbTab & "Options" & vbCrLf &
-                                                    "F1" & vbTab & "Help" & vbCrLf &
-                                                    "F11" & vbTab & "Full Screen",
-                                                    "Keyboard Shortcuts",
+                                                    "Ctrl+0" & vbTab & GetString("Shell_ScLog") & vbCrLf &
+                                                    "Ctrl+1" & vbTab & GetString("Shell_ScTranscribe") & vbCrLf &
+                                                    "Ctrl+2" & vbTab & GetString("Shell_ScTranslate") & vbCrLf &
+                                                    "Ctrl+3" & vbTab & GetString("Shell_ScBible") & vbCrLf &
+                                                    "Ctrl+N" & vbTab & GetString("Shell_ScWizard") & vbCrLf &
+                                                    "Ctrl+L" & vbTab & GetString("Shell_ScLogPanel") & vbCrLf &
+                                                    "F12" & vbTab & GetString("Shell_ScOptions") & vbCrLf &
+                                                    "F1" & vbTab & GetString("Shell_ScHelp") & vbCrLf &
+                                                    "F11" & vbTab & GetString("Shell_ScFullScreen"),
+                                                    GetString("Shell_ScTitle"),
                                                     MessageBoxButtons.OK, MessageBoxIcon.Information)
                                             End Sub
         AddHandler mnuHelpHardware.Click, Sub(s, e) ShowOptionsDialog("hardware")
@@ -927,8 +927,8 @@ Partial Class FormMain
 
     Private Sub OpenTranslationBenchmark()
         If _translationService Is Nothing OrElse Not _translationService.IsRunning Then
-            MessageBox.Show("The translation server must be running to use the benchmark.",
-                            "Pipeline Benchmark", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            MessageBox.Show(GetString("Shell_BenchNeedsServer"),
+                            GetString("Shell_BenchTitle"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
             Return
         End If
 
@@ -937,8 +937,8 @@ Partial Class FormMain
         Dim translationSvc = TryCast(diServices?.GetService(
             GetType(Services.Interfaces.ITranslationService)), Services.Interfaces.ITranslationService)
         If translationSvc Is Nothing Then
-            MessageBox.Show("Translation service not available.",
-                            "Pipeline Benchmark", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            MessageBox.Show(GetString("Shell_BenchNoService"),
+                            GetString("Shell_BenchTitle"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
             Return
         End If
 

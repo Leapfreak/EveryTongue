@@ -5,6 +5,52 @@
 (function () {
     "use strict";
 
+    // ── Localization ────────────────────────────────────────────────────
+    // Same mechanism as app.js: inline English defaults, overlaid by the
+    // server locale (/api/locale strips the web.* prefix from en.json keys).
+    // Static markup carries data-i18n / data-i18n-ph attributes; dynamic
+    // strings go through t().
+    const LT = {
+        lbInvalidCode: "Invalid code", lbCouldNotVerify: "Could not verify",
+        lbCreatedByYou: "Created by you", lbConnected: "{0} connected",
+        lbDictateFailed: "Failed to start dictation: {0}",
+        lbCreateFailed: "Failed to create room: {0}",
+        lbInvalidHostingCode: "Invalid hosting code", lbFailedPrefix: "Failed: {0}",
+        lbConversation: "Conversation", lbDictation: "Dictation",
+        lbTypeConversation: "conversation", lbTypeConference: "conference",
+        lbTypeDictation: "dictation"
+    };
+    function t(k) { return LT[k] || k; }
+    function fmt(k, v) { return t(k).replace("{0}", v); }
+    function applyI18n() {
+        document.querySelectorAll("[data-i18n]").forEach(el => {
+            const v = LT[el.getAttribute("data-i18n")];
+            if (v) el.textContent = v;
+        });
+        document.querySelectorAll("[data-i18n-ph]").forEach(el => {
+            const v = LT[el.getAttribute("data-i18n-ph")];
+            if (v) el.placeholder = v;
+        });
+    }
+    (function () {
+        try {
+            const nav = navigator.language || navigator.userLanguage || "";
+            const lang = nav.split("-")[0].toLowerCase();
+            const url = "/api/locale" + (lang ? "?lang=" + encodeURIComponent(lang) : "");
+            fetch(url).then(r => r.json()).then(data => {
+                for (const k in data) { if (Object.prototype.hasOwnProperty.call(data, k)) LT[k] = data[k]; }
+                applyI18n();
+                renderMyRooms();   // re-render dynamic lists with localized text
+                loadRooms();
+            }).catch(() => { });
+        } catch (e) { /* English defaults remain */ }
+    })();
+
+    function roomTypeLabel(type) {
+        const key = "lbType" + String(type || "").charAt(0).toUpperCase() + String(type || "").slice(1);
+        return LT[key] || type;
+    }
+
     // ── DOM refs ──
     const roomsSection = document.getElementById("rooms-section");
     const myRoomsSection = document.getElementById("my-rooms");
@@ -74,9 +120,9 @@
                 hostToolsGate.style.display = "none";
                 creatorTools.style.display = "";
             } else {
-                creatorCodeMsg.textContent = "Invalid code";
+                creatorCodeMsg.textContent = t("lbInvalidCode");
             }
-        }).catch(() => { creatorCodeMsg.textContent = "Could not verify"; });
+        }).catch(() => { creatorCodeMsg.textContent = t("lbCouldNotVerify"); });
     }
 
     // QR overlay
@@ -145,8 +191,8 @@
             li.style.borderLeft = "3px solid #7c9cf7";
             li.innerHTML =
                 '<div class="room-name">' + escapeHtml(room.name) +
-                '<span class="room-type">' + escapeHtml(room.type) + '</span></div>' +
-                '<div class="room-meta"><span style="color:#7c9cf7">Created by you</span></div>';
+                '<span class="room-type">' + escapeHtml(roomTypeLabel(room.type)) + '</span></div>' +
+                '<div class="room-meta"><span style="color:#7c9cf7">' + escapeHtml(t("lbCreatedByYou")) + '</span></div>';
             li.addEventListener("click", function () {
                 location.href = "/index.html?room=" + encodeURIComponent(room.id);
             });
@@ -173,7 +219,7 @@
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    name: "Dictation",
+                    name: t("lbDictation"),
                     type: "dictation",
                     sourceLang: lang,
                     creatorCode: creatorCode()
@@ -184,7 +230,7 @@
             addMyRoom(room);
             location.href = "/index.html?room=" + encodeURIComponent(room.id);
         } catch (err) {
-            alert("Failed to start dictation: " + err.message);
+            alert(fmt("lbDictateFailed", err.message));
         } finally {
             btnDictate.disabled = false;
         }
@@ -193,7 +239,7 @@
     // ── Create conversation room ──
     btnCreate.addEventListener("click", async function () {
         var suffix = Math.random().toString(36).substring(2, 6);
-        var name = "Conversation " + suffix;
+        var name = t("lbConversation") + " " + suffix;
         btnCreate.disabled = true;
         try {
             var engineSel = document.getElementById("conv-engine");
@@ -214,7 +260,7 @@
             addMyRoom(createdRoom);
             location.href = "/index.html?room=" + encodeURIComponent(createdRoom.id);
         } catch (err) {
-            alert("Failed to create room: " + err.message);
+            alert(fmt("lbCreateFailed", err.message));
         } finally {
             btnCreate.disabled = false;
         }
@@ -306,7 +352,7 @@
             });
 
             if (res.status === 403) {
-                conferenceError.textContent = "Invalid hosting code";
+                conferenceError.textContent = t("lbInvalidHostingCode");
                 conferenceError.style.display = "block";
                 return;
             }
@@ -319,7 +365,7 @@
             renderMyRooms();
             resetConferenceStep();
         } catch (err) {
-            conferenceError.textContent = "Failed: " + err.message;
+            conferenceError.textContent = fmt("lbFailedPrefix", err.message);
             conferenceError.style.display = "block";
         } finally {
             btnCreateConference.disabled = false;
@@ -384,9 +430,9 @@
             li.className = "room-item";
             li.innerHTML =
                 '<div class="room-name">' + escapeHtml(room.name) +
-                '<span class="room-type">' + escapeHtml(room.type) + '</span></div>' +
+                '<span class="room-type">' + escapeHtml(roomTypeLabel(room.type)) + '</span></div>' +
                 '<div class="room-meta">' +
-                '<span>' + room.clients + ' connected</span>' +
+                '<span>' + escapeHtml(fmt("lbConnected", room.clients)) + '</span>' +
                 '</div>';
             li.addEventListener("click", function () {
                 location.href = "/index.html?room=" + encodeURIComponent(room.id);

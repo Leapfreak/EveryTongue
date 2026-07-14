@@ -1,4 +1,4 @@
-Imports System.IO
+﻿Imports System.IO
 Imports System.Net.Http
 Imports System.Text
 Imports System.Text.Json
@@ -175,7 +175,7 @@ Partial Public Class FormFilterEditor
                 End Using
             End If
         Catch ex As Exception
-            MessageBox.Show($"Failed to load hallucinations.json: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            MessageBox.Show($"Failed to load hallucinations.json: {ex.Message}", S("Msg_Error"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End Try
     End Sub
 
@@ -205,7 +205,7 @@ Partial Public Class FormFilterEditor
                 End Using
             End If
         Catch ex As Exception
-            MessageBox.Show($"Failed to load profanity.json: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            MessageBox.Show($"Failed to load profanity.json: {ex.Message}", S("Msg_Error"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End Try
     End Sub
 
@@ -225,7 +225,7 @@ Partial Public Class FormFilterEditor
                 End Using
             End If
         Catch ex As Exception
-            MessageBox.Show($"Failed to load glossary.json: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            MessageBox.Show($"Failed to load glossary.json: {ex.Message}", S("Msg_Error"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End Try
     End Sub
 
@@ -612,7 +612,7 @@ Partial Public Class FormFilterEditor
             SaveProfanity()
             SaveGlossary()
         Catch ex As Exception
-            MessageBox.Show($"Failed to save: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            MessageBox.Show($"Failed to save: {ex.Message}", S("Msg_Error"), MessageBoxButtons.OK, MessageBoxIcon.Error)
             Return
         End Try
 

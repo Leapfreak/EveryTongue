@@ -1,4 +1,4 @@
-Imports EveryTongue.Services.Infrastructure
+﻿Imports EveryTongue.Services.Infrastructure
 
 Public Class FormLogConfig
 
@@ -12,6 +12,16 @@ Public Class FormLogConfig
         InitializeComponent()
         _config = config
         _getString = getString
+
+        ' Designer text is English placeholders — replace from the locale pack.
+        Text = _getString("LogCfg_Title")
+        lblPreset.Text = _getString("LogCfg_Preset")
+        btnOK.Text = _getString("Opt_OK")
+        btnCancel.Text = _getString("Opt_Cancel")
+        colCategory.HeaderText = _getString("LogCfg_ColCategory")
+        colEnabled.HeaderText = _getString("LogCfg_ColEnabled")
+        colFileLevel.HeaderText = _getString("LogCfg_ColFileLevel")
+        colUiLevel.HeaderText = _getString("LogCfg_ColUiLevel")
 
         ' Populate combo box items for level columns
         Dim levels = [Enum].GetNames(GetType(LogSeverity))

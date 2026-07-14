@@ -32,7 +32,7 @@ var T={connecting:'Connecting...',connected:'Connected',disconnected:'Disconnect
     stepRetry:'Tap the screen wake button again',
     openSecure:'Open Secure Page',cancel:'Cancel',
     dictCopy:'Copy',dictCopied:'Copied \u2713',dictDone:'Done',
-    rsPreparing:'Preparing speech engine...',
+    rsPreparing:'Preparing speech engine...',vmShared:'(shared)',
     rsWaitMicHost:'Waiting for microphone — open Host Controls and tap Broadcast Mic',
     rsWaitMic:'Waiting for the host to start the microphone…',
     setTitle:'Server Settings',setBootstrap:'First-time setup: choose your engines, paste your API keys, and set an admin PIN to secure this server.',
@@ -55,7 +55,10 @@ var T={connecting:'Connecting...',connected:'Connected',disconnected:'Disconnect
     bibleNoBibles:'No Bibles installed for this language.',bibleNoBiblesHint:'Use the Download Manager to add Bibles.',
     bibleLoadFail:'Failed to load',bibleTransFail:'Failed to load translations',bibleNoVerses:'No verses',
     bibleBadRef:'Could not parse reference',bibleRefError:'Error looking up reference',
-    bibleSearching:'Searching...',bibleSearchFail:'Search failed',
+    bibleSearching:'Searching...',bibleSearchFail:'Search failed',bibleResults:'{0} results',
+    rsReady:'Ready',rsTransWarming:'Translation warming up...',resetFailed:'Reset failed',
+    roomEnded:'Room has ended',roomKicked:'You have been removed',
+    yourName:'Your Name',enterYourName:'Enter your name',guestLabel:'Guest',
     sending:'Sending...',cmdSent:' command sent',cmdFail:'Failed to send command',
     liveRun:'Live: RUNNING',stopped:'Status: STOPPED',
     noServer:'Unable to reach server',checking:'Checking...',
@@ -88,6 +91,9 @@ var detectedBrowserLang='';
   }catch(e){LOG('locale fetch error: '+e)}
 })();
 function t(k){return T[k]||k}
+/* Server sends the literal "Guest" as the unnamed-client sentinel — swap it
+   for the localized label at render. Empty stays empty (means "no speaker"). */
+function dispName(n){return n==='Guest'?t('guestLabel'):(n||'')}
 
 /* ── Language data: [floresCode, nativeName, englishName, bcp47Prefix] ── */
 /* Loaded from /api/languages; minimal fallback until fetch completes */
@@ -686,15 +692,15 @@ function connect(){
           lastCommitId=id;
           if(msg.translations){
             /* Shared-device message with all translations */
-            transcriptCache.push({id:id,speaker:msg.speaker||'',time:msg.time||'',lang:msg.lang||'',sourceLang:msg.sourceLang||'',translations:msg.translations});
+            transcriptCache.push({id:id,speaker:dispName(msg.speaker),time:msg.time||'',lang:msg.lang||'',sourceLang:msg.sourceLang||'',translations:msg.translations});
             var activeLang=getActiveIdentityLang();
             var displayText=msg.translations[activeLang]||msg.translations[msg.sourceLang]||msg.translations[Object.keys(msg.translations)[0]]||'';
-            addCommitted(displayText,msg.lang||'',msg.time||'',null,msg.speaker||'',activeLang);
+            addCommitted(displayText,msg.lang||'',msg.time||'',null,dispName(msg.speaker),activeLang);
           } else {
             /* Normal single-language message — text is in my language (server translated for me) */
             var textLang=myTransLang||msg.sourceLang||'';
-            transcriptCache.push({id:id,speaker:msg.speaker||'',time:msg.time||'',text:msg.text||'',lang:msg.lang||'',sourceLang:msg.sourceLang||'',ttsLang:textLang});
-            addCommitted(msg.text,msg.lang||'',msg.time||'',msg.refs||null,msg.speaker||'',textLang);
+            transcriptCache.push({id:id,speaker:dispName(msg.speaker),time:msg.time||'',text:msg.text||'',lang:msg.lang||'',sourceLang:msg.sourceLang||'',ttsLang:textLang});
+            addCommitted(msg.text,msg.lang||'',msg.time||'',msg.refs||null,dispName(msg.speaker),textLang);
           }
         }
       }
@@ -705,8 +711,8 @@ function connect(){
       else if(msg.type==='pong'){}
       else if(msg.type==='error'){showRoomError(msg.message||'Error')}
       else if(msg.type==='broadcastState'){handleBroadcastState(msg)}
-      else if(msg.type==='roomClosed'){stopBroadcast(false);showRoomError('Room has ended');setTimeout(function(){location.href='/lobby.html'},3000)}
-      else if(msg.type==='kicked'){showRoomError('You have been removed');setTimeout(function(){location.href='/lobby.html'},3000)}
+      else if(msg.type==='roomClosed'){stopBroadcast(false);showRoomError(t('roomEnded'));setTimeout(function(){location.href='/lobby.html'},3000)}
+      else if(msg.type==='kicked'){showRoomError(t('roomKicked'));setTimeout(function(){location.href='/lobby.html'},3000)}
       else if(msg.type==='roomLocked'){LOG('Room locked: '+msg.locked)}
       else if(msg.type==='pttModeChanged'){pttMode=msg.mode||'hold';updatePttLabel()}
       else if(msg.type==='pauseStateChanged'){
@@ -756,6 +762,8 @@ document.getElementById('lblTags').textContent=t('tags');
 var tmOpts=document.getElementById('tagMode').options;tmOpts[0].textContent=t('tagOff');tmOpts[1].textContent=t('tagLang');tmOpts[2].textContent=t('tagTime');tmOpts[3].textContent=t('tagBoth');
 (function(){var tm=document.getElementById('tagMode');tm.value=tagMode;})();
 document.getElementById('btnSave').innerHTML='&#128190; '+t('saveTranscript');
+document.getElementById('lblDisplayName').textContent=t('yourName');
+document.getElementById('displayNameInput').placeholder=t('enterYourName');
 document.getElementById('lpTitle').textContent=t('chooseLang');
 document.getElementById('lpSearch').placeholder=t('searchLangs');
 document.getElementById('lpSkip').textContent=t('noTranslation');
@@ -1363,7 +1371,7 @@ function bibleSearch(){LOG('bibleSearch');
       bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:20px">'+t('bibleNoResults')+'</div>';return;
     }
     var countDiv=document.createElement('div');countDiv.style.cssText='color:#888;font-size:12px;padding:4px 0 8px;border-bottom:1px solid #333;margin-bottom:8px';
-    countDiv.textContent=results.length+(results.length>=200?'+':'')+' results';
+    countDiv.textContent=t('bibleResults').replace('{0}',results.length+(results.length>=200?'+':''));
     bibleContent.appendChild(countDiv);
     for(var i=0;i<results.length;i++){
       var r=results[i];
@@ -2021,11 +2029,11 @@ function handleRoomStatus(msg){
     }else if(state==='ready'){
       _sttReady=true;setPttEnabled(true);
       if(_sttSafetyTimer){clearTimeout(_sttSafetyTimer);_sttSafetyTimer=null}
-      rsSetLine('stt','Ready');
+      rsSetLine('stt',t('rsReady'));
       setTimeout(function(){rsRemoveLine('stt')},1500);
     }
   }else if(scope==='translation'){
-    if(state==='preparing')rsSetLine('trans','Translation warming up...');
+    if(state==='preparing')rsSetLine('trans',t('rsTransWarming'));
     else if(state==='ready')rsRemoveLine('trans');
   }
 }
@@ -2333,7 +2341,7 @@ function renderParticipantDetails(){
     var m=roomMembers[i];
     var chip=document.createElement('div');
     chip.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #333';
-    var nameSpan='<span style="color:#fff">'+escHtml(m.displayName||'Guest')+'</span>';
+    var nameSpan='<span style="color:#fff">'+escHtml(dispName(m.displayName)||t('guestLabel'))+'</span>';
     var kick='';
     if(isHost&&m.clientId!==myClientId){
       kick='<span class="kick-btn" data-id="'+m.clientId+'" style="color:#e74c3c;cursor:pointer;font-size:14px;padding:6px 12px;border:1px solid #e74c3c;border-radius:6px;min-width:32px;text-align:center">x</span>';
@@ -2346,7 +2354,7 @@ function renderParticipantDetails(){
     var vm=virtualMembers[j];
     var vChip=document.createElement('div');
     vChip.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #333';
-    var vName='<span style="color:#aaa;font-style:italic">'+escHtml(vm.name||'Guest')+' (shared)</span>';
+    var vName='<span style="color:#aaa;font-style:italic">'+escHtml(dispName(vm.name)||t('guestLabel'))+' '+escHtml(t('vmShared'))+'</span>';
     var vKick='';
     if(isHost){
       vKick='<span class="vm-kick-btn" data-id="'+vm.id+'" style="color:#e74c3c;cursor:pointer;font-size:14px;padding:6px 12px;border:1px solid #e74c3c;border-radius:6px;min-width:32px;text-align:center">x</span>';
@@ -2423,7 +2431,7 @@ function handleSpeakingIndicator(msg){
   LOG('speaking indicator: cid='+cid+' active='+msg.active+' name='+(msg.displayName||'?')+' myId='+myClientId);
   if(!cid)return;
   if(msg.active){
-    activeSpeakers[cid]=msg.displayName||'Guest';
+    activeSpeakers[cid]=dispName(msg.displayName)||t('guestLabel');
     if(speakingTimers[cid])clearTimeout(speakingTimers[cid]);
     speakingTimers[cid]=setTimeout(function(){clearSpeaker(cid);updateSpeakingUI()},30000);
   }else{
@@ -2638,7 +2646,7 @@ function toggleHostPanel(){
         try{
           var res=JSON.parse(xhr.responseText);
           if(res.ok){if(st){st.textContent=t('pipeResetOk');st.style.color='#4f4'}}
-          else{if(st){st.textContent=res.error||'Reset failed';st.style.color='#f44'}}
+          else{if(st){st.textContent=res.error||t('resetFailed');st.style.color='#f44'}}
         }catch(e){if(st){st.textContent='Error';st.style.color='#f44'}}
       };
       xhr.onerror=function(){if(st){st.textContent=t('netError');st.style.color='#f44'}};

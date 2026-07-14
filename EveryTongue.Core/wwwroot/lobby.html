@@ -211,11 +211,11 @@
         <!-- Rooms section (Your Rooms + Public Rooms) — hidden when empty -->
         <div id="rooms-section" style="display:none">
             <div id="my-rooms" style="display:none">
-                <div class="section-label">Your Rooms</div>
+                <div class="section-label" data-i18n="lbYourRooms">Your Rooms</div>
                 <ul class="room-list" id="my-room-list"></ul>
             </div>
             <div id="public-rooms" style="display:none">
-                <div class="section-label">Open Rooms</div>
+                <div class="section-label" data-i18n="lbOpenRooms">Open Rooms</div>
                 <ul class="room-list" id="room-list"></ul>
             </div>
             <hr class="divider">
@@ -225,11 +225,11 @@
              tools below are hidden behind this link (guests only join rooms).
              Server-side enforcement lives on the endpoints; this is just the door. -->
         <div id="host-tools-gate" style="display:none;text-align:center;margin:14px 0">
-            <a href="#" id="host-tools-link" style="color:#7c9cf7;font-size:14px;text-decoration:underline">Host tools</a>
+            <a href="#" id="host-tools-link" style="color:#7c9cf7;font-size:14px;text-decoration:underline" data-i18n="lbHostTools">Host tools</a>
             <div id="host-tools-form" style="display:none;margin-top:10px">
-                <input type="text" id="creator-code-input" placeholder="Enter host code" autocomplete="off"
+                <input type="text" id="creator-code-input" placeholder="Enter host code" data-i18n-ph="lbEnterHostCode" autocomplete="off"
                        style="width:60%;padding:10px;border-radius:8px;border:1px solid #444;background:#1a1a2e;color:#e0e0e0;font-size:14px">
-                <button class="btn btn-primary" id="creator-code-go" style="width:auto;padding:10px 18px;margin-left:6px">OK</button>
+                <button class="btn btn-primary" id="creator-code-go" style="width:auto;padding:10px 18px;margin-left:6px" data-i18n="lbOk">OK</button>
                 <div id="creator-code-msg" style="color:#ff6b6b;font-size:13px;margin-top:6px"></div>
             </div>
         </div>
@@ -239,63 +239,63 @@
              transcribe engine (conversation PTT needs one-shot /transcribe,
              which streaming engines / Lite cannot serve) -->
         <div id="conv-create">
-        <div class="section-label">Create Conversation</div>
+        <div class="section-label" data-i18n="lbCreateConversation">Create Conversation</div>
 
         <div class="toggle-row">
-            <span class="label">Private Room</span>
+            <span class="label" data-i18n="lbPrivateRoom">Private Room</span>
             <div class="toggle on" id="toggle-private"></div>
         </div>
 
         <div class="form-group">
-            <label for="conv-engine">Translation engine</label>
+            <label for="conv-engine" data-i18n="lbTranslationEngine">Translation engine</label>
             <select id="conv-engine" style="width:100%;padding:10px;border-radius:8px;border:1px solid #444;background:#1a1a2e;color:#e0e0e0;font-size:14px">
-                <option value="">Default</option>
+                <option value="" data-i18n="lbDefault">Default</option>
             </select>
         </div>
 
-        <button class="btn btn-primary" id="btn-create">Create Conversation</button>
+        <button class="btn btn-primary" id="btn-create" data-i18n="lbCreateConversation">Create Conversation</button>
         </div><!-- /conv-create -->
 
         <!-- Dictation: private single-user speech-to-text editor -->
         <hr class="divider">
-        <div class="section-label">Dictation</div>
+        <div class="section-label" data-i18n="lbDictation">Dictation</div>
         <div class="form-group">
-            <label for="dict-lang">Speaking language</label>
+            <label for="dict-lang" data-i18n="lbSpeakingLanguage">Speaking language</label>
             <select id="dict-lang" style="width:100%;padding:10px;border-radius:8px;border:1px solid #444;background:#1a1a2e;color:#e0e0e0;font-size:14px">
-                <option value="ca">Catalan</option>
-                <option value="es">Spanish</option>
-                <option value="en">English</option>
-                <option value="fr">French</option>
-                <option value="de">German</option>
-                <option value="it">Italian</option>
-                <option value="pt">Portuguese</option>
-                <option value="nl">Dutch</option>
+                <option value="ca" data-i18n="lbLangCa">Catalan</option>
+                <option value="es" data-i18n="lbLangEs">Spanish</option>
+                <option value="en" data-i18n="lbLangEn">English</option>
+                <option value="fr" data-i18n="lbLangFr">French</option>
+                <option value="de" data-i18n="lbLangDe">German</option>
+                <option value="it" data-i18n="lbLangIt">Italian</option>
+                <option value="pt" data-i18n="lbLangPt">Portuguese</option>
+                <option value="nl" data-i18n="lbLangNl">Dutch</option>
             </select>
         </div>
-        <button class="btn btn-primary" id="btn-dictate">Start Dictation</button>
+        <button class="btn btn-primary" id="btn-dictate" data-i18n="lbStartDictation">Start Dictation</button>
 
         <!-- Host Conference (template-based) -->
         <div id="conference-section" style="display:none">
             <hr class="divider">
-            <div class="section-label">Host Conference</div>
+            <div class="section-label" data-i18n="lbHostConference">Host Conference</div>
 
             <div class="form-group">
-                <label for="template-select">Template</label>
+                <label for="template-select" data-i18n="lbTemplate">Template</label>
                 <select id="template-select" style="width:100%;padding:10px;border-radius:8px;border:1px solid #444;background:#1a1a2e;color:#e0e0e0;font-size:14px">
-                    <option value="">Loading...</option>
+                    <option value="" data-i18n="lbLoading">Loading...</option>
                 </select>
             </div>
 
             <div id="hosting-code-group" class="form-group" style="display:none">
-                <label for="hosting-code">Hosting Code</label>
-                <input type="text" id="hosting-code" placeholder="Enter hosting code"
+                <label for="hosting-code" data-i18n="lbHostingCode">Hosting Code</label>
+                <input type="text" id="hosting-code" placeholder="Enter hosting code" data-i18n-ph="lbEnterHostingCode"
                        style="width:100%;padding:10px;border-radius:8px;border:1px solid #444;background:#1a1a2e;color:#e0e0e0;font-size:14px"
                        autocomplete="off" autocapitalize="off" spellcheck="false">
             </div>
 
             <div id="conference-error" style="display:none;color:#ff6b6b;font-size:13px;margin-bottom:12px"></div>
 
-            <button class="btn btn-primary" id="btn-create-conference" disabled>Create Conference</button>
+            <button class="btn btn-primary" id="btn-create-conference" disabled data-i18n="lbCreateConference">Create Conference</button>
         </div>
         </div><!-- /creator-tools -->
     </div>
@@ -305,10 +305,10 @@
         <h2 id="qr-room-name"></h2>
         <img id="qr-image" alt="Room QR Code">
         <div class="room-url" id="qr-url"></div>
-        <button class="btn btn-primary" id="btn-join-own">Join Room</button>
-        <button class="btn btn-secondary btn-close-qr" id="btn-close-qr">Close</button>
+        <button class="btn btn-primary" id="btn-join-own" data-i18n="lbJoinRoom">Join Room</button>
+        <button class="btn btn-secondary btn-close-qr" id="btn-close-qr" data-i18n="lbClose">Close</button>
     </div>
 
-    <script src="/js/lobby.js?v=2.7.11"></script>
+    <script src="/js/lobby.js?v=2.7.14"></script>
 </body>
 </html>
