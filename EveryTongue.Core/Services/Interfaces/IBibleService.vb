@@ -46,5 +46,9 @@ Namespace Services.Interfaces
         ) As IReadOnlyList(Of DetectedReference)
 
         Sub RescanTranslations()
+
+        ''' <summary>The resolved Bibles folder this service scans — the one true
+        ''' target for downloads, so installed files are always found by rescan.</summary>
+        ReadOnly Property BiblesDirectory As String
     End Interface
 End Namespace

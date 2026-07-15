@@ -31,11 +31,27 @@ Public Module LiteProgram
                                    Console.WriteLine($"{entry.Time:HH:mm:ss} [{entry.Category}] {entry.Message}")
                                End Sub
 
-        ' ── Bibles: a config copied from a Windows install points at a Windows
-        ' path. If the config volume carries a Bibles folder, it wins — drop the
-        ' .sqlite3 files into <config-dir>\Bibles and the phone Bible panel works.
+        ' ── Bibles: Lite uses <config-dir>\Bibles — drop .sqlite3 files there
+        ' (or install from web settings → Bibles) and the phone Bible panel works.
+        ' Created up-front so web downloads land on the persistent volume, never
+        ' inside the container image (lost on update). A custom ABSOLUTE path from
+        ' config that actually exists wins (set via the raw config editor); the
+        ' relative default and Windows paths copied from a desktop install don't.
         Dim volumeBibles = IO.Path.Combine(ConfigManager.ConfigDirectory, "Bibles")
-        If IO.Directory.Exists(volumeBibles) Then
+        Try
+            If Not IO.Directory.Exists(volumeBibles) Then IO.Directory.CreateDirectory(volumeBibles)
+        Catch ex As Exception
+            AppLogger.Log(LogCategory.Config, LogSeverity.Warning, $"Could not create Bibles folder {volumeBibles}: {ex.Message}")
+        End Try
+        Dim configuredBibles = If(config.BiblesDirectory, "")
+        Dim customBibles = configuredBibles <> "" AndAlso IO.Path.IsPathRooted(configuredBibles) AndAlso
+                           IO.Directory.Exists(configuredBibles) AndAlso
+                           Not String.Equals(IO.Path.GetFullPath(configuredBibles).TrimEnd("\"c, "/"c),
+                                             IO.Path.GetFullPath(volumeBibles).TrimEnd("\"c, "/"c),
+                                             StringComparison.OrdinalIgnoreCase)
+        If customBibles Then
+            Console.WriteLine($"  Bibles: {configuredBibles} (custom path from config)")
+        ElseIf IO.Directory.Exists(volumeBibles) Then
             config.BiblesDirectory = volumeBibles
             Console.WriteLine($"  Bibles: {volumeBibles} ({IO.Directory.GetFiles(volumeBibles, "*.sqlite3", IO.SearchOption.AllDirectories).Length} file(s))")
         End If

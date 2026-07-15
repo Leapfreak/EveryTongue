@@ -285,8 +285,12 @@ Namespace Controllers
             ' the room template's reference; legacy embedded knobs are the fallback
             ' for configs that haven't migrated.
             Dim engineTpl = ResolveRoomSttTemplate(roomId, template)
+            ' Empty SttBackendKey = follow the server's default engine, mirroring
+            ' how ResolveRoomTranslationEngine treats an empty TranslationBackendKey
+            ' (the old If() only caught Nothing, so "" slipped through as a key).
             Dim backendKey = If(engineTpl IsNot Nothing AndAlso Not String.IsNullOrEmpty(engineTpl.EngineKey),
-                                engineTpl.EngineKey, If(template.SttBackendKey, _config.SttBackend))
+                                engineTpl.EngineKey,
+                                If(String.IsNullOrEmpty(template.SttBackendKey), _config.SttBackend, template.SttBackendKey))
 
             ' Fail closed: never start an engine the room's mode makes ineligible.
             Dim roomForGate = _getRoomManager()?.GetRoom(roomId)

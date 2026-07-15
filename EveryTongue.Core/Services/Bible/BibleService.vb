@@ -172,6 +172,12 @@ Namespace Services.Bible
             ScanTranslations()
         End Sub
 
+        Public ReadOnly Property BiblesDirectory As String Implements IBibleService.BiblesDirectory
+            Get
+                Return _biblesDir
+            End Get
+        End Property
+
         Private Sub ScanTranslations()
             _logger.LogInformation("Bible: scanning directory: {Dir}", _biblesDir)
             If Not Directory.Exists(_biblesDir) Then

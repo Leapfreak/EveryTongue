@@ -47,9 +47,11 @@ Namespace Services.Config
 
         Private Shared ReadOnly Property TemplatesDir As String
             Get
-                Return Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "EveryTongue", "templates")
+                ' ConfigManager.ConfigDirectory honours EVERYTONGUE_CONFIG_DIR, so
+                ' Lite/Docker template files live on the /config volume (they were
+                ' silently ephemeral in-container before). Without the override it
+                ' resolves to %APPDATA%\EveryTongue — the same path as always.
+                Return Path.Combine(Global.EveryTongue.Models.ConfigManager.ConfigDirectory, "templates")
             End Get
         End Property
 

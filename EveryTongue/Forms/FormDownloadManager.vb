@@ -275,49 +275,20 @@ Namespace Forms
         End Sub
 
         ' ── Bible Catalog ──
+        ' Catalog fetch/parse + download/convert orchestration lives in Core
+        ' (Services.Bible.BibleDownloadService) — shared with the web settings
+        ' Bible installer. This form only owns the TreeView UI around it.
 
-        Private Shared ReadOnly _httpClient As New HttpClient()
-        Private Const CatalogUrl = "https://ebible.org/Scriptures/translations.csv"
-        Private Const UsfmUrlTemplate = "https://ebible.org/Scriptures/{0}_usfm.zip"
-
-        ''' <summary>Parsed row from eBible.org translations.csv</summary>
-        Private Class CatalogEntry
-            Public Property TranslationId As String
-            Public Property LanguageCode As String
-            Public Property LanguageName As String
-            Public Property LanguageNameEnglish As String
-            Public Property Title As String
-            Public Property Description As String
-            Public Property Redistributable As Boolean
-            Public Property Copyright As String
-            Public Property OTBooks As Integer
-            Public Property NTBooks As Integer
-        End Class
-
-        Private _catalog As List(Of CatalogEntry)
+        Private _catalog As List(Of Services.Bible.BibleCatalogEntry)
         Private _installedBibles As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
 
         Private Sub LoadCachedCatalog()
-            Dim cacheFile = Path.Combine(_biblesDir, "translations.csv")
-            If File.Exists(cacheFile) Then
-                Try
-                    Dim csvText = File.ReadAllText(cacheFile)
-                    _catalog = ParseCatalogCsv(csvText)
-                Catch ex As Exception
-                    AppLogger.Log(LogEvents.DL_CHECK_RESULT, $"LoadCachedCatalog: {ex.Message}")
-                End Try
-            End If
+            _catalog = Services.Bible.BibleDownloadService.LoadCachedCatalog(_biblesDir)
         End Sub
 
         Private Sub LoadInstalledBibles()
             _installedBibles.Clear()
-            If Not Directory.Exists(_biblesDir) Then Return
-            Dim exts = {".db", ".sqlite", ".sqlite3"}
-            For Each f In Directory.GetFiles(_biblesDir, "*.*", SearchOption.AllDirectories)
-                If exts.Contains(Path.GetExtension(f).ToLower()) Then
-                    _installedBibles.Add(Path.GetFileNameWithoutExtension(f))
-                End If
-            Next
+            _installedBibles.UnionWith(Services.Bible.BibleDownloadService.GetInstalledIds(_biblesDir))
         End Sub
 
         Private Sub PopulateBibleTree(Optional filter As String = Nothing)
@@ -373,75 +344,6 @@ Namespace Forms
             tvBibles.EndUpdate()
         End Sub
 
-        Private Function ParseCatalogCsv(csvText As String) As List(Of CatalogEntry)
-            Dim entries As New List(Of CatalogEntry)
-            Dim lines = csvText.Split({vbCrLf, vbLf}, StringSplitOptions.RemoveEmptyEntries)
-            If lines.Length < 2 Then Return entries
-
-            ' Parse header to find column indices
-            Dim headers = ParseCsvLine(lines(0))
-            Dim colMap As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
-            For i = 0 To headers.Length - 1
-                colMap(headers(i).Trim()) = i
-            Next
-
-            For i = 1 To lines.Length - 1
-                Try
-                    Dim cols = ParseCsvLine(lines(i))
-                    Dim redistributable = GetCol(cols, colMap, "Redistributable")
-                    If Not redistributable.Equals("True", StringComparison.OrdinalIgnoreCase) Then Continue For
-                    Dim downloadable = GetCol(cols, colMap, "downloadable")
-                    If downloadable.Equals("False", StringComparison.OrdinalIgnoreCase) Then Continue For
-
-                    Dim entry As New CatalogEntry With {
-                        .TranslationId = GetCol(cols, colMap, "translationId"),
-                        .LanguageCode = GetCol(cols, colMap, "languageCode"),
-                        .LanguageName = GetCol(cols, colMap, "languageName"),
-                        .LanguageNameEnglish = GetCol(cols, colMap, "languageNameInEnglish"),
-                        .Title = GetCol(cols, colMap, "title"),
-                        .Description = GetCol(cols, colMap, "description"),
-                        .Redistributable = True,
-                        .Copyright = GetCol(cols, colMap, "Copyright")
-                    }
-                    Integer.TryParse(GetCol(cols, colMap, "OTbooks"), entry.OTBooks)
-                    Integer.TryParse(GetCol(cols, colMap, "NTbooks"), entry.NTBooks)
-
-                    If Not String.IsNullOrEmpty(entry.TranslationId) Then
-                        entries.Add(entry)
-                    End If
-                Catch ex As Exception
-                    AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"ParseCatalogCsv (row {i}): {ex.Message}")
-                End Try
-            Next
-
-            Return entries
-        End Function
-
-        Private Shared Function GetCol(cols As String(), colMap As Dictionary(Of String, Integer), name As String) As String
-            Dim idx As Integer
-            If colMap.TryGetValue(name, idx) AndAlso idx < cols.Length Then Return cols(idx).Trim()
-            Return ""
-        End Function
-
-        ''' <summary>Simple CSV line parser that handles quoted fields.</summary>
-        Private Shared Function ParseCsvLine(line As String) As String()
-            Dim fields As New List(Of String)
-            Dim current As New Text.StringBuilder()
-            Dim inQuotes = False
-            For Each ch In line
-                If ch = """"c Then
-                    inQuotes = Not inQuotes
-                ElseIf ch = ","c AndAlso Not inQuotes Then
-                    fields.Add(current.ToString())
-                    current.Clear()
-                Else
-                    current.Append(ch)
-                End If
-            Next
-            fields.Add(current.ToString())
-            Return fields.ToArray()
-        End Function
-
         Private Async Sub btnFetchCatalog_Click(sender As Object, e As EventArgs) Handles btnFetchCatalog.Click
             If _downloading Then Return
             btnFetchCatalog.Enabled = False
@@ -450,21 +352,7 @@ Namespace Forms
             pbProgress.Style = ProgressBarStyle.Marquee
 
             Try
-                ' Check for cached CSV (less than 24 hours old)
-                Dim cacheFile = Path.Combine(_biblesDir, "translations.csv")
-                Dim csvText As String
-
-                If File.Exists(cacheFile) AndAlso (DateTime.Now - File.GetLastWriteTime(cacheFile)).TotalHours < 24 Then
-                    csvText = File.ReadAllText(cacheFile)
-                    lblProgress.Text = lp.GetString("DM_CachedCatalog")
-                Else
-                    csvText = Await _httpClient.GetStringAsync(CatalogUrl)
-                    If Not Directory.Exists(_biblesDir) Then Directory.CreateDirectory(_biblesDir)
-                    File.WriteAllText(cacheFile, csvText)
-                    lblProgress.Text = lp.GetString("DM_CatalogDownloaded")
-                End If
-
-                _catalog = ParseCatalogCsv(csvText)
+                _catalog = Await Services.Bible.BibleDownloadService.GetCatalogAsync(_biblesDir)
                 LoadInstalledBibles()
                 PopulateBibleTree()
                 lblProgress.Text = String.Format(lp.GetString("DM_FoundTranslations"), _catalog.Count)
@@ -482,11 +370,11 @@ Namespace Forms
             If _downloading Then Return
 
             ' Collect checked translation nodes
-            Dim toDownload As New List(Of CatalogEntry)
+            Dim toDownload As New List(Of Services.Bible.BibleCatalogEntry)
             For Each langNode As TreeNode In tvBibles.Nodes
                 For Each childNode As TreeNode In langNode.Nodes
                     If childNode.Checked Then
-                        Dim entry = TryCast(childNode.Tag, CatalogEntry)
+                        Dim entry = TryCast(childNode.Tag, Services.Bible.BibleCatalogEntry)
                         If entry IsNot Nothing AndAlso Not _installedBibles.Contains(entry.TranslationId) Then
                             toDownload.Add(entry)
                         End If
@@ -507,42 +395,25 @@ Namespace Forms
             Try
                 For i = 0 To toDownload.Count - 1
                     Dim entry = toDownload(i)
-                    lblProgress.Text = $"Downloading {entry.Title} ({i + 1}/{toDownload.Count})..."
+                    Dim itemNo = i + 1
+                    lblProgress.Text = $"Downloading {entry.Title} ({itemNo}/{toDownload.Count})..."
                     pbProgress.Value = 0
 
-                    ' Download USFM zip
-                    Dim url = String.Format(UsfmUrlTemplate, entry.TranslationId)
-                    Dim zipBytes = Await _httpClient.GetByteArrayAsync(url)
+                    Try
+                        ' Shared Core orchestration: download zip → convert → verify.
+                        ' The stage callback runs on the UI thread (awaited from here).
+                        Dim issues = Await Services.Bible.BibleDownloadService.DownloadAndConvertAsync(
+                            entry, _biblesDir,
+                            Sub(stage)
+                                If stage = "converting" Then
+                                    lblProgress.Text = $"Converting {entry.Title} to SQLite3 ({itemNo}/{toDownload.Count})..."
+                                    pbProgress.Style = ProgressBarStyle.Marquee
+                                ElseIf stage = "verifying" Then
+                                    pbProgress.Style = ProgressBarStyle.Continuous
+                                    lblProgress.Text = $"Verifying {entry.Title}..."
+                                End If
+                            End Sub)
 
-                    ' Extract to temp directory
-                    Dim tempDir = Path.Combine(Path.GetTempPath(), "EveryTongue_USFM_" & entry.TranslationId)
-                    If Directory.Exists(tempDir) Then Directory.Delete(tempDir, True)
-                    Directory.CreateDirectory(tempDir)
-
-                    Dim zipPath = Path.Combine(tempDir, "usfm.zip")
-                    File.WriteAllBytes(zipPath, zipBytes)
-                    ZipFile.ExtractToDirectory(zipPath, tempDir)
-                    File.Delete(zipPath)
-
-                    ' Convert USFM to SQLite3
-                    lblProgress.Text = $"Converting {entry.Title} to SQLite3 ({i + 1}/{toDownload.Count})..."
-                    pbProgress.Style = ProgressBarStyle.Marquee
-                    Application.DoEvents()
-
-                    Dim langDir = Path.Combine(_biblesDir, entry.LanguageCode)
-                    If Not Directory.Exists(langDir) Then Directory.CreateDirectory(langDir)
-                    Dim dbPath = Path.Combine(langDir, entry.TranslationId & ".sqlite3")
-
-                    Await Task.Run(Sub() UsfmConverter.Convert(tempDir, dbPath, entry.Title, entry.LanguageCode, entry.Copyright))
-
-                    pbProgress.Style = ProgressBarStyle.Continuous
-
-                    If File.Exists(dbPath) Then
-                        Dim sizeMb = New FileInfo(dbPath).Length / 1024.0 / 1024.0
-                        lblProgress.Text = $"Verifying {entry.Title}..."
-
-                        ' Run integrity check on the converted database
-                        Dim issues = Await Task.Run(Function() UsfmConverter.VerifyDatabase(dbPath))
                         If issues.Count > 0 Then
                             allIssues.Add($"{entry.Title}:")
                             For Each issue In issues
@@ -550,21 +421,20 @@ Namespace Forms
                             Next
                         End If
 
-                        lblProgress.Text = $"Converted {entry.Title} ({sizeMb:F1} MB) ({i + 1}/{toDownload.Count})"
-                    Else
+                        Dim dbPath = Path.Combine(_biblesDir, entry.LanguageCode, entry.TranslationId & ".sqlite3")
+                        Dim sizeMb = New FileInfo(dbPath).Length / 1024.0 / 1024.0
+                        lblProgress.Text = $"Converted {entry.Title} ({sizeMb:F1} MB) ({itemNo}/{toDownload.Count})"
+                    Catch ex As Exception
+                        ' One failed Bible shouldn't abort the rest of the batch.
                         Dim dlp = Services.Infrastructure.LanguagePackService.Instance
                         allIssues.Add(String.Format(dlp.GetString("DM_BibleConversionFailed"), entry.Title))
                         lblProgress.Text = String.Format(dlp.GetString("DM_BibleConversionWarning"), entry.Title)
-                    End If
-
-                    ' Cleanup temp
-                    Try
-                        Directory.Delete(tempDir, True)
-                    Catch ex As Exception
-                        AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"DownloadBibles (cleanup tempDir): {ex.Message}")
+                        AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"Bible download {entry.TranslationId}: {ex.Message}")
+                    Finally
+                        pbProgress.Style = ProgressBarStyle.Continuous
                     End Try
 
-                    pbProgress.Value = CInt((i + 1) * 100 \ toDownload.Count)
+                    pbProgress.Value = CInt(itemNo * 100 \ toDownload.Count)
                 Next
 
                 Dim blp2 = Services.Infrastructure.LanguagePackService.Instance

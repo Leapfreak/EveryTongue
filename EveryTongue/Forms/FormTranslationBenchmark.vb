@@ -1501,9 +1501,7 @@ Public Class FormTranslationBenchmark
             Dim csv = BuildUnifiedCsv()
             If String.IsNullOrEmpty(csv) Then Return
 
-            Dim benchDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "EveryTongue", "benchmarks")
+            Dim benchDir = Path.Combine(Global.EveryTongue.Models.ConfigManager.ConfigDirectory, "benchmarks")
             If Not Directory.Exists(benchDir) Then Directory.CreateDirectory(benchDir)
 
             Dim filePath = Path.Combine(benchDir, $"benchmark_{DateTime.Now:yyyyMMdd_HHmmss}.csv")

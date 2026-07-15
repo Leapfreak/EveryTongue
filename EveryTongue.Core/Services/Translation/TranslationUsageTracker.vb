@@ -48,9 +48,10 @@ Namespace Services.Translation
 
         Private Shared ReadOnly Property StorePath As String
             Get
-                Return Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "EveryTongue", "translation-usage.json")
+                ' ConfigManager.ConfigDirectory honours EVERYTONGUE_CONFIG_DIR —
+                ' monthly billable-character counters must survive container
+                ' updates (they were silently reset with each image replacement).
+                Return Path.Combine(Global.EveryTongue.Models.ConfigManager.ConfigDirectory, "translation-usage.json")
             End Get
         End Property
 

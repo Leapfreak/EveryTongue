@@ -44,9 +44,9 @@ Public Class FormFilterSets
     End Sub
 
     Private Shared Function SetFolder(id As String) As String
-        Return Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "EveryTongue", "filters", id)
+        ' Same root as filter-sets.json (TemplateLibraryStore) — the set's file
+        ' paths are stored there, so the files must move with the config dir.
+        Return Path.Combine(Global.EveryTongue.Models.ConfigManager.ConfigDirectory, "filters", id)
     End Function
 
     Private Sub RefreshList()

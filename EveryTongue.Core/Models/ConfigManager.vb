@@ -20,6 +20,14 @@ Namespace Models
 
         Private Shared ReadOnly JsonOptions As JsonSerializerOptions
 
+        ''' <summary>The canonical config.json serializer settings — shared so the
+        ''' raw-config web editor round-trips exactly what Save/Load produce.</summary>
+        Public Shared ReadOnly Property SerializerOptions As JsonSerializerOptions
+            Get
+                Return JsonOptions
+            End Get
+        End Property
+
         Shared Sub New()
             JsonOptions = New JsonSerializerOptions With {
                 .WriteIndented = True,
@@ -69,13 +77,24 @@ Namespace Models
             Services.Config.ConferenceTemplateMigration.Migrate(cfg)
         End Sub
 
+        Private Shared ReadOnly _saveLock As New Object()
+
         Public Shared Sub Save(config As AppConfig)
             Try
-                If Not Directory.Exists(ConfigDir) Then
-                    Directory.CreateDirectory(ConfigDir)
-                End If
-                Dim json = JsonSerializer.Serialize(config, JsonOptions)
-                File.WriteAllText(ConfigPath, json)
+                ' Serialize + atomic-replace under a lock: the web settings endpoints
+                ' save from request threads while the desktop saves from the UI thread —
+                ' two overlapping File.WriteAllText calls to the same path can tear
+                ' config.json. Write-to-temp-then-move means a crash mid-write leaves
+                ' the previous good file, never a truncated one.
+                SyncLock _saveLock
+                    If Not Directory.Exists(ConfigDir) Then
+                        Directory.CreateDirectory(ConfigDir)
+                    End If
+                    Dim json = JsonSerializer.Serialize(config, JsonOptions)
+                    Dim tmpPath = ConfigPath & ".tmp"
+                    File.WriteAllText(tmpPath, json)
+                    File.Move(tmpPath, ConfigPath, overwrite:=True)
+                End SyncLock
             Catch ex As Exception
                 AppLogger.Log(LogEvents.CONFIG_SAVE_FAILED, $"Save failed: {ex.Message}")
             End Try

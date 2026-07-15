@@ -47,8 +47,10 @@ Namespace Models
 
         Private Shared ReadOnly Property ReleaseCachePath As String
             Get
-                Return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                                    "EveryTongue", "github-cache.json")
+                ' ConfigManager.ConfigDirectory honours EVERYTONGUE_CONFIG_DIR — this
+                ' cache exists to survive restarts (GitHub 60/hour anonymous budget),
+                ' so in a container it must live on the volume, not the image layer.
+                Return Path.Combine(ConfigManager.ConfigDirectory, "github-cache.json")
             End Get
         End Property
 

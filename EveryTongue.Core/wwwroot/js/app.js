@@ -43,6 +43,26 @@ var T={connecting:'Connecting...',connected:'Connected',disconnected:'Disconnect
     setPinLabel:'Admin PIN',setPinNew:'choose a PIN',setPinRequired:'Set an admin PIN to secure the server first',
     setCreatorLabel:'Host tools code',setCreatorHint:'Volunteers enter this in the lobby to create rooms. Empty = anyone can create. Enter "-" to clear.',setCreatorEmpty:'not set — room creation is open',
     setSave:'Save',setSaved:'Saved ✓',setViewLog:'View server log',setBadPin:'Not authorized',
+    setRawBtn:'Advanced: edit raw config',setRawHint:'The full server configuration (config.json). Engine, API key, PIN and host-code changes apply immediately; other changes apply after a restart.',
+    setRawSave:'Save raw config',setRawInvalid:'Invalid JSON: ',setRawSaved:'Config saved ✓',
+    setRawRestart:'Config saved ✓ — some changes apply after a restart',setRawLoadFail:'Failed to load config',
+    setRawPinCleared:'Warning: admin PIN cleared — settings are now open',
+    setBiblesBtn:'Bibles (download)',
+    setBiblesHint:'Freely-redistributable Bibles from eBible.org. Copyrighted translations must be copied into the Bibles folder manually.',
+    setBiblesSearch:'Search by language or name...',setBiblesInstalled:'installed',
+    setBiblesDownload:'Download',setBiblesRetry:'Retry',
+    setBiblesDownloading:'downloading',setBiblesConverting:'converting',setBiblesVerifying:'verifying',
+    setBiblesTypeToSearch:'Type at least 2 letters to search the catalog. Installed Bibles are listed above.',
+    setBiblesMore:'+{0} more — refine your search',setBiblesNone:'No matches.',
+    setTplsBtn:'Conference templates',setTplsNew:'New template',setTplsNone:'No templates yet.',
+    setTplsEdit:'Edit',setTplsDelete:'Delete',setTplsDeleteConfirm:'Delete this template?',
+    setTplsName:'Name',setTplsHostCode:'Hosting code (volunteers enter this to start the room)',
+    setTplsSourceLang:'Speaker language',setTplsAudio:'Microphone',
+    setTplsAudioWeb:'Web mic (browser broadcast)',setTplsAudioWebRaw:'Web mic, raw (PA/line feed)',setTplsAudioLocal:'Local device (server machine)',
+    setTplsVisibility:'Room visibility',setTplsPublic:'Public (listed in lobby)',setTplsPrivate:'Private (QR/link only)',
+    setTplsOffered:'Offered languages',
+    setTplsOfferedHint:'Comma-separated FLORES codes, e.g. spa_Latn, eng_Latn, cat_Latn. Empty = listeners can pick any language.',
+    setTplsServerDefault:'(server default)',setTplsNameReq:'Name and hosting code are required',
     bcStart:'Broadcast Mic',bcStop:'LIVE — tap to stop',bcStarting:'Starting mic…',
     bcTakenOver:'Another device took over the microphone',
     bcRejected:'Microphone broadcast not allowed (host only)',
@@ -898,14 +918,62 @@ function buildSettingsOverlay(s,pin){
     'style="width:100%;box-sizing:border-box;padding:7px;border-radius:6px;border:1px solid '+(s.creatorCodeSet?'#3a5':'#555')+';background:#252540;color:#fff;margin-bottom:14px">'+
     '<button id="setSave" style="width:100%;padding:12px;border:none;border-radius:8px;background:#7c9cf7;color:#1a1a2e;font-size:15px;font-weight:600;cursor:pointer">'+t('setSave')+'</button>'+
     '<button id="setLog" style="width:100%;padding:9px;border:1px solid #555;border-radius:8px;background:transparent;color:#aaa;font-size:13px;cursor:pointer;margin-top:8px">'+t('setViewLog')+'</button>'+
+    '<button id="setTpls" style="width:100%;padding:9px;border:1px solid #555;border-radius:8px;background:transparent;color:#aaa;font-size:13px;cursor:pointer;margin-top:8px">'+t('setTplsBtn')+'</button>'+
+    '<button id="setBibles" style="width:100%;padding:9px;border:1px solid #555;border-radius:8px;background:transparent;color:#aaa;font-size:13px;cursor:pointer;margin-top:8px">'+t('setBiblesBtn')+'</button>'+
+    '<button id="setRaw" style="width:100%;padding:9px;border:1px solid #555;border-radius:8px;background:transparent;color:#aaa;font-size:13px;cursor:pointer;margin-top:8px">'+t('setRawBtn')+'</button>'+
     '<button id="setClose" style="width:100%;padding:9px;border:none;border-radius:8px;background:#333;color:#ccc;font-size:13px;cursor:pointer;margin-top:8px">'+t('cancel')+'</button>'+
     '<div id="setMsg" style="text-align:center;font-size:13px;margin-top:8px"></div>'+
     '<pre id="setLogView" style="display:none;background:#111;border:1px solid #333;border-radius:6px;padding:8px;font-size:10px;max-height:300px;overflow:auto;white-space:pre-wrap;margin-top:8px"></pre>'+
+    '<div id="setTplsWrap" style="display:none;margin-top:8px">'+
+      '<div id="setTplsList"></div>'+
+      '<button id="setTplsNew" style="width:100%;padding:8px;border:1px dashed #555;border-radius:8px;background:transparent;color:#aaa;font-size:13px;cursor:pointer;margin-top:6px">'+t('setTplsNew')+'</button>'+
+      '<div id="setTplsForm" style="display:none;border:1px solid #333;border-radius:8px;padding:10px;margin-top:8px">'+
+        '<label style="color:#888;font-size:12px">'+t('setTplsName')+'</label>'+
+        '<input type="text" id="tplName" autocomplete="off" style="width:100%;box-sizing:border-box;padding:7px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;margin-bottom:8px">'+
+        '<label style="color:#888;font-size:12px">'+t('setTplsHostCode')+'</label>'+
+        '<input type="text" id="tplCode" autocomplete="off" style="width:100%;box-sizing:border-box;padding:7px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;margin-bottom:8px">'+
+        '<label style="color:#888;font-size:12px">'+t('setTplsSourceLang')+'</label>'+
+        '<select id="tplLang" style="width:100%;padding:8px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;margin-bottom:8px"></select>'+
+        '<label style="color:#888;font-size:12px">'+t('setSttEngine')+'</label>'+
+        '<select id="tplStt" style="width:100%;padding:8px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;margin-bottom:8px"></select>'+
+        '<label style="color:#888;font-size:12px">'+t('setTransEngine')+'</label>'+
+        '<select id="tplTrans" style="width:100%;padding:8px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;margin-bottom:8px"></select>'+
+        '<label style="color:#888;font-size:12px">'+t('setTplsAudio')+'</label>'+
+        '<select id="tplAudio" style="width:100%;padding:8px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;margin-bottom:8px">'+
+          '<option value="web">'+t('setTplsAudioWeb')+'</option>'+
+          '<option value="webraw">'+t('setTplsAudioWebRaw')+'</option>'+
+          '<option value="local">'+t('setTplsAudioLocal')+'</option>'+
+        '</select>'+
+        '<label style="color:#888;font-size:12px">'+t('setTplsVisibility')+'</label>'+
+        '<select id="tplVis" style="width:100%;padding:8px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;margin-bottom:8px">'+
+          '<option value="public">'+t('setTplsPublic')+'</option>'+
+          '<option value="private">'+t('setTplsPrivate')+'</option>'+
+        '</select>'+
+        '<label style="color:#888;font-size:12px">'+t('setTplsOffered')+'</label>'+
+        '<div style="color:#777;font-size:11px;margin-bottom:4px">'+t('setTplsOfferedHint')+'</div>'+
+        '<input type="text" id="tplOffered" autocomplete="off" style="width:100%;box-sizing:border-box;padding:7px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;margin-bottom:10px">'+
+        '<button id="tplSave" style="width:100%;padding:10px;border:none;border-radius:8px;background:#7c9cf7;color:#1a1a2e;font-size:14px;font-weight:600;cursor:pointer">'+t('setSave')+'</button>'+
+        '<button id="tplCancel" style="width:100%;padding:8px;border:none;border-radius:8px;background:#333;color:#ccc;font-size:13px;cursor:pointer;margin-top:6px">'+t('cancel')+'</button>'+
+        '<div id="tplMsg" style="text-align:center;font-size:13px;margin-top:6px"></div>'+
+      '</div>'+
+    '</div>'+
+    '<div id="setBiblesWrap" style="display:none;margin-top:8px">'+
+      '<div style="color:#777;font-size:11px;margin-bottom:6px">'+t('setBiblesHint')+'</div>'+
+      '<input id="setBiblesSearch" type="text" placeholder="'+t('setBiblesSearch')+'" autocomplete="off" '+
+        'style="width:100%;box-sizing:border-box;padding:7px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;margin-bottom:6px">'+
+      '<div id="setBiblesList" style="max-height:320px;overflow-y:auto"></div>'+
+    '</div>'+
+    '<div id="setRawWrap" style="display:none;margin-top:8px">'+
+      '<div style="color:#777;font-size:11px;margin-bottom:4px">'+t('setRawHint')+'</div>'+
+      '<textarea id="setRawText" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" '+
+        'style="width:100%;box-sizing:border-box;height:320px;background:#111;color:#cfd8ff;border:1px solid #333;border-radius:6px;padding:8px;font-family:monospace;font-size:11px;white-space:pre;overflow:auto"></textarea>'+
+      '<button id="setRawSave" style="width:100%;padding:10px;border:none;border-radius:8px;background:#c9a15a;color:#1a1a2e;font-size:14px;font-weight:600;cursor:pointer;margin-top:6px">'+t('setRawSave')+'</button>'+
+    '</div>'+
     '</div>';
   d.innerHTML=h;
   document.body.appendChild(d);
 
-  document.getElementById('setClose').addEventListener('click',function(){d.remove()});
+  document.getElementById('setClose').addEventListener('click',function(){bibStopPoll();d.remove()});
   document.getElementById('setLog').addEventListener('click',function(){
     fetch('/api/settings/logtail?pin='+encodeURIComponent(sessionStorage.getItem('adminPin')||pin||'')).then(function(r){return r.json()}).then(function(lg){
       var pre=document.getElementById('setLogView');
@@ -913,6 +981,255 @@ function buildSettingsOverlay(s,pin){
       pre.textContent=(lg.lines||[]).join('\n')||'(empty)';
       pre.scrollTop=pre.scrollHeight;
     }).catch(function(){});
+  });
+  /* ── Conference template editor (admin CRUD) ── */
+  var tplData=null,tplLangs=null,tplEditingId='';
+  function tplPin(){return sessionStorage.getItem('adminPin')||pin||''}
+  function tplEsc(x){return String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+  function tplFind(id){if(!tplData)return null;for(var i=0;i<tplData.length;i++){if(tplData[i].id===id)return tplData[i]}return null}
+  function tplRenderList(){
+    var lst=document.getElementById('setTplsList');
+    if(!lst)return;
+    if(!tplData||!tplData.length){
+      lst.innerHTML='<div style="color:#888;font-size:11px;padding:6px 0">'+t('setTplsNone')+'</div>';return}
+    var rows=[],i,tp;
+    for(i=0;i<tplData.length;i++){tp=tplData[i];
+      var audio=tp.audioSource==='local'?t('setTplsAudioLocal'):(tp.webMicRaw?t('setTplsAudioWebRaw'):t('setTplsAudioWeb'));
+      var sub=tp.sourceLanguage+' · '+audio;
+      if(tp.offeredLanguages&&tp.offeredLanguages.length)sub+=' · '+tp.offeredLanguages.join(', ');
+      rows.push('<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #222">'+
+        '<div style="flex:1;min-width:0">'+
+        '<div style="font-size:13px;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+tplEsc(tp.name)+'</div>'+
+        '<div style="font-size:11px;color:#888;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+tplEsc(sub)+'</div></div>'+
+        '<button data-tpl-edit="'+tplEsc(tp.id)+'" style="padding:5px 10px;border:none;border-radius:6px;background:#7c9cf7;color:#1a1a2e;font-size:12px;font-weight:600;cursor:pointer">'+t('setTplsEdit')+'</button>'+
+        '<button data-tpl-del="'+tplEsc(tp.id)+'" style="padding:5px 10px;border:1px solid #a44;border-radius:6px;background:transparent;color:#f88;font-size:12px;cursor:pointer">'+t('setTplsDelete')+'</button>'+
+        '</div>');
+    }
+    lst.innerHTML=rows.join('');
+  }
+  function tplFillLangs(){
+    var sel=document.getElementById('tplLang');
+    if(!sel||!tplLangs)return;
+    var h='<option value="auto">'+t('autoDetect')+'</option>',i;
+    for(i=0;i<tplLangs.length;i++){h+='<option value="'+tplEsc(tplLangs[i].code)+'">'+tplEsc(tplLangs[i].name)+'</option>'}
+    var cur=sel.getAttribute('data-cur')||'auto';
+    sel.innerHTML=h;
+    sel.value=cur;
+    if(!sel.value)sel.value='auto'; /* template language unknown to the active engine */
+  }
+  function tplLoad(){
+    var lst=document.getElementById('setTplsList');
+    if(!lst)return;
+    fetch('/api/settings/templates?pin='+encodeURIComponent(tplPin()))
+      .then(function(r){return r.json()}).then(function(res){
+        if(res.error){lst.innerHTML='<div style="color:#f44;font-size:12px">'+tplEsc(res.error)+'</div>';return}
+        tplData=res.templates||[];
+        tplRenderList();
+      }).catch(function(e){LOG('templates fetch failed: '+e);
+        lst.innerHTML='<div style="color:#f44;font-size:12px">'+t('netError')+'</div>'});
+    if(!tplLangs){
+      fetch('/api/stt-languages').then(function(r){return r.json()}).then(function(ls){
+        tplLangs=ls||[];tplFillLangs();
+      }).catch(function(){tplLangs=[]});
+    }
+  }
+  function tplShowForm(tp){
+    tplEditingId=tp?tp.id:'';
+    document.getElementById('tplName').value=tp?tp.name:'';
+    document.getElementById('tplCode').value=tp?tp.hostingCode:'';
+    document.getElementById('tplLang').setAttribute('data-cur',tp?tp.sourceLanguage:'auto');
+    tplFillLangs();
+    var h='',i,e;
+    for(i=0;i<s.sttEngines.length;i++){e=s.sttEngines[i];h+='<option value="'+e.key+'">'+e.name+'</option>'}
+    var selStt=document.getElementById('tplStt');
+    selStt.innerHTML=h;
+    selStt.value=tp&&tp.sttBackend?tp.sttBackend:s.sttBackend;
+    h='<option value="">'+t('setTplsServerDefault')+'</option>';
+    for(i=0;i<s.translationEngines.length;i++){e=s.translationEngines[i];h+='<option value="'+e.key+'">'+e.name+'</option>'}
+    var selTr=document.getElementById('tplTrans');
+    selTr.innerHTML=h;
+    selTr.value=tp?(tp.translationBackend||''):'';
+    document.getElementById('tplAudio').value=tp?(tp.audioSource==='local'?'local':(tp.webMicRaw?'webraw':'web')):'web';
+    document.getElementById('tplVis').value=tp?tp.visibility:'public';
+    document.getElementById('tplOffered').value=tp&&tp.offeredLanguages?tp.offeredLanguages.join(', '):'';
+    document.getElementById('tplMsg').textContent='';
+    document.getElementById('setTplsForm').style.display='block';
+  }
+  document.getElementById('setTpls').addEventListener('click',function(){
+    var wrap=document.getElementById('setTplsWrap');
+    if(wrap.style.display!=='none'){wrap.style.display='none';return}
+    wrap.style.display='block';
+    document.getElementById('setTplsList').innerHTML='<div style="color:#888;font-size:12px">'+t('checking')+'</div>';
+    tplLoad();
+  });
+  document.getElementById('setTplsNew').addEventListener('click',function(){tplShowForm(null)});
+  document.getElementById('tplCancel').addEventListener('click',function(){document.getElementById('setTplsForm').style.display='none'});
+  document.getElementById('setTplsList').addEventListener('click',function(ev){
+    var el=ev.target;
+    var eid=el.getAttribute&&el.getAttribute('data-tpl-edit');
+    var did=el.getAttribute&&el.getAttribute('data-tpl-del');
+    if(eid){var tp=tplFind(eid);if(tp)tplShowForm(tp);return}
+    if(did){
+      if(!window.confirm(t('setTplsDeleteConfirm')))return;
+      fetch('/api/settings/templates/delete',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({pin:tplPin(),id:did})})
+        .then(function(r){return r.json()}).then(function(res){
+          if(res.ok){tplLoad()}
+          else{var m=document.getElementById('setMsg');if(m){m.style.color='#f44';m.textContent=res.error||t('setBadPin')}}
+        }).catch(function(e){LOG('template delete failed: '+e)});
+    }
+  });
+  document.getElementById('tplSave').addEventListener('click',function(){
+    var m=document.getElementById('tplMsg');
+    var nm=document.getElementById('tplName').value.replace(/^\s+|\s+$/g,'');
+    var code=document.getElementById('tplCode').value.replace(/^\s+|\s+$/g,'');
+    if(!nm||!code){m.style.color='#f44';m.textContent=t('setTplsNameReq');return}
+    var audio=document.getElementById('tplAudio').value;
+    var offered=[],parts=document.getElementById('tplOffered').value.split(',');
+    for(var i=0;i<parts.length;i++){var p=parts[i].replace(/^\s+|\s+$/g,'');if(p)offered.push(p)}
+    var body={pin:tplPin(),name:nm,hostingCode:code,
+      sourceLanguage:document.getElementById('tplLang').value,
+      sttBackend:document.getElementById('tplStt').value,
+      translationBackend:document.getElementById('tplTrans').value,
+      audioSource:audio==='local'?'local':'web',
+      webMicRaw:audio==='webraw',
+      visibility:document.getElementById('tplVis').value,
+      offeredLanguages:offered};
+    if(tplEditingId)body.id=tplEditingId;
+    fetch('/api/settings/templates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      .then(function(r){return r.json().catch(function(){return {ok:r.status>=200&&r.status<300}})})
+      .then(function(res){
+        if(res.ok){
+          document.getElementById('setTplsForm').style.display='none';
+          tplLoad();
+        }else{m.style.color='#f44';m.textContent=res.error||t('setBadPin')}
+      }).catch(function(e){LOG('template save failed: '+e);m.style.color='#f44';m.textContent=t('cmdFail')});
+  });
+
+  /* ── Bible downloads (eBible.org redistributable catalog) ── */
+  var bibData=null,bibPoll=null;
+  var bibEsc=tplEsc; /* same attribute-escape helper as the template editor */
+  function bibStopPoll(){if(bibPoll){clearInterval(bibPoll);bibPoll=null}}
+  function bibHasActive(){
+    if(!bibData||!bibData.states)return false;
+    for(var k in bibData.states){var v=bibData.states[k];
+      if(v==='downloading'||v==='converting'||v==='verifying')return true}
+    return false;
+  }
+  function bibRender(){
+    var lst=document.getElementById('setBiblesList');
+    if(!lst||!bibData)return;
+    var stageTxt={downloading:t('setBiblesDownloading'),converting:t('setBiblesConverting'),verifying:t('setBiblesVerifying')};
+    var q=document.getElementById('setBiblesSearch').value.toLowerCase().replace(/^\s+|\s+$/g,'');
+    var rows=[],total=0,i,c;
+    for(i=0;i<bibData.catalog.length;i++){c=bibData.catalog[i];
+      var st=(bibData.states&&bibData.states[c.id])||'';
+      var show;
+      if(q.length>=2){
+        show=c.title.toLowerCase().indexOf(q)>=0||c.langName.toLowerCase().indexOf(q)>=0||
+             c.lang.toLowerCase().indexOf(q)>=0||c.id.toLowerCase().indexOf(q)>=0;
+      }else{show=c.installed||!!st}
+      if(!show)continue;
+      total++;
+      if(rows.length>=50)continue;
+      var books=c.ot&&c.nt?'':(c.nt?' · NT':(c.ot?' · OT':''));
+      var err=st.indexOf('error')===0?st:'';
+      var left='<div style="flex:1;min-width:0">'+
+        '<div style="font-size:13px;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+bibEsc(c.title)+'</div>'+
+        '<div style="font-size:11px;color:#888">'+bibEsc(c.langName)+' ('+bibEsc(c.lang)+')'+books+'</div>'+
+        (err?'<div style="font-size:10px;color:#f44">'+bibEsc(err)+'</div>':'')+
+        '</div>';
+      var right;
+      if(c.installed||st==='done'){
+        right='<span style="color:#4f4;font-size:12px;white-space:nowrap">✓ '+t('setBiblesInstalled')+'</span>';
+      }else if(stageTxt[st]){
+        right='<span style="color:#fa4;font-size:11px;white-space:nowrap">'+stageTxt[st]+'…</span>';
+      }else{
+        right='<button data-bible-dl="'+bibEsc(c.id)+'" style="padding:5px 10px;border:none;border-radius:6px;background:#7c9cf7;color:#1a1a2e;font-size:12px;font-weight:600;cursor:pointer">'+
+          (err?t('setBiblesRetry'):t('setBiblesDownload'))+'</button>';
+      }
+      rows.push('<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #222">'+left+right+'</div>');
+    }
+    if(total>rows.length)rows.push('<div style="color:#888;font-size:11px;padding:6px 0">'+t('setBiblesMore').replace('{0}',total-rows.length)+'</div>');
+    if(total===0)rows.push('<div style="color:#888;font-size:11px;padding:6px 0">'+(q.length>=2?t('setBiblesNone'):t('setBiblesTypeToSearch'))+'</div>');
+    lst.innerHTML=rows.join('');
+  }
+  function bibLoad(){
+    var lst=document.getElementById('setBiblesList');
+    if(!lst){bibStopPoll();return} /* overlay was closed while polling */
+    fetch('/api/settings/bibles?pin='+encodeURIComponent(sessionStorage.getItem('adminPin')||pin||''))
+      .then(function(r){return r.json()}).then(function(b){
+        if(b.error){lst.innerHTML='<div style="color:#f44;font-size:12px">'+bibEsc(b.error)+'</div>';bibStopPoll();return}
+        bibData=b;bibRender();
+        if(bibHasActive()){if(!bibPoll)bibPoll=setInterval(bibPollStates,2500)}
+        else bibStopPoll();
+      }).catch(function(e){LOG('bibles fetch failed: '+e);
+        lst.innerHTML='<div style="color:#f44;font-size:12px">'+t('netError')+'</div>'});
+  }
+  /* Progress polling hits the states-only endpoint (the full GET re-parses the
+     catalog server-side — too heavy for a 2.5s loop); one full bibLoad refresh
+     when everything finishes picks up the new installed flags. */
+  function bibPollStates(){
+    var lst=document.getElementById('setBiblesList');
+    if(!lst){bibStopPoll();return}
+    fetch('/api/settings/bibles/status?pin='+encodeURIComponent(sessionStorage.getItem('adminPin')||pin||''))
+      .then(function(r){return r.json()}).then(function(st){
+        if(st.error||!bibData){bibStopPoll();return}
+        bibData.states=st.states||{};
+        bibRender();
+        if(!bibHasActive()){bibStopPoll();bibLoad()}
+      }).catch(function(){});
+  }
+  document.getElementById('setBibles').addEventListener('click',function(){
+    var wrap=document.getElementById('setBiblesWrap');
+    if(wrap.style.display!=='none'){wrap.style.display='none';bibStopPoll();return}
+    wrap.style.display='block';
+    document.getElementById('setBiblesList').innerHTML='<div style="color:#888;font-size:12px">'+t('checking')+'</div>';
+    bibLoad();
+  });
+  document.getElementById('setBiblesSearch').addEventListener('input',bibRender);
+  document.getElementById('setBiblesList').addEventListener('click',function(ev){
+    var el=ev.target;
+    var id=el.getAttribute&&el.getAttribute('data-bible-dl');
+    if(!id)return;
+    el.disabled=true;
+    fetch('/api/settings/bibles/download',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({pin:sessionStorage.getItem('adminPin')||pin||'',translationId:id})})
+      .then(function(r){return r.json()}).then(function(res){
+        if(res.error){var m=document.getElementById('setMsg');if(m){m.style.color='#f44';m.textContent=res.error}el.disabled=false;return}
+        if(!bibData.states)bibData.states={};
+        bibData.states[id]='downloading';
+        bibRender();
+        if(!bibPoll)bibPoll=setInterval(bibPollStates,2500);
+      }).catch(function(e){LOG('bible download post failed: '+e);el.disabled=false});
+  });
+  document.getElementById('setRaw').addEventListener('click',function(){
+    var wrap=document.getElementById('setRawWrap');
+    if(wrap.style.display!=='none'){wrap.style.display='none';return}
+    fetch('/api/settings/rawconfig?pin='+encodeURIComponent(sessionStorage.getItem('adminPin')||pin||''))
+      .then(function(r){return r.json()}).then(function(rc){
+        var m=document.getElementById('setMsg');
+        if(rc.error){if(m){m.style.color='#f44';m.textContent=rc.error}return}
+        document.getElementById('setRawText').value=rc.json||'';
+        wrap.style.display='block';
+      }).catch(function(e){LOG('rawconfig fetch failed: '+e);
+        var m=document.getElementById('setMsg');if(m){m.style.color='#f44';m.textContent=t('setRawLoadFail')}});
+  });
+  document.getElementById('setRawSave').addEventListener('click',function(){
+    var m=document.getElementById('setMsg');
+    var txt=document.getElementById('setRawText').value;
+    /* Pre-validate client-side so a typo gives an instant, precise error */
+    try{JSON.parse(txt)}catch(e){if(m){m.style.color='#f44';m.textContent=t('setRawInvalid')+e.message}return}
+    fetch('/api/settings/rawconfig',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({pin:sessionStorage.getItem('adminPin')||pin||'',json:txt})})
+      .then(function(r){return r.json().catch(function(){return {ok:r.status>=200&&r.status<300}})})
+      .then(function(res){
+        if(!m)return;
+        if(res.ok){
+          m.style.color=res.pinCleared?'#fa4':'#4f4';
+          m.textContent=res.pinCleared?t('setRawPinCleared'):(res.needsRestart?t('setRawRestart'):t('setRawSaved'));
+        }else{m.style.color='#f44';m.textContent=res.error||t('setBadPin')}
+      }).catch(function(e){LOG('rawconfig save error: '+e);if(m){m.style.color='#f44';m.textContent=t('cmdFail')}});
   });
   document.getElementById('setSave').addEventListener('click',function(){
     var body={pin:sessionStorage.getItem('adminPin')||pin||'',
@@ -942,7 +1259,7 @@ function buildSettingsOverlay(s,pin){
             if(newPin){sessionStorage.setItem('adminPin',newPin);sessionStorage.setItem('isAdmin','true');isAdmin=true;hasAdminPin=true;
               var ab=document.getElementById('btnAdmin');if(ab)ab.style.display=''}
           }catch(e){LOG('settings post-save UI: '+e)}
-          setTimeout(function(){d.remove()},1200);
+          setTimeout(function(){bibStopPoll();d.remove()},1200);
         }else if(m){m.style.color='#f44';m.textContent=res.error||t('setBadPin')}
       }).catch(function(e){LOG('settings save error: '+e);var m=document.getElementById('setMsg');if(m){m.style.color='#f44';m.textContent=t('cmdFail')}});
   });
