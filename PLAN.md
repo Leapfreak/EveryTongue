@@ -1,4 +1,4 @@
-# EveryTongue — TODO (updated 2026-07-16, v2.7.19 local — not yet pushed; GitHub release page lags at v2.7.4)
+# EveryTongue — TODO (updated 2026-07-16, v2.7.19 — pushed, Lite image on ghcr :2.7.19/:latest; GitHub release page lags at v2.7.4)
 
 > **Architecture shift:** EveryTongue is evolving from a single-session desktop transcription tool into a **headless multi-room translation server**. The desktop app still has operator workspaces (Live, Transcribe, Translate, Bible), but the primary user interface is now the **phone web client**. Anyone with a phone can create rooms, manage conversations, and receive translations — no operator required. The desktop just runs the server and auto-starts engines at launch.
 
