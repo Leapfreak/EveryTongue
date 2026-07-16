@@ -26,6 +26,12 @@ Namespace Server
         ''' <summary>Persist + apply after a settings change — wired by the head.</summary>
         Public Property SettingsSaveHandler As Action
 
+        ''' <summary>Fires after a web Bible download is installed + rescanned, so the
+        ''' DESKTOP Bible tab (the second of the two Bible viewers — see CLAUDE.md)
+        ''' can refresh its listing. The head must marshal to its UI thread.
+        ''' Lite leaves it unwired (the phone panel re-fetches on open).</summary>
+        Public Property BibleLibraryChangedHandler As Action
+
         ''' <summary>Per-translation download progress for the web Bible installer:
         ''' "downloading" / "converting" / "verifying" / "done" / "error: …".</summary>
         Private ReadOnly _bibleDownloadStates As New Concurrent.ConcurrentDictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
@@ -618,6 +624,13 @@ Namespace Server
                                     bible.RescanTranslations()
                                     _bibleDownloadStates(entry.TranslationId) = "done"
                                     AppLogger.Log(LogEvents.DL_DOWNLOAD_DONE, $"Web Bible download complete: {entry.TranslationId}")
+                                    Try
+                                        BibleLibraryChangedHandler?.Invoke()
+                                    Catch hex As Exception
+                                        ' A head-side refresh failure must never flip a
+                                        ' completed download's state to error.
+                                        AppLogger.Log(LogEvents.UI_ERROR, $"BibleLibraryChangedHandler: {hex.Message}")
+                                    End Try
                                 Catch ex As Exception
                                     _bibleDownloadStates(entry.TranslationId) = "error: " & ex.Message
                                     AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"Web Bible download failed: {entry.TranslationId} — {ex.Message}")

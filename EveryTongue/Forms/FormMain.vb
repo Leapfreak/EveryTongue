@@ -384,6 +384,11 @@ Public Class FormMain
                                   ' overwrite trap must never run from a web request).
                                   Server.EndpointRegistration.SettingsConfigProvider = Function() _config
                                   Server.EndpointRegistration.SettingsSaveHandler = Sub() Models.ConfigManager.Save(_config)
+                                  ' A Bible installed from the web settings page must also refresh
+                                  ' the DESKTOP Bible tab (two viewers — the endpoint already rescans
+                                  ' the shared BibleService for the phone panel).
+                                  Server.EndpointRegistration.BibleLibraryChangedHandler =
+                                      Sub() Me.BeginInvoke(Sub() RefreshBibleTab())
 
                                   ' Wire conversation room translation callback
                                   Dim convAudioHandler = TryCast(_serverController.KestrelHost?.Services?.GetService(
