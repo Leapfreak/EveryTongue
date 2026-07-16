@@ -187,15 +187,17 @@ function showLangPicker(){
   document.getElementById('lpSearch').value='';
   renderLangList('');
   detectAndSuggest();
+  slogDiag('picker_shown items='+document.getElementById('lpList').children.length);
 }
 function hideLangPicker(){
   document.getElementById('langPicker').classList.remove('open');
+  slogDiag('picker_hidden');
   var dock=document.getElementById('roomControlsDock');
   if(dock){dock.style.display='flex';setTimeout(adjustDockPadding,50)}
 }
 var voiceManuallySet=!!ss('voice');
 function pickLang(code){
-  LOG('pickLang: '+code);
+  slogDiag('pickLang code='+code);
   myTransLang=code;
   ssSet('transLang',code);
   ssSet('langChosen','true');
@@ -360,10 +362,22 @@ populateTransLangSelect();
 var capCount=0,capRendered=0,capLastAt=0,capBadge=null;
 function inRoomView(){return location.search.indexOf('room=')!==-1}
 /* Route a diagnostic line into the SERVER log (SLOG pattern — never asks the
-   user to open browser dev tools). Rate-safe: these fire per-commit at most. */
+   user to open browser dev tools). Pre-connection lines queue and flush on
+   WS open so page-load events (picker shown) aren't lost. */
+var _slogQueue=[];
 function slogDiag(msg){
-  try{if(wsRef&&wsRef.readyState===1){wsRef.send(JSON.stringify({type:'clientLog',msg:msg}))}}catch(e){}
+  try{
+    if(wsRef&&wsRef.readyState===1){wsRef.send(JSON.stringify({type:'clientLog',msg:msg}))}
+    else{_slogQueue.push(msg);if(_slogQueue.length>20)_slogQueue.shift()}
+  }catch(e){}
   LOG(msg);
+}
+function slogFlush(){
+  try{
+    while(_slogQueue.length&&wsRef&&wsRef.readyState===1){
+      wsRef.send(JSON.stringify({type:'clientLog',msg:'(queued) '+_slogQueue.shift()}));
+    }
+  }catch(e){}
 }
 function ensureCapBadge(){
   if(capBadge||!inRoomView())return;
@@ -399,8 +413,18 @@ function visualState(){
       var r=last.getBoundingClientRect();
       var off=(r.top>=window.innerHeight||r.bottom<=0||r.width===0);
       var st=getComputedStyle(last);
-      out+=' last@'+Math.round(r.top)+'px/'+window.innerHeight+'px '+(off?'OFFSCREEN':'onscreen')+
+      out+=' last@'+Math.round(r.top)+'px/'+window.innerHeight+'px w'+Math.round(r.width)+'xh'+Math.round(r.height)+' '+(off?'OFFSCREEN':'onscreen')+
            ' color='+st.color+' size='+st.fontSize;
+      if(off){
+        /* Walk up to find WHICH ancestor collapsed the line */
+        var anc=last,chain='';
+        while(anc&&anc.tagName!=='HTML'&&chain.length<200){
+          var ar=anc.getBoundingClientRect();
+          chain+=(anc.id||anc.tagName)+'['+Math.round(ar.width)+'x'+Math.round(ar.height)+' '+getComputedStyle(anc).display+'] ';
+          anc=anc.parentElement;
+        }
+        out+=' chain='+chain;
+      }
     }
     var spacer=document.getElementById('spacer');
     if(spacer)out+=' spacerH='+Math.round(spacer.getBoundingClientRect().height);
@@ -803,7 +827,7 @@ function connect(){
   var ws=new WebSocket(wsUrl);
   wsRef=ws;
   ws.onopen=function(){LOG('WS connected');statusEl.textContent=t('connected');statusBar.className='connected';
-    ensureCapBadge();updateCapBadge();
+    ensureCapBadge();updateCapBadge();slogFlush();
     if(currentEl){currentEl.remove();currentEl=null}
     ws.send(JSON.stringify({type:'setLanguage',language:myTransLang||'',lastId:lastCommitId}));
     sendTtsState();
