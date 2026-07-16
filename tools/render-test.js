@@ -58,7 +58,18 @@ const STUB = `<script>
       pickerOpen:picker?picker.classList.contains('open'):false,
       pickerCovers:coversCenter(picker),
       centerElement:elAtCenter?(elAtCenter.id||elAtCenter.className||elAtCenter.tagName):'(none)',
-      capBadgeText:(document.getElementById('capBadge')||{}).textContent||'(no badge)'
+      capBadgeText:(document.getElementById('capBadge')||{}).textContent||'(no badge)',
+      /* The doubled-div bug: text present in the DOM but nested inside a
+         display:none ancestor → zero-size rect. Assert PHYSICAL visibility. */
+      lastLineVisible:(function(){
+        if(!lines||lines.children.length<2)return false;
+        var r=lines.children[lines.children.length-1].getBoundingClientRect();
+        return r.width>0&&r.height>0&&r.bottom>0&&r.top<window.innerHeight;
+      })(),
+      containerParent:(function(){
+        var c=document.getElementById('container');
+        return c&&c.parentElement?(c.parentElement.id||c.parentElement.tagName):'(none)';
+      })()
     };
     fetch('/report',{method:'POST',body:JSON.stringify(report)});
   },3000);
@@ -120,8 +131,11 @@ server.listen(PORT, async () => {
     console.log("picker open:", report.pickerOpen, "| picker covers screen:", report.pickerCovers);
     console.log("element at screen center:", report.centerElement);
     console.log("caption badge:", JSON.stringify(report.capBadgeText), "(expect '● 2' — 2 commits delivered)");
-    console.log("\nRENDER:", (report.hasCommit1 && report.hasCommit2) ? "captions in DOM OK" : "captions MISSING from DOM");
-    console.log("VISIBILITY:", report.pickerCovers ? "PICKER COVERS CAPTIONS on load (host sees blank until they pick a language)" : "caption area visible");
+    console.log("container parent:", report.containerParent, "(must be BODY)");
+    console.log("last line physically visible:", report.lastLineVisible);
+    const pass = report.hasCommit1 && report.hasCommit2 && report.lastLineVisible && report.containerParent === "BODY";
+    console.log("\nVERDICT:", pass ? "CAPTIONS RENDER AND ARE VISIBLE" : "FAILURE — in DOM but NOT visible (or missing)");
+    process.exitCode = pass ? 0 : 1;
     server.close();
     process.exit(0);
 });
