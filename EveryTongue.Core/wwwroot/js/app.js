@@ -71,6 +71,8 @@ var T={connecting:'Connecting...',connected:'Connected',disconnected:'Disconnect
     bcRejected:'Microphone broadcast not allowed (host only)',
     bcUnsupported:'This browser cannot broadcast (needs HTTPS + a recent browser)',
     bcMicFailed:'Could not access the microphone — check permissions',
+    bcLeaveWarn:'You are the room microphone — leaving this page will stop the audio for everyone.',
+    endRoomConfirm:'End this room for everyone?',
     micUnavailable:'Microphone not available',micDenied:'Mic access denied',recording:'Recording...',
     hostControls:'Host Controls',endRoom:'End Room',clearCaptions:'Clear Captions',
     addGuest:'Add Guest',guestName:'Name',guestAdd:'Add',youLabel:'You',typeMessage:'Type a message...',
@@ -123,7 +125,7 @@ function dispName(n){return n==='Guest'?t('guestLabel'):(n||'')}
    /api/stt-languages (engine-declared list, or the whisper set). Native names
    shown — locale-independent. Keeps the current selection; optionally keeps a
    leading "auto" option. Hardcoded fallback options survive if the fetch fails. */
-function populateSttLangs(sel,withAuto){
+function populateSttLangs(sel,withAuto,desired){
   if(!sel)return;
   var xhr=new XMLHttpRequest();
   xhr.open('GET','/api/stt-languages',true);
@@ -132,7 +134,7 @@ function populateSttLangs(sel,withAuto){
     try{
       var langs=JSON.parse(xhr.responseText);
       if(!langs||!langs.length)return;
-      var current=sel.value;
+      var current=desired||sel.value;
       sel.innerHTML='';
       if(withAuto){var ao=document.createElement('option');ao.value='auto';ao.textContent=t('autoDetect');sel.appendChild(ao)}
       for(var i=0;i<langs.length;i++){
@@ -203,6 +205,7 @@ function pickLang(code){
   ssSet('langChosen','true');
   hideLangPicker();
   setTransLang(code);
+  applyDictationSpeakLang(code);
   /* sync dropdown */
   var sel=document.getElementById('transLangSelect');
   for(var i=0;i<sel.options.length;i++){if(sel.options[i].value===code){sel.selectedIndex=i;break}}
@@ -1728,6 +1731,14 @@ var roomDisplay=null; /* per-room display template: {bgColor,fgColor,fontFamily,
 var bcWant=false,bcActive=false;
 var bcCtx=null,bcStream=null,bcNode=null,bcAnalyser=null,bcRaf=null;
 
+/* Accidental-exit guard: while this device IS the room microphone, closing
+   the tab / back-swiping / navigating away silently kills audio for the whole
+   room. Deliberate exits (Done button, End Room) stop the broadcast first,
+   so they never trip this. */
+window.addEventListener('beforeunload',function(e){
+  if(bcWant||bcActive){e.preventDefault();e.returnValue=t('bcLeaveWarn');return e.returnValue}
+});
+
 function toggleBroadcast(){
   if(bcWant||bcActive){stopBroadcast(true)}
   else{
@@ -1929,7 +1940,10 @@ function initPushToTalk(){
           var lpOpen=document.getElementById('langPicker');
           if(lpOpen&&lpOpen.classList.contains('open'))renderLangList('');
         }
-        if(room.isHost){isHost=true;showHostControls()}
+        /* Dictation: host status matters (broadcast + language retune are
+           host-gated) but the host UI doesn't — the editor IS the control
+           surface, and its top bar is hidden anyway. */
+        if(room.isHost){isHost=true;if(pttRoomType!=='dictation')showHostControls()}
         if(pttRoomType==='dictation'){initDictationView()}
         /* Conversation: everyone gets PTT. Conference: no mic (audio from desktop). */
         else if(pttRoomType==='conversation'){
@@ -2176,21 +2190,48 @@ function sendAudioToServer(){
 /* ── Dictation view: private room rendered as an editor ─────────────────
    The mic is the existing web-mic broadcast (same button id the host panel
    uses, so toggleBroadcast/updateBroadcastUi/startBcMeter drive it as-is).
-   Translation is the normal per-client room pipeline: pick a language on
-   the picker (or 'No translation') and commits arrive accordingly. */
+   The room-entry picker asks ONE question — "your language" — and it drives
+   BOTH sides: it retunes the engine's speaking language (the room is created
+   language-less in the lobby) and, per the normal room protocol, sets this
+   client's caption language (same language = raw transcript). The editor's
+   output dropdown then covers translate-while-dictating. */
+
+/* Push the picker choice to the room pipeline as the STT speaking language.
+   FLORES pick → engine ISO code via the LANGS table; the host-gated
+   /api/control/pipeline path reconnects the engine in-place (no capture
+   restart, no audio gap). No-op outside dictation rooms. */
+function applyDictationSpeakLang(floresCode){
+  if(pttRoomType!=='dictation')return;
+  var iso=floresToBcp47Lookup(floresCode);
+  if(!iso){LOG('dictation speak-lang: no ISO mapping for '+floresCode);return}
+  var roomMatch=location.search.match(/[?&]room=([^&]+)/);
+  if(!roomMatch||!myClientId)return;
+  var xhr=new XMLHttpRequest();
+  xhr.open('POST','/api/control/pipeline',true);
+  xhr.setRequestHeader('Content-Type','application/json');
+  xhr.onload=function(){LOG('dictation speak-lang -> '+iso+' ('+xhr.status+')')};
+  xhr.send(JSON.stringify({roomId:roomMatch[1],clientId:myClientId,language:iso}));
+}
 function initDictationView(){
   if(document.getElementById('dictWrap'))return;
   var cont=document.getElementById('container');
   if(cont)cont.style.display='none';
+  /* Dictation is a solo editor, not a room: hide the room chrome (status bar
+     with home/settings/Bible/QR/host gear). The ✕ button is the single exit —
+     it closes the room and returns to the lobby. */
+  var bar=document.getElementById('status');
+  if(bar)bar.style.display='none';
   var w=document.createElement('div');
   w.id='dictWrap';
-  w.style.cssText='position:fixed;top:40px;left:0;right:0;bottom:0;display:flex;flex-direction:column;padding:12px;background:#12122a;z-index:50';
+  /* z-index BELOW #langPicker (50): the editor is appended to <body> after the
+     picker, so an equal z-index paints over it and eats the language step. */
+  w.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;padding:12px;background:#12122a;z-index:40';
   w.innerHTML=
     '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">'+
       '<button id="hcBroadcast" style="flex:1;padding:12px;border:none;border-radius:8px;background:#7c9cf7;color:#fff;font-size:15px;font-weight:600;cursor:pointer">🎙 '+t('bcStart')+'</button>'+
       '<button id="dictCopy" style="padding:12px 16px;border:1px solid #555;border-radius:8px;background:#252540;color:#ccc;font-size:14px;cursor:pointer">'+t('dictCopy')+'</button>'+
       '<button id="dictClear" style="padding:12px 16px;border:1px solid #555;border-radius:8px;background:#252540;color:#ccc;font-size:14px;cursor:pointer">'+t('clear')+'</button>'+
-      '<button id="dictDone" style="padding:12px 16px;border:none;border-radius:8px;background:#e74c3c;color:#fff;font-size:14px;cursor:pointer">'+t('dictDone')+'</button>'+
+      '<button id="dictDone" title="'+t('dictDone')+'" style="padding:12px 16px;border:none;border-radius:8px;background:#e74c3c;color:#fff;font-size:15px;font-weight:600;cursor:pointer">&#10005;</button>'+
     '</div>'+
     '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">'+
       '<label for="dictOutLang" style="color:#888;font-size:13px;white-space:nowrap">'+t('dictOutLang')+'</label>'+
@@ -2200,6 +2241,11 @@ function initDictationView(){
     '<textarea id="dictText" spellcheck="false" style="flex:1;width:100%;box-sizing:border-box;resize:none;padding:14px;border-radius:10px;border:1px solid #444;background:#1a1a2e;color:#fff;font-size:17px;line-height:1.6;outline:none"></textarea>';
   document.body.appendChild(w);
   populateDictOutLang();
+  /* Picked before the room info arrived (fast tap) or rejoining with a
+     remembered choice: the picker is already closed, so apply that choice
+     as the speaking language now — pickLang couldn't (room type unknown). */
+  var lpEl=document.getElementById('langPicker');
+  if(myTransLang&&!(lpEl&&lpEl.classList.contains('open'))){applyDictationSpeakLang(myTransLang)}
   document.getElementById('dictOutLang').addEventListener('change',function(){setTransLang(this.value)});
   document.getElementById('hcBroadcast').addEventListener('click',toggleBroadcast);
   document.getElementById('dictCopy').addEventListener('click',function(){
@@ -2609,11 +2655,7 @@ function toggleHostPanel(){
       '<label style="color:#888;font-size:11px">'+t('hostSpeakerLang')+'</label>'+
       '<select id="hcPipeLang" style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:13px;margin-bottom:8px;box-sizing:border-box">'+
       '<option value="auto">'+t('autoDetect')+'</option>'+
-      '<option value="ca">Catalan</option><option value="es">Spanish</option><option value="en">English</option>'+
-      '<option value="fr">French</option><option value="de">German</option><option value="it">Italian</option>'+
-      '<option value="pt">Portuguese</option><option value="nl">Dutch</option><option value="ru">Russian</option>'+
-      '<option value="zh">Chinese</option><option value="ja">Japanese</option><option value="ko">Korean</option>'+
-      '<option value="ar">Arabic</option></select>'+
+      '</select>'+
       '<button id="hcPipeApply" style="width:100%;padding:8px;border:none;border-radius:8px;background:#7c9cf7;color:#1a1a2e;font-size:13px;font-weight:600;cursor:pointer">'+t('hostApply')+'</button>'+
       '<button id="hcPipeReset" style="width:100%;padding:8px;border:none;border-radius:8px;background:#e67e22;color:#fff;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px">\u21BB '+t('pipeReset')+'</button>'+
       '<div id="hcPipeStatus" style="color:#888;font-size:11px;margin-top:4px;text-align:center"></div>'+
@@ -2626,16 +2668,15 @@ function toggleHostPanel(){
   var _hcAdm=document.getElementById('hcAdmin');
   if(_hcAdm)_hcAdm.addEventListener('click',function(){window.open('/admin.html','_blank')});
 
-  /* Pre-select pipeline values from room state */
+  /* Fill with the ACTIVE engine's real language list (/api/stt-languages) —
+     one source of truth, no static list. Shows native names; keeps "auto"
+     first and pre-selects the room's current language once loaded. */
   var pipeLang=document.getElementById('hcPipeLang');
-  if(pipeLang&&roomSourceLang){pipeLang.value=roomSourceLang}
-
-  /* Replace the hardcoded fallback options with the ACTIVE engine's real
-     language list (/api/stt-languages) — one source of truth, no drift.
-     Shows native names; keeps "auto" first and the current selection. */
-  populateSttLangs(pipeLang,true);
+  populateSttLangs(pipeLang,true,roomSourceLang);
 
   document.getElementById('hcEndRoom').addEventListener('click',function(){
+    if(!window.confirm(t('endRoomConfirm')))return;
+    if(bcWant||bcActive){stopBroadcast(true)} /* clear the mic exit-guard before the redirect */
     var xhr=new XMLHttpRequest();
     xhr.open('DELETE','/api/rooms/'+encodeURIComponent(roomId)+'?clientId='+encodeURIComponent(myClientId),true);
     xhr.onload=function(){location.href='/lobby.html'};

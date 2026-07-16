@@ -255,8 +255,9 @@ Namespace Server
                                                Dim room = mgr.CreateRoom(name, roomType, visibility, hostId, "", translationEngine)
 
                                                If roomType = RoomType.Dictation Then
-                                                   ' Web-mic is the only audio source a dictation room has; source
-                                                   ' language comes from the creator (engine needs it at start).
+                                                   ' Web-mic is the only audio source a dictation room has. sourceLang
+                                                   ' is optional (kept for API compat): the creator picks their language
+                                                   ' on room entry, which retunes the pipeline in-place.
                                                    If String.IsNullOrEmpty(room.Name) Then room.Name = "Dictation"
                                                    room.AudioSource = "web"
                                                    Dim slProp As JsonElement = Nothing

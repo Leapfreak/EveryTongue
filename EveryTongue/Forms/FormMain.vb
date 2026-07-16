@@ -53,19 +53,11 @@ Public Class FormMain
         End Get
     End Property
 
-    ' Supported whisper languages
-    Private ReadOnly _sttLanguages As String() = {
-        "auto", "en", "es", "fr", "de", "it", "pt", "nl", "pl", "ru",
-        "zh", "ja", "ko", "ar", "hi", "tr", "vi", "th", "cs", "el",
-        "hu", "ro", "da", "fi", "no", "sv", "sk", "uk", "bg", "hr",
-        "ca", "cy", "et", "ga", "lv", "lt", "mt", "sl", "sq", "mk",
-        "sr", "bs", "is", "ms", "sw", "tl", "ta", "te", "ml", "si",
-        "bn", "gu", "kn", "mr", "ne", "pa", "ur", "my", "lo", "km",
-        "he", "fa", "id", "jw", "la", "mn", "ps", "sd", "sn", "so",
-        "su", "tg", "tt", "uz", "yo", "af", "am", "as", "az", "ba",
-        "be", "br", "fo", "gl", "ha", "ht", "hy", "ka", "kk", "lb",
-        "ln", "mg", "mi", "nn", "oc", "sa", "tk", "wo", "yi", "yue"
-    }
+    ' Supported whisper languages: "auto" + the whisper column of
+    ' language-codes.json (the canonical table) — never a static list.
+    Private ReadOnly _sttLanguages As String() =
+        {"auto"}.Concat(LanguageCodeService.Instance.GetAllWhisperLanguagesSorted().
+                            Select(Function(l) l.Code)).ToArray()
 
     Private Shared ReadOnly _langCodeService As LanguageCodeService = LanguageCodeService.Instance
 

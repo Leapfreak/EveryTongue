@@ -231,18 +231,18 @@
     // ── Dictation: private single-user room whose view is a text editor.
     // Same creator-code gate and engine spend as any room — the server picks
     // a streaming engine and waits for the browser's Broadcast Mic.
+    // No language here: the room-entry picker asks it (once, like every other
+    // room) and retunes the engine to the picked language on join.
     const btnDictate = document.getElementById("btn-dictate");
     btnDictate.addEventListener("click", async function () {
         btnDictate.disabled = true;
         try {
-            const lang = document.getElementById("dict-lang").value;
             const res = await fetch("/api/rooms", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     name: t("lbDictation"),
                     type: "dictation",
-                    sourceLang: lang,
                     creatorCode: creatorCode()
                 })
             });
@@ -489,31 +489,6 @@
         refreshTimer = setInterval(loadRooms, 5000);
     }
 
-    // ── Dictation language list from the ACTIVE STT engine ─────────────
-    // /api/stt-languages is the single source (engine-declared list, or the
-    // whisper set) — replaces the hardcoded 8-language fallback in the HTML.
-    // Native names shown; the previous selection (default Catalan) is kept.
-    async function loadSttLanguages() {
-        const sel = document.getElementById("dict-lang");
-        if (!sel) return;
-        try {
-            const res = await fetch("/api/stt-languages");
-            if (!res.ok) return;
-            const langs = await res.json();
-            if (!langs || !langs.length) return;
-            const current = sel.value;
-            sel.innerHTML = "";
-            langs.forEach(function (l) {
-                const opt = document.createElement("option");
-                opt.value = l.code;
-                opt.textContent = (l.native && l.native !== l.name) ? l.native + " (" + l.name + ")" : l.name;
-                sel.appendChild(opt);
-            });
-            sel.value = current;
-            if (sel.value !== current && sel.options.length) sel.selectedIndex = 0;
-        } catch (e) { /* hardcoded fallback options remain */ }
-    }
-
     // ── Populate the conversation translation-engine dropdown ──
     async function loadEngines() {
         var sel = document.getElementById("conv-engine");
@@ -536,5 +511,4 @@
     startAutoRefresh();
     loadTemplates();
     loadEngines();
-    loadSttLanguages();
 })();

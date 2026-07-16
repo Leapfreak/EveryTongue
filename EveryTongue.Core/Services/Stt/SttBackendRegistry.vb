@@ -91,6 +91,41 @@
         End Function
 
         ''' <summary>
+        ''' Languages the given backend can transcribe, as (Code, Name, Native)
+        ''' sorted by English name: the engine-declared SupportedLanguages when
+        ''' present, else the whisper column of language-codes.json. SINGLE
+        ''' source for every STT language dropdown — web (/api/stt-languages)
+        ''' and desktop combos alike. Never hardcode a language list.
+        ''' </summary>
+        Public Shared Function EffectiveLanguages(backendKey As String) As List(Of (Code As String, Name As String, Native As String))
+            Dim langSvc = Infrastructure.LanguageCodeService.Instance
+            Dim entry = Find(backendKey)
+            Dim langs As New List(Of (Code As String, Name As String, Native As String))()
+            If entry?.SupportedLanguages IsNot Nothing Then
+                Dim byFlores = langSvc.GetAllLanguagesSorted().
+                    GroupBy(Function(l) l.Flores).
+                    ToDictionary(Function(g) g.Key, Function(g) g.First())
+                For Each code In entry.SupportedLanguages
+                    ' Engine quirk aliases the canonical table doesn't key on
+                    Dim lookup = If(code.Equals("cmn", StringComparison.OrdinalIgnoreCase), "zho_Hans", code)
+                    Dim flores = langSvc.ToFlores(lookup)
+                    Dim name = code
+                    Dim native = code
+                    Dim m As (Flores As String, Iso1 As String, Name As String, Native As String) = Nothing
+                    If Not String.IsNullOrEmpty(flores) AndAlso byFlores.TryGetValue(flores, m) Then
+                        name = If(String.IsNullOrEmpty(m.Name), code, m.Name)
+                        native = If(String.IsNullOrEmpty(m.Native), name, m.Native)
+                    End If
+                    langs.Add((code, name, native))
+                Next
+                langs.Sort(Function(a, b) String.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase))
+            Else
+                langs.AddRange(langSvc.GetAllWhisperLanguagesSorted())
+            End If
+            Return langs
+        End Function
+
+        ''' <summary>
         ''' Create an ISttBackend instance for the given key.
         ''' Falls back to the first registered backend for unknown keys.
         ''' </summary>

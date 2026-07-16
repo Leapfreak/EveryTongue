@@ -39,70 +39,8 @@ _MAX_AUTODETECT_CANDIDATES = 10
 # Default auto-detect candidate set (ISO 639-1) when none is configured.
 DEFAULT_AUTODETECT = ["en", "es", "fr", "de", "it", "pt", "nl", "pl"]
 
-# Whisper ISO 639-1 → Azure BCP-47 locale for codes where the simple
-# f"{iso}-{ISO.upper()}" heuristic picks a wrong/nonexistent locale, plus the
-# ambiguous pluricentric languages (en/es/pt/zh) pinned to sensible defaults.
-_LOCALE_MAP = {
-    "af": "af-ZA",
-    "am": "am-ET",
-    "ar": "ar-SA",
-    "as": "as-IN",
-    "be": "be-BY",
-    "bn": "bn-IN",
-    "bs": "bs-BA",
-    "ca": "ca-ES",
-    "cs": "cs-CZ",
-    "cy": "cy-GB",
-    "da": "da-DK",
-    "el": "el-GR",
-    "en": "en-US",
-    "es": "es-ES",
-    "et": "et-EE",
-    "eu": "eu-ES",
-    "fa": "fa-IR",
-    "ga": "ga-IE",
-    "gl": "gl-ES",
-    "gu": "gu-IN",
-    "he": "he-IL",
-    "hi": "hi-IN",
-    "hy": "hy-AM",
-    "ja": "ja-JP",
-    "jw": "jv-ID",
-    "ka": "ka-GE",
-    "kk": "kk-KZ",
-    "km": "km-KH",
-    "kn": "kn-IN",
-    "ko": "ko-KR",
-    "lo": "lo-LA",
-    "ml": "ml-IN",
-    "mr": "mr-IN",
-    "ms": "ms-MY",
-    "my": "my-MM",
-    "nb": "nb-NO",
-    "ne": "ne-NP",
-    "nn": "nb-NO",
-    "no": "nb-NO",
-    "pa": "pa-IN",
-    "ps": "ps-AF",
-    "pt": "pt-PT",
-    "si": "si-LK",
-    "sl": "sl-SI",
-    "sq": "sq-AL",
-    "sr": "sr-RS",
-    "su": "su-ID",
-    "sv": "sv-SE",
-    "sw": "sw-KE",
-    "ta": "ta-IN",
-    "te": "te-IN",
-    "tl": "fil-PH",
-    "uk": "uk-UA",
-    "ur": "ur-PK",
-    "vi": "vi-VN",
-    "wo": "wo-SN",
-    "yue": "zh-HK",
-    "zh": "zh-CN",
-    "zu": "zu-ZA",
-}
+# Locale mapping lives in the canonical table (language-codes.json, azureStt
+# column) — no static list here; see _iso_to_locale.
 
 # 100ms chunks of 16-bit mono PCM.
 _CHUNK_SAMPLES = int(SAMPLE_RATE * 0.1)
@@ -116,8 +54,9 @@ def _iso_to_locale(code):
     if "-" in code:
         return code  # already a BCP-47 locale (user supplied)
     iso = code.lower()
-    if iso in _LOCALE_MAP:
-        return _LOCALE_MAP[iso]
+    mapped = common.vendor_locale(iso, "azureStt")
+    if mapped:
+        return mapped
     # Heuristic: most remaining codes follow xx → xx-XX (it-IT, pl-PL, ...).
     return f"{iso}-{iso.upper()}"
 

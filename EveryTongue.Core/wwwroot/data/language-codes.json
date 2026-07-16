@@ -7,7 +7,9 @@
     "google": "af",
     "azure": "af",
     "name": "Afrikaans",
-    "native": "Afrikaans"
+    "native": "Afrikaans",
+    "googleStt": "af-ZA",
+    "azureStt": "af-ZA"
   },
   "aka_Latn": {
     "iso3": "aka",
@@ -27,7 +29,8 @@
     "google": "sq",
     "azure": "sq",
     "name": "Albanian",
-    "native": "Shqip"
+    "native": "Shqip",
+    "azureStt": "sq-AL"
   },
   "amh_Ethi": {
     "iso3": "amh",
@@ -37,7 +40,9 @@
     "google": "am",
     "azure": "am",
     "name": "Amharic",
-    "native": "አማርኛ"
+    "native": "አማርኛ",
+    "googleStt": "am-ET",
+    "azureStt": "am-ET"
   },
   "arb_Arab": {
     "iso3": "arb",
@@ -47,7 +52,9 @@
     "google": "ar",
     "azure": "ar",
     "name": "Arabic",
-    "native": "العربية"
+    "native": "العربية",
+    "googleStt": "ar-SA",
+    "azureStt": "ar-SA"
   },
   "asm_Beng": {
     "iso3": "asm",
@@ -57,7 +64,8 @@
     "google": "as",
     "azure": "as",
     "name": "Assamese",
-    "native": "অসমীয়া"
+    "native": "অসমীয়া",
+    "azureStt": "as-IN"
   },
   "ast_Latn": {
     "iso3": "ast",
@@ -127,7 +135,8 @@
     "google": "be",
     "azure": "be",
     "name": "Belarusian",
-    "native": "Беларуская"
+    "native": "Беларуская",
+    "azureStt": "be-BY"
   },
   "bem_Latn": {
     "iso3": "bem",
@@ -142,7 +151,9 @@
     "google": "bn",
     "azure": "bn",
     "name": "Bengali",
-    "native": "বাংলা"
+    "native": "বাংলা",
+    "googleStt": "bn-IN",
+    "azureStt": "bn-IN"
   },
   "bho_Deva": {
     "iso3": "bho",
@@ -167,7 +178,8 @@
     "google": "bs",
     "azure": "bs",
     "name": "Bosnian",
-    "native": "Bosanski"
+    "native": "Bosanski",
+    "azureStt": "bs-BA"
   },
   "bre_Latn": {
     "iso3": "bre",
@@ -189,7 +201,8 @@
     "google": "bg",
     "azure": "bg",
     "name": "Bulgarian",
-    "native": "Български"
+    "native": "Български",
+    "googleStt": "bg-BG"
   },
   "cat_Latn": {
     "iso3": "cat",
@@ -199,7 +212,9 @@
     "google": "ca",
     "azure": "ca",
     "name": "Catalan",
-    "native": "Català"
+    "native": "Català",
+    "googleStt": "ca-ES",
+    "azureStt": "ca-ES"
   },
   "ceb_Latn": {
     "iso3": "ceb",
@@ -214,7 +229,9 @@
     "google": "cs",
     "azure": "cs",
     "name": "Czech",
-    "native": "Čeština"
+    "native": "Čeština",
+    "googleStt": "cs-CZ",
+    "azureStt": "cs-CZ"
   },
   "ckb_Arab": {
     "iso3": "ckb",
@@ -229,7 +246,8 @@
     "google": "cy",
     "azure": "cy",
     "name": "Welsh",
-    "native": "Cymraeg"
+    "native": "Cymraeg",
+    "azureStt": "cy-GB"
   },
   "dan_Latn": {
     "iso3": "dan",
@@ -239,7 +257,9 @@
     "google": "da",
     "azure": "da",
     "name": "Danish",
-    "native": "Dansk"
+    "native": "Dansk",
+    "googleStt": "da-DK",
+    "azureStt": "da-DK"
   },
   "deu_Latn": {
     "iso3": "deu",
@@ -249,7 +269,8 @@
     "google": "de",
     "azure": "de",
     "name": "German",
-    "native": "Deutsch"
+    "native": "Deutsch",
+    "googleStt": "de-DE"
   },
   "dik_Latn": {
     "iso3": "dik",
@@ -279,7 +300,9 @@
     "google": "el",
     "azure": "el",
     "name": "Greek",
-    "native": "Ελληνικά"
+    "native": "Ελληνικά",
+    "googleStt": "el-GR",
+    "azureStt": "el-GR"
   },
   "eng_Latn": {
     "iso3": "eng",
@@ -289,7 +312,9 @@
     "google": "en",
     "azure": "en",
     "name": "English",
-    "native": "English"
+    "native": "English",
+    "googleStt": "en-US",
+    "azureStt": "en-US"
   },
   "epo_Latn": {
     "iso3": "epo",
@@ -309,7 +334,8 @@
     "google": "et",
     "azure": "et",
     "name": "Estonian",
-    "native": "Eesti"
+    "native": "Eesti",
+    "azureStt": "et-EE"
   },
   "eus_Latn": {
     "iso3": "eus",
@@ -319,7 +345,8 @@
     "google": "eu",
     "azure": "eu",
     "name": "Basque",
-    "native": "Euskara"
+    "native": "Euskara",
+    "azureStt": "eu-ES"
   },
   "ewe_Latn": {
     "iso3": "ewe",
@@ -359,7 +386,8 @@
     "google": "fi",
     "azure": "fi",
     "name": "Finnish",
-    "native": "Suomi"
+    "native": "Suomi",
+    "googleStt": "fi-FI"
   },
   "fon_Latn": {
     "iso3": "fon",
@@ -374,7 +402,8 @@
     "google": "fr",
     "azure": "fr",
     "name": "French",
-    "native": "Français"
+    "native": "Français",
+    "googleStt": "fr-FR"
   },
   "fur_Latn": {
     "iso3": "fur",
@@ -404,7 +433,8 @@
     "google": "ga",
     "azure": "ga",
     "name": "Irish",
-    "native": "Gaeilge"
+    "native": "Gaeilge",
+    "azureStt": "ga-IE"
   },
   "glg_Latn": {
     "iso3": "glg",
@@ -414,7 +444,8 @@
     "google": "gl",
     "azure": "gl",
     "name": "Galician",
-    "native": "Galego"
+    "native": "Galego",
+    "azureStt": "gl-ES"
   },
   "grn_Latn": {
     "iso3": "grn",
@@ -434,7 +465,9 @@
     "google": "gu",
     "azure": "gu",
     "name": "Gujarati",
-    "native": "ગુજરાતી"
+    "native": "ગુજરાતી",
+    "googleStt": "gu-IN",
+    "azureStt": "gu-IN"
   },
   "hat_Latn": {
     "iso3": "hat",
@@ -462,7 +495,9 @@
     "google": "he",
     "azure": "he",
     "name": "Hebrew",
-    "native": "עברית"
+    "native": "עברית",
+    "googleStt": "he-IL",
+    "azureStt": "he-IL"
   },
   "hin_Deva": {
     "iso3": "hin",
@@ -472,7 +507,9 @@
     "google": "hi",
     "azure": "hi",
     "name": "Hindi",
-    "native": "हिन्दी"
+    "native": "हिन्दी",
+    "googleStt": "hi-IN",
+    "azureStt": "hi-IN"
   },
   "hrv_Latn": {
     "iso3": "hrv",
@@ -482,7 +519,8 @@
     "google": "hr",
     "azure": "hr",
     "name": "Croatian",
-    "native": "Hrvatski"
+    "native": "Hrvatski",
+    "googleStt": "hr-HR"
   },
   "hun_Latn": {
     "iso3": "hun",
@@ -492,7 +530,8 @@
     "google": "hu",
     "azure": "hu",
     "name": "Hungarian",
-    "native": "Magyar"
+    "native": "Magyar",
+    "googleStt": "hu-HU"
   },
   "hye_Armn": {
     "iso3": "hye",
@@ -502,7 +541,8 @@
     "google": "hy",
     "azure": "hy",
     "name": "Armenian",
-    "native": "Հայերեն"
+    "native": "Հայերեն",
+    "azureStt": "hy-AM"
   },
   "ibo_Latn": {
     "iso3": "ibo",
@@ -522,7 +562,8 @@
     "google": "id",
     "azure": "id",
     "name": "Indonesian",
-    "native": "Bahasa Indonesia"
+    "native": "Bahasa Indonesia",
+    "googleStt": "id-ID"
   },
   "isl_Latn": {
     "iso3": "isl",
@@ -542,7 +583,8 @@
     "google": "it",
     "azure": "it",
     "name": "Italian",
-    "native": "Italiano"
+    "native": "Italiano",
+    "googleStt": "it-IT"
   },
   "jav_Latn": {
     "iso3": "jav",
@@ -552,7 +594,8 @@
     "google": "jv",
     "azure": "jv",
     "name": "Javanese",
-    "native": "Basa Jawa"
+    "native": "Basa Jawa",
+    "azureStt": "jv-ID"
   },
   "jpn_Jpan": {
     "iso3": "jpn",
@@ -562,7 +605,9 @@
     "google": "ja",
     "azure": "ja",
     "name": "Japanese",
-    "native": "日本語"
+    "native": "日本語",
+    "googleStt": "ja-JP",
+    "azureStt": "ja-JP"
   },
   "kab_Latn": {
     "iso3": "kab",
@@ -582,7 +627,9 @@
     "google": "kn",
     "azure": "kn",
     "name": "Kannada",
-    "native": "ಕನ್ನಡ"
+    "native": "ಕನ್ನಡ",
+    "googleStt": "kn-IN",
+    "azureStt": "kn-IN"
   },
   "kas_Arab": {
     "iso3": "kas",
@@ -602,7 +649,8 @@
     "google": "ka",
     "azure": "ka",
     "name": "Georgian",
-    "native": "ქართული"
+    "native": "ქართული",
+    "azureStt": "ka-GE"
   },
   "kaz_Cyrl": {
     "iso3": "kaz",
@@ -612,7 +660,8 @@
     "google": "kk",
     "azure": "kk",
     "name": "Kazakh",
-    "native": "Қазақша"
+    "native": "Қазақша",
+    "azureStt": "kk-KZ"
   },
   "khk_Cyrl": {
     "iso3": "khk",
@@ -632,7 +681,9 @@
     "google": "km",
     "azure": "km",
     "name": "Khmer",
-    "native": "ខ្មែរ"
+    "native": "ខ្មែរ",
+    "googleStt": "km-KH",
+    "azureStt": "km-KH"
   },
   "kin_Latn": {
     "iso3": "kin",
@@ -687,7 +738,9 @@
     "google": "ko",
     "azure": "ko",
     "name": "Korean",
-    "native": "한국어"
+    "native": "한국어",
+    "googleStt": "ko-KR",
+    "azureStt": "ko-KR"
   },
   "lao_Laoo": {
     "iso3": "lao",
@@ -697,7 +750,9 @@
     "google": "lo",
     "azure": "lo",
     "name": "Lao",
-    "native": "ລາວ"
+    "native": "ລາວ",
+    "googleStt": "lo-LA",
+    "azureStt": "lo-LA"
   },
   "lat_Latn": {
     "iso3": "lat",
@@ -795,7 +850,9 @@
     "google": "ml",
     "azure": "ml",
     "name": "Malayalam",
-    "native": "മലയാളം"
+    "native": "മലയാളം",
+    "googleStt": "ml-IN",
+    "azureStt": "ml-IN"
   },
   "mar_Deva": {
     "iso3": "mar",
@@ -805,7 +862,9 @@
     "google": "mr",
     "azure": "mr",
     "name": "Marathi",
-    "native": "मराठी"
+    "native": "मराठी",
+    "googleStt": "mr-IN",
+    "azureStt": "mr-IN"
   },
   "min_Arab": {
     "iso3": "min",
@@ -860,7 +919,9 @@
     "google": "my",
     "azure": "my",
     "name": "Burmese",
-    "native": "ဗမာ"
+    "native": "ဗမာ",
+    "googleStt": "my-MM",
+    "azureStt": "my-MM"
   },
   "nld_Latn": {
     "iso3": "nld",
@@ -870,7 +931,8 @@
     "google": "nl",
     "azure": "nl",
     "name": "Dutch",
-    "native": "Nederlands"
+    "native": "Nederlands",
+    "googleStt": "nl-NL"
   },
   "nno_Latn": {
     "iso3": "nno",
@@ -880,7 +942,9 @@
     "google": "nn",
     "azure": "nn",
     "name": "Norwegian Nynorsk",
-    "native": "Nynorsk"
+    "native": "Nynorsk",
+    "azureStt": "nb-NO",
+    "googleStt": "nb-NO"
   },
   "nob_Latn": {
     "iso3": "nob",
@@ -890,7 +954,9 @@
     "google": "nb",
     "azure": "nb",
     "name": "Norwegian",
-    "native": "Norsk"
+    "native": "Norsk",
+    "azureStt": "nb-NO",
+    "googleStt": "nb-NO"
   },
   "npi_Deva": {
     "iso3": "npi",
@@ -900,7 +966,9 @@
     "google": "ne",
     "azure": "ne",
     "name": "Nepali",
-    "native": "नेपाली"
+    "native": "नेपाली",
+    "googleStt": "ne-NP",
+    "azureStt": "ne-NP"
   },
   "nso_Latn": {
     "iso3": "nso",
@@ -945,7 +1013,9 @@
     "google": "pa",
     "azure": "pa",
     "name": "Punjabi",
-    "native": "ਪੰਜਾਬੀ"
+    "native": "ਪੰਜਾਬੀ",
+    "googleStt": "pa-IN",
+    "azureStt": "pa-IN"
   },
   "pap_Latn": {
     "iso3": "pap",
@@ -959,7 +1029,8 @@
     "google": "ps",
     "azure": "ps",
     "name": "Pashto",
-    "native": "پښتو"
+    "native": "پښتو",
+    "azureStt": "ps-AF"
   },
   "plt_Latn": {
     "iso3": "mlg",
@@ -977,7 +1048,9 @@
     "google": "fa",
     "azure": "fa",
     "name": "Persian",
-    "native": "فارسی"
+    "native": "فارسی",
+    "googleStt": "fa-IR",
+    "azureStt": "fa-IR"
   },
   "pol_Latn": {
     "iso3": "pol",
@@ -987,7 +1060,8 @@
     "google": "pl",
     "azure": "pl",
     "name": "Polish",
-    "native": "Polski"
+    "native": "Polski",
+    "googleStt": "pl-PL"
   },
   "por_Latn": {
     "iso3": "por",
@@ -997,7 +1071,9 @@
     "google": "pt",
     "azure": "pt",
     "name": "Portuguese",
-    "native": "Português"
+    "native": "Português",
+    "googleStt": "pt-BR",
+    "azureStt": "pt-PT"
   },
   "quy_Latn": {
     "iso3": "quy",
@@ -1017,7 +1093,8 @@
     "google": "ro",
     "azure": "ro",
     "name": "Romanian",
-    "native": "Română"
+    "native": "Română",
+    "googleStt": "ro-RO"
   },
   "run_Latn": {
     "iso3": "run",
@@ -1037,7 +1114,8 @@
     "google": "ru",
     "azure": "ru",
     "name": "Russian",
-    "native": "Русский"
+    "native": "Русский",
+    "googleStt": "ru-RU"
   },
   "sag_Latn": {
     "iso3": "sag",
@@ -1080,7 +1158,9 @@
     "whisper": "si",
     "google": "si",
     "name": "Sinhala",
-    "native": "සිංහල"
+    "native": "සිංහල",
+    "googleStt": "si-LK",
+    "azureStt": "si-LK"
   },
   "slk_Latn": {
     "iso3": "slk",
@@ -1090,7 +1170,8 @@
     "google": "sk",
     "azure": "sk",
     "name": "Slovak",
-    "native": "Slovenčina"
+    "native": "Slovenčina",
+    "googleStt": "sk-SK"
   },
   "slv_Latn": {
     "iso3": "slv",
@@ -1100,7 +1181,9 @@
     "google": "sl",
     "azure": "sl",
     "name": "Slovene",
-    "native": "Slovenščina"
+    "native": "Slovenščina",
+    "googleStt": "sl-SI",
+    "azureStt": "sl-SI"
   },
   "smo_Latn": {
     "iso3": "smo",
@@ -1150,7 +1233,9 @@
     "google": "es",
     "azure": "es",
     "name": "Spanish",
-    "native": "Español"
+    "native": "Español",
+    "googleStt": "es-ES",
+    "azureStt": "es-ES"
   },
   "srd_Latn": {
     "iso3": "srd",
@@ -1170,7 +1255,9 @@
     "google": "sr",
     "azure": "sr",
     "name": "Serbian",
-    "native": "Српски"
+    "native": "Српски",
+    "googleStt": "sr-RS",
+    "azureStt": "sr-RS"
   },
   "ssw_Latn": {
     "iso3": "ssw",
@@ -1190,7 +1277,8 @@
     "google": "su",
     "azure": "su",
     "name": "Sundanese",
-    "native": "Basa Sunda"
+    "native": "Basa Sunda",
+    "azureStt": "su-ID"
   },
   "swe_Latn": {
     "iso3": "swe",
@@ -1200,7 +1288,9 @@
     "google": "sv",
     "azure": "sv",
     "name": "Swedish",
-    "native": "Svenska"
+    "native": "Svenska",
+    "googleStt": "sv-SE",
+    "azureStt": "sv-SE"
   },
   "swh_Latn": {
     "iso3": "swh",
@@ -1210,7 +1300,9 @@
     "google": "sw",
     "azure": "sw",
     "name": "Swahili",
-    "native": "Kiswahili"
+    "native": "Kiswahili",
+    "googleStt": "sw-TZ",
+    "azureStt": "sw-KE"
   },
   "tam_Taml": {
     "iso3": "tam",
@@ -1220,7 +1312,9 @@
     "google": "ta",
     "azure": "ta",
     "name": "Tamil",
-    "native": "தமிழ்"
+    "native": "தமிழ்",
+    "googleStt": "ta-IN",
+    "azureStt": "ta-IN"
   },
   "tat_Cyrl": {
     "iso3": "tat",
@@ -1240,7 +1334,9 @@
     "google": "te",
     "azure": "te",
     "name": "Telugu",
-    "native": "తెలుగు"
+    "native": "తెలుగు",
+    "googleStt": "te-IN",
+    "azureStt": "te-IN"
   },
   "tgk_Cyrl": {
     "iso3": "tgk",
@@ -1260,7 +1356,9 @@
     "google": "tl",
     "azure": "tl",
     "name": "Tagalog",
-    "native": "Tagalog"
+    "native": "Tagalog",
+    "googleStt": "tl-PH",
+    "azureStt": "fil-PH"
   },
   "tha_Thai": {
     "iso3": "tha",
@@ -1270,7 +1368,8 @@
     "google": "th",
     "azure": "th",
     "name": "Thai",
-    "native": "ไทย"
+    "native": "ไทย",
+    "googleStt": "th-TH"
   },
   "tir_Ethi": {
     "iso3": "tir",
@@ -1330,7 +1429,8 @@
     "google": "tr",
     "azure": "tr",
     "name": "Turkish",
-    "native": "Türkçe"
+    "native": "Türkçe",
+    "googleStt": "tr-TR"
   },
   "twi_Latn": {
     "iso3": "twi",
@@ -1350,7 +1450,9 @@
     "google": "uk",
     "azure": "uk",
     "name": "Ukrainian",
-    "native": "Українська"
+    "native": "Українська",
+    "googleStt": "uk-UA",
+    "azureStt": "uk-UA"
   },
   "umb_Latn": {
     "iso3": "umb",
@@ -1365,7 +1467,9 @@
     "google": "ur",
     "azure": "ur",
     "name": "Urdu",
-    "native": "اردو"
+    "native": "اردو",
+    "googleStt": "ur-PK",
+    "azureStt": "ur-PK"
   },
   "uzn_Latn": {
     "iso3": "uzn",
@@ -1385,7 +1489,9 @@
     "google": "vi",
     "azure": "vi",
     "name": "Vietnamese",
-    "native": "Tiếng Việt"
+    "native": "Tiếng Việt",
+    "googleStt": "vi-VN",
+    "azureStt": "vi-VN"
   },
   "war_Latn": {
     "iso3": "war",
@@ -1400,7 +1506,8 @@
     "google": "wo",
     "azure": "wo",
     "name": "Wolof",
-    "native": "Wolof"
+    "native": "Wolof",
+    "azureStt": "wo-SN"
   },
   "xho_Latn": {
     "iso3": "xho",
@@ -1430,14 +1537,16 @@
     "google": "yo",
     "azure": "yo",
     "name": "Yoruba",
-    "native": "Yorùbá"
+    "native": "Yorùbá",
+    "googleStt": "yo-NG"
   },
   "yue_Hant": {
     "iso3": "yue",
     "whisper": "yue",
     "google": "yue",
     "name": "Cantonese",
-    "native": "粵語"
+    "native": "粵語",
+    "azureStt": "zh-HK"
   },
   "zho_Hans": {
     "iso3": "zho",
@@ -1447,7 +1556,9 @@
     "google": "zh",
     "azure": "zh",
     "name": "Chinese (Simplified)",
-    "native": "简体中文"
+    "native": "简体中文",
+    "googleStt": "zh",
+    "azureStt": "zh-CN"
   },
   "zho_Hant": {
     "iso3": "zho",
@@ -1465,7 +1576,9 @@
     "google": "ms",
     "azure": "ms",
     "name": "Malay",
-    "native": "Bahasa Melayu"
+    "native": "Bahasa Melayu",
+    "googleStt": "ms-MY",
+    "azureStt": "ms-MY"
   },
   "zul_Latn": {
     "iso3": "zul",
@@ -1475,6 +1588,8 @@
     "google": "zu",
     "azure": "zu",
     "name": "Zulu",
-    "native": "IsiZulu"
+    "native": "IsiZulu",
+    "googleStt": "zu-ZA",
+    "azureStt": "zu-ZA"
   }
 }

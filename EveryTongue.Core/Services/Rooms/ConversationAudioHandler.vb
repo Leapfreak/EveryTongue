@@ -558,6 +558,12 @@ Namespace Services.Rooms
             Dim sourceShort = TranslationService.FloresToShortCode(sourceFlores)
             _logger.LogDebug("BroadcastToRoom: sourceFlores={Source} sourceShort={Short}", sourceFlores, sourceShort)
 
+            ' Displayed source text is profanity-masked (same gap-closing as conference
+            ' rooms: members reading the speaker's language would otherwise see raw
+            ' engine text — translations are masked by the translation pipeline).
+            ' `text` stays raw below as translation input.
+            Dim maskedText = MaskSourceProfanity(text, sourceFlores)
+
             ' Remove source language from targets (no self-translation)
             targetLangs.Remove(sourceFlores)
 
@@ -673,7 +679,7 @@ Namespace Services.Rooms
                 If isSharedDevice Then
                     ' Build translations dict including original text under source language
                     Dim allTranslations As New Dictionary(Of String, String)()
-                    allTranslations(sourceFlores) = text
+                    allTranslations(sourceFlores) = maskedText
                     If translations IsNot Nothing Then
                         For Each kvp In translations
                             allTranslations(kvp.Key) = kvp.Value
@@ -705,11 +711,11 @@ Namespace Services.Rooms
                     Dim clientText As String
 
                     If String.IsNullOrEmpty(client.Language) OrElse client.Language = sourceFlores Then
-                        clientText = text
+                        clientText = maskedText
                     ElseIf translations IsNot Nothing AndAlso translations.ContainsKey(client.Language) Then
                         clientText = translations(client.Language)
                     Else
-                        clientText = text
+                        clientText = maskedText
                     End If
 
                     ' Lang tag = language of the TEXT being sent (target lang for translated, source for original)
@@ -728,6 +734,20 @@ Namespace Services.Rooms
                     TrySendToClient(client, buffer)
                 End If
             Next
+        End Function
+
+        ''' <summary>
+        ''' Mask profanity in SOURCE-language display text. Conversation rooms carry
+        ''' no per-room filter sets, so only the global profanity file applies.
+        ''' Never throws (ProfanityPostProcessor is self-contained).
+        ''' </summary>
+        Private Shared Function MaskSourceProfanity(text As String, sourceFlores As String) As String
+            If String.IsNullOrEmpty(text) Then Return text
+            Dim globalProf = Global.EveryTongue.Models.AppConfig.ResolvePath(".\translate-server\profanity.json")
+            Dim d As New Dictionary(Of String, String) From {{sourceFlores, text}}
+            d = Translation.ProfanityPostProcessor.Apply(d, "", globalProf)
+            Dim masked As String = Nothing
+            Return If(d IsNot Nothing AndAlso d.TryGetValue(sourceFlores, masked), masked, text)
         End Function
 
         Private Function GetClient(clientId As String) As ClientConnection

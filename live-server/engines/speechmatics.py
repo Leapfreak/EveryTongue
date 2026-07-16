@@ -87,6 +87,16 @@ def _load_biblical_vocab(lang):
         return []
 
 
+def _normalize_lang(lang):
+    """Map generic/whisper ISO codes to Speechmatics' own where they differ
+    (language pickers send 'zh'; Speechmatics only knows Mandarin as 'cmn').
+    Empty/auto → 'en' (RT needs an explicit language, no auto-detect)."""
+    lang = (lang or "en").strip()
+    if lang in ("", "auto"):
+        return "en"
+    return {"zh": "cmn"}.get(lang, lang)
+
+
 def _eou_for_pace(p85_ms):
     """Map the speaker's 85th-percentile inter-word pause (ms) to an EOU trigger (s)."""
     if p85_ms < 100:
@@ -152,8 +162,7 @@ class SpeechmaticsStreamingPipeline:
         self._region = region if region in REGION_URLS else DEFAULT_REGION
         self._operating_point = operating_point or DEFAULT_OPERATING_POINT
         # Speechmatics real-time needs an explicit language (no auto-detect).
-        lang = (config.language or "en").strip()
-        self._language = "en" if lang in ("", "auto") else lang
+        self._language = _normalize_lang(config.language)
         # Biblical proper-noun additional_vocab (auto-selected by session language).
         self._biblical_vocab_requested = bool(biblical_vocab)
         self._additional_vocab = _load_biblical_vocab(self._language) if biblical_vocab else []
@@ -258,12 +267,14 @@ class SpeechmaticsStreamingPipeline:
             return
 
         # Speechmatics fixes language + translation targets at session start, so a
-        # change requires restarting the session (stop + start). The user accepted
-        # the brief audio gap this causes.
+        # change requires a NEW session — but not a new capture stream. The WS
+        # reconnect happens in-place (same path as the EOU auto-tune): the mic
+        # keeps capturing, the queue buffers through the swap, no audio is lost
+        # and the device is never reopened (reopening caused input-overflow
+        # warnings and a real audio gap).
         restart = False
         if "language" in kwargs:
-            new_lang = (kwargs["language"] or "en").strip()
-            new_lang = "en" if new_lang in ("", "auto") else new_lang
+            new_lang = _normalize_lang(kwargs["language"])
             if new_lang != self._language:
                 self._language = new_lang
                 restart = True
@@ -281,14 +292,27 @@ class SpeechmaticsStreamingPipeline:
             self._current_speaker = None
             self._last_retune = 0.0
             self._eou_silence = self._eou_baseline
-            logger.info(
-                f"[SPEECHMATICS] config change → lang={self._language} "
-                f"targets={self._translation_targets}; restarting session (pace reset)")
-            try:
-                self.stop()
-                self.start()
-            except Exception as e:
-                logger.error(f"[SPEECHMATICS] restart after config change failed: {e}")
+            # The new session gets the vocab for the NEW language (the old full
+            # restart kept the previous language's list — stale vocab bug).
+            self._additional_vocab = (_load_biblical_vocab(self._language)
+                                      if self._biblical_vocab_requested else [])
+            if self._thread is not None and self._thread.is_alive():
+                logger.info(
+                    f"[SPEECHMATICS] config change → lang={self._language} "
+                    f"targets={self._translation_targets}; reconnecting session in-place "
+                    f"(capture stream stays up, pace reset)")
+                self._reset_pending = True   # _pump_audio exits → _run reconnects with the new config
+            else:
+                # Engine thread not running (never started, or died) — a full
+                # restart is the only way back to a live session.
+                logger.info(
+                    f"[SPEECHMATICS] config change → lang={self._language} "
+                    f"targets={self._translation_targets}; engine thread not running — full restart")
+                try:
+                    self.stop()
+                    self.start()
+                except Exception as e:
+                    logger.error(f"[SPEECHMATICS] restart after config change failed: {e}")
 
     def _audio_callback(self, indata, frames, time_info, status):
         try:
@@ -562,11 +586,14 @@ class SpeechmaticsStreamingPipeline:
 
             if not retune or self._stop_event.is_set():
                 break
-            logger.info(f"[SPEECHMATICS] EOU auto-tune: reconnecting with EOU={self._eou_silence}s")
+            logger.info(f"[SPEECHMATICS] reconnecting session in-place "
+                        f"(lang={self._language} EOU={self._eou_silence}s "
+                        f"targets={self._translation_targets})")
 
     async def _pump_audio(self, client, loop):
         """Drain captured PCM frames and forward them to Speechmatics. Returns True if
-        an EOU retune was requested (the caller reconnects with the new self._eou_silence);
+        a session reconnect was requested (EOU retune, pace reset, or a language/target
+        config change — the caller rebuilds the session from current self._* values);
         False on normal stop / send failure."""
         last_check = time.monotonic()
         while not self._stop_event.is_set():
@@ -581,10 +608,12 @@ class SpeechmaticsStreamingPipeline:
                     # (the audio queue keeps buffering during the gap → no loss).
                     logger.warning(f"[SPEECHMATICS] send_audio failed (connection dropped): {e}")
                     raise
+            if self._reset_pending:
+                # Config change / pace reset — honoured regardless of auto-tune
+                # (a language change must reconnect even with auto-tune off).
+                self._reset_pending = False
+                return True
             if self._auto_tune:
-                if self._reset_pending:
-                    self._reset_pending = False
-                    return True   # speaker change → reconnect at the baseline EOU
                 now = time.monotonic()
                 if (now - last_check) >= PACE_CHECK_INTERVAL_S:
                     last_check = now
@@ -647,9 +676,7 @@ def _transcribe_speechmatics(audio_array, language=None,
         logger.error("[SPEECHMATICS] /transcribe: no API key configured")
         return None, None
 
-    lang = (language or "").strip().lower()
-    if not lang or lang == "auto":
-        lang = "en"   # RT needs an explicit language; PTT callers pass the speaker's
+    lang = _normalize_lang((language or "").lower())
 
     import numpy as np
     a = audio_array

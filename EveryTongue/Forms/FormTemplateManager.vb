@@ -72,11 +72,12 @@ Public Class FormTemplateManager
     End Sub
 
     Private Sub PopulateLanguageDropdown()
+        ' Languages from the active engine's declared list (else the whisper
+        ' column of language-codes.json) — same source as /api/stt-languages.
         cboSourceLang.Items.Clear()
         cboSourceLang.Items.Add("auto")
-        Dim langs() As String = {"ca", "es", "en", "fr", "de", "it", "pt", "nl", "ru", "zh", "ja", "ko", "ar", "hi", "tr", "pl", "uk", "vi", "th", "id", "ms", "tl", "sw"}
-        For Each lang In langs
-            cboSourceLang.Items.Add(lang)
+        For Each lang In Services.Stt.SttBackendRegistry.EffectiveLanguages(_config.SttBackend)
+            cboSourceLang.Items.Add(lang.Code)
         Next
         cboSourceLang.SelectedIndex = 0
 

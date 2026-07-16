@@ -224,8 +224,9 @@ Namespace Controllers
         ''' <summary>
         ''' Dictation rooms have no stored template — synthesize one from the global
         ''' config: web-mic source, a STREAMING-capable engine (dictation rides the
-        ''' conference pipeline; one-shot /transcribe engines can't stream), source
-        ''' language from the room (picked at creation).
+        ''' conference pipeline; one-shot /transcribe engines can't stream). Source
+        ''' language starts at the room's value if the creator supplied one, else
+        ''' default — the creator's room-entry picker retunes it after join.
         ''' </summary>
         Public Sub HandleDictationRoomCreated(roomId As String)
             Dim room = _getRoomManager()?.GetRoom(roomId)
@@ -750,14 +751,17 @@ Namespace Controllers
             Dim subtitleSvc = _getSubtitleSvc()
             If subtitleSvc Is Nothing Then Return
 
+            ' Displayed source text is profanity-masked; `line` stays raw for translation input.
+            Dim maskedLine = MaskSourceProfanity(roomId, line, sourceLang)
+
             If IsGarbageCommit(line) Then
                 AppLogger.Log(LogEvents.CONF_COMMIT_DROPPED, $"room={roomId} reason=garbage")
-                subtitleSvc.BroadcastCommit(line, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang, targetRoomId:=roomId)
+                subtitleSvc.BroadcastCommit(maskedLine, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang, targetRoomId:=roomId)
                 Return
             End If
 
             ' Always broadcast source text immediately (no delay for source-lang viewers)
-            subtitleSvc.BroadcastCommit(line, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang, targetRoomId:=roomId)
+            subtitleSvc.BroadcastCommit(maskedLine, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang, targetRoomId:=roomId)
 
             ' Buffer-vs-immediate is a property of THIS room's engine, not the global
             ' active backend: offline (NLLB, ModelType set) buffers into sentences;
@@ -800,7 +804,10 @@ Namespace Controllers
 
                 Dim translations = Await TranslateTargetsAsync(roomId, bufferedText, sourceLang, targets.ToList())
                 If translations.Count = 0 Then Return
-                BroadcastTranslated(subtitleSvc, roomId, bufferedText, sourceShort, sourceLang, translations)
+                ' The original text rides along in the translated commit — mask the
+                ' displayed copy (translation above used the raw text).
+                BroadcastTranslated(subtitleSvc, roomId, MaskSourceProfanity(roomId, bufferedText, sourceLang),
+                                    sourceShort, sourceLang, translations)
             Catch ex As Exception
                 AppLogger.Log(LogEvents.CONF_BACKEND_ERROR, $"room={roomId} translate/broadcast failed: {ex.Message}")
             End Try
@@ -996,14 +1003,17 @@ Namespace Controllers
             Dim subtitleSvc = _getSubtitleSvc()
             If subtitleSvc Is Nothing Then Return
 
+            ' Displayed source text is profanity-masked; args.Text stays raw for translation input.
+            Dim maskedText = MaskSourceProfanity(roomId, args.Text, sourceLang)
+
             If IsGarbageCommit(args.Text) Then
                 AppLogger.Log(LogEvents.CONF_COMMIT_DROPPED, $"room={roomId} reason=garbage")
-                subtitleSvc.BroadcastCommit(args.Text, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang, targetRoomId:=roomId)
+                subtitleSvc.BroadcastCommit(maskedText, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang, targetRoomId:=roomId)
                 Return
             End If
 
             ' Source immediately for source-language viewers.
-            subtitleSvc.BroadcastCommit(args.Text, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang, targetRoomId:=roomId)
+            subtitleSvc.BroadcastCommit(maskedText, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang, targetRoomId:=roomId)
 
             ' Speechmatics translations (engine codes) → FLORES, then glossary-fix.
             Dim merged As New Dictionary(Of String, String)()
@@ -1060,7 +1070,7 @@ Namespace Controllers
             End If
 
             If merged.Count = 0 Then Return
-            BroadcastTranslated(subtitleSvc, roomId, args.Text, sourceShort, sourceLang, merged)
+            BroadcastTranslated(subtitleSvc, roomId, maskedText, sourceShort, sourceLang, merged)
         End Function
 
         ' ─── Inline translation retargeting (engine-blind) ───────────────
@@ -1487,6 +1497,33 @@ Namespace Controllers
             }
         End Function
 
+        ''' <summary>
+        ''' Mask profanity in SOURCE-language text before it is DISPLAYED to viewers
+        ''' reading the source language. Translated output is masked separately in the
+        ''' translation pipeline — this closes the raw-transcript gap where a viewer
+        ''' whose language matched the speaker's saw unfiltered engine text.
+        ''' Callers must mask only what they display: translation INPUT stays raw
+        ''' (translators need the real words; their output is masked downstream).
+        ''' Dictation rooms are exempt — that text is the user's own document.
+        ''' Live partials remain unmasked (transient; replaced by the masked commit).
+        ''' </summary>
+        Private Function MaskSourceProfanity(roomId As String, text As String, sourceLang As String) As String
+            If String.IsNullOrEmpty(text) Then Return text
+            Try
+                Dim room = _getRoomManager?.Invoke()?.GetRoom(roomId)
+                If room IsNot Nothing AndAlso room.Type = Services.Rooms.RoomType.Dictation Then Return text
+                Dim roomFp = RoomTranslationFilters(roomId)
+                Dim globalProf = AppConfig.ResolvePath(".\translate-server\profanity.json")
+                Dim d As New Dictionary(Of String, String) From {{sourceLang, text}}
+                d = ProfanityPostProcessor.Apply(d, If(roomFp?.ProfanityPath, ""), globalProf)
+                Dim masked As String = Nothing
+                Return If(d IsNot Nothing AndAlso d.TryGetValue(sourceLang, masked), masked, text)
+            Catch ex As Exception
+                AppLogger.Log(LogEvents.TRANS_ERROR, $"room={roomId} source profanity mask failed: {ex.Message}")
+                Return text
+            End Try
+        End Function
+
         Private Shared Function Truncate(s As String, n As Integer) As String
             If String.IsNullOrEmpty(s) Then Return ""
             Return If(s.Length > n, s.Substring(0, n) & "…", s)
@@ -1543,15 +1580,18 @@ Namespace Controllers
             Dim subtitleSvc = _getSubtitleSvc()
             If subtitleSvc Is Nothing Then Return
 
+            ' Displayed source text is profanity-masked; `text` stays raw for translation input.
+            Dim maskedText = MaskSourceProfanity(roomId, text, sourceLang)
+
             If IsGarbageCommit(text) Then
                 _log($"[Conference:{roomId}] Filtered garbage clause")
-                subtitleSvc.BroadcastCommit(text, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang, targetRoomId:=roomId)
+                subtitleSvc.BroadcastCommit(maskedText, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang, targetRoomId:=roomId)
                 Return
             End If
 
 
             ' Source immediately for source-language viewers.
-            subtitleSvc.BroadcastCommit(text, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang, targetRoomId:=roomId)
+            subtitleSvc.BroadcastCommit(maskedText, skipTranslationClients:=True, lang:=sourceShort, sourceLang:=sourceLang, targetRoomId:=roomId)
 
             Dim targets = subtitleSvc.GetActiveTranslationLanguages()
             targets?.Remove(sourceLang)
@@ -1559,7 +1599,7 @@ Namespace Controllers
 
             Dim translations = Await TranslateTargetsAsync(roomId, text, sourceLang, targets.ToList())
             If translations.Count = 0 Then Return
-            BroadcastTranslated(subtitleSvc, roomId, text, sourceShort, sourceLang, translations)
+            BroadcastTranslated(subtitleSvc, roomId, maskedText, sourceShort, sourceLang, translations)
         End Function
 
         ' ─── Helpers ──────────────────────────────────────────────────

@@ -235,48 +235,10 @@
         </div>
 
         <div id="creator-tools">
-        <!-- Create Conversation Room — hidden when the server has no offline
-             transcribe engine (conversation PTT needs one-shot /transcribe,
-             which streaming engines / Lite cannot serve) -->
-        <div id="conv-create">
-        <div class="section-label" data-i18n="lbCreateConversation">Create Conversation</div>
-
-        <div class="toggle-row">
-            <span class="label" data-i18n="lbPrivateRoom">Private Room</span>
-            <div class="toggle on" id="toggle-private"></div>
-        </div>
-
-        <div class="form-group">
-            <label for="conv-engine" data-i18n="lbTranslationEngine">Translation engine</label>
-            <select id="conv-engine" style="width:100%;padding:10px;border-radius:8px;border:1px solid #444;background:#1a1a2e;color:#e0e0e0;font-size:14px">
-                <option value="" data-i18n="lbDefault">Default</option>
-            </select>
-        </div>
-
-        <button class="btn btn-primary" id="btn-create" data-i18n="lbCreateConversation">Create Conversation</button>
-        </div><!-- /conv-create -->
-
-        <!-- Dictation: private single-user speech-to-text editor -->
-        <hr class="divider">
-        <div class="section-label" data-i18n="lbDictation">Dictation</div>
-        <div class="form-group">
-            <label for="dict-lang" data-i18n="lbSpeakingLanguage">Speaking language</label>
-            <select id="dict-lang" style="width:100%;padding:10px;border-radius:8px;border:1px solid #444;background:#1a1a2e;color:#e0e0e0;font-size:14px">
-                <option value="ca" data-i18n="lbLangCa">Catalan</option>
-                <option value="es" data-i18n="lbLangEs">Spanish</option>
-                <option value="en" data-i18n="lbLangEn">English</option>
-                <option value="fr" data-i18n="lbLangFr">French</option>
-                <option value="de" data-i18n="lbLangDe">German</option>
-                <option value="it" data-i18n="lbLangIt">Italian</option>
-                <option value="pt" data-i18n="lbLangPt">Portuguese</option>
-                <option value="nl" data-i18n="lbLangNl">Dutch</option>
-            </select>
-        </div>
-        <button class="btn btn-primary" id="btn-dictate" data-i18n="lbStartDictation">Start Dictation</button>
-
-        <!-- Host Conference (template-based) -->
+        <!-- Host Conference (template-based) — first: it's the main weekly flow.
+             The trailing divider lives INSIDE the wrapper so no stray line shows
+             when the section is hidden (no templates on this server). -->
         <div id="conference-section" style="display:none">
-            <hr class="divider">
             <div class="section-label" data-i18n="lbHostConference">Host Conference</div>
 
             <div class="form-group">
@@ -296,7 +258,37 @@
             <div id="conference-error" style="display:none;color:#ff6b6b;font-size:13px;margin-bottom:12px"></div>
 
             <button class="btn btn-primary" id="btn-create-conference" disabled data-i18n="lbCreateConference">Create Conference</button>
+            <hr class="divider">
         </div>
+
+        <!-- Create Conversation Room — hidden when the server has no offline
+             transcribe engine (conversation PTT needs one-shot /transcribe,
+             which streaming engines / Lite cannot serve) -->
+        <div id="conv-create">
+        <div class="section-label" data-i18n="lbCreateConversation">Create Conversation</div>
+
+        <div class="toggle-row">
+            <span class="label" data-i18n="lbPrivateRoom">Private Room</span>
+            <div class="toggle on" id="toggle-private"></div>
+        </div>
+
+        <div class="form-group">
+            <label for="conv-engine" data-i18n="lbTranslationEngine">Translation engine</label>
+            <select id="conv-engine" style="width:100%;padding:10px;border-radius:8px;border:1px solid #444;background:#1a1a2e;color:#e0e0e0;font-size:14px">
+                <option value="" data-i18n="lbDefault">Default</option>
+            </select>
+        </div>
+
+        <button class="btn btn-primary" id="btn-create" data-i18n="lbCreateConversation">Create Conversation</button>
+        <hr class="divider">
+        </div><!-- /conv-create -->
+
+        <!-- Dictation: private single-user speech-to-text editor (kept last —
+             it's the least-used tool, so it sits at the bottom of the lobby).
+             No leading divider: the preceding visible section brings its own. -->
+        <div class="section-label" data-i18n="lbDictation">Dictation</div>
+        <!-- No language step here: the room-entry picker asks it once, like every other room -->
+        <button class="btn btn-primary" id="btn-dictate" data-i18n="lbStartDictation">Start Dictation</button>
         </div><!-- /creator-tools -->
     </div>
 

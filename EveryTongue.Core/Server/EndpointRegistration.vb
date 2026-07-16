@@ -355,30 +355,7 @@ Namespace Server
                                                      Dim opts = context.RequestServices.GetService(Of IOptions(Of ServerOptions))
                                                      backend = If(opts?.Value?.SttBackend, "")
                                                  End If
-                                                 Dim langSvc = LanguageCodeService.Instance
-                                                 Dim entry = Services.Stt.SttBackendRegistry.Find(backend)
-                                                 Dim langs As New List(Of (Code As String, Name As String, Native As String))()
-                                                 If entry?.SupportedLanguages IsNot Nothing Then
-                                                     Dim byFlores = langSvc.GetAllLanguagesSorted().
-                                                         GroupBy(Function(l) l.Flores).
-                                                         ToDictionary(Function(g) g.Key, Function(g) g.First())
-                                                     For Each code In entry.SupportedLanguages
-                                                         ' Engine quirk aliases the canonical table doesn't key on
-                                                         Dim lookup = If(code.Equals("cmn", StringComparison.OrdinalIgnoreCase), "zho_Hans", code)
-                                                         Dim flores = langSvc.ToFlores(lookup)
-                                                         Dim name = code
-                                                         Dim native = code
-                                                         Dim m As (Flores As String, Iso1 As String, Name As String, Native As String) = Nothing
-                                                         If Not String.IsNullOrEmpty(flores) AndAlso byFlores.TryGetValue(flores, m) Then
-                                                             name = If(String.IsNullOrEmpty(m.Name), code, m.Name)
-                                                             native = If(String.IsNullOrEmpty(m.Native), name, m.Native)
-                                                         End If
-                                                         langs.Add((code, name, native))
-                                                     Next
-                                                     langs.Sort(Function(a, b) String.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase))
-                                                 Else
-                                                     langs.AddRange(langSvc.GetAllWhisperLanguagesSorted())
-                                                 End If
+                                                 Dim langs = Services.Stt.SttBackendRegistry.EffectiveLanguages(backend)
                                                  Dim result = langs.Select(Function(l) New With {.code = l.Code, .name = l.Name, .native = l.Native}).ToArray()
                                                  Return context.Response.WriteAsJsonAsync(result)
                                              End Function)

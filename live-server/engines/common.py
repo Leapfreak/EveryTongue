@@ -31,6 +31,9 @@ Streaming-pipeline contract (what ``create_streaming`` must return):
     ``/start`` request body (engine-specific keys, e.g. region/operating_point).
 """
 import io
+import json
+import logging
+import os
 import threading
 import wave
 
@@ -38,6 +41,67 @@ import numpy as np
 
 # Audio sample rate used throughout the live-server (mono 16-bit PCM).
 SAMPLE_RATE = 16000
+
+
+# ---------------------------------------------------------------------------
+# Canonical language table (wwwroot/data/language-codes.json)
+# ---------------------------------------------------------------------------
+# Single source for all cross-vendor language codes — engines must NOT carry
+# their own code lists/maps; vendor-specific columns (googleStt, azureStt, …)
+# live in the table alongside deepl/google/azure.
+_lang_table = None
+_lang_by_whisper = None
+_lang_table_lock = threading.Lock()
+
+
+def language_table():
+    """language-codes.json keyed by FLORES code; {} if the file is missing
+    (engines then fall back to their heuristics)."""
+    global _lang_table, _lang_by_whisper
+    if _lang_table is not None:
+        return _lang_table
+    with _lang_table_lock:
+        if _lang_table is not None:
+            return _lang_table
+        base = os.path.dirname(os.path.abspath(__file__))
+        candidates = [
+            # published / container layout: live-server/ and wwwroot/ side by side
+            os.path.join(base, "..", "..", "wwwroot", "data", "language-codes.json"),
+            # dev tree: live-server/ sits beside EveryTongue.Core/
+            os.path.join(base, "..", "..", "EveryTongue.Core", "wwwroot", "data", "language-codes.json"),
+        ]
+        table = {}
+        for path in candidates:
+            try:
+                with open(path, encoding="utf-8") as fh:
+                    table = json.load(fh)
+                break
+            except OSError:
+                continue
+            except Exception as e:
+                logging.getLogger("live-server").warning(
+                    "language-codes.json unreadable at %s: %s", path, e)
+        if not table:
+            logging.getLogger("live-server").warning(
+                "language-codes.json not found — vendor locale lookups fall back to heuristics")
+        _lang_table = table
+        _lang_by_whisper = {}
+        for entry in table.values():
+            w = entry.get("whisper")
+            if w and w not in _lang_by_whisper:
+                _lang_by_whisper[w] = entry
+        return _lang_table
+
+
+def vendor_locale(whisper_code, column):
+    """whisper/ISO code -> the vendor locale in `column` (e.g. 'googleStt',
+    'azureStt'). '' when the table has no mapping for that code."""
+    code = (whisper_code or "").strip().lower()
+    if not code:
+        return ""
+    language_table()
+    entry = _lang_by_whisper.get(code)
+    return (entry.get(column) or "") if entry else ""
 
 
 # ---------------------------------------------------------------------------

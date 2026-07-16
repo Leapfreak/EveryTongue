@@ -33,20 +33,19 @@ logger = logging.getLogger("live-server")
 STREAM_TIMEOUT_S = 280  # ~4m40s, restart with margin
 
 # Whisper ISO 639-1 → Google BCP-47 mapping (extend as needed)
-_WHISPER_TO_BCP47 = {
-    "en": "en-US", "es": "es-ES", "ca": "ca-ES", "fr": "fr-FR", "de": "de-DE",
-    "pt": "pt-BR", "it": "it-IT", "nl": "nl-NL", "pl": "pl-PL", "ru": "ru-RU",
-    "zh": "zh", "ja": "ja-JP", "ko": "ko-KR", "ar": "ar-SA", "hi": "hi-IN",
-    "tr": "tr-TR", "vi": "vi-VN", "th": "th-TH", "id": "id-ID", "ms": "ms-MY",
-    "tl": "tl-PH", "uk": "uk-UA", "cs": "cs-CZ", "ro": "ro-RO", "hu": "hu-HU",
-    "el": "el-GR", "bg": "bg-BG", "hr": "hr-HR", "sk": "sk-SK", "sl": "sl-SI",
-    "sr": "sr-RS", "da": "da-DK", "fi": "fi-FI", "sv": "sv-SE", "nb": "nb-NO",
-    "he": "he-IL", "fa": "fa-IR", "sw": "sw-TZ", "ta": "ta-IN", "te": "te-IN",
-    "ml": "ml-IN", "bn": "bn-IN", "gu": "gu-IN", "mr": "mr-IN", "kn": "kn-IN",
-    "pa": "pa-IN", "ur": "ur-PK", "my": "my-MM", "km": "km-KH", "lo": "lo-LA",
-    "ne": "ne-NP", "si": "si-LK", "am": "am-ET", "yo": "yo-NG", "zu": "zu-ZA",
-    "af": "af-ZA",
-}
+def _to_bcp47(code):
+    """whisper/ISO code -> Google STT BCP-47 locale, from the canonical table's
+    googleStt column (language-codes.json — no static list here). A table value
+    is used verbatim (Google's Mandarin tag is bare "zh"); unmapped two-letter
+    codes get the xx → xx-XX heuristic, anything else passes through."""
+    locale = common.vendor_locale(code, "googleStt")
+    if locale:
+        return locale
+    code = code or ""
+    if "-" not in code and len(code) == 2:
+        return f"{code}-{code.upper()}"
+    return code
+
 
 _ENGINE_KEY = "google-cloud-stt"
 
@@ -143,21 +142,15 @@ def transcribe(audio_array: np.ndarray, language=None,
     if lang_code == "auto":
         lang_code = "en-US"
     else:
-        lang_code = _WHISPER_TO_BCP47.get(lang_code, lang_code)
+        lang_code = _to_bcp47(lang_code)
 
-    # "latest_short"/"latest_long" — only languages confirmed to support these.
-    _LATEST_MODEL_LANGS = {
-        "en-US", "en-GB", "en-AU", "en-IN",
-        "es-ES", "es-US", "fr-FR", "de-DE", "it-IT", "pt-BR", "pt-PT",
-        "ja-JP", "ko-KR", "zh", "zh-TW", "ru-RU", "hi-IN", "ar-SA",
-        "nl-NL", "sv-SE", "pl-PL", "tr-TR", "da-DK", "fi-FI", "nb-NO",
-    }
+    # Always try the better latest_* models; no static support list. A language
+    # they don't cover gets one 400 (_model_not_supported), the retry below
+    # drops to "default" and _model_fallback_langs remembers it for the session.
     if lang_code in _model_fallback_langs:
         model = "default"
-    elif lang_code in _LATEST_MODEL_LANGS:
-        model = "latest_short" if audio_duration < 15.0 else "latest_long"
     else:
-        model = "default"
+        model = "latest_short" if audio_duration < 15.0 else "latest_long"
 
     config = {
         "encoding": "LINEAR16",
@@ -332,27 +325,17 @@ class GoogleStreamingPipeline:
             return
 
         lang = self._config.language or "en"
-        if lang == "auto":
-            lang = "en-US"
-        lang_code = _WHISPER_TO_BCP47.get(lang, lang)
-        if "-" not in lang_code and len(lang_code) == 2:
-            lang_code = f"{lang_code}-{lang_code.upper()}"
+        lang_code = "en-US" if lang == "auto" else _to_bcp47(lang)
 
         utterance_id = 0
         use_voice_activity = True
         use_enhanced_features = True
         consecutive_errors = 0
 
-        _LATEST_LONG_LANGS = {
-            "en-US", "en-GB", "en-AU", "en-IN",
-            "es-ES", "es-US", "es-MX", "fr-FR", "fr-CA",
-            "de-DE", "it-IT", "pt-BR", "pt-PT",
-            "nl-NL", "pl-PL", "ru-RU", "ja-JP", "ko-KR", "zh",
-            "hi-IN", "tr-TR", "vi-VN", "ar-SA", "id-ID", "th-TH",
-            "sv-SE", "da-DK", "fi-FI", "nb-NO",
-            "cs-CZ", "ro-RO", "hu-HU", "el-GR", "uk-UA", "he-IL",
-        }
-        model = "latest_long" if lang_code in _LATEST_LONG_LANGS else "default"
+        # Always try the better latest_long model; no static support list. If
+        # Google rejects it for this language, the error handler below drops to
+        # "default" and restarts the stream (one wasted connection, once).
+        model = "latest_long"
 
         while not self._stop_event.is_set():
             try:
@@ -453,6 +436,11 @@ class GoogleStreamingPipeline:
                     consecutive_errors = 0
                 elif self._stop_event.is_set():
                     break
+                elif model != "default" and "model" in err_str.lower() and (
+                        "not supported" in err_str.lower() or "invalid" in err_str.lower()):
+                    logger.warning(
+                        f"[GOOGLE-STREAM] model '{model}' rejected for {lang_code} — using 'default'")
+                    model = "default"
                 else:
                     consecutive_errors += 1
                     logger.error(f"[GOOGLE-STREAM] Stream error (attempt {consecutive_errors}): {e}")
