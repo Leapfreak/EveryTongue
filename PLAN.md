@@ -1,4 +1,4 @@
-# EveryTongue — TODO (updated 2026-07-16, v2.7.19 — pushed everywhere: git, ghcr Lite image :2.7.19/:latest, AND GitHub Release v2.7.19 with installer/app-zip/manifest — desktop updater channel current again after lagging at v2.7.4 since the 13th. App-zip staging is now scripted: `tools/stage-app-zip.ps1 -Version x.y.z` mirrors setup.iss [Files].)
+# EveryTongue — TODO (updated 2026-07-17, v2.8.0 — released everywhere: git, ghcr Lite image :2.8.0/:latest, GitHub Release with installer/app-zip/manifest. v2.8.0 = the three-page IA restructure. App-zip staging scripted: `tools/stage-app-zip.ps1 -Version x.y.z`.)
 
 > **Architecture shift:** EveryTongue is evolving from a single-session desktop transcription tool into a **headless multi-room translation server**. The desktop app still has operator workspaces (Live, Transcribe, Translate, Bible), but the primary user interface is now the **phone web client**. Anyone with a phone can create rooms, manage conversations, and receive translations — no operator required. The desktop just runs the server and auto-starts engines at launch.
 
