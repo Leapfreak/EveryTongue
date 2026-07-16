@@ -93,6 +93,7 @@ Namespace Services.Rooms
                     Dim sock As New ClientWebSocket()
                     Await sock.ConnectAsync(New Uri($"ws://127.0.0.1:{route.Port}/audio-in"), ct).ConfigureAwait(False)
                     route.Socket = sock
+                    StartDrainLoop(sock)
                     AppLogger.Log(LogEvents.CONF_WEBMIC, $"room={roomId} web-mic forwarder connected to live-server :{route.Port}")
                 End If
                 Await route.Socket.SendAsync(New ArraySegment(Of Byte)(frame),
@@ -109,6 +110,32 @@ Namespace Services.Rooms
                 route.SendLock.Release()
             End Try
         End Function
+
+        ''' <summary>
+        ''' Keep a receive pending for the socket's lifetime. The managed WebSocket
+        ''' only processes incoming control frames — including the automatic PONG
+        ''' reply to the server's PING — while a receive is in flight. The live-server
+        ''' (uvicorn/websockets) pings every 20s and closes after a 20s pong timeout,
+        ''' so the send-only forwarder was being dropped every ~40s (~400 frames),
+        ''' visible as the recurring "web-mic forward failed … close handshake"
+        ''' warning + instant reconnect. The server sends no data frames; anything
+        ''' received is discarded. A dead socket ends the loop; the next
+        ''' SendFrameAsync reconnects as before.
+        ''' </summary>
+        Private Shared Sub StartDrainLoop(sock As ClientWebSocket)
+            Dim drain = Task.Run(Async Function()
+                                     Dim buf(255) As Byte
+                                     Try
+                                         While sock.State = WebSocketState.Open
+                                             Dim r = Await sock.ReceiveAsync(
+                                                 New ArraySegment(Of Byte)(buf), CancellationToken.None).ConfigureAwait(False)
+                                             If r.MessageType = WebSocketMessageType.Close Then Exit While
+                                         End While
+                                     Catch
+                                         ' Abort/dispose during reconnect or room close — expected.
+                                     End Try
+                                 End Function)
+        End Sub
 
         Private Shared Sub CloseSocket(route As RoomRoute)
             Try : route.Socket?.Abort() : Catch : End Try
