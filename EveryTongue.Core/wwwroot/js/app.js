@@ -385,11 +385,39 @@ function updateCapBadge(){
   else{col='#fa4';txt='● '+capCount+' · '+age+'s'}
   capBadge.style.color=col;capBadge.textContent=txt;
 }
+/* Where are the drawn captions PHYSICALLY, and what owns the screen center?
+   rendered=N with a blank screen means the fault is visual — this answers
+   overlay-vs-offscreen-vs-CSS without needing eyes on the device. */
+function visualState(){
+  try{
+    var lines=document.getElementById('lines');
+    var cont=document.getElementById('container');
+    var n=lines?Math.max(0,lines.children.length-1):-1; /* minus spacer */
+    var out='lines='+n;
+    if(lines&&lines.children.length>1){
+      var last=lines.children[lines.children.length-1];
+      var r=last.getBoundingClientRect();
+      var off=(r.top>=window.innerHeight||r.bottom<=0||r.width===0);
+      var st=getComputedStyle(last);
+      out+=' last@'+Math.round(r.top)+'px/'+window.innerHeight+'px '+(off?'OFFSCREEN':'onscreen')+
+           ' color='+st.color+' size='+st.fontSize;
+    }
+    var spacer=document.getElementById('spacer');
+    if(spacer)out+=' spacerH='+Math.round(spacer.getBoundingClientRect().height);
+    if(cont)out+=' container='+getComputedStyle(cont).display;
+    var picker=document.getElementById('langPicker');
+    out+=' picker='+(picker&&picker.classList.contains('open')?'OPEN':'closed');
+    out+=' hostPanel='+(document.getElementById('hostPanel')?'open':'closed');
+    var c=document.elementFromPoint(Math.floor(window.innerWidth/2),Math.floor(window.innerHeight/2));
+    out+=' center='+(c?(c.id||String(c.className).split(' ')[0]||c.tagName):'?');
+    return out;
+  }catch(e){return 'visualState_err='+e}
+}
 /* Refresh the badge staleness + heartbeat the count into the server log. */
 setInterval(function(){
   updateCapBadge();
   if(wsRef&&wsRef.readyState===1&&inRoomView()){
-    try{wsRef.send(JSON.stringify({type:'clientLog',msg:'captions_received='+capCount+' rendered='+capRendered+' lang='+(myTransLang||'source')+' bc='+(bcActive?'1':'0')}))}catch(e){}
+    try{wsRef.send(JSON.stringify({type:'clientLog',msg:'captions_received='+capCount+' rendered='+capRendered+' lang='+(myTransLang||'source')+' bc='+(bcActive?'1':'0')+' | '+visualState()}))}catch(e){}
   }
 },15000);
 
