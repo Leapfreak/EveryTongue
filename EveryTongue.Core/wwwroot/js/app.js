@@ -351,6 +351,42 @@ function populateTransLangSelect(){
 }
 populateTransLangSelect();
 
+/* ── Caption-delivery self-check ──
+   Counts commit messages actually RECEIVED on this device, shown as a small
+   badge in a room and heartbeated to the server log (clientLog). This is the
+   instrument for "the host saw no subtitles": compare per-client received-count
+   against the server's MessagesSent — a gap localizes the fault to delivery vs
+   render, without reconstructing it from logs afterwards. */
+var capCount=0,capLastAt=0,capBadge=null;
+function inRoomView(){return location.search.indexOf('room=')!==-1}
+function ensureCapBadge(){
+  if(capBadge||!inRoomView())return;
+  capBadge=document.createElement('div');
+  capBadge.id='capBadge';
+  capBadge.title='Captions received on this device (tap to hide)';
+  capBadge.style.cssText='position:fixed;bottom:8px;right:8px;z-index:150;font-size:11px;padding:4px 9px;border-radius:10px;background:rgba(0,0,0,0.55);font-family:monospace;cursor:pointer;user-select:none';
+  capBadge.addEventListener('click',function(){capBadge.style.display='none'});
+  document.body.appendChild(capBadge);
+  updateCapBadge();
+}
+function updateCapBadge(){
+  if(!capBadge)return;
+  var age=capLastAt?Math.round((Date.now()-capLastAt)/1000):-1;
+  var col,txt;
+  if(!wsRef||wsRef.readyState!==1){col='#f55';txt='● offline'}
+  else if(capCount===0){col='#fa4';txt='● 0 captions'}
+  else if(age>=0&&age<=20){col='#5c5';txt='● '+capCount}
+  else{col='#fa4';txt='● '+capCount+' · '+age+'s'}
+  capBadge.style.color=col;capBadge.textContent=txt;
+}
+/* Refresh the badge staleness + heartbeat the count into the server log. */
+setInterval(function(){
+  updateCapBadge();
+  if(wsRef&&wsRef.readyState===1&&inRoomView()){
+    try{wsRef.send(JSON.stringify({type:'clientLog',msg:'captions_received='+capCount+' lang='+(myTransLang||'source')+' bc='+(bcActive?'1':'0')}))}catch(e){}
+  }
+},15000);
+
 /* ── DOM references ── */
 var fontSize=28;
 var currentEl=null;
@@ -733,6 +769,7 @@ function connect(){
   var ws=new WebSocket(wsUrl);
   wsRef=ws;
   ws.onopen=function(){LOG('WS connected');statusEl.textContent=t('connected');statusBar.className='connected';
+    ensureCapBadge();updateCapBadge();
     if(currentEl){currentEl.remove();currentEl=null}
     ws.send(JSON.stringify({type:'setLanguage',language:myTransLang||'',lastId:lastCommitId}));
     sendTtsState();
@@ -741,7 +778,7 @@ function connect(){
        brief retry loop covers the ordering). */
     if(bcWant&&!bcActive){setTimeout(function(){if(bcWant&&!bcActive&&wsRef&&wsRef.readyState===1){wsRef.send(JSON.stringify({type:'broadcastStart'}))}},1500)}
   };
-  ws.onclose=function(){LOG('WS closed');statusEl.textContent=t('disconnected');statusBar.className='disconnected';wsRef=null;
+  ws.onclose=function(){LOG('WS closed');statusEl.textContent=t('disconnected');statusBar.className='disconnected';wsRef=null;updateCapBadge();
     /* Keep bcWant (auto-resume) but tear down capture — frames have nowhere to go. */
     if(bcActive){stopBroadcastCapture();updateBroadcastUi('starting')}
     setTimeout(connect,2000)};
@@ -749,6 +786,9 @@ function connect(){
   ws.onmessage=function(e){
     try{var msg=JSON.parse(e.data);
       if(msg.type==='commit'){
+        /* Delivery self-check: count RAW arrivals (before id-dedup) so the badge
+           reflects what the socket actually delivered to this device. */
+        capCount++;capLastAt=Date.now();updateCapBadge();
         /* Commit arrival clears speaking indicator for that speaker */
         if(msg.speaker){clearSpeakerByName(msg.speaker);updateSpeakingUI()}
         var id=msg.id||0;
