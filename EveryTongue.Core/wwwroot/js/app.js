@@ -187,17 +187,17 @@ function showLangPicker(){
   document.getElementById('lpSearch').value='';
   renderLangList('');
   detectAndSuggest();
-  slogDiag('picker_shown items='+document.getElementById('lpList').children.length);
+  diagLog('picker_shown items='+document.getElementById('lpList').children.length);
 }
 function hideLangPicker(){
   document.getElementById('langPicker').classList.remove('open');
-  slogDiag('picker_hidden');
+  diagLog('picker_hidden');
   var dock=document.getElementById('roomControlsDock');
   if(dock){dock.style.display='flex';setTimeout(adjustDockPadding,50)}
 }
 var voiceManuallySet=!!ss('voice');
 function pickLang(code){
-  slogDiag('pickLang code='+code);
+  diagLog('pickLang code='+code);
   myTransLang=code;
   ssSet('transLang',code);
   ssSet('langChosen','true');
@@ -360,6 +360,12 @@ populateTransLangSelect();
    against the server's MessagesSent — a gap localizes the fault to delivery vs
    render, without reconstructing it from logs afterwards. */
 var capCount=0,capRendered=0,capLastAt=0,capBadge=null;
+/* Diagnostics mode: ?diag=1 on the URL (or localStorage etDiag=1) turns on the
+   caption badge, the 15s received/rendered+visual-state heartbeats and picker
+   lifecycle logs — the instruments that found the v2.8.1 invisible-UI bug.
+   OFF by default: a healthy service logs nothing from the client. Anomalies
+   (render errors, skipped commits, WS message errors) ALWAYS report. */
+var capDiag=/[?&]diag=1/.test(location.search)||localStorage.getItem('etDiag')==='1';
 function inRoomView(){return location.search.indexOf('room=')!==-1}
 /* Route a diagnostic line into the SERVER log (SLOG pattern — never asks the
    user to open browser dev tools). Pre-connection lines queue and flush on
@@ -379,8 +385,10 @@ function slogFlush(){
     }
   }catch(e){}
 }
+/* Chatty diagnostics: server log only in diag mode, console otherwise. */
+function diagLog(msg){if(capDiag)slogDiag(msg);else LOG(msg)}
 function ensureCapBadge(){
-  if(capBadge||!inRoomView())return;
+  if(capBadge||!inRoomView()||!capDiag)return;
   capBadge=document.createElement('div');
   capBadge.id='capBadge';
   capBadge.title='Captions received on this device (tap to hide)';
@@ -440,7 +448,7 @@ function visualState(){
 /* Refresh the badge staleness + heartbeat the count into the server log. */
 setInterval(function(){
   updateCapBadge();
-  if(wsRef&&wsRef.readyState===1&&inRoomView()){
+  if(capDiag&&wsRef&&wsRef.readyState===1&&inRoomView()){
     try{wsRef.send(JSON.stringify({type:'clientLog',msg:'captions_received='+capCount+' rendered='+capRendered+' lang='+(myTransLang||'source')+' bc='+(bcActive?'1':'0')+' | '+visualState()}))}catch(e){}
   }
 },15000);
@@ -850,7 +858,7 @@ function connect(){
         /* Diagnose-in-the-field: the very first commit's raw JSON goes to the
            server log, and every commit reports rendered/skipped/error — this
            handler swallowing a problem silently is how "no subtitles" hid. */
-        if(capCount===1){slogDiag('first_commit_raw='+String(e.data).slice(0,300))}
+        if(capCount===1){diagLog('first_commit_raw='+String(e.data).slice(0,300))}
         /* Commit arrival clears speaking indicator for that speaker */
         if(msg.speaker){clearSpeakerByName(msg.speaker);updateSpeakingUI()}
         var id=msg.id||0;

@@ -117,7 +117,7 @@ server.listen(PORT, async () => {
         "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
         ["--headless=new", "--disable-gpu", "--no-first-run", "--mute-audio",
             "--user-data-dir=" + path.join(process.env.TEMP, "et-render-test-profile"),
-            "http://localhost:" + PORT + "/index.html?room=test"],
+            "http://localhost:" + PORT + "/index.html?room=test&diag=1"],
         { stdio: "ignore" });
     const timeout = new Promise(r => setTimeout(() => r(null), 30000));
     const report = await Promise.race([reportPromise, timeout]);
