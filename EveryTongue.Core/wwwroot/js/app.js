@@ -357,8 +357,14 @@ populateTransLangSelect();
    instrument for "the host saw no subtitles": compare per-client received-count
    against the server's MessagesSent — a gap localizes the fault to delivery vs
    render, without reconstructing it from logs afterwards. */
-var capCount=0,capLastAt=0,capBadge=null;
+var capCount=0,capRendered=0,capLastAt=0,capBadge=null;
 function inRoomView(){return location.search.indexOf('room=')!==-1}
+/* Route a diagnostic line into the SERVER log (SLOG pattern — never asks the
+   user to open browser dev tools). Rate-safe: these fire per-commit at most. */
+function slogDiag(msg){
+  try{if(wsRef&&wsRef.readyState===1){wsRef.send(JSON.stringify({type:'clientLog',msg:msg}))}}catch(e){}
+  LOG(msg);
+}
 function ensureCapBadge(){
   if(capBadge||!inRoomView())return;
   capBadge=document.createElement('div');
@@ -383,7 +389,7 @@ function updateCapBadge(){
 setInterval(function(){
   updateCapBadge();
   if(wsRef&&wsRef.readyState===1&&inRoomView()){
-    try{wsRef.send(JSON.stringify({type:'clientLog',msg:'captions_received='+capCount+' lang='+(myTransLang||'source')+' bc='+(bcActive?'1':'0')}))}catch(e){}
+    try{wsRef.send(JSON.stringify({type:'clientLog',msg:'captions_received='+capCount+' rendered='+capRendered+' lang='+(myTransLang||'source')+' bc='+(bcActive?'1':'0')}))}catch(e){}
   }
 },15000);
 
@@ -789,23 +795,34 @@ function connect(){
         /* Delivery self-check: count RAW arrivals (before id-dedup) so the badge
            reflects what the socket actually delivered to this device. */
         capCount++;capLastAt=Date.now();updateCapBadge();
+        /* Diagnose-in-the-field: the very first commit's raw JSON goes to the
+           server log, and every commit reports rendered/skipped/error — this
+           handler swallowing a problem silently is how "no subtitles" hid. */
+        if(capCount===1){slogDiag('first_commit_raw='+String(e.data).slice(0,300))}
         /* Commit arrival clears speaking indicator for that speaker */
         if(msg.speaker){clearSpeakerByName(msg.speaker);updateSpeakingUI()}
         var id=msg.id||0;
         if(id>lastCommitId){
           lastCommitId=id;
-          if(msg.translations){
-            /* Shared-device message with all translations */
-            transcriptCache.push({id:id,speaker:dispName(msg.speaker),time:msg.time||'',lang:msg.lang||'',sourceLang:msg.sourceLang||'',translations:msg.translations});
-            var activeLang=getActiveIdentityLang();
-            var displayText=msg.translations[activeLang]||msg.translations[msg.sourceLang]||msg.translations[Object.keys(msg.translations)[0]]||'';
-            addCommitted(displayText,msg.lang||'',msg.time||'',null,dispName(msg.speaker),activeLang);
-          } else {
-            /* Normal single-language message — text is in my language (server translated for me) */
-            var textLang=myTransLang||msg.sourceLang||'';
-            transcriptCache.push({id:id,speaker:dispName(msg.speaker),time:msg.time||'',text:msg.text||'',lang:msg.lang||'',sourceLang:msg.sourceLang||'',ttsLang:textLang});
-            addCommitted(msg.text,msg.lang||'',msg.time||'',msg.refs||null,dispName(msg.speaker),textLang);
+          try{
+            if(msg.translations){
+              /* Shared-device message with all translations */
+              transcriptCache.push({id:id,speaker:dispName(msg.speaker),time:msg.time||'',lang:msg.lang||'',sourceLang:msg.sourceLang||'',translations:msg.translations});
+              var activeLang=getActiveIdentityLang();
+              var displayText=msg.translations[activeLang]||msg.translations[msg.sourceLang]||msg.translations[Object.keys(msg.translations)[0]]||'';
+              addCommitted(displayText,msg.lang||'',msg.time||'',null,dispName(msg.speaker),activeLang);
+            } else {
+              /* Normal single-language message — text is in my language (server translated for me) */
+              var textLang=myTransLang||msg.sourceLang||'';
+              transcriptCache.push({id:id,speaker:dispName(msg.speaker),time:msg.time||'',text:msg.text||'',lang:msg.lang||'',sourceLang:msg.sourceLang||'',ttsLang:textLang});
+              addCommitted(msg.text,msg.lang||'',msg.time||'',msg.refs||null,dispName(msg.speaker),textLang);
+            }
+            capRendered++;
+          }catch(rex){
+            slogDiag('commit_render_error id='+id+' err='+rex+(rex&&rex.stack?' @'+String(rex.stack).slice(0,200):''));
           }
+        }else{
+          slogDiag('commit_skipped id='+id+' lastCommitId='+lastCommitId);
         }
       }
       else if(msg.type==='update')updateCurrent(msg.text);
@@ -833,7 +850,7 @@ function connect(){
       else if(msg.type==='speaking'){handleSpeakingIndicator(msg)}
       else if(msg.type==='roomStatus'){handleRoomStatus(msg)}
       else{LOG('WS unknown msg type: '+msg.type)}
-    }catch(ex){LOG('WS msg error: '+ex+' data='+String(e.data).substring(0,100))}
+    }catch(ex){slogDiag('ws_msg_error='+ex+' data='+String(e.data).substring(0,100))}
   }
 }
 
