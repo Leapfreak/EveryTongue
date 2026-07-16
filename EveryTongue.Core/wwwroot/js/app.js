@@ -31,7 +31,7 @@ var T={connecting:'Connecting...',connected:'Connected',disconnected:'Disconnect
     stepDetails:'Tap "Show Details"',stepVisit:'Tap "visit this website"',
     stepRetry:'Tap the screen wake button again',
     openSecure:'Open Secure Page',cancel:'Cancel',
-    dictCopy:'Copy',dictCopied:'Copied \u2713',dictDone:'Done',
+    dictCopy:'Copy',dictCopied:'Copied \u2713',dictDone:'Done',dictOutLang:'Output language',
     rsPreparing:'Preparing speech engine...',vmShared:'(shared)',
     hostSpeakerLang:'Speaker Language',hostApply:'Apply',pipeReset:'Reset Pipeline',autoDetect:'Auto Detect',
     rsWaitMicHost:'Waiting for microphone — open Host Controls and tap Broadcast Mic',
@@ -166,8 +166,9 @@ var POPULAR_LANGS=['eng_Latn','spa_Latn','fra_Latn','por_Latn','deu_Latn','cat_L
             /* Re-render picker if it's already open */
             var picker=document.getElementById('langPicker');
             if(picker&&picker.classList.contains('open')){renderLangList('');detectAndSuggest()}
-            /* Re-populate transLangSelect */
+            /* Re-populate transLangSelect (+ the dictation output dropdown if open) */
             populateTransLangSelect();
+            populateDictOutLang();
           }
         }catch(e){LOG('languages parse error: '+e)}
       }
@@ -2501,9 +2502,15 @@ function initDictationView(){
       '<button id="dictClear" style="padding:12px 16px;border:1px solid #555;border-radius:8px;background:#252540;color:#ccc;font-size:14px;cursor:pointer">'+t('clear')+'</button>'+
       '<button id="dictDone" style="padding:12px 16px;border:none;border-radius:8px;background:#e74c3c;color:#fff;font-size:14px;cursor:pointer">'+t('dictDone')+'</button>'+
     '</div>'+
+    '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">'+
+      '<label for="dictOutLang" style="color:#888;font-size:13px;white-space:nowrap">'+t('dictOutLang')+'</label>'+
+      '<select id="dictOutLang" style="flex:1;padding:8px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:14px"></select>'+
+    '</div>'+
     '<div id="hcBcMeterWrap" style="height:8px;background:#333;border-radius:4px;margin-bottom:8px;overflow:hidden"><div id="hcBcMeter" style="height:100%;width:0%;background:#27ae60;transition:width 0.1s"></div></div>'+
     '<textarea id="dictText" spellcheck="false" style="flex:1;width:100%;box-sizing:border-box;resize:none;padding:14px;border-radius:10px;border:1px solid #444;background:#1a1a2e;color:#fff;font-size:17px;line-height:1.6;outline:none"></textarea>';
   document.body.appendChild(w);
+  populateDictOutLang();
+  document.getElementById('dictOutLang').addEventListener('change',function(){setTransLang(this.value)});
   document.getElementById('hcBroadcast').addEventListener('click',toggleBroadcast);
   document.getElementById('dictCopy').addEventListener('click',function(){
     var ta=document.getElementById('dictText');
@@ -2528,6 +2535,26 @@ function initDictationView(){
       xhr.send();
     }else{location.href='/lobby.html'}
   });
+}
+/* Dictation output-language dropdown — same source as the room picker
+   (LANGS from /api/languages), '' = raw transcript in the spoken language.
+   The equivalent of the desktop tray dictation's output-language submenu. */
+function populateDictOutLang(){
+  var sel=document.getElementById('dictOutLang');
+  if(!sel)return;
+  sel.innerHTML='';
+  var raw=document.createElement('option');
+  raw.value='';
+  raw.textContent=t('noTranslation');
+  sel.appendChild(raw);
+  for(var i=0;i<LANGS.length;i++){
+    var opt=document.createElement('option');
+    opt.value=LANGS[i][0];
+    opt.textContent=LANGS[i][1]+' ('+LANGS[i][2]+')';
+    sel.appendChild(opt);
+  }
+  sel.value=myTransLang||'';
+  if(sel.selectedIndex<0)sel.selectedIndex=0;
 }
 function flashDictBtn(id,txt){
   var b=document.getElementById(id);
