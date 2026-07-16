@@ -28,6 +28,71 @@ Namespace Server
         ''' host, where the LAN IP is substituted (keeping the request's port) so
         ''' QR codes and share links never encode "localhost".
         ''' </summary>
+        ' ── Auth brute-force limiter ────────────────────────────────────────
+        ' Per-client-IP failure window shared by ALL credential checks (admin
+        ' PIN, creator code, hosting codes): 10 wrong NON-EMPTY credentials in
+        ' 5 minutes → that IP's auth checks fail until the window expires.
+        ' Empty/absent credentials never count (page loads probe with "").
+        Private ReadOnly _authFailures As New Concurrent.ConcurrentDictionary(Of String, (Count As Integer, WindowStart As DateTime))
+        Private Const AuthMaxFailures As Integer = 10
+        Private ReadOnly AuthWindow As TimeSpan = TimeSpan.FromMinutes(5)
+
+        Private Function AuthClientKey(context As HttpContext) As String
+            Return If(context.Connection.RemoteIpAddress?.ToString(), "unknown")
+        End Function
+
+        Friend Function AuthBlocked(context As HttpContext) As Boolean
+            Dim entry As (Count As Integer, WindowStart As DateTime) = Nothing
+            If Not _authFailures.TryGetValue(AuthClientKey(context), entry) Then Return False
+            If DateTime.UtcNow - entry.WindowStart > AuthWindow Then Return False
+            Return entry.Count >= AuthMaxFailures
+        End Function
+
+        Friend Sub RecordAuthFailure(context As HttpContext)
+            Dim key = AuthClientKey(context)
+            Dim updated = _authFailures.AddOrUpdate(key,
+                Function(k) (1, DateTime.UtcNow),
+                Function(k, cur) If(DateTime.UtcNow - cur.WindowStart > AuthWindow,
+                                    (1, DateTime.UtcNow), (cur.Count + 1, cur.WindowStart)))
+            If updated.Count = AuthMaxFailures Then
+                Services.Infrastructure.AppLogger.Log(
+                    Services.Infrastructure.LogCategory.Server, Services.Infrastructure.LogSeverity.Warning,
+                    $"Auth rate limit hit: {key} blocked for {AuthWindow.TotalMinutes:0} min after {AuthMaxFailures} failed credential attempts")
+            End If
+        End Sub
+
+        Friend Sub RecordAuthSuccess(context As HttpContext)
+            Dim removed As (Count As Integer, WindowStart As DateTime) = Nothing
+            _authFailures.TryRemove(AuthClientKey(context), removed)
+        End Sub
+
+        ''' <summary>Checks a supplied credential against an expected secret through
+        ''' the rate limiter: empty supplied never counts as an attempt; wrong
+        ''' non-empty values accumulate toward the block.</summary>
+        Friend Function CredentialOk(context As HttpContext, supplied As String, expected As String) As Boolean
+            If AuthBlocked(context) Then Return False
+            If String.IsNullOrEmpty(supplied) Then Return False
+            Dim ok = String.Equals(supplied, expected, StringComparison.Ordinal)
+            If ok Then RecordAuthSuccess(context) Else RecordAuthFailure(context)
+            Return ok
+        End Function
+
+        ''' <summary>Volunteer-tier gate: passes in open mode (no creator code
+        ''' configured); otherwise the ?code= query must match the creator code —
+        ''' or the admin PIN (admin is a superset of volunteer).</summary>
+        Friend Function CreatorCodeOk(context As HttpContext) As Boolean
+            Dim opts = context.RequestServices.GetService(Of IOptions(Of ServerOptions))
+            Dim so = If(opts?.Value, New ServerOptions())
+            If String.IsNullOrEmpty(so.CreatorCode) Then Return True
+            Dim supplied = context.Request.Query("code").ToString()
+            If AuthBlocked(context) Then Return False
+            If String.IsNullOrEmpty(supplied) Then Return False
+            Dim ok = String.Equals(supplied, so.CreatorCode, StringComparison.Ordinal) OrElse
+                     (Not String.IsNullOrEmpty(so.AdminPin) AndAlso String.Equals(supplied, so.AdminPin, StringComparison.Ordinal))
+            If ok Then RecordAuthSuccess(context) Else RecordAuthFailure(context)
+            Return ok
+        End Function
+
         Friend Function PublicHostFor(context As HttpContext) As String
             Dim pub = Environment.GetEnvironmentVariable("EVERYTONGUE_PUBLIC_HOST")
             If Not String.IsNullOrEmpty(pub) Then Return pub
@@ -195,8 +260,15 @@ Namespace Server
                     If String.IsNullOrEmpty(so.CreatorCode) Then
                         Return Results.Json(New With {.ok = True})   ' open mode — nothing to verify
                     End If
+                    ' Admin PIN also passes (admin ⊃ volunteer); rate-limited.
+                    Dim vok As Boolean = False
                     Dim code = context.Request.Query("code").ToString()
-                    Return Results.Json(New With {.ok = String.Equals(code, so.CreatorCode, StringComparison.Ordinal)})
+                    If Not AuthBlocked(context) AndAlso Not String.IsNullOrEmpty(code) Then
+                        vok = String.Equals(code, so.CreatorCode, StringComparison.Ordinal) OrElse
+                              (Not String.IsNullOrEmpty(so.AdminPin) AndAlso String.Equals(code, so.AdminPin, StringComparison.Ordinal))
+                        If vok Then RecordAuthSuccess(context) Else RecordAuthFailure(context)
+                    End If
+                    Return Results.Json(New With {.ok = vok})
                 End Function)
 
             ' Admin PIN verification — returns {ok:true} if PIN matches
@@ -212,7 +284,7 @@ Namespace Server
                         Return Results.Json(New With {.ok = False, .error = "Admin not configured"})
                     End If
 
-                    If String.Equals(pin, serverOpts.AdminPin, StringComparison.Ordinal) Then
+                    If CredentialOk(context, pin, serverOpts.AdminPin) Then
                         Return Results.Json(New With {.ok = True})
                     Else
                         Return Results.Json(New With {.ok = False, .error = "Invalid PIN"})

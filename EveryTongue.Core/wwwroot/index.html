@@ -10,8 +10,7 @@
 <div id="status" class="disconnected">
   <span id="statusText">Connecting...</span>
   <div id="toolbar">
-    <button id="btnAdmin" onclick="toggleAdmin()" title="Remote Control" style="display:none">&#128737;</button>
-    <button id="btnHome" onclick="goHome()" title="Home">&#127968;</button>
+        <button id="btnHome" onclick="goHome()" title="Home">&#127968;</button>
     <button id="btnSettings" onclick="togglePanel()" title="Settings">&#9881;</button>
     <button id="btnBible" onclick="toggleBible()" title="Bible">&#128214;</button>
     <button id="btnShareRoom" onclick="toggleRoomQr()" title="Share Room" style="display:none">&#128279;</button>
@@ -23,21 +22,7 @@
   <div id="roomQrUrl" style="margin-top:16px;font-size:13px;color:#aaa;word-break:break-all;text-align:center"></div>
   <button onclick="toggleRoomQr()" style="margin-top:20px;padding:10px 32px;border:none;border-radius:10px;background:#333;color:#ccc;font-size:15px;cursor:pointer">Close</button>
 </div>
-<!-- Admin panel: SERVER-scoped only. Room controls live in the host panel (gear).
-     The legacy desktop Live-session controls (#adminLive) are hidden when no
-     desktop Live session exists (Lite/containers). Tune + input-language were
-     pre-rooms relics superseded by the host panel's pipeline controls. -->
-<div id="adminPanel">
-  <div id="adminLive">
-    <div id="adminStatus">Checking...</div>
-    <button class="start" onclick="sendCommand('start')">&#9654; Start</button>
-    <button class="stop" onclick="sendCommand('stop')">&#9632; Stop</button>
-    <button class="restart" onclick="sendCommand('restart')">&#8635; Restart</button>
-    <button class="stop" onclick="sendCommand('clear')">&#10060; Clear</button>
-  </div>
-  <button onclick="openServerSettings()" style="border-color:#7c9cf7;color:#7c9cf7">&#128295; Settings</button>
-</div>
-<div id="panel">
+<div id="panel"><div id="panel">
   <label id="lblDisplayName">Your Name</label>
   <input type="text" id="displayNameInput" placeholder="Enter your name" onchange="saveDisplayName(this.value)" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid #555;background:#333;color:#fff;font-size:14px;outline:none;margin-bottom:8px">
   <div style="display:flex;gap:4px;margin-bottom:4px">
@@ -95,12 +80,7 @@
     <div id="lpList"></div>
     <div class="lp-skip" id="lpSkip" onclick="pickLang('')">No translation</div>
     <div id="lpAdmin">
-      <div class="lp-admin-toggle" id="lpAdminToggle" onclick="toggleAdminLogin()">Administrator</div>
-      <div id="lpAdminForm" style="display:none">
-        <input id="lpAdminPin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off">
-        <button id="lpAdminGo" onclick="verifyAdminPin()">OK</button>
-        <div id="lpAdminMsg"></div>
-      </div>
+      <div class="lp-admin-toggle" id="lpAdminToggle" onclick="openAdminPage()">Administrator</div>
     </div>
   </div>
 </div>

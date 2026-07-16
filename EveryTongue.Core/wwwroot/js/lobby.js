@@ -18,7 +18,8 @@
         lbInvalidHostingCode: "Invalid hosting code", lbFailedPrefix: "Failed: {0}",
         lbConversation: "Conversation", lbDictation: "Dictation",
         lbTypeConversation: "conversation", lbTypeConference: "conference",
-        lbTypeDictation: "dictation"
+        lbTypeDictation: "dictation",
+        lbQrPermanent: "Permanent — print this. It always joins the current room made from this template."
     };
     function t(k) { return LT[k] || k; }
     function fmt(k, v) { return t(k).replace("{0}", v); }
@@ -67,10 +68,12 @@
     const conferenceError = document.getElementById("conference-error");
     const btnCreateConference = document.getElementById("btn-create-conference");
 
-    // ── Volunteer tier gate ─────────────────────────────────────────────
-    // When the server has a CreatorCode, guests see join-only; the creation
-    // tools unlock via the "Host tools" link (code kept for the session).
+    // ── Volunteer tier gate (three-page IA: the lobby IS the volunteer page) ──
+    // When the server has a CreatorCode, the WHOLE lobby is gated up-front —
+    // room list included (guests never browse rooms; they arrive via QR links).
+    // The code persists on the device (localStorage: "volunteer on this phone").
     // Endpoints enforce the code server-side; this is only the door.
+    const roomsSectionEl = document.getElementById("rooms-section");
     const creatorTools = document.getElementById("creator-tools");
     const hostToolsGate = document.getElementById("host-tools-gate");
     const hostToolsLink = document.getElementById("host-tools-link");
@@ -79,7 +82,14 @@
     const creatorCodeGo = document.getElementById("creator-code-go");
     const creatorCodeMsg = document.getElementById("creator-code-msg");
 
-    function creatorCode() { return sessionStorage.getItem("creatorCode") || ""; }
+    let lobbyLocked = false;
+
+    function creatorCode() {
+        // localStorage is the home; migrate any old per-tab session value.
+        const legacy = sessionStorage.getItem("creatorCode");
+        if (legacy && !localStorage.getItem("creatorCode")) localStorage.setItem("creatorCode", legacy);
+        return localStorage.getItem("creatorCode") || "";
+    }
 
     fetch("/api/config").then(r => r.json()).then(cfg => {
         // No offline transcribe engine (Lite, or desktop set to a streaming
@@ -88,20 +98,33 @@
             const cc = document.getElementById("conv-create");
             if (cc) cc.style.display = "none";
         }
-        if (!cfg.creatorCodeRequired) return;              // open mode — leave everything visible
+        if (!cfg.creatorCodeRequired) return;              // open mode — legacy behavior
         if (creatorCode()) {
-            // already unlocked this session — re-verify silently (code may have changed)
+            // device already unlocked — re-verify silently (code may have changed)
             fetch("/api/creator/verify?code=" + encodeURIComponent(creatorCode()))
-                .then(r => r.json()).then(v => { if (!v.ok) lockCreatorTools(); });
+                .then(r => r.json()).then(v => { if (!v.ok) lockLobby(); });
             return;
         }
-        lockCreatorTools();
+        lockLobby();
     }).catch(() => { });
 
-    function lockCreatorTools() {
+    function lockLobby() {
+        lobbyLocked = true;
+        localStorage.removeItem("creatorCode");
         sessionStorage.removeItem("creatorCode");
+        roomsSectionEl.style.display = "none";
         creatorTools.style.display = "none";
         hostToolsGate.style.display = "block";
+        hostToolsForm.style.display = "block";   // nothing else on the page — show the prompt
+        creatorCodeInput.focus();
+    }
+    function unlockLobby(code) {
+        lobbyLocked = false;
+        localStorage.setItem("creatorCode", code);
+        hostToolsGate.style.display = "none";
+        creatorTools.style.display = "";
+        loadRooms();
+        loadTemplates();
     }
 
     hostToolsLink.addEventListener("click", function (e) {
@@ -116,9 +139,7 @@
         if (!code) return;
         fetch("/api/creator/verify?code=" + encodeURIComponent(code)).then(r => r.json()).then(v => {
             if (v.ok) {
-                sessionStorage.setItem("creatorCode", code);
-                hostToolsGate.style.display = "none";
-                creatorTools.style.display = "";
+                unlockLobby(code);
             } else {
                 creatorCodeMsg.textContent = t("lbInvalidCode");
             }
@@ -272,8 +293,9 @@
     let conferenceStep = 0; // 0 = pick template, 1 = enter code & submit
 
     async function loadTemplates() {
+        if (lobbyLocked) return;
         try {
-            var res = await fetch("/api/templates");
+            var res = await fetch("/api/templates?code=" + encodeURIComponent(creatorCode()));
             if (!res.ok) return;
             var templates = await res.json();
             if (!templates || templates.length === 0) {
@@ -360,7 +382,9 @@
 
             createdRoom = await res.json();
             addMyRoom(createdRoom);
-            showQrOverlay(createdRoom);
+            // Conference rooms show the PERMANENT template QR — the one the
+            // church prints once; it joins whichever room is live each week.
+            showQrOverlay(createdRoom, templateId);
             loadRooms();
             renderMyRooms();
             resetConferenceStep();
@@ -379,12 +403,21 @@
     // browses on the server machine and would point each phone at itself).
     let serverPublicHost = "";
     fetch("/api/config").then(r => r.json()).then(cfg => { serverPublicHost = cfg.publicHost || ""; }).catch(() => { });
-    function showQrOverlay(room) {
+    function showQrOverlay(room, templateId) {
         qrRoomName.textContent = room.name;
         const base = serverPublicHost ? location.protocol + "//" + serverPublicHost : location.origin;
-        const joinUrl = base + "/index.html?room=" + encodeURIComponent(room.id);
-        qrImage.src = "/api/rooms/" + encodeURIComponent(room.id) + "/qr";
-        qrUrl.innerHTML = '<a href="' + joinUrl + '" style="color:#7c9cf7;text-decoration:underline">' + joinUrl + '</a>';
+        let joinUrl, qrSrc, hint = "";
+        if (templateId) {
+            // Permanent template-pointer QR: stable across weekly room instances.
+            joinUrl = base + "/index.html?join=" + encodeURIComponent(templateId);
+            qrSrc = "/api/templates/" + encodeURIComponent(templateId) + "/qr";
+            hint = '<div style="color:#7c9cf7;font-size:12px;margin-top:8px">' + t("lbQrPermanent") + "</div>";
+        } else {
+            joinUrl = base + "/index.html?room=" + encodeURIComponent(room.id);
+            qrSrc = "/api/rooms/" + encodeURIComponent(room.id) + "/qr";
+        }
+        qrImage.src = qrSrc;
+        qrUrl.innerHTML = '<a href="' + joinUrl + '" style="color:#7c9cf7;text-decoration:underline">' + joinUrl + "</a>" + hint;
         createdRoom = room;
         qrOverlay.classList.add("visible");
     }
@@ -401,8 +434,10 @@
 
     // ── Room list ──
     async function loadRooms() {
+        if (lobbyLocked) return;
         try {
-            const res = await fetch("/api/rooms");
+            const res = await fetch("/api/rooms?code=" + encodeURIComponent(creatorCode()));
+            if (res.status === 403) { lockLobby(); return; }   // gated server-side — self-heal ordering
             if (!res.ok) return;
             const rooms = await res.json();
             renderRooms(rooms);

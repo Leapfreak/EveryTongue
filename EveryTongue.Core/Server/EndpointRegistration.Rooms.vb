@@ -75,6 +75,16 @@ Namespace Server
                                                })
                                            End If
 
+                                           ' Mutating actions require the admin PIN (?pin=). The UI always
+                                           ' hid these behind the PIN, but the ENDPOINT was open — anyone on
+                                           ' the LAN could stop the live service. Status stays open.
+                                           Dim ctlOpts = context.RequestServices.GetService(Of IOptions(Of ServerOptions))
+                                           Dim ctlPin = If(ctlOpts?.Value?.AdminPin, "")
+                                           If Not String.IsNullOrEmpty(ctlPin) AndAlso
+                                              Not CredentialOk(context, context.Request.Query("pin").ToString(), ctlPin) Then
+                                               Return Results.Json(New With {.error = "invalid pin"}, statusCode:=403)
+                                           End If
+
                                            Select Case action.ToLower()
                                                Case "start", "stop", "restart", "clear"
                                                    RemoteCommandHandler?.Invoke(action.ToLower())
@@ -119,6 +129,13 @@ Namespace Server
 
             ' List public rooms (for lobby)
             app.MapGet("/api/rooms", Function(context As HttpContext) As Task
+                                         ' Volunteer-gated (three-tier IA): guests never browse rooms —
+                                         ' they arrive via room/template QR links. Open mode (no creator
+                                         ' code configured) keeps the legacy public listing.
+                                         If Not CreatorCodeOk(context) Then
+                                             context.Response.StatusCode = 403
+                                             Return context.Response.WriteAsJsonAsync(New With {.error = "creator code required"})
+                                         End If
                                          Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
                                          Dim rooms = mgr.GetPublicRooms()
                                          Dim result = rooms.Select(Function(r) New With {
@@ -222,7 +239,8 @@ Namespace Server
                                                If Not String.IsNullOrEmpty(gateCode) Then
                                                    Dim ccProp As JsonElement = Nothing
                                                    Dim supplied = If(root.TryGetProperty("creatorCode", ccProp), If(ccProp.GetString(), ""), "")
-                                                   If Not String.Equals(supplied, gateCode, StringComparison.Ordinal) Then
+                                                   ' Rate-limited (shared per-IP window with the other credential gates).
+                                                   If Not CredentialOk(context, supplied, gateCode) Then
                                                        context.Response.StatusCode = 403
                                                        Await context.Response.WriteAsJsonAsync(New With {.error = "creator code required"})
                                                        Return
@@ -334,7 +352,7 @@ Namespace Server
                                                                 If root.TryGetProperty("pin", pinProp) Then pin = If(pinProp.GetString(), "")
                                                                 Dim adminPinValid = Not String.IsNullOrEmpty(pin) AndAlso
                                                                                     Not String.IsNullOrEmpty(serverOpts.AdminPin) AndAlso
-                                                                                    String.Equals(pin, serverOpts.AdminPin, StringComparison.Ordinal)
+                                                                                    CredentialOk(context, pin, serverOpts.AdminPin)
                                                                 ok = mgr.ClaimHost(id, hostToken, clientId, adminPinValid)
                                                             Catch ex As Exception
                                                                 AppLogger.Log(LogEvents.SERVER_ERROR, $"/rooms/{id}/claim-host error: {ex.Message}")

@@ -50,7 +50,8 @@ Namespace Server
             Dim serverOpts = If(opts?.Value, New ServerOptions())
             ' Bootstrap: no PIN configured yet → open (the UI forces setting one).
             If String.IsNullOrEmpty(serverOpts.AdminPin) Then Return True
-            Return String.Equals(If(pin, ""), serverOpts.AdminPin, StringComparison.Ordinal)
+            ' Rate-limited: wrong non-empty PINs accumulate toward a per-IP block.
+            Return CredentialOk(context, If(pin, ""), serverOpts.AdminPin)
         End Function
 
         ''' <summary>String property from a parsed JSON request body (missing or non-string → Nothing).</summary>

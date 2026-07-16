@@ -19,8 +19,13 @@ Namespace Server
 
         Private Sub MapTemplateEndpoints(app As IEndpointRouteBuilder)
 
-            ' List templates (id + name only, no hosting codes)
+            ' List templates (id + name only, no hosting codes) — volunteer-gated
+            ' like the room list (three-tier IA); open mode = legacy public.
             app.MapGet("/api/templates", Function(context As HttpContext) As Task
+                                              If Not CreatorCodeOk(context) Then
+                                                  context.Response.StatusCode = 403
+                                                  Return context.Response.WriteAsJsonAsync(New With {.error = "creator code required"})
+                                              End If
                                               Dim store = context.RequestServices.GetRequiredService(Of TemplateStore)()
                                               Dim result = store.GetAll().Select(Function(t) New With {
                                                   .id = t.Id,
@@ -28,6 +33,38 @@ Namespace Server
                                               }).ToArray()
                                               Return context.Response.WriteAsJsonAsync(result)
                                           End Function)
+
+            ' ── Permanent template-pointer join flow (three-tier IA) ─────────
+            ' The laminated QR encodes the TEMPLATE (stable forever), not the
+            ' week's room instance. Guests resolve it to whichever room is
+            ' currently running from that template; no room yet → the client
+            ' shows a waiting page and polls until the host starts the service.
+            ' Open by design: possessing the printed QR *is* the authorization.
+            app.MapGet("/api/templates/{id}/active-room",
+                Function(id As String, context As HttpContext) As IResult
+                    Dim store = context.RequestServices.GetRequiredService(Of TemplateStore)()
+                    If store.GetById(id) Is Nothing Then
+                        Return Results.Json(New With {.error = "unknown template"}, statusCode:=404)
+                    End If
+                    Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                    Dim room = mgr.GetAllRooms().
+                        Where(Function(r) String.Equals(r.TemplateId, id, StringComparison.OrdinalIgnoreCase)).
+                        OrderByDescending(Function(r) r.CreatedAt).
+                        FirstOrDefault()
+                    If room Is Nothing Then Return Results.Json(New With {.active = False})
+                    Return Results.Json(New With {.active = True, .roomId = room.Id, .name = room.Name})
+                End Function)
+
+            app.MapGet("/api/templates/{id}/qr",
+                Function(id As String, context As HttpContext) As IResult
+                    Dim store = context.RequestServices.GetRequiredService(Of TemplateStore)()
+                    If store.GetById(id) Is Nothing Then
+                        Return Results.Json(New With {.error = "unknown template"}, statusCode:=404)
+                    End If
+                    Dim scheme = If(context.Request.IsHttps, "https", "http")
+                    Dim joinUrl = $"{scheme}://{PublicHostFor(context)}/index.html?join={id}"
+                    Return Results.File(GenerateQrPng(joinUrl), "image/png", $"template-{id}.png")
+                End Function)
 
             ' Create a conference room from a template (validates hosting code)
             app.MapPost("/api/rooms/from-template", Async Function(context As HttpContext) As Task
@@ -49,8 +86,14 @@ Namespace Server
                                                              If root.TryGetProperty("hostingCode", codeProp) Then hostingCode = If(codeProp.GetString(), "")
                                                              If root.TryGetProperty("hostClientId", hostProp) Then hostClientId = If(hostProp.GetString(), "")
 
-                                                             ' Validate hosting code
-                                                             If Not store.ValidateHostingCode(templateId, hostingCode) Then
+                                                             ' Validate hosting code (rate-limited like every credential gate)
+                                                             Dim codeValid = Not AuthBlocked(context) AndAlso
+                                                                             Not String.IsNullOrEmpty(hostingCode) AndAlso
+                                                                             store.ValidateHostingCode(templateId, hostingCode)
+                                                             If Not String.IsNullOrEmpty(hostingCode) AndAlso Not AuthBlocked(context) Then
+                                                                 If codeValid Then RecordAuthSuccess(context) Else RecordAuthFailure(context)
+                                                             End If
+                                                             If Not codeValid Then
                                                                  context.Response.StatusCode = 403
                                                                  Await context.Response.WriteAsJsonAsync(New With {.error = "Invalid hosting code"})
                                                                  Return

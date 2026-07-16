@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Every Tongue — Admin</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #000; color: #e0e0e0; min-height: 100vh;
+        }
+        .header { text-align: center; padding: 24px 16px 8px; }
+        .header h1 { font-size: 22px; color: #7c9cf7; }
+        .header .sub { font-size: 12px; color: #666; margin-top: 4px; }
+        .content { max-width: 520px; margin: 0 auto; padding: 8px 16px 40px; }
+        .card {
+            background: #12122a; border: 1px solid #2a2a4a; border-radius: 12px;
+            padding: 14px; margin-top: 14px;
+        }
+        details.card > summary {
+            cursor: pointer; font-size: 15px; font-weight: 600; color: #cfd8ff;
+            list-style: none; display: flex; align-items: center; justify-content: space-between;
+        }
+        details.card > summary::after { content: "▸"; color: #666; transition: transform .15s; }
+        details.card[open] > summary::after { transform: rotate(90deg); }
+        details.card > .body { margin-top: 12px; }
+        label { display: block; color: #888; font-size: 12px; margin: 8px 0 3px; }
+        input[type=text], input[type=password], select, textarea {
+            width: 100%; padding: 9px; border-radius: 8px; border: 1px solid #444;
+            background: #1a1a2e; color: #fff; font-size: 14px; outline: none;
+        }
+        textarea { font-family: monospace; font-size: 11px; white-space: pre; }
+        .btn {
+            width: 100%; padding: 11px; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 10px;
+        }
+        .btn-primary { background: #7c9cf7; color: #12122a; }
+        .btn-secondary { background: transparent; border: 1px solid #555; color: #aaa; font-weight: 400; }
+        .btn-danger { background: transparent; border: 1px solid #a44; color: #f88; font-weight: 400; }
+        .btn-row { display: flex; gap: 8px; }
+        .btn-row .btn { flex: 1; }
+        .msg { text-align: center; font-size: 13px; margin-top: 8px; min-height: 16px; }
+        .hint { color: #777; font-size: 11px; margin: 4px 0; }
+        .warn {
+            background: #4a3b12; border: 1px solid #a80; border-radius: 8px;
+            padding: 10px; font-size: 13px; margin-top: 10px;
+        }
+        .row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid #222; }
+        .row .grow { flex: 1; min-width: 0; }
+        .row .title { font-size: 13px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .row .sub { font-size: 11px; color: #888; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .row .err { font-size: 10px; color: #f44; }
+        .row button {
+            padding: 5px 10px; border: none; border-radius: 6px; background: #7c9cf7;
+            color: #12122a; font-size: 12px; font-weight: 600; cursor: pointer;
+        }
+        .row button.outline { background: transparent; border: 1px solid #a44; color: #f88; font-weight: 400; }
+        pre.log {
+            background: #0a0a18; border: 1px solid #333; border-radius: 8px; padding: 8px;
+            font-size: 10px; max-height: 320px; overflow: auto; white-space: pre-wrap; margin-top: 8px;
+        }
+        #liveStatus { font-size: 14px; font-weight: 600; }
+        .qr-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 100;
+            flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center;
+        }
+        .qr-overlay.visible { display: flex; }
+        .qr-overlay img { background: #fff; padding: 14px; border-radius: 12px; max-width: 280px; width: 100%; }
+        .qr-overlay .url { margin-top: 12px; font-size: 12px; color: #aaa; word-break: break-all; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 data-i18n="admTitle">Server Administration</h1>
+        <div class="sub" data-i18n="admSub">Every Tongue</div>
+    </div>
+    <div class="content">
+
+        <!-- Login -->
+        <div class="card" id="loginCard">
+            <label for="loginPin" data-i18n="adminPin">PIN</label>
+            <input type="password" id="loginPin" inputmode="numeric" maxlength="32" autocomplete="off">
+            <button class="btn btn-primary" id="btnLogin" data-i18n="admEnter">Enter</button>
+            <div class="msg" id="loginMsg"></div>
+        </div>
+
+        <div id="adminBody" style="display:none">
+
+            <div class="warn" id="bootstrapWarn" style="display:none" data-i18n="admBootstrap">
+                No admin PIN is set — anyone can open this page. Set a PIN below now.
+            </div>
+
+            <!-- Live session (desktop head only) -->
+            <details class="card" id="liveCard" style="display:none">
+                <summary data-i18n="admLive">Live session</summary>
+                <div class="body">
+                    <div id="liveStatus" data-i18n="checking">Checking...</div>
+                    <div class="btn-row">
+                        <button class="btn btn-secondary" data-live="start">▶</button>
+                        <button class="btn btn-secondary" data-live="stop">■</button>
+                        <button class="btn btn-secondary" data-live="restart">↻</button>
+                        <button class="btn btn-secondary" data-live="clear">✕</button>
+                    </div>
+                </div>
+            </details>
+
+            <!-- Server settings -->
+            <details class="card" open>
+                <summary data-i18n="setTitle">Server Settings</summary>
+                <div class="body">
+                    <label data-i18n="setSttEngine">Speech engine</label>
+                    <select id="setStt"></select>
+                    <label data-i18n="setTransEngine">Translation engine</label>
+                    <select id="setTrans"></select>
+                    <div id="keysStt"></div>
+                    <div id="keysTrans"></div>
+                    <label data-i18n="setPinLabel">Admin PIN</label>
+                    <input type="password" id="setNewPin" inputmode="numeric" autocomplete="off">
+                    <label data-i18n="setCreatorLabel">Host tools code</label>
+                    <div class="hint" data-i18n="setCreatorHint">Volunteers enter this in the lobby to create rooms. Empty = anyone can create. Enter "-" to clear.</div>
+                    <input type="text" id="setCreatorCode" autocomplete="off">
+                    <button class="btn btn-primary" id="btnSave" data-i18n="setSave">Save</button>
+                    <div class="msg" id="setMsg"></div>
+                </div>
+            </details>
+
+            <!-- Conference templates -->
+            <details class="card" id="tplCard">
+                <summary data-i18n="setTplsBtn">Conference templates</summary>
+                <div class="body">
+                    <div id="tplList"></div>
+                    <button class="btn btn-secondary" id="btnTplNew" data-i18n="setTplsNew">New template</button>
+                    <div id="tplForm" style="display:none;border:1px solid #333;border-radius:8px;padding:10px;margin-top:10px">
+                        <label data-i18n="setTplsName">Name</label>
+                        <input type="text" id="tplName" autocomplete="off">
+                        <label data-i18n="setTplsHostCode">Hosting code (volunteers enter this to start the room)</label>
+                        <input type="text" id="tplCode" autocomplete="off">
+                        <label data-i18n="setTplsSourceLang">Speaker language</label>
+                        <select id="tplLang"></select>
+                        <label data-i18n="setSttEngine">Speech engine</label>
+                        <select id="tplStt"></select>
+                        <label data-i18n="setTransEngine">Translation engine</label>
+                        <select id="tplTrans"></select>
+                        <label data-i18n="setTplsAudio">Microphone</label>
+                        <select id="tplAudio">
+                            <option value="web" data-i18n="setTplsAudioWeb">Web mic (browser broadcast)</option>
+                            <option value="webraw" data-i18n="setTplsAudioWebRaw">Web mic, raw (PA/line feed)</option>
+                            <option value="local" data-i18n="setTplsAudioLocal">Local device (server machine)</option>
+                        </select>
+                        <label data-i18n="setTplsVisibility">Room visibility</label>
+                        <select id="tplVis">
+                            <option value="public" data-i18n="setTplsPublic">Public (listed in lobby)</option>
+                            <option value="private" data-i18n="setTplsPrivate">Private (QR/link only)</option>
+                        </select>
+                        <label data-i18n="setTplsOffered">Offered languages</label>
+                        <div class="hint" data-i18n="setTplsOfferedHint">Comma-separated FLORES codes, e.g. spa_Latn, eng_Latn, cat_Latn. Empty = listeners can pick any language.</div>
+                        <input type="text" id="tplOffered" autocomplete="off">
+                        <button class="btn btn-primary" id="btnTplSave" data-i18n="setSave">Save</button>
+                        <button class="btn btn-secondary" id="btnTplCancel" data-i18n="cancel">Cancel</button>
+                        <div class="msg" id="tplMsg"></div>
+                    </div>
+                </div>
+            </details>
+
+            <!-- Bibles -->
+            <details class="card" id="bibCard">
+                <summary data-i18n="setBiblesBtn">Bibles (download)</summary>
+                <div class="body">
+                    <div class="hint" data-i18n="setBiblesHint">Freely-redistributable Bibles from eBible.org. Copyrighted translations must be copied into the Bibles folder manually.</div>
+                    <input type="text" id="bibSearch" autocomplete="off" data-i18n-ph="setBiblesSearch" placeholder="Search by language or name...">
+                    <div id="bibList" style="max-height:320px;overflow-y:auto;margin-top:6px"></div>
+                </div>
+            </details>
+
+            <!-- Advanced: raw config -->
+            <details class="card" id="rawCard">
+                <summary data-i18n="setRawBtn">Advanced: edit raw config</summary>
+                <div class="body">
+                    <div class="hint" data-i18n="setRawHint">The full server configuration (config.json). Engine, API key, PIN and host-code changes apply immediately; other changes apply after a restart.</div>
+                    <textarea id="rawText" rows="18" spellcheck="false" autocomplete="off"></textarea>
+                    <button class="btn btn-primary" id="btnRawSave" data-i18n="setRawSave">Save raw config</button>
+                    <div class="msg" id="rawMsg"></div>
+                </div>
+            </details>
+
+            <!-- Log -->
+            <details class="card" id="logCard">
+                <summary data-i18n="setViewLog">View server log</summary>
+                <div class="body">
+                    <button class="btn btn-secondary" id="btnLogRefresh" data-i18n="admRefresh">Refresh</button>
+                    <pre class="log" id="logView"></pre>
+                </div>
+            </details>
+
+        </div>
+    </div>
+
+    <!-- Permanent template QR overlay -->
+    <div class="qr-overlay" id="qrOverlay">
+        <h2 id="qrTitle" style="color:#fff;font-size:17px;margin-bottom:14px"></h2>
+        <img id="qrImg" alt="QR">
+        <div class="url" id="qrUrl"></div>
+        <div class="hint" style="margin-top:10px" data-i18n="admQrPermanent">Permanent — print this. It always joins the current room made from this template.</div>
+        <button class="btn btn-secondary" id="btnQrClose" style="max-width:200px" data-i18n="lbClose">Close</button>
+    </div>
+
+    <script src="js/admin.js"></script>
+</body>
+</html>

@@ -128,6 +128,67 @@ step(function (n) {
 step(function (n) { req('POST', '/api/settings/templates/delete', { pin: '1234', id: global.tid }, function (c, j) { check('template delete', c === 200 && j.ok, c); n(); }); });
 step(function (n) { req('POST', '/api/settings/templates/delete', { pin: '1234', id: 'nope' }, function (c) { check('template delete unknown -> 404', c === 404, c); n(); }); });
 
+// ── three-page IA: admin page, gated lists, template resolver + QR, control gate ──
+step(function (n) {
+  req('GET', '/admin.html', null, function (c, j, raw) {
+    check('admin page served', c === 200 && raw.indexOf('Server Administration') >= 0, c);
+    req('GET', '/js/admin.js', null, function (c2) { check('admin.js served', c2 === 200, c2); n(); });
+  });
+});
+step(function (n) {
+  // Set a creator code, then: lists 403 bare, 200 with code, 200 with admin PIN
+  req('POST', '/api/settings', { pin: '1234', creatorCode: 'vol42' }, function (c) {
+    req('GET', '/api/rooms', null, function (c1) {
+      check('gated: /api/rooms bare -> 403', c1 === 403, c1);
+      req('GET', '/api/rooms?code=vol42', null, function (c2) {
+        check('gated: /api/rooms with code -> 200', c2 === 200, c2);
+        req('GET', '/api/templates?code=1234', null, function (c3) {
+          check('gated: /api/templates with admin PIN -> 200', c3 === 200, c3);
+          req('GET', '/api/templates?code=wrong-code', null, function (c4) {
+            check('gated: /api/templates wrong code -> 403', c4 === 403, c4);
+            n();
+          });
+        });
+      });
+    });
+  });
+});
+step(function (n) {
+  // Template-pointer flow: no room -> active:false; from-template room -> resolves; QR serves
+  req('POST', '/api/settings/templates', { pin: '1234', name: 'Perm Svc', hostingCode: 'perm7', sourceLanguage: 'es', sttBackend: 'speechmatics', audioSource: 'web' }, function (c, j) {
+    var tid = j.id;
+    req('GET', '/api/templates/' + tid + '/active-room', null, function (c1, j1) {
+      check('resolver: no room yet -> active:false', c1 === 200 && j1.active === false, c1 + ' ' + JSON.stringify(j1));
+      req('POST', '/api/rooms/from-template', { templateId: tid, hostingCode: 'perm7', hostClientId: '' }, function (c2, j2) {
+        req('GET', '/api/templates/' + tid + '/active-room', null, function (c3, j3) {
+          check('resolver: live room resolves', c3 === 200 && j3.active === true && j3.roomId === j2.id, JSON.stringify(j3));
+          req('GET', '/api/templates/' + tid + '/qr', null, function (c4, j4, raw4) {
+            check('permanent template QR serves PNG', c4 === 200 && raw4.length > 400, c4 + ' bytes=' + raw4.length);
+            req('GET', '/api/templates/zzz-none/active-room', null, function (c5) {
+              check('resolver: unknown template -> 404', c5 === 404, c5);
+              req('POST', '/api/settings/templates/delete', { pin: '1234', id: tid }, function () { n(); });
+            });
+          });
+        });
+      });
+    });
+  });
+});
+step(function (n) {
+  // /api/control: status open; mutations PIN-gated (pre-existing hole closed)
+  req('GET', '/api/control?action=status', null, function (c, j) {
+    check('control: status stays open', c === 200 && typeof j.live === 'boolean', c);
+    req('GET', '/api/control?action=clear', null, function (c1) {
+      check('control: mutation bare -> 403', c1 === 403, c1);
+      req('GET', '/api/control?action=clear&pin=1234', null, function (c2, j2) {
+        check('control: mutation with PIN -> ok', c2 === 200 && j2.ok === true, c2 + ' ' + JSON.stringify(j2));
+        // clear the creator code so later steps run ungated
+        req('POST', '/api/settings', { pin: '1234', creatorCode: '-' }, function () { n(); });
+      });
+    });
+  });
+});
+
 // ── bibles ──
 step(function (n) { req('GET', '/api/settings/bibles/status?pin=1234', null, function (c, j) { check('bibles status endpoint (new)', c === 200 && typeof j.states === 'object', c); n(); }); });
 step(function (n) {
@@ -179,5 +240,23 @@ step(function (n) {
       });
     });
   });
+});
+
+// ── rate limiter — MUST BE LAST: it blocks this IP for 5 minutes ──
+step(function (n) {
+  var fails = 0, sent = 0;
+  function hammer() {
+    if (sent >= 11) {
+      // even the CORRECT pin is now rejected — the IP is blocked
+      req('GET', '/api/settings?pin=5678', null, function (c) {
+        check('rate limiter: correct PIN rejected after 10 failures', c === 403, c);
+        n();
+      });
+      return;
+    }
+    sent++;
+    req('GET', '/api/settings?pin=wrong-' + sent, null, function (c) { if (c === 403) fails++; hammer(); });
+  }
+  hammer();
 });
 run();

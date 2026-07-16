@@ -62,8 +62,8 @@ Public Module LiteProgram
         If Not ValidateOnlineConfig(config) Then
             Console.Error.WriteLine()
             Console.Error.WriteLine("  >>> Configuration incomplete — the server is starting anyway so you")
-            Console.Error.WriteLine("  >>> can finish setup in the browser: open the web client, tap")
-            Console.Error.WriteLine("  >>> 'Administrator' on the language screen, and enter engines + keys.")
+            Console.Error.WriteLine("  >>> can finish setup in the browser: open /admin.html, enter the")
+            Console.Error.WriteLine("  >>> PIN, and choose engines + paste API keys.")
             Console.Error.WriteLine()
         End If
 
@@ -106,8 +106,8 @@ Public Module LiteProgram
         Server.EndpointRegistration.SettingsConfigProvider = Function() config
         Server.EndpointRegistration.SettingsSaveHandler = Sub() ConfigManager.Save(config)
         If String.IsNullOrEmpty(config.AdminPin) OrElse config.AdminPin = "1234" Then
-            Console.WriteLine("  NOTE: admin PIN is the default (1234) — open the web client's")
-            Console.WriteLine("        Administrator section, enter it, then CHANGE it in Settings.")
+            Console.WriteLine("  NOTE: admin PIN is the default (1234) — open /admin.html in the")
+            Console.WriteLine("        browser, enter it, then CHANGE it in Server Settings.")
         End If
 
         ' Conversation rooms: cloud translation needs no sidecar warm-up.
@@ -136,7 +136,8 @@ Public Module LiteProgram
         End If
         Console.WriteLine()
         Console.WriteLine($"  Server running.  Phones: https://{shown}")
-        Console.WriteLine($"  Lobby:           https://{shown}/lobby.html")
+        Console.WriteLine($"  Lobby (volunteers): https://{shown}/lobby.html")
+        Console.WriteLine($"  Admin:              https://{shown}/admin.html")
         If inContainer AndAlso String.IsNullOrEmpty(publicHost) Then
             Console.WriteLine("  (containerized: use the HOST machine's LAN IP with your -p mapped port,")
             Console.WriteLine("   e.g. https://192.168.1.20:6081 — or set EVERYTONGUE_PUBLIC_HOST to show it here)")
