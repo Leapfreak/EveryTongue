@@ -281,7 +281,7 @@ Implementation plan for making Every Tongue field-deployable by a non-technical 
 | [15](#15-server-infrastructure-upgrade--kestrel) | Server Infrastructure Upgrade (Kestrel) | **Done** | 3 |
 | [16](#16-bible-integration) | Bible Integration | **Done** (a-g), partial (h) | 4 |
 | [17](#17-text-chat-in-rooms) | Text Chat in Rooms | **Done** (in conversation rooms) | 2 |
-| [18](#18-dictation-in-translate-workspace) | Dictation in Translate Workspace | New | 2 |
+| [18](#18-dictation-in-translate-workspace) | Dictation in Translate Workspace | **Done** (superseded) | 2 |
 | [19](#19-rooms--multi-room-translation) | Rooms — Multi-Room Translation | **Governance Complete** (TTS remaining) | 1 |
 | [20](#20-translation-load-testing-suite) | Translation Load Testing Suite | New | 2 |
 
@@ -1292,9 +1292,9 @@ For languages not yet in the UI (e.g., before Feature #9 adds Polish/Romanian), 
 
 ## 18. Dictation in Translate Workspace
 
-**Status:** New
+**Status:** ✅ Done — SUPERSEDED (marked complete 2026-07-17). The need this feature described is covered twice over by what shipped since it was written: **system-wide desktop dictation** (v2.1.x — speak into ANY textbox in any app, including the Translate workspace's source box, with optional translate-while-dictating) and the **web dictation page** (v2.7.10+, picker-driven language + editable editor + copy). A dedicated mic button inside the Translate tab would duplicate both. Original spec kept below for history.
 
-**Problem:** The desktop Translate workspace currently only accepts typed text input. Users who want to speak instead of type — whether for speed, accessibility, or because they're translating spoken content — have no option. Adding a dictation (speech-to-text) button would let users speak into their microphone and have the text automatically transcribed and placed into the source text box, ready for translation.
+**Problem (original):** The desktop Translate workspace currently only accepts typed text input. Users who want to speak instead of type — whether for speed, accessibility, or because they're translating spoken content — have no option. Adding a dictation (speech-to-text) button would let users speak into their microphone and have the text automatically transcribed and placed into the source text box, ready for translation.
 
 **Implementation:**
 
