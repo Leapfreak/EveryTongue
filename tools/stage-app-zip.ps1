@@ -52,7 +52,7 @@ foreach ($d in 'test-data', 'locales') {
 }
 
 # Python sidecars (lines 87-89): translate/mms flat, live-server recursive, no *.pyc/*.log
-foreach ($d in 'translate-server', 'mms-tts-server') {
+foreach ($d in 'translate-server', 'mms-tts-server', 'qe-server') {
     $src = Join-Path $pub $d
     if (Test-Path $src) {
         New-Item -ItemType Directory (Join-Path $stage $d) -Force | Out-Null

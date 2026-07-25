@@ -87,6 +87,7 @@ Source: "{#AppPublishDir}\locales\*"; DestDir: "{app}\locales"; Flags: ignorever
 Source: "{#AppPublishDir}\translate-server\*"; DestDir: "{app}\translate-server"; Excludes: "*.pyc,*.log"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "{#AppPublishDir}\live-server\*"; DestDir: "{app}\live-server"; Excludes: "*.pyc,*.log"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
 Source: "{#AppPublishDir}\mms-tts-server\*"; DestDir: "{app}\mms-tts-server"; Excludes: "*.pyc,*.log"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#AppPublishDir}\qe-server\*"; DestDir: "{app}\qe-server"; Excludes: "*.pyc,*.log"; Flags: ignoreversion skipifsourcedoesntexist
 
 ; NOTE: The following are NOT bundled — they are downloaded at runtime via the Download Manager:
 ;   - python-embed/          (Python 3.12 embedded + pip packages)
