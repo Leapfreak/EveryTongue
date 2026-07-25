@@ -125,6 +125,8 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
 
 ---
 
+**v2.9.0 released (2026-07-26): git + ghcr :2.9.0/:latest + GitHub Release (installer + app zip incl. qe-server + aws-sdk carry-over + manifest).**
+
 ## STT / Translation Improvements — from GLS 2026 field log (2026-06-27)
 Analysis of the 2026-06-27 GLS 2026 conference (room yuqzb2, Speechmatics es/ca, Google translation, EdgeTTS). Session was clean — only 2 errors, both benign end-of-session. Prioritised:
 
