@@ -83,9 +83,13 @@ Namespace Services.Translation
                         }
                         If Not String.IsNullOrEmpty(ApiKey) Then payload("api_key") = ApiKey
 
-                        Dim content As New StringContent(
-                            JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
-                        Dim response = Await HttpClient.PostAsync(url, content, ct)
+                        Dim payloadJson = JsonSerializer.Serialize(payload)
+                        Dim response = Await SendWithRetryAsync(
+                            Function()
+                                Dim req As New HttpRequestMessage(HttpMethod.Post, url)
+                                req.Content = New StringContent(payloadJson, Encoding.UTF8, "application/json")
+                                Return req
+                            End Function, ct)
                         If response.IsSuccessStatusCode Then
                             Dim body = Await response.Content.ReadAsStringAsync()
                             Using doc = JsonDocument.Parse(body)

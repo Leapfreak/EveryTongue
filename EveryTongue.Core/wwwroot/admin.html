@@ -113,6 +113,13 @@
                     <select id="setStt"></select>
                     <label data-i18n="setTransEngine">Translation engine</label>
                     <select id="setTrans"></select>
+                    <label data-i18n="setPivotLabel">Weak-pair English pivot</label>
+                    <div class="hint" data-i18n="setPivotHint">Translates weak language pairs (e.g. Catalan→Swedish) via English. Applies immediately.</div>
+                    <select id="setPivot">
+                        <option value="Off" data-i18n="setPivotOff">Off — always direct</option>
+                        <option value="Auto" data-i18n="setPivotAuto">Auto — pivot weak pairs via English (recommended)</option>
+                        <option value="Always" data-i18n="setPivotAlways">Always — pivot every non-English pair</option>
+                    </select>
                     <div id="keysStt"></div>
                     <div id="keysTrans"></div>
                     <label data-i18n="setPinLabel">Admin PIN</label>

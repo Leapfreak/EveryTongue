@@ -111,12 +111,14 @@ Namespace Services.Translation
                             }}
                         }
 
-                        Dim request As New HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/chat/completions")
-                        request.Headers.Authorization = New AuthenticationHeaderValue("Bearer", ApiKey)
-                        request.Content = New StringContent(
-                            JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
-
-                        Dim response = Await HttpClient.SendAsync(request, ct)
+                        Dim requestJson = JsonSerializer.Serialize(payload)
+                        Dim response = Await SendWithRetryAsync(
+                            Function()
+                                Dim request As New HttpRequestMessage(HttpMethod.Post, $"{_baseUrl}/chat/completions")
+                                request.Headers.Authorization = New AuthenticationHeaderValue("Bearer", ApiKey)
+                                request.Content = New StringContent(requestJson, Encoding.UTF8, "application/json")
+                                Return request
+                            End Function, ct)
                         If response.IsSuccessStatusCode Then
                             Dim body = Await response.Content.ReadAsStringAsync()
                             Using doc = JsonDocument.Parse(body)

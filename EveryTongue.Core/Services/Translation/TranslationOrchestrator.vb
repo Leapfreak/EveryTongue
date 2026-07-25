@@ -18,6 +18,7 @@ Namespace Services.Translation
         ' Mutated at runtime as per-model offline sidecars are registered/unregistered per room → concurrent.
         Private ReadOnly _backends As ConcurrentDictionary(Of String, ITranslationBackend)
         Private ReadOnly _logger As ILogger(Of TranslationOrchestrator)
+        Private ReadOnly _pivotPolicy As PivotPolicy
         Private ReadOnly _queue As PriorityWorkQueue(Of Dictionary(Of String, String))
         Private _activeBackendName As String = "Local"
         Private _fallbackBackendName As String = "Local"
@@ -43,7 +44,9 @@ Namespace Services.Translation
 
         Public Sub New(backends As IEnumerable(Of ITranslationBackend),
                        logger As ILogger(Of TranslationOrchestrator),
-                       options As Server.ServerOptions)
+                       options As Server.ServerOptions,
+                       pivotPolicy As PivotPolicy)
+            _pivotPolicy = pivotPolicy
             _backends = New ConcurrentDictionary(Of String, ITranslationBackend)(StringComparer.OrdinalIgnoreCase)
             For Each backend In backends
                 _backends(backend.Name) = backend
@@ -146,18 +149,20 @@ Namespace Services.Translation
                                              Optional priority As TranslationPriority = TranslationPriority.Workspace,
                                              Optional noCache As Boolean = False,
                                              Optional filters As TranslationFilterPaths = Nothing,
-                                             Optional backendOverride As String = Nothing
+                                             Optional backendOverride As String = Nothing,
+                                             Optional noPivot As Boolean = False
         ) As Task(Of Dictionary(Of String, String)) Implements ITranslationService.TranslateAsync
 
             If targetLangs.Count = 0 Then Return New Dictionary(Of String, String)()
 
             Dim skipCache = noCache
             Dim ovr = backendOverride
+            Dim skipPivot = noPivot
             ' Route through the priority queue — the queue gates concurrency
             ' so the translation backend isn't overwhelmed under multi-room load.
             Return Await _queue.EnqueueAsync(
                 Async Function(ct2)
-                    Return Await TranslateInternal(text, sourceLang, targetLangs, ct2, skipCache, filters, ovr)
+                    Return Await TranslateInternal(text, sourceLang, targetLangs, ct2, skipCache, filters, ovr, skipPivot)
                 End Function,
                 CInt(priority),
                 ct)
@@ -173,7 +178,8 @@ Namespace Services.Translation
                                                   ct As CancellationToken,
                                                   noCache As Boolean,
                                                   filters As TranslationFilterPaths,
-                                                  Optional backendOverride As String = Nothing
+                                                  Optional backendOverride As String = Nothing,
+                                                  Optional noPivot As Boolean = False
         ) As Task(Of Dictionary(Of String, String))
 
             Dim results As New Dictionary(Of String, String)()
@@ -201,13 +207,68 @@ Namespace Services.Translation
                 Next
             End If
 
-            ' Translate each group with its assigned backend (with fallback)
+            ' Translate each group with its assigned backend (with fallback).
+            ' Within a group, targets whose pair is weak for that backend take the
+            ' English pivot: source→English once (reused when English is itself a
+            ' requested target), then English→each pivoted target in one call.
+            ' Both hops run inside THIS queue slot — re-entering TranslateAsync
+            ' from here would deadlock the priority queue under load.
             For Each group In groups
                 Dim backendName = group.Key
                 Dim langs = group.Value
 
-                Dim translated = Await TryTranslateWithFallback(
-                    text, sourceLang, langs, backendName, ct, noCache, filters)
+                Dim directLangs As New List(Of String)
+                Dim pivotLangs As New List(Of String)
+                For Each lang In langs
+                    If Not noPivot AndAlso _pivotPolicy.Decide(sourceLang, lang, backendName).ShouldPivot Then
+                        pivotLangs.Add(lang)
+                    Else
+                        directLangs.Add(lang)
+                    End If
+                Next
+
+                Dim pivotVia = _pivotPolicy.PivotLanguage
+                Dim englishRequested = directLangs.Any(
+                    Function(l) l.Equals(pivotVia, StringComparison.OrdinalIgnoreCase))
+                Dim firstHop As New List(Of String)(directLangs)
+                If pivotLangs.Count > 0 AndAlso Not englishRequested Then firstHop.Add(pivotVia)
+
+                Dim translated As Dictionary(Of String, String)
+                If firstHop.Count > 0 Then
+                    translated = Await TryTranslateWithFallback(
+                        text, sourceLang, firstHop, backendName, ct, noCache, filters)
+                Else
+                    translated = New Dictionary(Of String, String)()
+                End If
+
+                If pivotLangs.Count > 0 Then
+                    Dim englishText As String = Nothing
+                    translated.TryGetValue(pivotVia, englishText)
+
+                    If Not String.IsNullOrWhiteSpace(englishText) Then
+                        Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_PIVOT,
+                            $"backend={backendName} {sourceLang}→[{String.Join(",", pivotLangs)}] via {pivotVia} " &
+                            $"({If(englishRequested, "reused requested English", "computed English hop")})")
+                        Dim secondHop = Await TryTranslateWithFallback(
+                            englishText, pivotVia, pivotLangs, backendName, ct, noCache, filters)
+                        For Each kvp In secondHop
+                            translated(kvp.Key) = kvp.Value
+                        Next
+                    Else
+                        ' Safety net: the English hop produced nothing — translate the
+                        ' pivoted targets direct so pivot can never be worse than today.
+                        Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_PIVOT,
+                            $"backend={backendName} {sourceLang}: English hop empty — falling back to DIRECT for [{String.Join(",", pivotLangs)}]")
+                        Dim directFallback = Await TryTranslateWithFallback(
+                            text, sourceLang, pivotLangs, backendName, ct, noCache, filters)
+                        For Each kvp In directFallback
+                            translated(kvp.Key) = kvp.Value
+                        Next
+                    End If
+
+                    ' Drop the English intermediate when nobody asked for it.
+                    If Not englishRequested Then translated.Remove(pivotVia)
+                End If
 
                 For Each kvp In translated
                     results(kvp.Key) = kvp.Value
@@ -215,6 +276,35 @@ Namespace Services.Translation
             Next
 
             Return results
+        End Function
+
+        ''' <summary>
+        ''' Explain — without translating — how each target would be routed right
+        ''' now: which backend, direct or pivot, and why. Uses the same grouping
+        ''' logic as TranslateInternal and the same PivotPolicy instance, so the
+        ''' answer cannot drift from actual behaviour.
+        ''' </summary>
+        Public Function DescribeRouting(sourceLang As String,
+                                        targetLangs As IReadOnlyList(Of String)
+        ) As IReadOnlyList(Of RouteInfo) Implements ITranslationService.DescribeRouting
+            Dim result As New List(Of RouteInfo)
+            If targetLangs Is Nothing Then Return result
+            For Each lang In targetLangs
+                Dim backendName = _activeBackendName
+                Dim overrideName As String = Nothing
+                If LanguageOverrides.TryGetValue(lang, overrideName) Then
+                    backendName = overrideName
+                End If
+                Dim d = _pivotPolicy.Decide(sourceLang, lang, backendName)
+                result.Add(New RouteInfo With {
+                    .Lang = lang,
+                    .Backend = backendName,
+                    .Route = If(d.ShouldPivot, "pivot", "direct"),
+                    .Via = d.Via,
+                    .Reason = d.Reason
+                })
+            Next
+            Return result
         End Function
 
         Private Async Function TryTranslateWithFallback(

@@ -140,6 +140,9 @@ Partial Class FormOptions
         Me.cboDevice = New System.Windows.Forms.ComboBox()
         Me.lblDevice = New System.Windows.Forms.Label()
         Me.cboTransBackend = New System.Windows.Forms.ComboBox()
+        Me.lblPivotMode = New System.Windows.Forms.Label()
+        Me.cboPivotMode = New System.Windows.Forms.ComboBox()
+        Me.btnPivotPreview = New System.Windows.Forms.Button()
         Me.lblTransBackend = New System.Windows.Forms.Label()
         Me.lblTransApiKey = New System.Windows.Forms.Label()
         Me.txtTransApiKey = New System.Windows.Forms.TextBox()
@@ -1613,6 +1616,33 @@ Partial Class FormOptions
         Me.cboTransBackend.DropDownWidth = 320
         Me.cboTransBackend.TabIndex = 4
         '
+        ' lblPivotMode
+        '
+        Me.lblPivotMode.AutoSize = True
+        Me.lblPivotMode.Location = New System.Drawing.Point(12, 220)
+        Me.lblPivotMode.Name = "lblPivotMode"
+        Me.lblPivotMode.Size = New System.Drawing.Size(180, 15)
+        Me.lblPivotMode.TabIndex = 8
+        Me.lblPivotMode.Text = "English pivot for weak pairs:"
+        '
+        ' cboPivotMode
+        '
+        Me.cboPivotMode.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList
+        Me.cboPivotMode.FormattingEnabled = True
+        Me.cboPivotMode.Location = New System.Drawing.Point(12, 238)
+        Me.cboPivotMode.Name = "cboPivotMode"
+        Me.cboPivotMode.Size = New System.Drawing.Size(200, 23)
+        Me.cboPivotMode.DropDownWidth = 320
+        Me.cboPivotMode.TabIndex = 9
+        '
+        ' btnPivotPreview
+        '
+        Me.btnPivotPreview.Location = New System.Drawing.Point(230, 237)
+        Me.btnPivotPreview.Name = "btnPivotPreview"
+        Me.btnPivotPreview.Size = New System.Drawing.Size(170, 25)
+        Me.btnPivotPreview.TabIndex = 10
+        Me.btnPivotPreview.Text = "Preview routing..."
+        '
         ' lblTransApiKey
         '
         Me.lblTransApiKey.AutoSize = True
@@ -1868,6 +1898,9 @@ Partial Class FormOptions
         Me.pnlTranslation.Controls.Add(Me.lblDevice)
         Me.pnlTranslation.Controls.Add(Me.cboTransBackend)
         Me.pnlTranslation.Controls.Add(Me.lblTransBackend)
+        Me.pnlTranslation.Controls.Add(Me.lblPivotMode)
+        Me.pnlTranslation.Controls.Add(Me.cboPivotMode)
+        Me.pnlTranslation.Controls.Add(Me.btnPivotPreview)
         Me.pnlTranslation.Controls.Add(Me.lblTransApiKey)
         Me.pnlTranslation.Controls.Add(Me.txtTransApiKey)
         Me.pnlTranslation.Controls.Add(Me.lblTransBudget)
@@ -3632,6 +3665,9 @@ Partial Class FormOptions
     Friend WithEvents nudSttEouSilence As System.Windows.Forms.NumericUpDown
     Friend WithEvents lblTransBackend As System.Windows.Forms.Label
     Friend WithEvents cboTransBackend As System.Windows.Forms.ComboBox
+    Friend WithEvents lblPivotMode As System.Windows.Forms.Label
+    Friend WithEvents cboPivotMode As System.Windows.Forms.ComboBox
+    Friend WithEvents btnPivotPreview As System.Windows.Forms.Button
     Friend WithEvents lblTransApiKey As System.Windows.Forms.Label
     Friend WithEvents txtTransApiKey As System.Windows.Forms.TextBox
     Friend WithEvents lblTransBudget As System.Windows.Forms.Label

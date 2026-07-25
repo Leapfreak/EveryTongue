@@ -24,6 +24,11 @@
         autoDetect: "Auto Detect", noTranslation: "No translation",
         setTitle: "Server Settings",
         setSttEngine: "Speech engine", setTransEngine: "Translation engine",
+        setPivotLabel: "Weak-pair English pivot",
+        setPivotHint: "Translates weak language pairs (e.g. Catalan→Swedish) via English. Applies immediately.",
+        setPivotOff: "Off — always direct",
+        setPivotAuto: "Auto — pivot weak pairs via English (recommended)",
+        setPivotAlways: "Always — pivot every non-English pair",
         setKeysStt: "Speech API keys", setKeysTrans: "Translation API keys",
         setKeySet: "•••• configured — leave blank to keep", setKeyEmpty: "not set — paste key",
         setPinLabel: "Admin PIN", setPinNew: "choose a PIN",
@@ -181,6 +186,7 @@
         };
         fill("setStt", s.sttEngines, s.sttBackend);
         fill("setTrans", s.translationEngines, s.translationBackend);
+        if (s.translationPivotMode) $("setPivot").value = s.translationPivotMode;
 
         const keys = (holderId, engines, attr, label) => {
             const holder = $(holderId);
@@ -203,7 +209,7 @@
         $("setCreatorCode").placeholder = s.creatorCodeSet ? t("setKeySet") : t("setCreatorEmpty");
     }
     $("btnSave").addEventListener("click", () => {
-        const body = { pin: pin, sttBackend: $("setStt").value, translationBackend: $("setTrans").value, sttKeys: {}, translationKeys: {} };
+        const body = { pin: pin, sttBackend: $("setStt").value, translationBackend: $("setTrans").value, translationPivotMode: $("setPivot").value, sttKeys: {}, translationKeys: {} };
         document.querySelectorAll("input[data-stt-key]").forEach(i => { if (i.value) body.sttKeys[i.getAttribute("data-stt-key")] = i.value; });
         document.querySelectorAll("input[data-trans-key]").forEach(i => { if (i.value) body.translationKeys[i.getAttribute("data-trans-key")] = i.value; });
         const newPin = $("setNewPin").value;

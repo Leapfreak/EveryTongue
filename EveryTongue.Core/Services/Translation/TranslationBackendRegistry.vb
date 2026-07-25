@@ -43,6 +43,18 @@ Namespace Services.Translation
             ''' backend instance exists for it).
             ''' </summary>
             Public Property InlineWithStt As String = ""
+            ''' <summary>
+            ''' Pivot bias for Auto mode: True = the engine's non-English pairs are
+            ''' weak (English-centric training/vendor), so unlisted pairs route
+            ''' source→English→target. False = the engine handles direct pairs well.
+            ''' DeepL self-pivots internally; LLMs are natively multilingual; Google
+            ''' measured 2026-07-26 (FLORES cat→swe): direct output IDENTICAL to
+            ''' explicit pivot — it pivots internally, so ours only doubles cost.
+            ''' NLLB stays True conservatively until more pairs are measured
+            ''' (measured entries in translation-direct-pairs[.local].json override
+            ''' this per pair).
+            ''' </summary>
+            Public Property EnglishCentric As Boolean = True
         End Class
 
         Private Shared ReadOnly _backends As New List(Of Entry) From {
@@ -50,11 +62,11 @@ Namespace Services.Translation
             New Entry With {.Key = "nllb-int8", .DisplayName = "NLLB 1.3B int8 (offline, ~1.5 GB VRAM)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-model", .BackendName = "Local", .ComputeType = "int8_float16", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb-int8")},
             New Entry With {.Key = "nllb-3.3b", .DisplayName = "NLLB 3.3B (offline, ~8 GB VRAM)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-3.3b-model", .BackendName = "Local", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb-3.3b")},
             New Entry With {.Key = "nllb-3.3b-int8", .DisplayName = "NLLB 3.3B int8 (offline, ~4 GB VRAM)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-3.3b-model", .BackendName = "Local", .ComputeType = "int8_float16", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb-3.3b-int8")},
-            New Entry With {.Key = "google-translate", .DisplayName = "Google Translate (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "Google", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("google-translate")},
-            New Entry With {.Key = "deepl", .DisplayName = "DeepL (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "DeepL", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("deepl")},
+            New Entry With {.Key = "google-translate", .DisplayName = "Google Translate (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "Google", .EnglishCentric = False, .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("google-translate")},
+            New Entry With {.Key = "deepl", .DisplayName = "DeepL (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "DeepL", .EnglishCentric = False, .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("deepl")},
             New Entry With {.Key = "azure-translator", .DisplayName = "Azure Translator (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "Azure", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("azure-translator")},
-            New Entry With {.Key = "deepseek", .DisplayName = "DeepSeek (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "DeepSeek", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("deepseek")},
-            New Entry With {.Key = "openai", .DisplayName = "OpenAI (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "OpenAI", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("openai")},
+            New Entry With {.Key = "deepseek", .DisplayName = "DeepSeek (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "DeepSeek", .EnglishCentric = False, .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("deepseek")},
+            New Entry With {.Key = "openai", .DisplayName = "OpenAI (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "OpenAI", .EnglishCentric = False, .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("openai")},
             New Entry With {.Key = "libretranslate", .DisplayName = "LibreTranslate (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "LibreTranslate", .RequiresEndpoint = True, .DefaultEndpoint = "https://libretranslate.com", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("libretranslate")},
             New Entry With {.Key = "amazon-translate", .DisplayName = "Amazon Translate (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "Amazon", .RequiresEndpoint = True, .DefaultEndpoint = "us-east-1", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("amazon-translate")},
             New Entry With {.Key = "speechmatics", .DisplayName = "Speechmatics (inline)", .RequiresInternet = True, .RequiresApiKey = False, .InlineWithStt = "speechmatics", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("speechmatics")}

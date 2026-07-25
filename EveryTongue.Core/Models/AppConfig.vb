@@ -34,6 +34,20 @@ Namespace Models
         ClipboardPaste
     End Enum
 
+    ''' <summary>
+    ''' English-pivot routing for weak language pairs (e.g. cat→swe): translate
+    ''' source→English→target instead of direct when the pair is not well served.
+    ''' </summary>
+    <JsonConverter(GetType(JsonStringEnumConverter))>
+    Public Enum TranslationPivotMode
+        ''' <summary>Always translate direct (pre-pivot behaviour).</summary>
+        Off
+        ''' <summary>Pivot per the direct-pairs data file + each engine's English-centric bias.</summary>
+        Auto
+        ''' <summary>Pivot every non-English pair regardless of the data file.</summary>
+        Always
+    End Enum
+
     Public Class AppConfig
 
         ' --- Paths & Tools ---
@@ -281,6 +295,25 @@ Namespace Models
 
         Public Property TranslationBackend As String = "nllb"
         Public Property TranslationEnabled As Boolean = True
+
+        ''' <summary>English-pivot routing mode for weak pairs (Off/Auto/Always). See TranslationPivotMode.</summary>
+        Public Property TranslationPivotMode As TranslationPivotMode = TranslationPivotMode.Auto
+
+        ''' <summary>
+        ''' FLORES code of the pivot language (default English). No UI — engines are
+        ''' English-centric today; edit the config file if that ever changes.
+        ''' </summary>
+        Public Property TranslationPivotLanguage As String = "eng_Latn"
+
+        ''' <summary>Port for the CometKiwi quality-estimation sidecar (benchmark only).</summary>
+        Public Property QeServerPort As Integer = 5096
+
+        ''' <summary>
+        ''' HuggingFace access token — required once by the Download Manager to
+        ''' fetch the license-gated CometKiwi model (free account; accept the
+        ''' model license on its HF page first). Not needed at scoring time.
+        ''' </summary>
+        Public Property HuggingFaceToken As String = ""
 
         ''' <summary>
         ''' API keys for online translation engines, keyed by backend key (e.g.

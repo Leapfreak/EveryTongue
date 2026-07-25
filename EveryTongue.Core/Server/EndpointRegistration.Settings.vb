@@ -93,6 +93,7 @@ Namespace Server
                         .creatorCodeSet = Not String.IsNullOrEmpty(serverOpts.CreatorCode),
                         .sttBackend = If(cfg.SttBackend, ""),
                         .translationBackend = If(cfg.TranslationBackend, ""),
+                        .translationPivotMode = cfg.TranslationPivotMode.ToString(),
                         .sttEngines = sttEngines,
                         .translationEngines = transEngines
                     })
@@ -130,6 +131,21 @@ Namespace Server
                         Dim newTrans = getStr("translationBackend")
                         If Not String.IsNullOrEmpty(newTrans) AndAlso Services.Translation.TranslationBackendRegistry.Find(newTrans) IsNot Nothing Then
                             cfg.TranslationBackend = newTrans : changed.Add($"translationBackend={newTrans}")
+                        End If
+
+                        ' English-pivot mode: saved to config AND live-applied to the
+                        ' running PivotPolicy (no restart), same treatment as adminPin.
+                        Dim newPivot = getStr("translationPivotMode")
+                        Dim pivotMode As Models.TranslationPivotMode
+                        If Not String.IsNullOrEmpty(newPivot) AndAlso
+                           [Enum].TryParse(Of Models.TranslationPivotMode)(newPivot, True, pivotMode) Then
+                            If cfg.TranslationPivotMode <> pivotMode Then
+                                cfg.TranslationPivotMode = pivotMode
+                                Dim optsPivot = context.RequestServices.GetService(Of IOptions(Of ServerOptions))
+                                If optsPivot?.Value IsNot Nothing Then optsPivot.Value.TranslationPivotMode = pivotMode
+                                context.RequestServices.GetService(Of Services.Translation.PivotPolicy)?.UpdateMode(pivotMode)
+                                changed.Add($"translationPivotMode={pivotMode}")
+                            End If
                         End If
 
                         ' API keys: only non-empty values overwrite (empty field in the UI = "keep").

@@ -1,0 +1,4 @@
+unbabel-comet>=2.2
+fastapi
+uvicorn
+pydantic

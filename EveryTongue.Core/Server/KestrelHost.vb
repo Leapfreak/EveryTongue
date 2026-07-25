@@ -326,6 +326,7 @@ Namespace Server
             services.AddSingleton(Of ITranslationBackend, OpenAiBackend)()
             services.AddSingleton(Of ITranslationBackend, LibreTranslateBackend)()
             services.AddSingleton(Of ITranslationBackend, AmazonTranslateBackend)()
+            services.AddSingleton(Of PivotPolicy)()
             services.AddSingleton(Of ITranslationService, TranslationOrchestrator)()
 
             ' TTS backends and orchestrator

@@ -60,6 +60,30 @@ Namespace Services.Translation
             Me.Endpoint = If(url, "").Trim().TrimEnd("/"c)
         End Sub
 
+        ''' <summary>
+        ''' Send a request, retrying on HTTP 429 with exponential backoff
+        ''' (2s/4s/8s, or the server's Retry-After when present). Without this,
+        ''' rate-limit bursts (DeepL free tier especially) surface as failures
+        ''' and trigger the orchestrator's Local fallback — silently replacing
+        ''' this engine's output with another engine's in benchmarks and shadow
+        ''' comparisons. makeRequest must build a FRESH HttpRequestMessage per
+        ''' attempt (requests are single-use).
+        ''' </summary>
+        Protected Async Function SendWithRetryAsync(makeRequest As Func(Of HttpRequestMessage),
+                                                    ct As CancellationToken) As Task(Of HttpResponseMessage)
+            Dim attempt = 0
+            Do
+                Dim response = Await HttpClient.SendAsync(makeRequest(), ct)
+                If CInt(response.StatusCode) <> 429 OrElse attempt >= 3 Then Return response
+                Dim waitSeconds = If(response.Headers.RetryAfter?.Delta?.TotalSeconds, 2.0 * Math.Pow(2, attempt))
+                Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_CLOUD_REQUEST,
+                    $"{Name}: HTTP 429 rate-limited — backing off {waitSeconds:F0}s (attempt {attempt + 1}/3)")
+                response.Dispose()
+                Await Task.Delay(TimeSpan.FromSeconds(waitSeconds), ct)
+                attempt += 1
+            Loop
+        End Function
+
         Public MustOverride Function TranslateAsync(text As String,
                                                      sourceLang As String,
                                                      targetLangs As IReadOnlyList(Of String),
@@ -129,10 +153,13 @@ Namespace Services.Translation
                         If Not String.IsNullOrEmpty(dlSource) Then form("source_lang") = dlSource.ToUpper()
                         ' DeepL dropped form-body auth_key ("legacy authentication") —
                         ' the key must travel as an Authorization header.
-                        Dim req As New HttpRequestMessage(HttpMethod.Post, "https://api-free.deepl.com/v2/translate")
-                        req.Headers.TryAddWithoutValidation("Authorization", $"DeepL-Auth-Key {ApiKey}")
-                        req.Content = New FormUrlEncodedContent(form)
-                        Dim response = Await HttpClient.SendAsync(req, ct)
+                        Dim response = Await SendWithRetryAsync(
+                            Function()
+                                Dim req As New HttpRequestMessage(HttpMethod.Post, "https://api-free.deepl.com/v2/translate")
+                                req.Headers.TryAddWithoutValidation("Authorization", $"DeepL-Auth-Key {ApiKey}")
+                                req.Content = New FormUrlEncodedContent(form)
+                                Return req
+                            End Function, ct)
                         If response.IsSuccessStatusCode Then
                             Dim body = Await response.Content.ReadAsStringAsync()
                             Using doc = JsonDocument.Parse(body)
@@ -238,8 +265,12 @@ Namespace Services.Translation
                 tasks.Add(Task.Run(Async Function()
                     Try
                         Dim requestBody = $"{{""q"":{EscapeJson(text)},""source"":""{googleSource}"",""target"":""{googleTarget}"",""format"":""text""}}"
-                        Dim content As New StringContent(requestBody, Encoding.UTF8, "application/json")
-                        Dim response = Await HttpClient.PostAsync(url, content, ct)
+                        Dim response = Await SendWithRetryAsync(
+                            Function()
+                                Dim req As New HttpRequestMessage(HttpMethod.Post, url)
+                                req.Content = New StringContent(requestBody, Encoding.UTF8, "application/json")
+                                Return req
+                            End Function, ct)
                         If response.IsSuccessStatusCode Then
                             Dim body = Await response.Content.ReadAsStringAsync()
                             Using doc = JsonDocument.Parse(body)
@@ -327,14 +358,15 @@ Namespace Services.Translation
                 Dim url = $"https://api.cognitive.microsofttranslator.com/translate?api-version=3.0{fromParam}{targetParams}"
 
                 Dim requestBody = $"[{{""Text"":{EscapeJson(text)}}}]"
-                Dim content As New StringContent(requestBody, Encoding.UTF8, "application/json")
 
-                Dim request As New HttpRequestMessage(HttpMethod.Post, url)
-                request.Content = content
-                request.Headers.Add("Ocp-Apim-Subscription-Key", ApiKey)
-                request.Headers.Add("Ocp-Apim-Subscription-Region", Region)
-
-                Dim response = Await HttpClient.SendAsync(request, ct)
+                Dim response = Await SendWithRetryAsync(
+                    Function()
+                        Dim request As New HttpRequestMessage(HttpMethod.Post, url)
+                        request.Content = New StringContent(requestBody, Encoding.UTF8, "application/json")
+                        request.Headers.Add("Ocp-Apim-Subscription-Key", ApiKey)
+                        request.Headers.Add("Ocp-Apim-Subscription-Region", Region)
+                        Return request
+                    End Function, ct)
                 If response.IsSuccessStatusCode Then
                     Dim body = Await response.Content.ReadAsStringAsync()
                     Using doc = JsonDocument.Parse(body)

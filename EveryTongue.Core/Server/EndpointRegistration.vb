@@ -207,6 +207,47 @@ Namespace Server
                                            Return context.Response.WriteAsJsonAsync(metricsSvc.GetSnapshot())
                                        End Function)
 
+            ' Translation routing explain — which targets translate direct vs via the
+            ' English pivot, and why. Same PivotPolicy instance the orchestrator
+            ' routes with, so this cannot drift from actual behaviour.
+            ' GET /api/translation/routing?source=cat_Latn&targets=swe_Latn,spa_Latn
+            app.MapGet("/api/translation/routing",
+                       Function(context As HttpContext) As Task
+                           Dim translationSvc = context.RequestServices.
+                               GetService(Of ITranslationService)
+                           Dim policy = context.RequestServices.
+                               GetService(Of Services.Translation.PivotPolicy)
+                           If translationSvc Is Nothing OrElse policy Is Nothing Then
+                               context.Response.StatusCode = 503
+                               Return context.Response.WriteAsJsonAsync(New With {.error = "Translation service not available"})
+                           End If
+
+                           ' Room source languages arrive as whisper/ISO-1 codes ("ca",
+                           ' "es") from the web client; the policy speaks FLORES. Any
+                           ' code without a script suffix is normalised via the
+                           ' canonical table (unknown codes pass through unchanged).
+                           Dim norm = Function(code As String) As String
+                                          If String.IsNullOrEmpty(code) OrElse code.Contains("_"c) Then Return code
+                                          Dim fl = Services.Infrastructure.LanguageCodeService.Instance.ToFlores(code)
+                                          Return If(String.IsNullOrEmpty(fl), code, fl)
+                                      End Function
+
+                           Dim source = norm(If(context.Request.Query("source").ToString(), ""))
+                           Dim targets = If(context.Request.Query("targets").ToString(), "").
+                               Split(","c, StringSplitOptions.RemoveEmptyEntries Or StringSplitOptions.TrimEntries).
+                               Select(norm).
+                               ToList()
+
+                           Return context.Response.WriteAsJsonAsync(New With {
+                               .mode = policy.Mode.ToString(),
+                               .pivotLanguage = policy.PivotLanguage,
+                               .directPairCount = policy.PairCount,
+                               .activeBackend = translationSvc.ActiveBackend,
+                               .source = source,
+                               .targets = translationSvc.DescribeRouting(source, targets)
+                           })
+                       End Function)
+
             ' Queue metrics — priority queue stats for translation and TTS pipelines
             app.MapGet("/api/queue-metrics", Function(context As HttpContext) As Task
                                                  Dim translationSvc = context.RequestServices.

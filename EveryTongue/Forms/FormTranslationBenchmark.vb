@@ -28,17 +28,27 @@ Public Class FormTranslationBenchmark
     Private _liveServerPort As Integer
     Private _config As AppConfig
 
+    ''' <summary>
+    ''' Head-supplied kick-starter for the local translation sidecar (FormMain's
+    ''' EnsureDefaultTranslationRunning). Lets the Pair A/B tab start the NLLB
+    ''' engine itself when the user selects it, instead of requiring a warm-up
+    ''' detour through the Translate workspace.
+    ''' </summary>
+    Private ReadOnly _startLocalEngine As Action
+
     Public Sub New(translationService As ITranslationService,
                    Optional ttsService As ITtsService = Nothing,
                    Optional liveServerPort As Integer = 0,
                    Optional config As AppConfig = Nothing,
-                   Optional ttsBackends As IEnumerable(Of ITtsBackend) = Nothing)
+                   Optional ttsBackends As IEnumerable(Of ITtsBackend) = Nothing,
+                   Optional startLocalEngine As Action = Nothing)
         InitializeComponent()
         _translationService = translationService
         _ttsService = ttsService
         _ttsBackends = If(ttsBackends, Enumerable.Empty(Of ITtsBackend)())
         _liveServerPort = liveServerPort
         _config = If(config, New AppConfig())
+        _startLocalEngine = startLocalEngine
     End Sub
 
     Private Sub FormTranslationBenchmark_Load(sender As Object, e As EventArgs) Handles MyBase.Load
@@ -75,6 +85,7 @@ Public Class FormTranslationBenchmark
         WireSttHandlers()
         WireTransConcHandlers()
         WireTtsHandlers()
+        InitPairAb()
 
         AddHandler btnExportAll.Click, AddressOf ExportAll_Click
 
@@ -1473,9 +1484,64 @@ Public Class FormTranslationBenchmark
             End If
         End If
 
+        ' ── Translation Pair Quality (FLORES chrF) — all runs this session ──
+        If _abHistory.Count > 0 Then
+            hasAny = True
+            sb.AppendLine("## Translation Pair Quality (FLORES chrF)")
+            sb.AppendLine(PairScoreCsvHeader)
+            For Each r In _abHistory
+                sb.AppendLine(PairScoreCsvLine(r))
+            Next
+            sb.AppendLine()
+        End If
+
         If Not hasAny Then Return ""
         Return sb.ToString()
     End Function
+
+    Private Const PairScoreCsvHeader As String =
+        "timestamp,source,target,engine,sentences,direct_chrf,pivot_chrf,direct_avg_ms,pivot_avg_ms,mode,winner,qe_direct,qe_pivot"
+
+    Private Shared Function PairScoreCsvLine(r As PairAbResult) As String
+        Dim mode = If(r.PivotSkipped, "direct-only", "A/B")
+        Dim winner = If(r.PivotSkipped, "", If(r.DirectWins, "direct", "pivot"))
+        Dim pivotChrf = If(r.PivotSkipped, "", r.PivotChrF.ToString("F1", Globalization.CultureInfo.InvariantCulture))
+        Dim pivotMs = If(r.PivotSkipped, "", r.PivotAvgMs.ToString("F0", Globalization.CultureInfo.InvariantCulture))
+        Dim qeDirect = If(r.QeDirect >= 0, r.QeDirect.ToString("F3", Globalization.CultureInfo.InvariantCulture), "")
+        Dim qePivot = If(r.QePivot >= 0, r.QePivot.ToString("F3", Globalization.CultureInfo.InvariantCulture), "")
+        Return $"{r.RunAt:yyyy-MM-dd HH:mm:ss},{r.SourceLang},{r.TargetLang},{r.Engine},{r.SentenceCount}," &
+               $"{r.DirectChrF.ToString("F1", Globalization.CultureInfo.InvariantCulture)},{pivotChrf}," &
+               $"{r.DirectAvgMs.ToString("F0", Globalization.CultureInfo.InvariantCulture)},{pivotMs},{mode},{winner},{qeDirect},{qePivot}"
+    End Function
+
+    ''' <summary>
+    ''' Append the run to the CUMULATIVE cross-session scoreboard
+    ''' (config-dir\benchmarks\pair-scores.csv) — one growing file holding every
+    ''' FLORES-scored run ever made on this machine, for calibration anchors and
+    ''' drift tracking (cloud engines change over time; re-running a pair months
+    ''' later against the same references catches regressions).
+    ''' </summary>
+    Private Sub AppendPairScoreHistory(r As PairAbResult)
+        Try
+            Dim benchDir = Path.Combine(Global.EveryTongue.Models.ConfigManager.ConfigDirectory, "benchmarks")
+            If Not Directory.Exists(benchDir) Then Directory.CreateDirectory(benchDir)
+            Dim filePath = Path.Combine(benchDir, "pair-scores.csv")
+            ' Header changed (QE columns added)? Keep the old file intact under a
+            ' versioned name and start fresh — never mix column layouts.
+            If File.Exists(filePath) Then
+                Dim firstLine = File.ReadLines(filePath).FirstOrDefault()
+                If firstLine IsNot Nothing AndAlso firstLine <> PairScoreCsvHeader Then
+                    File.Move(filePath, Path.Combine(benchDir, $"pair-scores-old-{DateTime.Now:yyyyMMdd_HHmmss}.csv"))
+                End If
+            End If
+            If Not File.Exists(filePath) Then
+                File.WriteAllText(filePath, PairScoreCsvHeader & Environment.NewLine, Encoding.UTF8)
+            End If
+            File.AppendAllText(filePath, PairScoreCsvLine(r) & Environment.NewLine, Encoding.UTF8)
+        Catch ex As Exception
+            AppLogger.Log(LogEvents.BENCH_ERROR, $"pair-scores.csv append failed: {ex.Message}")
+        End Try
+    End Sub
 
     Private Sub ExportAll_Click(sender As Object, e As EventArgs)
         Dim csv = BuildUnifiedCsv()
@@ -1514,6 +1580,343 @@ Public Class FormTranslationBenchmark
             lblAutoSaveStatus.ForeColor = Color.OrangeRed
             lblAutoSaveStatus.Text = $"Auto-save failed: {ex.Message}"
             AppLogger.Log(LogEvents.BENCH_ERROR, $"Auto-save error: {ex.Message}")
+        End Try
+    End Sub
+
+    ' ═══════════════════════════════════════════════════════════════
+    ' Pair A/B (FLORES) — direct vs English-pivot, scored with chrF
+    ' ═══════════════════════════════════════════════════════════════
+    Private _abCts As Threading.CancellationTokenSource
+    Private _abResult As PairAbResult
+    Private ReadOnly _abRunner As New PairQualityRunner()
+    Private _abLangCodes As New List(Of String)
+    ''' <summary>All Pair A/B runs this session — exported by BuildUnifiedCsv.</summary>
+    Private ReadOnly _abHistory As New List(Of PairAbResult)
+
+    ' ── CometKiwi QE (optional — scores appear when installed) ──
+    Private _qeService As Pipeline.QeService
+    Private _qeInstalled As Boolean?
+
+    Private Function QeInstalled() As Boolean
+        If Not _qeInstalled.HasValue Then _qeInstalled = Pipeline.QeService.CheckInstalled()
+        Return _qeInstalled.Value
+    End Function
+
+    ''' <summary>The QE sidecar is benchmark-scoped — stop it with the form.</summary>
+    Private Sub FormTranslationBenchmark_FormClosed(sender As Object, e As FormClosedEventArgs) Handles MyBase.FormClosed
+        Try
+            _qeService?.Stop()
+            _qeService?.Dispose()
+        Catch ex As Exception
+            AppLogger.Log(LogEvents.BENCH_ERROR, $"QE sidecar shutdown: {ex.Message}")
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' Score the run's outputs with CometKiwi (reference-free, cross-pair
+    ''' comparable). Starts the QE sidecar + loads the model on first use.
+    ''' Failures degrade gracefully — the run keeps its chrF numbers.
+    ''' </summary>
+    Private Async Function ScoreWithQeAsync(r As PairAbResult) As Task
+        Try
+            If _qeService Is Nothing Then _qeService = New Pipeline.QeService()
+            If Not _qeService.IsRunning Then
+                lblAbProgress.Text = "Starting CometKiwi QE engine..."
+                _qeService.Start(_config.QeServerPort)
+            End If
+            lblAbProgress.Text = "Loading CometKiwi model (first load ~1 min)..."
+            Dim sw = Diagnostics.Stopwatch.StartNew()
+            Dim loaded = False
+            While sw.Elapsed < TimeSpan.FromMinutes(3)
+                If _abCts.IsCancellationRequested Then Return
+                loaded = Await _qeService.EnsureModelLoadedAsync(_abCts.Token)
+                If loaded Then Exit While
+                Await Task.Delay(2000)
+            End While
+            If Not loaded Then
+                lblAbProgress.Text = "CometKiwi model did not load — QE skipped (see qe-server.log)."
+                Return
+            End If
+
+            lblAbProgress.Text = $"Scoring {r.Sources.Count} sentences with CometKiwi (CPU — can take a few minutes)..."
+            Dim directScores = Await _qeService.ScoreAsync(r.Sources, r.DirectOutputs, _abCts.Token)
+            If directScores IsNot Nothing AndAlso directScores.Count > 0 Then
+                r.QeDirect = directScores.Average()
+            End If
+            If Not r.PivotSkipped Then
+                Dim pivotScores = Await _qeService.ScoreAsync(r.Sources, r.PivotOutputs, _abCts.Token)
+                If pivotScores IsNot Nothing AndAlso pivotScores.Count > 0 Then
+                    r.QePivot = pivotScores.Average()
+                End If
+            End If
+        Catch ex As OperationCanceledException
+        Catch ex As Exception
+            AppLogger.Log(LogEvents.BENCH_ERROR, $"QE scoring failed: {ex.Message}")
+            lblAbProgress.Text = $"QE scoring failed: {ex.Message} (chrF results unaffected)"
+        End Try
+    End Function
+
+    Private Sub InitPairAb()
+        AddHandler btnAbDownload.Click, AddressOf AbDownload_Click
+        AddHandler btnAbRun.Click, AddressOf AbRun_Click
+        AddHandler btnAbCancel.Click, Sub() _abCts?.Cancel()
+        AddHandler btnAbSave.Click, AddressOf AbSave_Click
+        ' Availability changes while the form is open (e.g. the NLLB sidecar
+        ' finishes starting) — re-check whenever the user opens the list.
+        AddHandler cboAbEngine.DropDown, Sub() PopulateAbEngines()
+        RefreshAbDatasetState()
+    End Sub
+
+    Private Sub RefreshAbDatasetState()
+        PopulateAbEngines()
+        If FloresDataset.IsInstalled() Then
+            _abLangCodes = FloresDataset.AvailableLanguages()
+            lblAbInfo.Text = $"FLORES-200: {_abLangCodes.Count} languages installed."
+            btnAbDownload.Enabled = False
+            PopulateAbCombos()
+            btnAbRun.Enabled = _translationService IsNot Nothing
+        Else
+            lblAbInfo.Text = "FLORES-200 reference set not installed — professional reference translations for scoring pairs."
+            btnAbDownload.Enabled = True
+            btnAbRun.Enabled = False
+        End If
+    End Sub
+
+    Private _abEngineNames As New List(Of String)
+
+    ''' <summary>
+    ''' Engine combo: registry-declared backends (deduped by orchestrator backend
+    ''' name, inline engines skipped) so Local/NLLB is listed even BEFORE its
+    ''' sidecar starts — the sidecar backend only registers on the orchestrator
+    ''' at sidecar startup, so building this list from GetAllBackends() alone
+    ''' hid it. Live availability is overlaid from the orchestrator, and any
+    ''' dynamically-registered backend the registry doesn't know is appended.
+    ''' Each run is forced through the selection via backendOverride. Unavailable
+    ''' backends are listed but block the run with a hint.
+    ''' </summary>
+    Private Sub PopulateAbEngines()
+        Dim keep = If(cboAbEngine.SelectedIndex >= 0 AndAlso cboAbEngine.SelectedIndex < _abEngineNames.Count,
+                      _abEngineNames(cboAbEngine.SelectedIndex), Nothing)
+        cboAbEngine.BeginUpdate()
+        cboAbEngine.Items.Clear()
+        _abEngineNames.Clear()
+
+        Dim live = If(_translationService?.GetAllBackends(),
+                      DirectCast(New List(Of Services.Models.BackendInfo)(), IReadOnlyList(Of Services.Models.BackendInfo)))
+        Dim names As New List(Of String)
+        For Each entry In Services.Translation.TranslationBackendRegistry.GetAll()
+            If Not String.IsNullOrEmpty(entry.InlineWithStt) OrElse String.IsNullOrEmpty(entry.BackendName) Then Continue For
+            If Not names.Contains(entry.BackendName, StringComparer.OrdinalIgnoreCase) Then names.Add(entry.BackendName)
+        Next
+        For Each b In live
+            If Not names.Contains(b.Name, StringComparer.OrdinalIgnoreCase) Then names.Add(b.Name)
+        Next
+
+        Dim selectIdx = 0
+        For Each backendName In names
+            Dim n = backendName
+            Dim info = live.FirstOrDefault(Function(x) x.Name.Equals(n, StringComparison.OrdinalIgnoreCase))
+            If keep IsNot Nothing AndAlso n.Equals(keep, StringComparison.OrdinalIgnoreCase) Then
+                selectIdx = _abEngineNames.Count
+            ElseIf keep Is Nothing AndAlso info IsNot Nothing AndAlso info.IsActive Then
+                selectIdx = _abEngineNames.Count
+            End If
+            _abEngineNames.Add(n)
+            cboAbEngine.Items.Add(n & If(info IsNot Nothing AndAlso info.IsAvailable, "", "  (not available)"))
+        Next
+        cboAbEngine.EndUpdate()
+        If cboAbEngine.Items.Count > 0 Then cboAbEngine.SelectedIndex = selectIdx
+    End Sub
+
+    Private Function SelectedAbEngine() As String
+        If cboAbEngine.SelectedIndex < 0 OrElse cboAbEngine.SelectedIndex >= _abEngineNames.Count Then Return Nothing
+        Return _abEngineNames(cboAbEngine.SelectedIndex)
+    End Function
+
+    Private Sub PopulateAbCombos()
+        ' Display names come from the canonical table; codes without an entry
+        ' show as the raw FLORES code.
+        Dim names As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
+        For Each lang In LanguageCodeService.Instance.GetAllLanguagesSorted()
+            If Not String.IsNullOrEmpty(lang.Flores) Then names(lang.Flores) = lang.Name
+        Next
+        cboAbSource.BeginUpdate() : cboAbTarget.BeginUpdate()
+        cboAbSource.Items.Clear() : cboAbTarget.Items.Clear()
+        For Each code In _abLangCodes
+            Dim label = If(names.ContainsKey(code), $"{names(code)} ({code})", code)
+            cboAbSource.Items.Add(label)
+            cboAbTarget.Items.Add(label)
+        Next
+        cboAbSource.EndUpdate() : cboAbTarget.EndUpdate()
+        ' Soft default to the field-motivating pair when present (GLS: cat→swe).
+        Dim srcIdx = _abLangCodes.FindIndex(Function(c) c.Equals("cat_Latn", StringComparison.OrdinalIgnoreCase))
+        Dim tgtIdx = _abLangCodes.FindIndex(Function(c) c.Equals("swe_Latn", StringComparison.OrdinalIgnoreCase))
+        If cboAbSource.Items.Count > 0 Then cboAbSource.SelectedIndex = Math.Max(0, srcIdx)
+        If cboAbTarget.Items.Count > 0 Then cboAbTarget.SelectedIndex = Math.Max(0, tgtIdx)
+    End Sub
+
+    Private Async Sub AbDownload_Click(sender As Object, e As EventArgs)
+        btnAbDownload.Enabled = False
+        _abCts = New Threading.CancellationTokenSource()
+        btnAbCancel.Enabled = True
+        Try
+            Await FloresDataset.DownloadAsync(
+                Sub(msg) Me.BeginInvoke(Sub() lblAbProgress.Text = msg),
+                _abCts.Token)
+            lblAbProgress.Text = "FLORES-200 installed."
+        Catch ex As Exception
+            lblAbProgress.Text = $"Download failed: {ex.Message}"
+            AppLogger.Log(LogEvents.BENCH_ERROR, $"FLORES download failed: {ex.Message}")
+        Finally
+            btnAbCancel.Enabled = False
+            RefreshAbDatasetState()
+        End Try
+    End Sub
+
+    Private Async Sub AbRun_Click(sender As Object, e As EventArgs)
+        If _translationService Is Nothing Then Return
+        If cboAbSource.SelectedIndex < 0 OrElse cboAbTarget.SelectedIndex < 0 Then Return
+        Dim engineName = SelectedAbEngine()
+        If engineName Is Nothing Then Return
+        Dim engineInfo = _translationService.GetAllBackends().
+            FirstOrDefault(Function(b) b.Name.Equals(engineName, StringComparison.OrdinalIgnoreCase))
+        If engineInfo Is Nothing OrElse Not engineInfo.IsAvailable Then
+            ' Offline engine (per registry — an unregistered sidecar has no live
+            ' BackendInfo): start it ourselves and wait for the model, so picking
+            ' it from the list Just Works. Cloud engines can only mean missing key.
+            Dim offline = If(engineInfo IsNot Nothing,
+                             Not engineInfo.RequiresInternet,
+                             Not If(Services.Translation.TranslationBackendRegistry.FindByBackendName(engineName)?.RequiresInternet, True))
+            If offline AndAlso _startLocalEngine IsNot Nothing Then
+                If Not Await StartLocalEngineAndWait(engineName) Then Return
+            Else
+                lblAbProgress.Text = $"Engine '{engineName}' is not available — configure its API key in Options."
+                Return
+            End If
+        End If
+        Dim src = _abLangCodes(cboAbSource.SelectedIndex)
+        Dim tgt = _abLangCodes(cboAbTarget.SelectedIndex)
+        Dim pivotLang = If(_config.TranslationPivotLanguage, "eng_Latn")
+        If src.Equals(tgt, StringComparison.OrdinalIgnoreCase) Then
+            lblAbProgress.Text = "Source and target must differ."
+            Return
+        End If
+
+        Dim count = CInt(nudAbCount.Value)
+        btnAbRun.Enabled = False : btnAbSave.Enabled = False : btnAbCancel.Enabled = True
+        progressAb.Value = 0 : progressAb.Maximum = count
+        txtAbResults.Text = ""
+        _abCts = New Threading.CancellationTokenSource()
+        Try
+            _abResult = Await _abRunner.RunAsync(
+                _translationService, engineName, src, tgt, pivotLang, count,
+                Sub(done, total) Me.BeginInvoke(Sub()
+                                                    progressAb.Value = Math.Min(done, progressAb.Maximum)
+                                                    lblAbProgress.Text = $"{done}/{total} sentences (each = 3 translations)"
+                                                End Sub),
+                _abCts.Token)
+            If QeInstalled() Then Await ScoreWithQeAsync(_abResult)
+            ShowAbResult(_abResult)
+            btnAbSave.Enabled = _abResult.DirectWins
+            _abHistory.Add(_abResult)
+            AppendPairScoreHistory(_abResult)
+            AutoSaveResults()
+        Catch ex As OperationCanceledException
+            lblAbProgress.Text = "Cancelled."
+        Catch ex As Exception
+            lblAbProgress.Text = $"A/B failed: {ex.Message}"
+            AppLogger.Log(LogEvents.BENCH_ERROR, $"Pair A/B failed: {ex.Message}")
+        Finally
+            btnAbRun.Enabled = True : btnAbCancel.Enabled = False
+        End Try
+    End Sub
+
+    Private Sub ShowAbResult(r As PairAbResult)
+        Dim sb As New StringBuilder()
+        If r.PivotSkipped Then
+            ' Direct-only engine-quality score: the pair includes the pivot
+            ' language, so no pivot route exists (such pairs never pivot in
+            ' production either).
+            sb.AppendLine($"{r.SourceLang} → {r.TargetLang}  on {r.Engine}, {r.SentenceCount} sentences (engine quality vs FLORES reference)")
+            sb.AppendLine()
+            sb.AppendLine($"  chrF {r.DirectChrF,6:F1}   avg {r.DirectAvgMs,6:F0} ms")
+            If r.QeDirect >= 0 Then
+                sb.AppendLine($"  QE   {r.QeDirect,6:F3}   (CometKiwi, ~0-1 — comparable ACROSS pairs)")
+            End If
+            sb.AppendLine()
+            sb.AppendLine($"  Direct-only run — the pair includes the pivot language ({r.PivotLang}), so there is no pivot route to compare.")
+        Else
+            sb.AppendLine($"{r.SourceLang} → {r.TargetLang}  (via {r.PivotLang})  on {r.Engine}, {r.SentenceCount} sentences")
+            sb.AppendLine()
+            sb.AppendLine($"  DIRECT : chrF {r.DirectChrF,6:F1}   avg {r.DirectAvgMs,6:F0} ms" &
+                          If(r.QeDirect >= 0, $"   QE {r.QeDirect:F3}", ""))
+            sb.AppendLine($"  PIVOT  : chrF {r.PivotChrF,6:F1}   avg {r.PivotAvgMs,6:F0} ms" &
+                          If(r.QePivot >= 0, $"   QE {r.QePivot:F3}", ""))
+            If r.QeDirect >= 0 Then
+                sb.AppendLine($"  (QE = CometKiwi, ~0-1, reference-free — comparable ACROSS pairs)")
+            End If
+            sb.AppendLine()
+            Dim delta = Math.Abs(r.DirectChrF - r.PivotChrF)
+            sb.AppendLine(If(r.DirectWins,
+                $"  → DIRECT wins by {delta:F1} chrF. 'Save as measured direct pair' records this for the {r.Engine} engine.",
+                $"  → PIVOT wins by {delta:F1} chrF. No entry needed — pivoting is the policy's default for this pair."))
+        End If
+        sb.AppendLine()
+        sb.AppendLine("── Examples ──")
+        For Each ex In r.Examples
+            sb.AppendLine($"src: {ex.Source}")
+            sb.AppendLine($"ref: {ex.Reference}")
+            sb.AppendLine($"dir: {ex.Direct}")
+            If Not r.PivotSkipped Then sb.AppendLine($"piv: {ex.Pivot}")
+            sb.AppendLine()
+        Next
+        txtAbResults.Text = sb.ToString()
+        lblAbProgress.Text = "Done."
+    End Sub
+
+    ''' <summary>
+    ''' Kick the local sidecar via the head callback and poll the orchestrator
+    ''' until the backend reports available (model loaded) — up to 3 minutes,
+    ''' cancellable. Returns True when the engine is ready to benchmark.
+    ''' </summary>
+    Private Async Function StartLocalEngineAndWait(engineName As String) As Task(Of Boolean)
+        btnAbRun.Enabled = False : btnAbCancel.Enabled = True
+        _abCts = New Threading.CancellationTokenSource()
+        Try
+            lblAbProgress.Text = $"Starting '{engineName}' — launching the translation engine..."
+            _startLocalEngine()
+            Dim sw = Diagnostics.Stopwatch.StartNew()
+            While sw.Elapsed < TimeSpan.FromMinutes(3)
+                If _abCts.IsCancellationRequested Then
+                    lblAbProgress.Text = "Cancelled."
+                    Return False
+                End If
+                Dim info = _translationService.GetAllBackends().
+                    FirstOrDefault(Function(b) b.Name.Equals(engineName, StringComparison.OrdinalIgnoreCase))
+                If info IsNot Nothing AndAlso info.IsAvailable Then
+                    PopulateAbEngines()
+                    lblAbProgress.Text = $"'{engineName}' ready."
+                    Return True
+                End If
+                lblAbProgress.Text = $"Starting '{engineName}' — loading the translation model ({sw.Elapsed.TotalSeconds:F0}s, first load can take a minute or two)..."
+                Await Task.Delay(2000)
+            End While
+            lblAbProgress.Text = $"'{engineName}' did not become ready in 3 minutes — check the log (Translation category) for model-load errors, or install the engine via the Download Manager."
+            Return False
+        Finally
+            btnAbRun.Enabled = True : btnAbCancel.Enabled = False
+        End Try
+    End Function
+
+    Private Sub AbSave_Click(sender As Object, e As EventArgs)
+        If _abResult Is Nothing OrElse Not _abResult.DirectWins Then Return
+        Try
+            PairQualityRunner.SaveMeasuredEntry(_abResult)
+            btnAbSave.Enabled = False
+            lblAbProgress.Text = "Measured entry saved to translation-direct-pairs.local.json — applies on next server start."
+        Catch ex As Exception
+            lblAbProgress.Text = $"Save failed: {ex.Message}"
+            AppLogger.Log(LogEvents.BENCH_ERROR, $"Measured-pair save failed: {ex.Message}")
         End Try
     End Sub
 

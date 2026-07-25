@@ -25,7 +25,27 @@ Partial Class FormTranslationBenchmark
         Me.tabTransInner = New TabControl()
         Me.tabTransPipeline = New TabPage()
         Me.tabTransConcurrency = New TabPage()
+        Me.tabTransPairAb = New TabPage()
         Me.tabTransResources = New TabPage()
+
+        ' ── Translation Pair A/B (FLORES) controls ──
+        Me.lblAbInfo = New Label()
+        Me.btnAbDownload = New Button()
+        Me.lblAbEngine = New Label()
+        Me.cboAbEngine = New ComboBox()
+        Me.lblAbSource = New Label()
+        Me.cboAbSource = New ComboBox()
+        Me.lblAbTarget = New Label()
+        Me.cboAbTarget = New ComboBox()
+        Me.lblAbCount = New Label()
+        Me.nudAbCount = New NumericUpDown()
+        Me.btnAbRun = New Button()
+        Me.btnAbCancel = New Button()
+        Me.btnAbSave = New Button()
+        Me.progressAb = New ProgressBar()
+        Me.lblAbProgress = New Label()
+        Me.txtAbResults = New TextBox()
+        CType(Me.nudAbCount, System.ComponentModel.ISupportInitialize).BeginInit()
 
         ' ── Translation Pipeline controls ──
         Me.lblQueueStats = New Label()
@@ -250,6 +270,7 @@ Partial Class FormTranslationBenchmark
         ' tabTransInner — nested TabControl inside Translation tab
         Me.tabTransInner.Controls.Add(Me.tabTransPipeline)
         Me.tabTransInner.Controls.Add(Me.tabTransConcurrency)
+        Me.tabTransInner.Controls.Add(Me.tabTransPairAb)
         Me.tabTransInner.Controls.Add(Me.tabTransResources)
         Me.tabTransInner.Dock = DockStyle.Fill
         Me.tabTransInner.Name = "tabTransInner"
@@ -294,6 +315,119 @@ Partial Class FormTranslationBenchmark
         Me.tabTransConcurrency.TabIndex = 1
         Me.tabTransConcurrency.Text = "Concurrency"
         Me.tabTransConcurrency.UseVisualStyleBackColor = True
+
+        ' tabTransPairAb — direct-vs-pivot A/B against FLORES-200 references
+        Me.tabTransPairAb.AutoScroll = True
+        Me.tabTransPairAb.Controls.Add(Me.lblAbInfo)
+        Me.tabTransPairAb.Controls.Add(Me.btnAbDownload)
+        Me.tabTransPairAb.Controls.Add(Me.lblAbEngine)
+        Me.tabTransPairAb.Controls.Add(Me.cboAbEngine)
+        Me.tabTransPairAb.Controls.Add(Me.lblAbSource)
+        Me.tabTransPairAb.Controls.Add(Me.cboAbSource)
+        Me.tabTransPairAb.Controls.Add(Me.lblAbTarget)
+        Me.tabTransPairAb.Controls.Add(Me.cboAbTarget)
+        Me.tabTransPairAb.Controls.Add(Me.lblAbCount)
+        Me.tabTransPairAb.Controls.Add(Me.nudAbCount)
+        Me.tabTransPairAb.Controls.Add(Me.btnAbRun)
+        Me.tabTransPairAb.Controls.Add(Me.btnAbCancel)
+        Me.tabTransPairAb.Controls.Add(Me.btnAbSave)
+        Me.tabTransPairAb.Controls.Add(Me.progressAb)
+        Me.tabTransPairAb.Controls.Add(Me.lblAbProgress)
+        Me.tabTransPairAb.Controls.Add(Me.txtAbResults)
+        Me.tabTransPairAb.Location = New Point(4, 26)
+        Me.tabTransPairAb.Name = "tabTransPairAb"
+        Me.tabTransPairAb.Padding = New Padding(8)
+        Me.tabTransPairAb.Size = New Size(558, 650)
+        Me.tabTransPairAb.TabIndex = 3
+        Me.tabTransPairAb.Text = "Pair A/B (FLORES)"
+        Me.tabTransPairAb.UseVisualStyleBackColor = True
+
+        Me.lblAbInfo.Location = New Point(11, 11)
+        Me.lblAbInfo.Name = "lblAbInfo"
+        Me.lblAbInfo.Size = New Size(400, 34)
+        Me.lblAbInfo.Text = "FLORES-200 reference set: checking..."
+
+        Me.btnAbDownload.Location = New Point(420, 11)
+        Me.btnAbDownload.Name = "btnAbDownload"
+        Me.btnAbDownload.Size = New Size(126, 28)
+        Me.btnAbDownload.Text = "Download (~26 MB)"
+
+        Me.lblAbEngine.AutoSize = True
+        Me.lblAbEngine.Location = New Point(11, 52)
+        Me.lblAbEngine.Name = "lblAbEngine"
+        Me.lblAbEngine.Text = "Engine:"
+
+        Me.cboAbEngine.DropDownStyle = ComboBoxStyle.DropDownList
+        Me.cboAbEngine.Location = New Point(11, 70)
+        Me.cboAbEngine.Name = "cboAbEngine"
+        Me.cboAbEngine.Size = New Size(320, 23)
+
+        Me.lblAbSource.AutoSize = True
+        Me.lblAbSource.Location = New Point(11, 104)
+        Me.lblAbSource.Name = "lblAbSource"
+        Me.lblAbSource.Text = "Source:"
+
+        Me.cboAbSource.DropDownStyle = ComboBoxStyle.DropDownList
+        Me.cboAbSource.Location = New Point(11, 122)
+        Me.cboAbSource.Name = "cboAbSource"
+        Me.cboAbSource.Size = New Size(200, 23)
+
+        Me.lblAbTarget.AutoSize = True
+        Me.lblAbTarget.Location = New Point(225, 104)
+        Me.lblAbTarget.Name = "lblAbTarget"
+        Me.lblAbTarget.Text = "Target:"
+
+        Me.cboAbTarget.DropDownStyle = ComboBoxStyle.DropDownList
+        Me.cboAbTarget.Location = New Point(225, 122)
+        Me.cboAbTarget.Name = "cboAbTarget"
+        Me.cboAbTarget.Size = New Size(200, 23)
+
+        Me.lblAbCount.AutoSize = True
+        Me.lblAbCount.Location = New Point(440, 104)
+        Me.lblAbCount.Name = "lblAbCount"
+        Me.lblAbCount.Text = "Sentences:"
+
+        Me.nudAbCount.Location = New Point(440, 122)
+        Me.nudAbCount.Minimum = New Decimal(New Integer() {10, 0, 0, 0})
+        Me.nudAbCount.Maximum = New Decimal(New Integer() {997, 0, 0, 0})
+        Me.nudAbCount.Value = New Decimal(New Integer() {60, 0, 0, 0})
+        Me.nudAbCount.Name = "nudAbCount"
+        Me.nudAbCount.Size = New Size(80, 23)
+
+        Me.btnAbRun.Location = New Point(11, 156)
+        Me.btnAbRun.Name = "btnAbRun"
+        Me.btnAbRun.Size = New Size(120, 28)
+        Me.btnAbRun.Text = "Run A/B"
+
+        Me.btnAbCancel.Enabled = False
+        Me.btnAbCancel.Location = New Point(137, 156)
+        Me.btnAbCancel.Name = "btnAbCancel"
+        Me.btnAbCancel.Size = New Size(80, 28)
+        Me.btnAbCancel.Text = "Cancel"
+
+        Me.btnAbSave.Enabled = False
+        Me.btnAbSave.Location = New Point(300, 156)
+        Me.btnAbSave.Name = "btnAbSave"
+        Me.btnAbSave.Size = New Size(246, 28)
+        Me.btnAbSave.Text = "Save as measured direct pair"
+
+        Me.progressAb.Location = New Point(11, 192)
+        Me.progressAb.Name = "progressAb"
+        Me.progressAb.Size = New Size(535, 16)
+
+        Me.lblAbProgress.Location = New Point(11, 212)
+        Me.lblAbProgress.Name = "lblAbProgress"
+        Me.lblAbProgress.Size = New Size(535, 16)
+        Me.lblAbProgress.Text = ""
+
+        Me.txtAbResults.Anchor = CType((((AnchorStyles.Top Or AnchorStyles.Bottom) Or AnchorStyles.Left) Or AnchorStyles.Right), AnchorStyles)
+        Me.txtAbResults.Font = New Drawing.Font("Consolas", 9.0!)
+        Me.txtAbResults.Location = New Point(11, 234)
+        Me.txtAbResults.Multiline = True
+        Me.txtAbResults.Name = "txtAbResults"
+        Me.txtAbResults.ReadOnly = True
+        Me.txtAbResults.ScrollBars = ScrollBars.Vertical
+        Me.txtAbResults.Size = New Size(535, 404)
 
         ' tabTransResources
         Me.tabTransResources.Controls.Add(Me.lblResources)
@@ -1467,6 +1601,9 @@ Partial Class FormTranslationBenchmark
         Me.grpConfig.PerformLayout()
         CType(Me.nudConcurrency, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudIterations, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudAbCount, System.ComponentModel.ISupportInitialize).EndInit()
+        Me.tabTransPairAb.ResumeLayout(False)
+        Me.tabTransPairAb.PerformLayout()
         Me.grpResults.ResumeLayout(False)
         Me.grpResults.PerformLayout()
         CType(Me.dgvResults, System.ComponentModel.ISupportInitialize).EndInit()
@@ -1487,6 +1624,23 @@ Partial Class FormTranslationBenchmark
     Friend WithEvents tabTransInner As TabControl
     Friend WithEvents tabTransPipeline As TabPage
     Friend WithEvents tabTransConcurrency As TabPage
+    Friend WithEvents tabTransPairAb As TabPage
+    Friend WithEvents lblAbInfo As Label
+    Friend WithEvents btnAbDownload As Button
+    Friend WithEvents lblAbEngine As Label
+    Friend WithEvents cboAbEngine As ComboBox
+    Friend WithEvents lblAbSource As Label
+    Friend WithEvents cboAbSource As ComboBox
+    Friend WithEvents lblAbTarget As Label
+    Friend WithEvents cboAbTarget As ComboBox
+    Friend WithEvents lblAbCount As Label
+    Friend WithEvents nudAbCount As NumericUpDown
+    Friend WithEvents btnAbRun As Button
+    Friend WithEvents btnAbCancel As Button
+    Friend WithEvents btnAbSave As Button
+    Friend WithEvents progressAb As ProgressBar
+    Friend WithEvents lblAbProgress As Label
+    Friend WithEvents txtAbResults As TextBox
     Friend WithEvents tabTransResources As TabPage
     Friend WithEvents grpConfig As GroupBox
     Friend WithEvents lblDomain As Label

@@ -89,7 +89,7 @@
 4. The Options dialog TTS preference combos auto-populate from the registry — no UI changes needed.
 
 ### Adding a new translation engine
-1. Create a class in `Services/Translation/` implementing `ITranslationBackend` (see `SidecarTranslationBackend.vb`, `CloudTranslationBackend.vb`)
+1. Create a class in `Services/Translation/` implementing `ITranslationBackend` (see `SidecarTranslationBackend.vb`, `CloudTranslationBackend.vb`). **Cloud engines must inherit `CloudTranslationBackend` and send their translate requests through `SendWithRetryAsync`** (429 backoff-retry) — a raw `HttpClient.SendAsync` turns vendor rate-limits into silent Local-fallback, which corrupts benchmarks and shadow comparisons with another engine's output. (SDK-based engines like Amazon rely on the SDK's own retry policy instead.)
 2. Register it in DI in `Server/KestrelHost.vb`
 3. Add one line to `Services/Translation/TranslationBackendRegistry.vb` in the `_backends` list:
    ```vb

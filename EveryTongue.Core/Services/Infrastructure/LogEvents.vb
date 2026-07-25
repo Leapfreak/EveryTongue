@@ -77,6 +77,7 @@ Namespace Services.Infrastructure
         Public Const TRANS_BACKEND_ACTIVE As Integer = 4010
         Public Const TRANS_BUDGET_EXCEEDED As Integer = 4011
         Public Const TRANS_SHADOW As Integer = 4012
+        Public Const TRANS_PIVOT As Integer = 4013
 
         ' ── TTS (4100–4199) ──
         Public Const TTS_SYNTHESISE As Integer = 4100
@@ -192,6 +193,10 @@ Namespace Services.Infrastructure
         Public Const PYLOG_MMS_TTS_DEBUG As Integer = 9201
         Public Const PYLOG_MMS_TTS_WARN As Integer = 9202
         Public Const PYLOG_MMS_TTS_ERROR As Integer = 9203
+        Public Const PYLOG_QE As Integer = 9300
+        Public Const PYLOG_QE_DEBUG As Integer = 9301
+        Public Const PYLOG_QE_WARN As Integer = 9302
+        Public Const PYLOG_QE_ERROR As Integer = 9303
 
         ''' <summary>
         ''' Register all events. Called by LogEventRegistry.Sub New() since
@@ -271,6 +276,7 @@ Namespace Services.Infrastructure
             R(TRANS_BACKEND_ACTIVE, LogCategory.Translation, LogSeverity.Info, "Active translation backend changed")
             R(TRANS_BUDGET_EXCEEDED, LogCategory.Translation, LogSeverity.Warning, "Cloud translation monthly character budget exceeded (translation continues)")
             R(TRANS_SHADOW, LogCategory.Translation, LogSeverity.Info, "Second/third-opinion translation from a non-primary engine — log-only, never broadcast; pairs with the TRANS_RESULT of the same source text for post-session engine comparison")
+            R(TRANS_PIVOT, LogCategory.Translation, LogSeverity.Info, "English-pivot routing: which targets went source→English→target and why (English reused vs computed), plus the policy summary at startup")
 
             ' TTS
             R(TTS_SYNTHESISE, LogCategory.Tts, LogSeverity.Debug, "TTS synthesis requested")
@@ -384,6 +390,10 @@ Namespace Services.Infrastructure
             R(PYLOG_MMS_TTS_DEBUG, LogCategory.PythonLog, LogSeverity.Debug, "MMS-TTS server debug")
             R(PYLOG_MMS_TTS_WARN, LogCategory.PythonLog, LogSeverity.Warning, "MMS-TTS server warning")
             R(PYLOG_MMS_TTS_ERROR, LogCategory.PythonLog, LogSeverity.[Error], "MMS-TTS server error")
+            R(PYLOG_QE, LogCategory.PythonLog, LogSeverity.Info, "QE (CometKiwi) server log line")
+            R(PYLOG_QE_DEBUG, LogCategory.PythonLog, LogSeverity.Debug, "QE server debug")
+            R(PYLOG_QE_WARN, LogCategory.PythonLog, LogSeverity.Warning, "QE server warning")
+            R(PYLOG_QE_ERROR, LogCategory.PythonLog, LogSeverity.[Error], "QE server error")
         End Sub
 
     End Module

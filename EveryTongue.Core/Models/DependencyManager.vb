@@ -582,7 +582,8 @@ Namespace Models
 
         Private Shared Async Function RunProcessAsync(exePath As String, args As String,
                                                        workDir As String,
-                                                       Optional timeoutMs As Integer = 300000) As Task
+                                                       Optional timeoutMs As Integer = 300000,
+                                                       Optional extraEnv As Dictionary(Of String, String) = Nothing) As Task
             Dim psi As New Diagnostics.ProcessStartInfo With {
                 .FileName = exePath,
                 .Arguments = args,
@@ -592,6 +593,13 @@ Namespace Models
                 .RedirectStandardError = True,
                 .CreateNoWindow = True
             }
+            ' Secrets (e.g. the HF token) travel via the child environment, never
+            ' the command line (visible in any process list).
+            If extraEnv IsNot Nothing Then
+                For Each kvp In extraEnv
+                    psi.Environment(kvp.Key) = kvp.Value
+                Next
+            End If
             Using proc = Diagnostics.Process.Start(psi)
                 Dim stdoutTask = proc.StandardOutput.ReadToEndAsync()
                 Dim stderrTask = proc.StandardError.ReadToEndAsync()
@@ -884,6 +892,52 @@ Namespace Models
                     $"-m pip install -r ""{mmsTtsReq}"" --no-warn-script-location",
                     _toolsDir, 600000)
             End If
+        End Function
+
+        ''' <summary>
+        ''' Installs CometKiwi quality estimation: CPU-only PyTorch (shared with
+        ''' MMS-TTS — skipped if already present), the unbabel-comet package, and
+        ''' the license-gated wmt22-cometkiwi-da checkpoint from HuggingFace.
+        ''' The HF token is passed via the child process environment (never on a
+        ''' command line) and is only needed at install time.
+        ''' </summary>
+        Public Async Function InstallCometKiwiAsync(hfToken As String) As Task
+            If Not File.Exists(PythonExePath()) Then
+                Throw New InvalidOperationException("Python embedded must be installed first")
+            End If
+            If String.IsNullOrWhiteSpace(hfToken) Then
+                Throw New InvalidOperationException("A HuggingFace token is required (the model is license-gated)")
+            End If
+
+            ' CPU-only PyTorch (~200 MB) — same wheel MMS-TTS uses; pip no-ops if present.
+            Await RunProcessAsync(PythonExePath(),
+                "-m pip install torch --index-url https://download.pytorch.org/whl/cpu --no-warn-script-location",
+                _toolsDir, 600000)
+
+            Dim qeReq = Path.Combine(_toolsDir, "qe-server", "requirements.txt")
+            If File.Exists(qeReq) Then
+                Await RunProcessAsync(PythonExePath(),
+                    $"-m pip install -r ""{qeReq}"" --no-warn-script-location",
+                    _toolsDir, 900000)
+            End If
+
+            ' Fetch the gated checkpoint into the app-local cache, then LOAD it
+            ' once: load_from_checkpoint lazily pulls the encoder's tokenizer
+            ' (a separate, ungated HF repo) — without this prefetch the first
+            ' scoring run fails with "Unable to load vocabulary from file".
+            ' The token and cache dir travel via environment variables.
+            Dim cacheDir = Path.Combine(_toolsDir, "qe-model")
+            Directory.CreateDirectory(cacheDir)
+            Dim script = "import os; from comet import download_model, load_from_checkpoint; " &
+                         "p = download_model('Unbabel/wmt22-cometkiwi-da'); " &
+                         "m = load_from_checkpoint(p); " &
+                         "print('MODEL_OK:' + p)"
+            Await RunProcessAsync(PythonExePath(), $"-c ""{script}""", _toolsDir, 1800000,
+                extraEnv:=New Dictionary(Of String, String) From {
+                    {"HF_HOME", cacheDir},
+                    {"HF_TOKEN", hfToken},
+                    {"HUGGING_FACE_HUB_TOKEN", hfToken}
+                })
         End Function
 
         ' ──────────────────────────────────────────

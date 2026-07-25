@@ -206,6 +206,8 @@ Public Class FormOptions
         lblClauseTimerMs.Text = langPack.GetString("Opt_ClauseTimerMs")
         chkShadowTrans.Text = langPack.GetString("Opt_ShadowTrans")
         lblTransBackend.Text = langPack.GetString("Opt_TransBackend")
+        lblPivotMode.Text = langPack.GetString("Opt_TransPivotMode")
+        btnPivotPreview.Text = langPack.GetString("Opt_PivotPreview")
         lblTransApiKey.Text = langPack.GetString("Opt_TransApiKey")
         lblTransEndpoint.Text = langPack.GetString("Opt_TransEndpoint")
         lblTransBudget.Text = langPack.GetString("Opt_TransBudget")
@@ -451,6 +453,7 @@ Public Class FormOptions
         ' Translation
         PopulateTransBackendCombo()
         SelectTransBackend(_config.TranslationBackend)
+        cboPivotMode.SelectedIndex = Math.Min(CInt(_config.TranslationPivotMode), cboPivotMode.Items.Count - 1)
         _currentTransApiKeyBackend = CurrentTransKey()
         txtTransApiKey.Text = _config.GetTranslationApiKey(_currentTransApiKeyBackend)
         txtTransEndpoint.Text = _config.GetTranslationEndpoint(_currentTransApiKeyBackend)
@@ -625,6 +628,9 @@ Public Class FormOptions
             If entry.ModelType IsNot Nothing Then
                 _config.TranslationModelType = entry.ModelType
             End If
+        End If
+        If cboPivotMode.SelectedIndex >= 0 Then
+            _config.TranslationPivotMode = CType(cboPivotMode.SelectedIndex, Models.TranslationPivotMode)
         End If
         ' Save the API key + endpoint + monthly budget against the engine currently shown.
         If Not String.IsNullOrEmpty(_currentTransApiKeyBackend) Then
@@ -917,6 +923,27 @@ Public Class FormOptions
         Next
 
         AddHandler cboTransBackend.SelectedIndexChanged, AddressOf TransBackendCombo_Changed
+
+        ' English-pivot mode combo — item order matches the TranslationPivotMode
+        ' enum ordinals (Off=0, Auto=1, Always=2) so SelectedIndex maps directly.
+        Dim lp = LanguagePackService.Instance
+        cboPivotMode.Items.Clear()
+        cboPivotMode.Items.Add(lp.GetString("Opt_TransPivotOff"))
+        cboPivotMode.Items.Add(lp.GetString("Opt_TransPivotAuto"))
+        cboPivotMode.Items.Add(lp.GetString("Opt_TransPivotAlways"))
+    End Sub
+
+    ''' <summary>
+    ''' Open the routing preview for the pivot mode + engine currently selected in
+    ''' the dialog (unsaved state — shows what will apply after OK).
+    ''' </summary>
+    Private Sub btnPivotPreview_Click(sender As Object, e As EventArgs) Handles btnPivotPreview.Click
+        Dim mode = CType(Math.Max(0, cboPivotMode.SelectedIndex), Models.TranslationPivotMode)
+        Dim engineKey = If(cboTransBackend.SelectedIndex >= 0 AndAlso cboTransBackend.SelectedIndex < _transKeys.Length,
+                           _transKeys(cboTransBackend.SelectedIndex), _config.TranslationBackend)
+        Using dlg As New FormPivotPreview(mode, If(_config.TranslationPivotLanguage, "eng_Latn"), engineKey)
+            dlg.ShowDialog(Me)
+        End Using
     End Sub
 
     ''' <summary>

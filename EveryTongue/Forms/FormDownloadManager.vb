@@ -46,6 +46,10 @@ Namespace Forms
             tabMmsTts.Text = lp.GetString("DM_TabMmsTts")
             lblMmsTtsInfo.Text = lp.GetString("DM_MmsTtsInfo")
             btnInstallMmsTts.Text = lp.GetString("DM_Install")
+            tabQe.Text = lp.GetString("DM_TabQe")
+            lblQeInfo.Text = lp.GetString("DM_QeInfo")
+            lblQeToken.Text = lp.GetString("DM_QeTokenLabel")
+            btnInstallQe.Text = lp.GetString("DM_Install")
             tabBiblicalVocab.Text = lp.GetString("DM_TabBiblicalVocab")
             lblVocabInfo.Text = lp.GetString("DM_VocabInfo")
             btnGenerateVocab.Text = lp.GetString("DM_VocabGenerate")
@@ -183,6 +187,7 @@ Namespace Forms
 
             ' Load MMS-TTS status
             LoadMmsTtsStatus()
+            LoadQeStatus()
 
             ' Load biblical vocabulary status
             LoadVocabStatus()
@@ -228,6 +233,70 @@ Namespace Forms
                 btnInstallMmsTts.Text = lp.GetString("DM_MmsTtsInstallSize")
                 btnInstallMmsTts.Enabled = True
             End If
+        End Sub
+
+        Private Sub LoadQeStatus()
+            Dim lp = Services.Infrastructure.LanguagePackService.Instance
+            txtQeToken.Text = If(_config.HuggingFaceToken, "")
+            If Pipeline.QeService.CheckInstalled() Then
+                lblQeStatus.Text = lp.GetString("DM_QeInstalledStatus")
+                btnInstallQe.Text = lp.GetString("DM_StatusInstalled")
+                btnInstallQe.Enabled = False
+            Else
+                lblQeStatus.Text = lp.GetString("DM_QeNotInstalledStatus")
+                btnInstallQe.Text = lp.GetString("DM_QeInstallSize")
+                btnInstallQe.Enabled = True
+            End If
+        End Sub
+
+        Private Async Sub btnInstallQe_Click(sender As Object, e As EventArgs) Handles btnInstallQe.Click
+            If _downloading Then Return
+            Dim lp = Services.Infrastructure.LanguagePackService.Instance
+
+            Dim token = txtQeToken.Text.Trim()
+            If String.IsNullOrEmpty(token) Then
+                MessageBox.Show(lp.GetString("DM_QeTokenRequired"),
+                                lp.GetString("DM_QeInstallTitle"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                Return
+            End If
+
+            Dim result = MessageBox.Show(
+                lp.GetString("DM_QeInstallConfirm"),
+                lp.GetString("DM_QeInstallTitle"), MessageBoxButtons.YesNo, MessageBoxIcon.Question)
+            If result <> DialogResult.Yes Then Return
+
+            ' Persist the token so re-installs (and future gated models) reuse it.
+            _config.HuggingFaceToken = token
+            Models.ConfigManager.Save(_config)
+
+            _downloading = True
+            SetAllButtonsEnabled(False)
+            btnInstallQe.Enabled = False
+
+            Try
+                lblProgress.Text = lp.GetString("DM_QeInstalling")
+                pbProgress.Value = 0
+                pbProgress.Style = ProgressBarStyle.Marquee
+
+                Await _mgr.InstallCometKiwiAsync(token)
+
+                pbProgress.Style = ProgressBarStyle.Continuous
+                pbProgress.Value = 100
+
+                If Pipeline.QeService.CheckInstalled() Then
+                    lblProgress.Text = lp.GetString("DM_QeInstallSuccess")
+                Else
+                    lblProgress.Text = lp.GetString("DM_QeInstallFailed")
+                End If
+                LoadQeStatus()
+            Catch ex As Exception
+                pbProgress.Style = ProgressBarStyle.Continuous
+                lblProgress.Text = $"Error: {ex.Message}"
+                btnInstallQe.Enabled = True
+            Finally
+                _downloading = False
+                SetAllButtonsEnabled(True)
+            End Try
         End Sub
 
         Private Shared Function VocabLangName(code As String) As String
@@ -748,6 +817,7 @@ Namespace Forms
             btnDownloadVoices.Enabled = enabled
             btnRemoveVoices.Enabled = enabled
             btnInstallMmsTts.Enabled = enabled
+            btnInstallQe.Enabled = enabled
             btnFetchCatalog.Enabled = enabled
             btnDownloadBibles.Enabled = enabled
             btnDownloadLangPacks.Enabled = enabled

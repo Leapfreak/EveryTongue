@@ -1,0 +1,111 @@
+{
+  "_about": [
+    "Language pairs where DIRECT translation is trusted — the English-pivot 'Auto' mode",
+    "skips the pivot for pairs listed here. Any non-English pair NOT on this list is",
+    "translated source→English→target when pivot mode is Auto.",
+    "",
+    "Codes are FLORES-200 keys matching language-codes.json. Pairs are SYMMETRIC:",
+    "one entry covers both directions (a→b and b→a).",
+    "",
+    "RULE FOR ADDING ENTRIES: when in doubt, leave it out. A missing pair only costs",
+    "an unnecessary English hop (harmless). A wrong entry causes bad direct",
+    "translation — the exact failure this file exists to prevent (GLS 2026: cat→swe).",
+    "",
+    "source: 'seed' = linguistic judgment, unmeasured. 'measured' = confirmed by a",
+    "benchmark A/B run — measured entries should also carry 'scoreDirect',",
+    "'scorePivot' (chrF vs FLORES references), 'engine' and 'measuredDate'.",
+    "",
+    "ENGINE SCOPING: an entry may carry an optional 'engines' array (registry keys,",
+    "e.g. [\"google\", \"nllb\"]) limiting it to those engines; absent = all engines.",
+    "Seed entries are engine-agnostic (linguistic closeness doesn't depend on the",
+    "engine). Measured entries are per-engine by nature — a verdict for one engine",
+    "says nothing about another. The Auto decision order is: measured verdict for",
+    "(pair, engine) → cousins list → the engine's registry default bias.",
+    "",
+    "Deliberate omissions (candidates for benchmark runs, NOT yet trusted):",
+    "nld↔afr (Dutch/Afrikaans — related but thinner direct data), cat↔glg,",
+    "ukr↔bel, nno↔swe/dan, ron↔ita/spa. Pivot handles them until measured."
+  ],
+  "pairs": [
+    {
+      "a": "cat_Latn", "b": "spa_Latn", "names": "Catalan ↔ Spanish",
+      "reason": "Closely related Iberian Romance; speakers mix them freely; heavy shared training data in every engine",
+      "source": "seed", "added": "2026-07-26"
+    },
+    {
+      "a": "glg_Latn", "b": "spa_Latn", "names": "Galician ↔ Spanish",
+      "reason": "Co-official in Spain, pervasive bilingual text; strong direct data",
+      "source": "seed", "added": "2026-07-26"
+    },
+    {
+      "a": "glg_Latn", "b": "por_Latn", "names": "Galician ↔ Portuguese",
+      "reason": "Same medieval origin (Galician-Portuguese); near-mutually intelligible in writing",
+      "source": "seed", "added": "2026-07-26"
+    },
+    {
+      "a": "spa_Latn", "b": "por_Latn", "names": "Spanish ↔ Portuguese",
+      "reason": "Both very high-resource and close; direct es↔pt is strong in all major engines",
+      "source": "seed", "added": "2026-07-26"
+    },
+    {
+      "a": "swe_Latn", "b": "nob_Latn", "names": "Swedish ↔ Norwegian Bokmål",
+      "reason": "Scandinavian continuum; high mutual intelligibility",
+      "source": "seed", "added": "2026-07-26"
+    },
+    {
+      "a": "swe_Latn", "b": "dan_Latn", "names": "Swedish ↔ Danish",
+      "reason": "Scandinavian continuum; high written mutual intelligibility",
+      "source": "seed", "added": "2026-07-26"
+    },
+    {
+      "a": "nob_Latn", "b": "dan_Latn", "names": "Norwegian Bokmål ↔ Danish",
+      "reason": "Bokmål descends from written Danish; the closest Scandinavian pair",
+      "source": "seed", "added": "2026-07-26"
+    },
+    {
+      "a": "nob_Latn", "b": "nno_Latn", "names": "Norwegian Bokmål ↔ Nynorsk",
+      "reason": "Two written standards of one language",
+      "source": "seed", "added": "2026-07-26"
+    },
+    {
+      "a": "ces_Latn", "b": "slk_Latn", "names": "Czech ↔ Slovak",
+      "reason": "Fully mutually intelligible; decades of shared media and parallel text",
+      "source": "seed", "added": "2026-07-26"
+    },
+    {
+      "a": "hrv_Latn", "b": "bos_Latn", "names": "Croatian ↔ Bosnian",
+      "reason": "Serbo-Croatian standard varieties; near-identical",
+      "source": "seed", "added": "2026-07-26"
+    },
+    {
+      "a": "hrv_Latn", "b": "srp_Cyrl", "names": "Croatian ↔ Serbian",
+      "reason": "Serbo-Croatian varieties; differs mainly in script (Latin vs Cyrillic), which engines handle",
+      "source": "seed", "added": "2026-07-26"
+    },
+    {
+      "a": "bos_Latn", "b": "srp_Cyrl", "names": "Bosnian ↔ Serbian",
+      "reason": "Serbo-Croatian varieties; script difference only",
+      "source": "seed", "added": "2026-07-26"
+    },
+    {
+      "a": "rus_Cyrl", "b": "ukr_Cyrl", "names": "Russian ↔ Ukrainian",
+      "reason": "Close East Slavic pair; both high-resource with abundant direct parallel text",
+      "source": "seed", "added": "2026-07-26"
+    },
+    {
+      "a": "hin_Deva", "b": "urd_Arab", "names": "Hindi ↔ Urdu",
+      "reason": "One spoken language (Hindustani) in two scripts; direct conversion-grade quality",
+      "source": "seed", "added": "2026-07-26"
+    },
+    {
+      "a": "ind_Latn", "b": "zsm_Latn", "names": "Indonesian ↔ Malay",
+      "reason": "Standardised registers of one language; near-identical in writing",
+      "source": "seed", "added": "2026-07-26"
+    },
+    {
+      "a": "bul_Cyrl", "b": "mkd_Cyrl", "names": "Bulgarian ↔ Macedonian",
+      "reason": "Very close South Slavic pair, same script, largely mutually intelligible",
+      "source": "seed", "added": "2026-07-26"
+    }
+  ]
+}

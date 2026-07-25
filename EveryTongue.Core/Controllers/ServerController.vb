@@ -98,6 +98,8 @@ Namespace Controllers
                     .BestOf = _config.BestOf,
                     .SttApiKey = _config.GetSttApiKey(If(_config.SttBackend, "")),
                     .TranslationConcurrency = _config.TranslationConcurrency,
+                    .TranslationPivotMode = _config.TranslationPivotMode,
+                    .TranslationPivotLanguage = If(_config.TranslationPivotLanguage, "eng_Latn"),
                     .GlossaryFilePath = Models.AppConfig.ResolvePath(
                         If(_config.TranslationGlossaryPath, ".\translate-server\glossary.json")),
                     .ProfanityFilePath = Models.AppConfig.ResolvePath(".\translate-server\profanity.json"),

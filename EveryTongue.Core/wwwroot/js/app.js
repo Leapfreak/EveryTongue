@@ -92,7 +92,7 @@ var T={connecting:'Connecting...',connected:'Connected',disconnected:'Disconnect
     bold:'Bold',font:'Font',style:'Style',voice:'Voice',speed:'Speed',color:'Text Color',
     slow:'Slow',normal:'Normal',fast:'Fast',vfast:'Very Fast',
     start:'Start',stop:'Stop',restart:'Restart',clear:'Clear',
-    saveTranscript:'Save Transcript',transLang:'Translation',remote:'Remote Control',settings:'Settings',readAloud:'Read aloud',keepScreen:'Keep screen on',scrollDir:'Scroll Direction',scrollUp:'Bottom-up (newest at bottom)',scrollDown:'Top-down (newest at top)',tags:'Tags',tagOff:'Off',tagLang:'Language',tagTime:'Time',tagBoth:'Language + Time',bible:'Bible',bibleOT:'Old Testament',bibleNT:'New Testament',bibleSearch:'Search',bibleNoResults:'No results found',bibleSelectTrans:'Select a translation',cloudVoice:'Every Tongue Voices',ttsBehind:'{0} behind \u2014 tap to skip',readAll:'Read All',readVerse:'Read',bibleTranslate:'Translate',bibleOriginal:'Original',hostSpeaker:'Speaker',hostSpeakerDefault:'(template default)',hostMode:'Connectivity',hostModeOnline:'Online',hostModeOffline:'Offline',chooseLang:'Choose your language',lpPopular:'Popular',lpAll:'All Languages',searchLangs:'Search languages...',noTranslation:'No translation',browseAll:'Browse All',adminLabel:'Administrator',adminPin:'PIN',adminBad:'Invalid PIN',adminOk:'Admin access granted'};
+    saveTranscript:'Save Transcript',transLang:'Translation',remote:'Remote Control',settings:'Settings',readAloud:'Read aloud',keepScreen:'Keep screen on',scrollDir:'Scroll Direction',scrollUp:'Bottom-up (newest at bottom)',scrollDown:'Top-down (newest at top)',tags:'Tags',tagOff:'Off',tagLang:'Language',tagTime:'Time',tagBoth:'Language + Time',bible:'Bible',bibleOT:'Old Testament',bibleNT:'New Testament',bibleSearch:'Search',bibleNoResults:'No results found',bibleSelectTrans:'Select a translation',cloudVoice:'Every Tongue Voices',ttsBehind:'{0} behind \u2014 tap to skip',readAll:'Read All',readVerse:'Read',bibleTranslate:'Translate',bibleOriginal:'Original',hostSpeaker:'Speaker',hostSpeakerDefault:'(template default)',hostMode:'Connectivity',hostModeOnline:'Online',hostModeOffline:'Offline',chooseLang:'Choose your language',lpPopular:'Popular',lpAll:'All Languages',searchLangs:'Search languages...',noTranslation:'No translation',browseAll:'Browse All',adminLabel:'Administrator',adminPin:'PIN',adminBad:'Invalid PIN',adminOk:'Admin access granted',lpViaEnglish:'via English',hostPivot:'Translation pivot'};
 /* Detect browser language and fetch matching server-side locale */
 var detectedBrowserLang='';
 (function(){
@@ -174,6 +174,7 @@ var POPULAR_LANGS=['eng_Latn','spa_Latn','fra_Latn','por_Latn','deu_Latn','cat_L
             /* Re-populate transLangSelect (+ the dictation output dropdown if open) */
             populateTransLangSelect();
             populateDictOutLang();
+            loadPivotRoutes();
           }
         }catch(e){LOG('languages parse error: '+e)}
       }
@@ -247,6 +248,43 @@ function detectAndSuggest(){
     el.appendChild(sub);
   }
 }
+/* ── English-pivot routing badges ─────────────────────────────────────
+   Which target languages reach this listener via the English pivot, for the
+   current room source language. Fed by /api/translation/routing — the same
+   policy instance the server routes with, so the badge can't lie. Advisory
+   only: any failure just means no badges. Keyed by FLORES code. */
+var PIVOT_ROUTES={};
+function loadPivotRoutes(){
+  if(!LANGS||!LANGS.length)return;
+  var src=(typeof roomSourceLang!=='undefined'&&roomSourceLang)?roomSourceLang:'auto';
+  if(src==='auto'){PIVOT_ROUTES={};return} /* unknown source — can't know routing */
+  var codes=[];
+  for(var i=0;i<LANGS.length;i++){codes.push(LANGS[i][0])}
+  try{
+    var xhr=new XMLHttpRequest();
+    xhr.open('GET','/api/translation/routing?source='+encodeURIComponent(src)+'&targets='+encodeURIComponent(codes.join(',')),true);
+    xhr.onload=function(){
+      if(xhr.status!==200)return;
+      try{
+        var res=JSON.parse(xhr.responseText);
+        PIVOT_ROUTES={};
+        if(res&&res.targets){
+          for(var j=0;j<res.targets.length;j++){
+            if(res.targets[j].route==='pivot'){PIVOT_ROUTES[res.targets[j].lang]=true}
+          }
+        }
+        /* Re-render the picker if it's open so badges appear */
+        var picker=document.getElementById('langPicker');
+        if(picker&&picker.classList.contains('open')){
+          var q=document.getElementById('lpSearch');
+          renderLangList(q&&q.value?q.value:'');
+        }
+      }catch(e){SLOG('pivot routes parse error: '+e)}
+    };
+    xhr.send();
+  }catch(e){SLOG('pivot routes fetch error: '+e)}
+}
+
 function renderLangList(query){
   var list=document.getElementById('lpList');
   list.innerHTML='';
@@ -280,6 +318,11 @@ function createLangItem(lang){
   div.onclick=function(){pickLang(code)};
   var native=document.createElement('span');native.className='lp-lang-native';
   native.textContent=lang[1];
+  if(PIVOT_ROUTES[code]){
+    var badge=document.createElement('span');badge.className='lp-lang-badge';
+    badge.textContent=t('lpViaEnglish');
+    native.appendChild(badge);
+  }
   var eng=document.createElement('span');eng.className='lp-lang-eng';
   eng.textContent=lang[2];
   div.appendChild(native);div.appendChild(eng);
@@ -1924,6 +1967,7 @@ function initPushToTalk(){
         pttRoomType=room.type||'';
         pttMode=room.pttMode||'hold';
         roomSourceLang=room.sourceLang||'auto';
+        loadPivotRoutes(); /* badge data depends on the room's source language */
         roomMaxSegSec=room.maxSegmentSec||15;
         roomVadMs=room.vadSilenceMs||800;
         roomBeamSize=room.beamSize||7;
@@ -2659,6 +2703,7 @@ function toggleHostPanel(){
       '<button id="hcPipeApply" style="width:100%;padding:8px;border:none;border-radius:8px;background:#7c9cf7;color:#1a1a2e;font-size:13px;font-weight:600;cursor:pointer">'+t('hostApply')+'</button>'+
       '<button id="hcPipeReset" style="width:100%;padding:8px;border:none;border-radius:8px;background:#e67e22;color:#fff;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px">\u21BB '+t('pipeReset')+'</button>'+
       '<div id="hcPipeStatus" style="color:#888;font-size:11px;margin-top:4px;text-align:center"></div>'+
+      '<div id="hcPivotInfo" style="color:#888;font-size:11px;margin-top:4px;text-align:center"></div>'+
       '</div>';
     panel.innerHTML+=pipeHtml;
   }
@@ -2673,6 +2718,26 @@ function toggleHostPanel(){
      first and pre-selects the room's current language once loaded. */
   var pipeLang=document.getElementById('hcPipeLang');
   populateSttLangs(pipeLang,true,roomSourceLang);
+
+  /* Show the server's effective pivot policy so the operator knows how
+     minority-language targets are being routed (mode comes from the same
+     endpoint the badges use). */
+  (function(){
+    var info=document.getElementById('hcPivotInfo');
+    if(!info)return;
+    try{
+      var pxhr=new XMLHttpRequest();
+      pxhr.open('GET','/api/translation/routing?source=&targets=',true);
+      pxhr.onload=function(){
+        if(pxhr.status!==200)return;
+        try{
+          var res=JSON.parse(pxhr.responseText);
+          if(res&&res.mode){info.textContent=t('hostPivot')+': '+res.mode+(res.mode!=='Off'?' ('+res.pivotLanguage+')':'')}
+        }catch(e){}
+      };
+      pxhr.send();
+    }catch(e){}
+  })();
 
   document.getElementById('hcEndRoom').addEventListener('click',function(){
     if(!window.confirm(t('endRoomConfirm')))return;
@@ -2784,7 +2849,7 @@ function toggleHostPanel(){
       xhr.onload=function(){
         try{
           var res=JSON.parse(xhr.responseText);
-          if(res.ok){if(st)st.textContent=t('applied').replace('{0}',res.changed);st.style.color='#4f4';if(params.language)roomSourceLang=params.language;if(params.speakerId!==undefined)roomActiveSpeakerId=params.speakerId;if(params.mode)roomMode=params.mode}
+          if(res.ok){if(st)st.textContent=t('applied').replace('{0}',res.changed);st.style.color='#4f4';if(params.language){roomSourceLang=params.language;loadPivotRoutes()}if(params.speakerId!==undefined)roomActiveSpeakerId=params.speakerId;if(params.mode)roomMode=params.mode}
           else{if(st){st.textContent=res.error||t('failed');st.style.color='#f44'}}
         }catch(e){if(st){st.textContent=t('errorLabel');st.style.color='#f44'}}
       };

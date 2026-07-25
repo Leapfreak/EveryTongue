@@ -926,18 +926,15 @@ Partial Class FormMain
     End Sub
 
     Private Sub OpenTranslationBenchmark()
-        If _translationService Is Nothing OrElse Not _translationService.IsRunning Then
-            MessageBox.Show(GetString("Shell_BenchNeedsServer"),
-                            GetString("Shell_BenchTitle"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
-            Return
-        End If
-
-        ' Get services from Kestrel DI — benchmark routes through the real pipeline
+        ' Only the web server (orchestrator DI) is required. The local NLLB
+        ' sidecar is NOT a prerequisite — the Pair A/B tab selects its engine
+        ' per run via backendOverride, so cloud engines work without warming
+        ' up the local model.
         Dim diServices = _serverController?.KestrelHost?.Services
         Dim translationSvc = TryCast(diServices?.GetService(
             GetType(Services.Interfaces.ITranslationService)), Services.Interfaces.ITranslationService)
         If translationSvc Is Nothing Then
-            MessageBox.Show(GetString("Shell_BenchNoService"),
+            MessageBox.Show(GetString("Shell_BenchNeedsServer"),
                             GetString("Shell_BenchTitle"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
             Return
         End If
@@ -950,7 +947,8 @@ Partial Class FormMain
             Enumerable.Empty(Of Services.Interfaces.ITtsBackend)())
         Dim livePort = If(_config?.LiveServerPort, 0)
 
-        Using frm As New FormTranslationBenchmark(translationSvc, ttsSvc, livePort, _config, ttsBackends)
+        Using frm As New FormTranslationBenchmark(translationSvc, ttsSvc, livePort, _config, ttsBackends,
+                                                 AddressOf EnsureDefaultTranslationRunning)
             frm.ShowDialog(Me)
         End Using
     End Sub

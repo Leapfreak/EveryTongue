@@ -548,6 +548,16 @@ body {
     text-align: right;
     flex-shrink: 0;
 }
+.lp-lang-badge {
+    font-size: 11px;
+    color: #d89a3d;
+    border: 1px solid #6b4d1e;
+    border-radius: 8px;
+    padding: 1px 7px;
+    margin-left: 8px;
+    white-space: nowrap;
+    vertical-align: middle;
+}
 .lp-skip {
     flex-shrink: 0;
     text-align: center;

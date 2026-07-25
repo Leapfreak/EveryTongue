@@ -103,6 +103,12 @@
         ''' <summary>Max concurrent translation requests through the priority queue.</summary>
         Public Property TranslationConcurrency As Integer = 3
 
+        ''' <summary>English-pivot routing mode for weak language pairs (Off/Auto/Always).</summary>
+        Public Property TranslationPivotMode As Models.TranslationPivotMode = Models.TranslationPivotMode.Auto
+
+        ''' <summary>FLORES code of the pivot language (default English).</summary>
+        Public Property TranslationPivotLanguage As String = "eng_Latn"
+
         ''' <summary>
         ''' Resolved absolute path to the GLOBAL glossary.json (AppConfig.TranslationGlossaryPath).
         ''' Used by the orchestrator for local glossary post-processing of cloud

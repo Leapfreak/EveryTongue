@@ -35,6 +35,12 @@ Namespace Forms
             tabMmsTts = New TabPage()
             lblMmsTtsInfo = New Label()
             lblMmsTtsStatus = New Label()
+            tabQe = New TabPage()
+            lblQeInfo = New Label()
+            lblQeStatus = New Label()
+            lblQeToken = New Label()
+            txtQeToken = New TextBox()
+            btnInstallQe = New Button()
             btnInstallMmsTts = New Button()
             tabBiblicalVocab = New TabPage()
             lblVocabInfo = New Label()
@@ -83,6 +89,7 @@ Namespace Forms
             tabMain.Controls.Add(tabComponents)
             tabMain.Controls.Add(tabPiper)
             tabMain.Controls.Add(tabMmsTts)
+            tabMain.Controls.Add(tabQe)
             tabMain.Controls.Add(tabBiblicalVocab)
             tabMain.Controls.Add(tabBibles)
             tabMain.Dock = DockStyle.Fill
@@ -267,6 +274,62 @@ Namespace Forms
             btnInstallMmsTts.Size = New Size(160, 30)
             btnInstallMmsTts.TabIndex = 2
             btnInstallMmsTts.Text = "Install"
+            '
+            ' tabQe — CometKiwi quality estimation
+            '
+            tabQe.Controls.Add(lblQeInfo)
+            tabQe.Controls.Add(lblQeStatus)
+            tabQe.Controls.Add(lblQeToken)
+            tabQe.Controls.Add(txtQeToken)
+            tabQe.Controls.Add(btnInstallQe)
+            tabQe.Location = New Point(4, 26)
+            tabQe.Name = "tabQe"
+            tabQe.Padding = New Padding(16)
+            tabQe.Size = New Size(692, 418)
+            tabQe.TabIndex = 7
+            tabQe.Text = "Quality Estimation"
+            '
+            ' lblQeInfo
+            '
+            lblQeInfo.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
+            lblQeInfo.Location = New Point(16, 16)
+            lblQeInfo.Name = "lblQeInfo"
+            lblQeInfo.Size = New Size(640, 100)
+            lblQeInfo.TabIndex = 0
+            lblQeInfo.Text = "CometKiwi scores translation quality WITHOUT reference translations."
+            '
+            ' lblQeStatus
+            '
+            lblQeStatus.Font = New Font("Segoe UI", 9F, FontStyle.Bold)
+            lblQeStatus.Location = New Point(16, 122)
+            lblQeStatus.Name = "lblQeStatus"
+            lblQeStatus.Size = New Size(640, 20)
+            lblQeStatus.TabIndex = 1
+            lblQeStatus.Text = "Checking..."
+            '
+            ' lblQeToken
+            '
+            lblQeToken.Location = New Point(16, 152)
+            lblQeToken.Name = "lblQeToken"
+            lblQeToken.Size = New Size(640, 34)
+            lblQeToken.TabIndex = 2
+            lblQeToken.Text = "HuggingFace token:"
+            '
+            ' txtQeToken
+            '
+            txtQeToken.Location = New Point(16, 190)
+            txtQeToken.Name = "txtQeToken"
+            txtQeToken.Size = New Size(400, 23)
+            txtQeToken.TabIndex = 3
+            txtQeToken.UseSystemPasswordChar = True
+            '
+            ' btnInstallQe
+            '
+            btnInstallQe.Location = New Point(16, 224)
+            btnInstallQe.Name = "btnInstallQe"
+            btnInstallQe.Size = New Size(180, 30)
+            btnInstallQe.TabIndex = 4
+            btnInstallQe.Text = "Install"
             '
             ' tabBiblicalVocab
             '
@@ -518,6 +581,12 @@ Namespace Forms
         Friend WithEvents tabComponents As System.Windows.Forms.TabPage
         Friend WithEvents tabPiper As System.Windows.Forms.TabPage
         Friend WithEvents tabMmsTts As System.Windows.Forms.TabPage
+        Friend WithEvents tabQe As System.Windows.Forms.TabPage
+        Friend WithEvents lblQeInfo As System.Windows.Forms.Label
+        Friend WithEvents lblQeStatus As System.Windows.Forms.Label
+        Friend WithEvents lblQeToken As System.Windows.Forms.Label
+        Friend WithEvents txtQeToken As System.Windows.Forms.TextBox
+        Friend WithEvents btnInstallQe As System.Windows.Forms.Button
         Friend WithEvents tabBibles As System.Windows.Forms.TabPage
         Friend WithEvents lvTools As System.Windows.Forms.ListView
         Friend WithEvents colToolName As System.Windows.Forms.ColumnHeader
