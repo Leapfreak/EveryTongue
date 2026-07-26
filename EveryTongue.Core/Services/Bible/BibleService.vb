@@ -127,8 +127,12 @@ Namespace Services.Bible
 
         ' Regex for detecting Bible references in text (supports accented characters for non-English)
         ' Supports: "John 3:16", "John 3:16-18", "John 3" (chapter only, verse optional)
+        ' Book group allows capitalized continuation words so ordinal spans
+        ' ("Primera de Joan", "Primer Reis") arrive whole; ResolveBookAlias
+        ' drops unmatchable leading tokens, so a preceding capitalized word
+        ' can't swallow a real reference.
         Private Shared ReadOnly RefPattern As New Regex(
-            "(?<book>(?:\d\s*)?[\p{Lu}][\p{Ll}]+(?:\s+[\p{Ll}]+)*)\s+(?<chapter>\d{1,3})(?:\s*:\s*(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3}))?)?",
+            "(?<book>(?:\d\s*)?[\p{Lu}][\p{Ll}]+(?:\s+(?:de\s+)?[\p{Lu}\p{Ll}][\p{Ll}]+)*)\s+(?<chapter>\d{1,3})(?:\s*:\s*(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3}))?)?",
             RegexOptions.Compiled)
 
         ' Internal class to track DB path alongside translation info
@@ -208,6 +212,26 @@ Namespace Services.Bible
             Next
 
             _logger.LogInformation("Bible: found {Count} translation(s) in {Dir}", _translations.Count, _biblesDir)
+
+            ' Build the DERIVED book-alias index (reference detection in every
+            ' installed Bible's language) in the background. Cached per Bible
+            ' file, so steady-state cost is one small JSON read; until the index
+            ' lands, detection falls back to the static English table.
+            Dim dbPaths = _translations.Values.Select(Function(e) e.DbPath).ToList()
+            If dbPaths.Count > 0 Then
+                Task.Run(Sub()
+                             Try
+                                 Dim idx = BookAliasIndex.Build(dbPaths)
+                                 _aliasIndex = idx
+                                 _logger.LogInformation(
+                                     "Bible: book-alias index ready — {Count} names from {Bibles} Bible(s), {Amb} ambiguous",
+                                     idx.Count, dbPaths.Count, idx.AmbiguousCount)
+                             Catch ex As Exception
+                                 Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.BIBLE_ERROR,
+                                     $"Book-alias index build failed: {ex.Message} — detection stays on the English fallback")
+                             End Try
+                         End Sub)
+            End If
         End Sub
 
         Private Sub LoadTranslation(dbFile As String)
@@ -603,6 +627,64 @@ Namespace Services.Bible
             })
         End Function
 
+        ''' <summary>Alias index derived from the installed Bibles (built in background at startup).</summary>
+        Private Shared _aliasIndex As BookAliasIndex
+
+        ''' <summary>number → wire code, the reverse of StandardBookNumbers (built once).</summary>
+        Private Shared ReadOnly CodeForNumber As Dictionary(Of Integer, String) =
+            StandardBookNumbers.GroupBy(Function(k) k.Value).
+                ToDictionary(Function(g) g.Key, Function(g) g.First().Key)
+
+        Private Class ResolvedBook
+            Public Property Code As String
+            Public Property Ambiguous As Boolean
+            Public Property HadOrdinal As Boolean
+        End Class
+
+        ''' <summary>
+        ''' Resolve a matched book name via the derived index (any installed
+        ''' Bible's language). Tries the full captured span, then drops leading
+        ''' tokens (a preceding capitalized word must not hide a reference).
+        ''' Ordinal prefixes resolve through pairs derived from the Bibles' own
+        ''' numbered names ("Primera de Joan" → 1 John, never the gospel).
+        ''' Static English table remains the no-Bibles fallback.
+        ''' </summary>
+        Private Shared Function ResolveBookAlias(rawName As String) As ResolvedBook
+            Dim name = BookAliasIndex.NormName(rawName)
+            Dim idx = _aliasIndex
+            If idx IsNot Nothing Then
+                Dim parts = name.Split(" "c)
+                For dropCount = 0 To Math.Min(2, parts.Length - 1)
+                    Dim sub_ = parts.Skip(dropCount).ToArray()
+                    Dim candidate = String.Join(" ", sub_)
+                    Dim info = idx.Lookup(candidate)
+                    Dim hadOrdinal = False
+                    ' Ordinal path: first token is an ordinal word → pair with
+                    ' the LAST token ("Primera de Joan" → (1, joan)).
+                    If info Is Nothing AndAlso sub_.Length >= 2 Then
+                        Dim n = 0
+                        If BookAliasIndex.OrdinalWords.TryGetValue(sub_(0), n) Then
+                            info = idx.OrdinalLookup(n, sub_.Last())
+                            hadOrdinal = info IsNot Nothing
+                        End If
+                    End If
+                    If info IsNot Nothing Then
+                        Dim code As String = Nothing
+                        If CodeForNumber.TryGetValue(info.BookNumber, code) Then
+                            Return New ResolvedBook With {.Code = code, .Ambiguous = info.Ambiguous, .HadOrdinal = hadOrdinal}
+                        End If
+                        ' Deuterocanonical numbers have no wire code yet — skip.
+                        Return Nothing
+                    End If
+                Next
+            End If
+            Dim fallback As String = Nothing
+            If BookAliases.TryGetValue(name, fallback) Then
+                Return New ResolvedBook With {.Code = fallback, .Ambiguous = False, .HadOrdinal = False}
+            End If
+            Return Nothing
+        End Function
+
         Public Function DetectReferencesInText(text As String
         ) As IReadOnlyList(Of DetectedReference) Implements IBibleService.DetectReferencesInText
             Dim detectedRefs As New List(Of DetectedReference)()
@@ -610,8 +692,28 @@ Namespace Services.Bible
 
             For Each m As Match In RefPattern.Matches(text)
                 Dim bookName = m.Groups("book").Value.Trim()
-                Dim bookCode As String = Nothing
-                If Not BookAliases.TryGetValue(bookName, bookCode) Then Continue For
+                Dim resolved = ResolveBookAlias(bookName)
+                If resolved Is Nothing Then Continue For
+                Dim bookCode = resolved.Code
+
+                ' Tiered evidence: names that are also ordinary words ("mateu"
+                ' = the verb "kill", "fets" = deeds — derived from the Bibles'
+                ' own text, never curated) need MORE than name+chapter: a
+                ' chapter:verse, a digit/ordinal prefix, OR a mid-sentence
+                ' capital ("en Mateu 4" — the STT capitalized it as a name;
+                ' sentence-initial capitals prove nothing).
+                If resolved.Ambiguous AndAlso
+                   Not m.Groups("verse").Success AndAlso
+                   Not resolved.HadOrdinal AndAlso
+                   Not Char.IsDigit(bookName(0)) Then
+                    Dim midSentence = False
+                    Dim i = m.Index - 1
+                    While i >= 0 AndAlso Char.IsWhiteSpace(text(i))
+                        i -= 1
+                    End While
+                    If i >= 0 AndAlso Not ".!?…".Contains(text(i)) Then midSentence = True
+                    If Not midSentence Then Continue For
+                End If
 
                 Dim chap = Integer.Parse(m.Groups("chapter").Value)
                 Dim vStart = 0
