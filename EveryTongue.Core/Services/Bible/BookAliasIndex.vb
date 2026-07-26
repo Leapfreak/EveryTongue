@@ -41,11 +41,24 @@ Namespace Services.Bible
         ''' </summary>
         Private ReadOnly _ordinalPairs As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
 
-        ''' <summary>Ordinal words → digit. Grammar constants, not language data.</summary>
-        Public Shared ReadOnly OrdinalWords As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase) From {
-            {"primera", 1}, {"primer", 1}, {"primero", 1}, {"first", 1}, {"erste", 1}, {"1a", 1}, {"1r", 1},
-            {"segona", 2}, {"segon", 2}, {"segunda", 2}, {"segundo", 2}, {"second", 2}, {"zweite", 2}, {"2a", 2}, {"2n", 2},
-            {"tercera", 3}, {"tercer", 3}, {"tercero", 3}, {"third", 3}, {"dritte", 3}, {"3a", 3}}
+        ''' <summary>
+        ''' Ordinal words DERIVED from the Bibles: sibling books (1/2 Samuel,
+        ''' 1/2/3 John — the groups are numbering-scheme facts) are named
+        ''' identically except for the ordinal ("Primera carta de Joan" /
+        ''' "Segona carta de Joan") — diffing sibling names within each Bible
+        ''' yields that language's ordinal vocabulary. No word list anywhere.
+        ''' </summary>
+        Private ReadOnly _ordinalWords As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
+
+        ''' <summary>Numbered-sibling groups of the book-numbering scheme (protocol facts).</summary>
+        Private Shared ReadOnly SiblingGroups As Integer()() = {
+            New Integer() {90, 100}, New Integer() {110, 120}, New Integer() {130, 140},
+            New Integer() {530, 540}, New Integer() {590, 600}, New Integer() {610, 620},
+            New Integer() {670, 680}, New Integer() {690, 700, 710}}
+
+        Public Function TryOrdinalWord(word As String, ByRef n As Integer) As Boolean
+            Return _ordinalWords.TryGetValue(word, n)
+        End Function
 
         Public Function OrdinalLookup(n As Integer, baseWord As String) As AliasInfo
             Dim num = 0
@@ -141,10 +154,80 @@ Namespace Services.Bible
                 End Try
             End If
 
+            Dim idx As New BookAliasIndex()
+
+            ' Ordinal words from the LOCALE FILES (the sanctioned per-language
+            ' channel — translated with each language pack, never hardcoded):
+            ' key "Bible_Ordinals" = "primera:1,segona:2,...". Union across all
+            ' locale files present; sibling-diff derivation below adds any the
+            ' Bibles themselves teach (e.g. English "First/Second").
+            Try
+                Dim localeDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "locales")
+                If Directory.Exists(localeDir) Then
+                    For Each lf In Directory.GetFiles(localeDir, "*.json")
+                        Try
+                            Using doc = JsonDocument.Parse(File.ReadAllText(lf))
+                                Dim el As JsonElement = Nothing
+                                If doc.RootElement.TryGetProperty("Bible_Ordinals", el) AndAlso
+                                   el.ValueKind = JsonValueKind.String Then
+                                    For Each pair In el.GetString().Split(","c)
+                                        Dim bits = pair.Split(":"c)
+                                        Dim n = 0
+                                        If bits.Length = 2 AndAlso Integer.TryParse(bits(1).Trim(), n) Then
+                                            idx._ordinalWords(bits(0).Trim()) = n
+                                        End If
+                                    Next
+                                End If
+                            End Using
+                        Catch
+                        End Try
+                    Next
+                End If
+            Catch
+            End Try
+
+            ' Derive each language's ORDINAL WORDS by diffing sibling-book
+            ' names within each Bible ("Primera carta de Joan" vs "Segona
+            ' carta de Joan" → primera=1, segona=2).
+            For Each entry In live.Values
+                If entry?.Aliases Is Nothing Then Continue For
+                Dim byNum = entry.Aliases.GroupBy(Function(k) k.Value).
+                    ToDictionary(Function(g) g.Key,
+                                 Function(g) g.Select(Function(k) NormName(k.Key)).ToList())
+                For Each grp In SiblingGroups
+                    For i = 0 To grp.Length - 1
+                        For j = 0 To grp.Length - 1
+                            If i = j Then Continue For
+                            Dim aNames As List(Of String) = Nothing, bNames As List(Of String) = Nothing
+                            If Not byNum.TryGetValue(grp(i), aNames) OrElse
+                               Not byNum.TryGetValue(grp(j), bNames) Then Continue For
+                            For Each an In aNames
+                                Dim at = an.Split(" "c)
+                                For Each bn In bNames
+                                    Dim bt = bn.Split(" "c)
+                                    If at.Length <> bt.Length OrElse at.Length < 2 Then Continue For
+                                    Dim diffIdx = -1, diffs = 0
+                                    For t = 0 To at.Length - 1
+                                        If Not at(t).Equals(bt(t), StringComparison.OrdinalIgnoreCase) Then
+                                            diffs += 1 : diffIdx = t
+                                        End If
+                                    Next
+                                    If diffs = 1 Then
+                                        Dim w = at(diffIdx)
+                                        If w.Length >= 2 AndAlso Not Char.IsDigit(w(0)) Then
+                                            idx._ordinalWords(w) = i + 1
+                                        End If
+                                    End If
+                                Next
+                            Next
+                        Next
+                    Next
+                Next
+            Next
+
             ' Union into one index. Ambiguity: ANY Bible reporting the word as
             ' frequent marks it ambiguous (conservative). Digit-prefixed and
             ' multi-word names are inherently safe.
-            Dim idx As New BookAliasIndex()
             For Each entry In live.Values
                 If entry?.Aliases Is Nothing Then Continue For
                 For Each kvp In entry.Aliases
@@ -167,8 +250,8 @@ Namespace Services.Bible
                     Dim ordN = 0
                     If Char.IsDigit(name(0)) AndAlso toks.Length >= 2 Then
                         ordN = CInt(AscW(name(0))) - AscW("0"c)
-                    ElseIf toks.Length >= 2 AndAlso OrdinalWords.TryGetValue(toks(0), ordN) Then
-                        ' ordN set by TryGetValue
+                    ElseIf toks.Length >= 2 AndAlso idx._ordinalWords.TryGetValue(toks(0), ordN) Then
+                        ' ordN set by TryGetValue (derived ordinal word)
                     End If
                     If ordN >= 1 AndAlso ordN <= 3 Then
                         Dim baseTok = toks.Last().ToLowerInvariant()

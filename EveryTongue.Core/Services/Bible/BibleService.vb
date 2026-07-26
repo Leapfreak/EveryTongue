@@ -132,7 +132,7 @@ Namespace Services.Bible
         ' drops unmatchable leading tokens, so a preceding capitalized word
         ' can't swallow a real reference.
         Private Shared ReadOnly RefPattern As New Regex(
-            "(?<book>(?:\d\s*)?[\p{Lu}][\p{Ll}]+(?:\s+(?:de\s+)?[\p{Lu}\p{Ll}][\p{Ll}]+)*)\s+(?<chapter>\d{1,3})(?:\s*:\s*(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3}))?)?",
+            "(?<book>(?:\d\s*)?[\p{Lu}][\p{Ll}]+(?:\s+(?:[\p{Ll}]{1,3}\s+)?[\p{Lu}\p{Ll}][\p{Ll}]+)*)\s+(?<chapter>\d{1,3})(?:\s*:\s*(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3}))?)?",
             RegexOptions.Compiled)
 
         ' Internal class to track DB path alongside translation info
@@ -663,7 +663,7 @@ Namespace Services.Bible
                     ' the LAST token ("Primera de Joan" → (1, joan)).
                     If info Is Nothing AndAlso sub_.Length >= 2 Then
                         Dim n = 0
-                        If BookAliasIndex.OrdinalWords.TryGetValue(sub_(0), n) Then
+                        If idx.TryOrdinalWord(sub_(0), n) Then
                             info = idx.OrdinalLookup(n, sub_.Last())
                             hadOrdinal = info IsNot Nothing
                         End If

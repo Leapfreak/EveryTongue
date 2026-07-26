@@ -3,6 +3,7 @@
   "Bible_Books": "Books",
   "Bible_NoVerses": "No verses found for: {0}",
   "Bible_NotFound": "Could not find: {0}",
+  "Bible_Ordinals": "first:1,1st:1,second:2,2nd:2,third:3,3rd:3",
   "Bible_ReadAloud": "Read aloud",
   "Bible_ReadStop": "Stop",
   "Bible_TranslateNone": "(no translation)",

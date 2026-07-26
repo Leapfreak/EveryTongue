@@ -3,6 +3,7 @@
   "Bible_Books": "Llibres",
   "Bible_NoVerses": "No s'han trobat versets per a: {0}",
   "Bible_NotFound": "No s'ha trobat: {0}",
+  "Bible_Ordinals": "primera:1,primer:1,1a:1,1r:1,segona:2,segon:2,2a:2,2n:2,tercera:3,tercer:3,3a:3",
   "Bible_ReadAloud": "Llegeix en veu alta",
   "Bible_ReadStop": "Atura",
   "Bible_TranslateNone": "(sense traducció)",
