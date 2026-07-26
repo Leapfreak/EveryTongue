@@ -1177,6 +1177,13 @@ async def transcribe_audio(request: Request):
 
     try:
         segments, info = _transcribe(audio, language=lang, beam_size=beam_size, best_of=best_of, initial_prompt=prompt)
+        # Engines signal one-shot failure as (None, None) — surface it as a
+        # gateway error with a pointer, never a bare unpack crash.
+        if segments is None:
+            return JSONResponse(
+                {"status": "error",
+                 "detail": f"{_backend_mode} one-shot transcription failed — see live-server log for the engine error"},
+                status_code=502)
         text = " ".join(seg.text.strip() for seg in segments if seg.text.strip())
         detected = info.language if info else ""
 
