@@ -188,7 +188,15 @@ Namespace Services.Testing
                 Try
                     progress($"Starting {engineKey} engine...", 0, n)
                     Dim serverScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "live-server", "server.py")
-                    host.Start(serverScript, $"--backend {engineKey}")
+                    ' whisper-cpp modes proxy to whisper-server.exe — hand the temp
+                    ' live-server its path on a NON-production port (8179) so the
+                    ' benchmark never fights a running live pipeline over 8178.
+                    Dim extraArgs = ""
+                    Dim wsPath = AppConfig.ResolvePath(If(config.PathWhisperServer, ""))
+                    If File.Exists(wsPath) Then
+                        extraArgs = $" --whisper-server-path ""{wsPath}"" --whisper-server-port 8179"
+                    End If
+                    host.Start(serverScript, $"--backend {engineKey}{extraArgs}")
                     Dim ready = False
                     For i = 0 To 120
                         ct.ThrowIfCancellationRequested()
@@ -223,7 +231,12 @@ Namespace Services.Testing
                         Dim loadJson = JsonSerializer.Serialize(New With {.model_path = modelPath})
                         Dim loadResp = Await http.PostAsync($"http://127.0.0.1:{port}/load-model",
                             New StringContent(loadJson, Text.Encoding.UTF8, "application/json"), ct)
-                        If Not loadResp.IsSuccessStatusCode Then Throw New Exception($"model load failed (HTTP {CInt(loadResp.StatusCode)})")
+                        If Not loadResp.IsSuccessStatusCode Then
+                            Dim loadErr = Await loadResp.Content.ReadAsStringAsync()
+                            Throw New Exception($"model load failed (HTTP {CInt(loadResp.StatusCode)}): " &
+                                                $"{loadErr.Substring(0, Math.Min(300, loadErr.Length))} " &
+                                                $"[model path tried: {modelPath}]")
+                        End If
                     End If
 
                     Dim scorer As New WerScorer()
