@@ -23,6 +23,9 @@
         start: "Start", stop: "Stop", restart: "Restart", clear: "Clear", lbClose: "Close",
         autoDetect: "Auto Detect", noTranslation: "No translation",
         setTitle: "Server Settings",
+        statTitle: "Status", statConnected: "Connected — server healthy",
+        statDegraded: "Connected — service DEGRADED", statOffline: "NOT CONNECTED — server unreachable",
+        statUptime: "up", statRooms: "active room(s)",
         setSttEngine: "Speech engine", setTransEngine: "Translation engine",
         setPivotLabel: "Weak-pair English pivot",
         setPivotHint: "Translates weak language pairs (e.g. Catalan→Swedish) via English. Applies immediately.",
@@ -142,6 +145,26 @@
 
     // ── Live session remote (desktop head only) ──
     let livePoll = null;
+    // ── Connection status card — the "am I connected" signal, on live plumbing ──
+    function pollStatus() {
+        fetch("/api/health").then(r => r.json()).then(h => {
+            const ok = h.overall === "healthy";
+            $("statLine").textContent = ok ? t("statConnected") : t("statDegraded");
+            $("statLine").style.color = ok ? "#4f4" : "#fa0";
+            return fetch("/api/rooms").then(r => r.json()).then(rooms => {
+                const list = (rooms && rooms.rooms) || rooms || [];
+                $("statDetail").textContent = "v" + h.version + " · " + t("statUptime") + " " + h.uptime +
+                    " · " + list.length + " " + t("statRooms");
+            }).catch(() => { $("statDetail").textContent = "v" + h.version + " · " + h.uptime; });
+        }).catch(() => {
+            $("statLine").textContent = t("statOffline");
+            $("statLine").style.color = "#f44";
+            $("statDetail").textContent = "";
+        });
+    }
+    pollStatus();
+    setInterval(pollStatus, 3000);
+
     function loadLiveCard() {
         fetch("/api/config").then(r => r.json()).then(cfg => {
             if (!cfg.hasLiveSession) return;

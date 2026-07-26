@@ -105,6 +105,16 @@
                 </div>
             </details>
 
+            <!-- Connection status — replaces the legacy Live card (dead since the
+                 v2.7 split); fed by /api/health, which is real and maintained. -->
+            <details class="card" open id="statusCard">
+                <summary data-i18n="statTitle">Status</summary>
+                <div class="body">
+                    <div id="statLine" style="font-weight:600">...</div>
+                    <div class="hint" id="statDetail"></div>
+                </div>
+            </details>
+
             <!-- Server settings -->
             <details class="card" open>
                 <summary data-i18n="setTitle">Server Settings</summary>
