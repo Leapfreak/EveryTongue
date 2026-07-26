@@ -240,6 +240,7 @@ Namespace Services.Testing
                         If isOnline AndAlso i > 0 Then Await Task.Delay(1500, ct)
                         Dim hyp = ""
                         Dim ok = False
+                        Dim transportFail = False
                         Dim sw = Diagnostics.Stopwatch.StartNew()
                         For attempt = 0 To 1
                             Try
@@ -262,12 +263,18 @@ Namespace Services.Testing
                                 Throw
                             Catch ex As Exception
                                 ' Transport failure — the sidecar may have died mid-run.
-                                ' One dead clip must not kill the whole benchmark:
-                                ' health-check, restart the server if needed, retry.
+                                ' One dead clip must not kill the whole benchmark.
+                                ' (VB: no Await inside Catch — recovery happens below.)
                                 If String.IsNullOrEmpty(result.FirstError) Then result.FirstError = $"transport: {ex.Message}"
+                                transportFail = True
+                            End Try
+                            If transportFail Then
+                                transportFail = False
                                 Dim alive = False
                                 Try
                                     alive = (Await http.GetAsync($"http://127.0.0.1:{port}/health", ct)).IsSuccessStatusCode
+                                Catch ex As OperationCanceledException
+                                    Throw
                                 Catch : End Try
                                 If Not alive Then
                                     progress($"Engine process died at clip {i + 1} — restarting...", i, n)
@@ -276,9 +283,13 @@ Namespace Services.Testing
                                     host.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "live-server", "server.py"),
                                                $"--backend {engineKey}")
                                     For w = 0 To 120
+                                        Dim up = False
                                         Try
-                                            If (Await http.GetAsync($"http://127.0.0.1:{port}/health", ct)).IsSuccessStatusCode Then Exit For
+                                            up = (Await http.GetAsync($"http://127.0.0.1:{port}/health", ct)).IsSuccessStatusCode
+                                        Catch ex As OperationCanceledException
+                                            Throw
                                         Catch : End Try
+                                        If up Then Exit For
                                         Await Task.Delay(500, ct)
                                     Next
                                     If isOnline Then
@@ -287,7 +298,7 @@ Namespace Services.Testing
                                                               Text.Encoding.UTF8, "application/json"), ct)
                                     End If
                                 End If
-                            End Try
+                            End If
                             If attempt = 0 Then Await Task.Delay(5000, ct) ' session-slot / recovery cooldown
                         Next
                         sw.Stop() : totalMs += sw.ElapsedMilliseconds
