@@ -1140,9 +1140,11 @@ async def transcribe_audio(request: Request):
     except Exception:
         pass
 
-    # If WAV failed and content looks like compressed audio, decode via ffmpeg
-    if audio is None and (content_type in ("audio/mpeg", "audio/mp3", "audio/opus", "audio/ogg")
-                          or body[:3] == b"ID3" or body[:2] == b"\xff\xfb" or body[:4] == b"OggS"):
+    # If the stdlib WAV reader failed, decode via ffmpeg — not only for sniffed
+    # compressed formats: wave.py only reads plain-PCM WAV and silently rejects
+    # float/extensible WAVs (e.g. FLEURS clips), which previously fell through
+    # to the raw-PCM path and crashed on non-4-byte-aligned bodies.
+    if audio is None and len(body) > 128:
         try:
             with tempfile.NamedTemporaryFile(suffix=".audio", delete=False) as tmp_in:
                 tmp_in.write(body)
@@ -1168,9 +1170,13 @@ async def transcribe_audio(request: Request):
         except Exception as e:
             logger.warning(f"ffmpeg decode failed: {e}")
 
-    # Last resort: treat as raw 16kHz float32 PCM
+    # Last resort: treat as raw 16kHz float32 PCM (guarded — an unaligned body
+    # here previously escaped as an unlogged 500)
     if audio is None:
-        audio = np.frombuffer(body, dtype=np.float32)
+        try:
+            audio = np.frombuffer(body[:len(body) - (len(body) % 4)], dtype=np.float32)
+        except Exception as e:
+            return JSONResponse({"status": "error", "detail": f"undecodable audio: {e}"}, status_code=400)
 
     if len(audio) < SAMPLE_RATE * 0.3:
         return JSONResponse({"status": "error", "detail": "Audio too short"}, status_code=400)
