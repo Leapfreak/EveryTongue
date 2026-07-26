@@ -172,9 +172,18 @@ class SpeechmaticsStreamingPipeline:
         self._operating_point = operating_point or DEFAULT_OPERATING_POINT
         # Speechmatics real-time needs an explicit language (no auto-detect).
         self._language = _normalize_lang(config.language)
-        # Biblical proper-noun additional_vocab (auto-selected by session language).
+        # additional_vocab is LAYERED by source with different lifetimes:
+        #   service layer — people names (template speakers, sermon-notes nouns):
+        #                   lives for the whole session, survives book AND
+        #                   language changes (names are language-independent);
+        #   book layer    — biblical names scoped to the detected book:
+        #                   replaced wholesale when the preached book changes.
+        # The merged (deduped) union is what the session receives.
         self._biblical_vocab_requested = bool(biblical_vocab)
-        self._additional_vocab = _load_biblical_vocab(self._language) if biblical_vocab else []
+        self._vocab_service = []
+        self._vocab_book = None
+        self._vocab_book_names = _load_biblical_vocab(self._language) if biblical_vocab else []
+        self._additional_vocab = self._merge_vocab()
         self._eou_silence = (eou_silence_s if eou_silence_s and eou_silence_s > 0
                              else DEFAULT_EOU_SILENCE_S)
         self._max_delay = (max_delay_s if max_delay_s and max_delay_s > 0
@@ -212,6 +221,18 @@ class SpeechmaticsStreamingPipeline:
     @property
     def stats(self):
         return self._stats
+
+    def _merge_vocab(self):
+        # Union of the vocab layers, deduped by content (case-insensitive).
+        # Service layer wins on collision — a person's spelling from the notes
+        # beats the Bible-derived form.
+        merged, seen = [], set()
+        for entry in list(self._vocab_service) + list(self._vocab_book_names):
+            key = str(entry.get("content", "")).strip().lower()
+            if key and key not in seen:
+                seen.add(key)
+                merged.append(entry)
+        return merged
 
     def start(self):
         cfg = self._config
@@ -296,15 +317,28 @@ class SpeechmaticsStreamingPipeline:
                 nb = int(kwargs["vocab_book"])
             except (TypeError, ValueError):
                 nb = 0
-            if nb > 0 and nb != getattr(self, "_vocab_book", None):
-                self._vocab_book = nb
+            if nb > 0 and nb != self._vocab_book:
                 scoped = _load_biblical_vocab(self._language, nb)
                 if scoped:
-                    self._additional_vocab = scoped
+                    self._vocab_book = nb
+                    self._vocab_book_names = scoped
+                    self._additional_vocab = self._merge_vocab()
                     restart = True
-                    logger.info(f"[SPEECHMATICS] vocab scoped to book {nb}: {len(scoped)} names")
+                    logger.info(f"[SPEECHMATICS] vocab book layer -> book {nb}: {len(scoped)} names "
+                                f"(+{len(self._vocab_service)} service names, {len(self._additional_vocab)} total)")
                 else:
                     logger.info(f"[SPEECHMATICS] vocab_book {nb}: no scoped names available (vocab file missing or old format) — keeping current vocab")
+        # Session-lifetime people names (speakers, sermon notes) — set once at
+        # session setup, unaffected by book changes.
+        if "service_vocab" in kwargs:
+            entries = [e for e in (kwargs["service_vocab"] or [])
+                       if isinstance(e, dict) and e.get("content")]
+            if entries != self._vocab_service:
+                self._vocab_service = entries
+                self._additional_vocab = self._merge_vocab()
+                restart = True
+                logger.info(f"[SPEECHMATICS] vocab service layer: {len(entries)} names "
+                            f"({len(self._additional_vocab)} total)")
         if "translation_targets" in kwargs:
             new_targets = list(kwargs["translation_targets"] or [])
             if new_targets != self._translation_targets:
@@ -319,15 +353,16 @@ class SpeechmaticsStreamingPipeline:
             self._current_speaker = None
             self._last_retune = 0.0
             self._eou_silence = self._eou_baseline
-            # The new session gets the vocab for the NEW language (the old full
-            # restart kept the previous language's list — stale vocab bug).
-            # A detected book scope carries across the language change.
-            scoped_book = getattr(self, "_vocab_book", None)
-            if scoped_book:
-                self._additional_vocab = _load_biblical_vocab(self._language, scoped_book) or []
+            # The new session gets the BOOK layer for the NEW language (the old
+            # full restart kept the previous language's list — stale vocab bug).
+            # The SERVICE layer (people names) persists unchanged: names are
+            # language-independent.
+            if self._vocab_book:
+                self._vocab_book_names = _load_biblical_vocab(self._language, self._vocab_book) or []
             else:
-                self._additional_vocab = (_load_biblical_vocab(self._language)
+                self._vocab_book_names = (_load_biblical_vocab(self._language)
                                           if self._biblical_vocab_requested else [])
+            self._additional_vocab = self._merge_vocab()
             if self._thread is not None and self._thread.is_alive():
                 logger.info(
                     f"[SPEECHMATICS] config change → lang={self._language} "

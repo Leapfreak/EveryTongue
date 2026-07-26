@@ -1015,7 +1015,7 @@ async def update_config(request: Request):
         engines.set_api_key(_backend_mode, body["stt_api_key"])
         updated.append("stt_api_key(set)")
     for key in ("vad_min_silence_ms", "vad_max_segment_s", "soft_commit_ms",
-                "language", "translation_targets", "vocab_book"):
+                "language", "translation_targets", "vocab_book", "service_vocab"):
         if key in body:
             current_config[key] = body[key]
             updated.append(key)
