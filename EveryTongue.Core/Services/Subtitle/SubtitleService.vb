@@ -648,6 +648,10 @@ Namespace Services.Subtitle
                 Dim refs = BibleService.DetectReferencesInText(text)
                 If refs Is Nothing OrElse refs.Count = 0 Then Return Nothing
                 entry.BibleRefs = refs.ToList()
+                ' Field-verifiable record of every detection: the popup + the
+                ' book-scoped vocab both hang off this moment.
+                AppLogger.Log(LogEvents.BIBLE_REF_DETECTED,
+                    String.Join("; ", refs.Select(Function(r) $"{r.Reference.Book} {r.Reference.Chapter}:{r.Reference.VerseStart} (""{r.MatchedText}"")")))
                 Try
                     BookDetectedHandler?.Invoke(refs(0).Reference.Book)
                 Catch

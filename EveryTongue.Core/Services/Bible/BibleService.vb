@@ -223,9 +223,10 @@ Namespace Services.Bible
                              Try
                                  Dim idx = BookAliasIndex.Build(dbPaths)
                                  _aliasIndex = idx
-                                 _logger.LogInformation(
-                                     "Bible: book-alias index ready — {Count} names from {Bibles} Bible(s), {Amb} ambiguous",
-                                     idx.Count, dbPaths.Count, idx.AmbiguousCount)
+                                 ' Structured event → lands in session.log, so field
+                                 ' verification can confirm the index built.
+                                 Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.BIBLE_ALIAS_INDEX,
+                                     $"Book-alias index ready: {idx.Count} names from {dbPaths.Count} Bible(s), {idx.AmbiguousCount} ambiguous")
                              Catch ex As Exception
                                  Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.BIBLE_ERROR,
                                      $"Book-alias index build failed: {ex.Message} — detection stays on the English fallback")
