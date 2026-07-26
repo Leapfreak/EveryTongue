@@ -127,6 +127,22 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
 
 - [ ] **BUILT post-2.9.0 (2026-07-27, unreleased) — FLEURS STT quality benchmark** (the STT sibling of the FLORES instrument): benchmark STT tab → "Quality (FLEURS)" — per-language dev-set download from HF (google/fleurs, ungated, ~250 MB/lang, configs discovered live from the repo tree, bsdtar extract), WerScorer (corpus WER+CER, normalized), FleursSttRunner (temp live-server per run: --backend <key>, online keys injected via NEW /config stt_api_key so no capture /start needed, faster-whisper via /load-model; whisper-cpp variants NOT wired v1), results + examples + cumulative benchmarks/stt-scores.csv. WER guide: <10%% excellent / 10-20 usable / >25 painful; WER within-language, CER across. UNTESTED live — first run: ca_es on speechmatics vs faster-whisper. Phase 2 (not built): house-clips folder with corrected transcripts from real services → vocab on/off A/B (GLS terms) + ca/es code-switch measurement — where the real answers live.
 
+## NEXT UP (consolidated 2026-07-27, post name-discovery + group update)
+
+**Field / ops:**
+- [ ] **Jezer: clean v2.10.0 install** — fixes EOU retune flip-flop (pre-2026-07-12 hysteresis on that machine), the WebSockets-assembly startup crash (partial install), and mixed file vintages. THEN generate + load the biblical vocab (Download Manager → Biblical Vocabulary) — field machine still runs vocab=0 while the feature is now PROVEN.
+- [ ] **Win10 → Win11 migration of the translation machine** — the pending "showdown", not yet attempted.
+- [ ] **Web fix to verify**: host controls after language pick via the admin-menu path (fix shipped post-2.10.0, awaiting a live repro test).
+
+**Builds (priority order):**
+- [ ] **★ Names priming — the proven quality lever.** Per-service additional_vocab merge from three automatic sources: room-template speaker names + sermon-notes noun extraction (tools/pdf_nouns.py validated on Marina's PDF) + weekly batch-whisper harvest (capitalized tokens from the QA SRT). Include sounds_like for surnames (Eareckson→Erickson residual). Also translation-side name protection (personal-article+capital passthrough — previewable against today's 351-commit corpus before building).
+- [ ] **Scripture popup**: when a scripture reference is detected during a service, highlight an option to open the verse inline — web client + desktop (BOTH Bible viewers rule). DetectedReference machinery already exists; this is UI + wiring.
+- [ ] **BEC (Bíblia Evangèlica Catalana)**: talk to Noemí Cortès about permission to include it; then catalog/import support. Vision: translation to ~every language + ad-free hassle-free scriptures on one platform.
+- [ ] **Benchmark polish batch**: Speechmatics BATCH API for big sweeps (RT session-churn triggered account throttling: 20 consecutive timeouts 06:15-06:21 on 2026-07-26); WER number-normalization data file (digits vs spelled-out biases engine comparisons ~1-2 pts); exclude retry cooldowns from avg-latency stat; sidecar teardown exit(0) + timeout messages with detail.
+- [ ] **Pause-aware service-log analysis script** — automate tonight's manual method (join session.log pause windows [5105] with live-server/conference commits; sermon-window stats, name checks, whisper-SRT diff when audio provided). One command per service.
+
+**Watching:** Speechmatics **Melia** RT GA — vendor-side automatic language switching is the only credible path for the ca/es code-switching problem (our hardest open issue); trial is near-zero code via the model dual-path.
+
 ## ★ KEY DISCOVERY 2026-07-26 — NAMES are the quality lever, and it is PROVEN
 Proper nouns are where the live pipeline visibly fails and where listeners notice: a garbled name at STT poisons EVERY downstream translation in every language (Joni→jonny/johnny/jenny/'la tata' reached all screens; Marina→'the Navy' in English via NLLB treating a name as a noun). Fixing the name at the SOURCE (STT additional_vocab) fixes all languages at once — measured on real service audio: **Joni 0/9 → 9/9 correct** with a vocab list auto-extracted from the preacher's notes PDF. Hearing/segmentation/translation are all measured at-ceiling; names are the one reachable gap. BUILD NEXT: per-service name vocab merge (template speakers + notes nouns + weekly batch-whisper harvest) + sounds_like for surnames + translation-side name protection; and LOAD THE VOCAB ON JEZER (still vocab=0).
 
