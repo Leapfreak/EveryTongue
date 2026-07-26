@@ -86,6 +86,7 @@ Public Class FormTranslationBenchmark
         WireTransConcHandlers()
         WireTtsHandlers()
         InitPairAb()
+        InitFleurs()
 
         AddHandler btnExportAll.Click, AddressOf ExportAll_Click
 
@@ -1907,6 +1908,130 @@ Public Class FormTranslationBenchmark
             btnAbRun.Enabled = True : btnAbCancel.Enabled = False
         End Try
     End Function
+
+    ' ═══════════════════════════════════════════════════════════════
+    ' STT Quality (FLEURS) — WER/CER per engine vs native-speaker refs
+    ' ═══════════════════════════════════════════════════════════════
+    Private _flCts As Threading.CancellationTokenSource
+    Private ReadOnly _flRunner As New FleursSttRunner()
+    Private _flEngineKeys As New List(Of String)
+
+    Private Sub InitFleurs()
+        AddHandler btnFlDownload.Click, AddressOf FlDownload_Click
+        AddHandler btnFlRun.Click, AddressOf FlRun_Click
+        AddHandler btnFlCancel.Click, Sub() _flCts?.Cancel()
+        RefreshFleursState()
+    End Sub
+
+    Private Sub RefreshFleursState()
+        cboFlLang.Items.Clear()
+        For Each cfg In FleursDataset.InstalledConfigs()
+            cboFlLang.Items.Add(cfg)
+        Next
+        If cboFlLang.Items.Count > 0 Then cboFlLang.SelectedIndex = 0
+        cboFlEngine.Items.Clear()
+        _flEngineKeys.Clear()
+        For Each entry In Services.Stt.SttBackendRegistry.GetAll()
+            _flEngineKeys.Add(entry.Key)
+            cboFlEngine.Items.Add(entry.DisplayName)
+        Next
+        Dim cfgIdx = _flEngineKeys.FindIndex(Function(k) k.Equals(If(_config.SttBackend, ""), StringComparison.OrdinalIgnoreCase))
+        If cboFlEngine.Items.Count > 0 Then cboFlEngine.SelectedIndex = Math.Max(0, cfgIdx)
+        btnFlRun.Enabled = cboFlLang.Items.Count > 0
+    End Sub
+
+    Private Async Sub FlDownload_Click(sender As Object, e As EventArgs)
+        Try
+            lblFlProgress.Text = "Fetching FLEURS language list..."
+            _flCts = New Threading.CancellationTokenSource()
+            Dim configs = Await FleursDataset.ListRemoteConfigsAsync(_flCts.Token)
+            Dim prompt = $"FLEURS config to download (e.g. ca_es, es_419, en_us, sv_se, sq_al)." & vbCrLf &
+                         $"{configs.Count} available: {String.Join(", ", configs.Take(40))}..."
+            Dim cfg = InputBox(prompt, "Download FLEURS language", "ca_es").Trim()
+            If cfg = "" Then lblFlProgress.Text = "" : Return
+            If Not configs.Contains(cfg, StringComparer.OrdinalIgnoreCase) Then
+                lblFlProgress.Text = $"'{cfg}' is not a FLEURS config."
+                Return
+            End If
+            btnFlDownload.Enabled = False : btnFlCancel.Enabled = True
+            Await FleursDataset.DownloadAsync(cfg,
+                Sub(msg) Me.BeginInvoke(Sub() lblFlProgress.Text = msg), _flCts.Token)
+            lblFlProgress.Text = $"{cfg} installed."
+        Catch ex As Exception
+            lblFlProgress.Text = $"Download failed: {ex.Message}"
+            AppLogger.Log(LogEvents.BENCH_ERROR, $"FLEURS download: {ex.Message}")
+        Finally
+            btnFlDownload.Enabled = True : btnFlCancel.Enabled = False
+            RefreshFleursState()
+        End Try
+    End Sub
+
+    Private Async Sub FlRun_Click(sender As Object, e As EventArgs)
+        If cboFlLang.SelectedIndex < 0 OrElse cboFlEngine.SelectedIndex < 0 Then Return
+        Dim cfg = cboFlLang.SelectedItem.ToString()
+        Dim engineKey = _flEngineKeys(cboFlEngine.SelectedIndex)
+        Dim count = CInt(nudFlCount.Value)
+        btnFlRun.Enabled = False : btnFlCancel.Enabled = True
+        progressFl.Value = 0 : progressFl.Maximum = count
+        txtFlResults.Text = ""
+        _flCts = New Threading.CancellationTokenSource()
+        Try
+            Dim r = Await _flRunner.RunAsync(_config, cfg, engineKey, count,
+                Sub(msg, done, total) Me.BeginInvoke(Sub()
+                                                         lblFlProgress.Text = msg
+                                                         progressFl.Maximum = Math.Max(1, total)
+                                                         progressFl.Value = Math.Min(done, progressFl.Maximum)
+                                                     End Sub),
+                _flCts.Token)
+            Dim sb As New StringBuilder()
+            sb.AppendLine($"{r.Config}  on {r.EngineKey}, {r.ClipCount} clips (WER/CER vs FLEURS reference)")
+            sb.AppendLine()
+            sb.AppendLine($"  WER {r.Wer,6:F1}%   CER {r.Cer,6:F1}%   avg {r.AvgMs,6:F0} ms" &
+                          If(r.FailedClips > 0, $"   ({r.FailedClips} clips FAILED — check log)", ""))
+            sb.AppendLine()
+            sb.AppendLine("  Rough guide: <10% WER excellent, 10-20% usable, >25% painful.")
+            sb.AppendLine("  Compare engines on the SAME language with WER; across languages prefer CER.")
+            sb.AppendLine()
+            sb.AppendLine("── Examples ──")
+            For Each ex2 In r.Examples
+                sb.AppendLine($"ref: {ex2.Ref}")
+                sb.AppendLine($"hyp: {ex2.Hyp}")
+                sb.AppendLine()
+            Next
+            txtFlResults.Text = sb.ToString()
+            lblFlProgress.Text = "Done."
+            AppendSttScoreHistory(r)
+        Catch ex As OperationCanceledException
+            lblFlProgress.Text = "Cancelled."
+        Catch ex As Exception
+            lblFlProgress.Text = $"Run failed: {ex.Message}"
+            AppLogger.Log(LogEvents.BENCH_ERROR, $"FLEURS run: {ex.Message}")
+        Finally
+            btnFlRun.Enabled = True : btnFlCancel.Enabled = False
+        End Try
+    End Sub
+
+    Private Const SttScoreCsvHeader As String =
+        "timestamp,fleurs_config,engine,clips,wer,cer,avg_ms,failed_clips"
+
+    ''' <summary>Cumulative cross-session STT scoreboard, sibling of pair-scores.csv.</summary>
+    Private Sub AppendSttScoreHistory(r As FleursResult)
+        Try
+            Dim benchDir = Path.Combine(Global.EveryTongue.Models.ConfigManager.ConfigDirectory, "benchmarks")
+            If Not Directory.Exists(benchDir) Then Directory.CreateDirectory(benchDir)
+            Dim filePath = Path.Combine(benchDir, "stt-scores.csv")
+            If Not File.Exists(filePath) Then
+                File.WriteAllText(filePath, SttScoreCsvHeader & Environment.NewLine, Encoding.UTF8)
+            End If
+            Dim inv = Globalization.CultureInfo.InvariantCulture
+            File.AppendAllText(filePath,
+                $"{r.RunAt:yyyy-MM-dd HH:mm:ss},{r.Config},{r.EngineKey},{r.ClipCount}," &
+                $"{r.Wer.ToString("F1", inv)},{r.Cer.ToString("F1", inv)},{r.AvgMs.ToString("F0", inv)},{r.FailedClips}" &
+                Environment.NewLine, Encoding.UTF8)
+        Catch ex As Exception
+            AppLogger.Log(LogEvents.BENCH_ERROR, $"stt-scores.csv append failed: {ex.Message}")
+        End Try
+    End Sub
 
     Private Sub AbSave_Click(sender As Object, e As EventArgs)
         If _abResult Is Nothing OrElse Not _abResult.DirectWins Then Return

@@ -1008,6 +1008,12 @@ async def update_config(request: Request):
     """Update live-adjustable config values without restarting capture."""
     body = await request.json()
     updated = []
+    # API key for the active online engine — lets one-shot /transcribe callers
+    # (STT quality benchmark) configure the engine WITHOUT /start beginning
+    # device capture. Never logged.
+    if body.get("stt_api_key"):
+        engines.set_api_key(_backend_mode, body["stt_api_key"])
+        updated.append("stt_api_key(set)")
     for key in ("vad_min_silence_ms", "vad_max_segment_s", "soft_commit_ms",
                 "language", "translation_targets"):
         if key in body:

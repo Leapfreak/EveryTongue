@@ -104,6 +104,21 @@ Partial Class FormTranslationBenchmark
         ' ── STT nested tab controls ──
         Me.tabSttInner = New TabControl()
         Me.tabSttComparison = New TabPage()
+        Me.tabSttQuality = New TabPage()
+        Me.lblFlInfo = New Label()
+        Me.btnFlDownload = New Button()
+        Me.lblFlLang = New Label()
+        Me.cboFlLang = New ComboBox()
+        Me.lblFlEngine = New Label()
+        Me.cboFlEngine = New ComboBox()
+        Me.lblFlCount = New Label()
+        Me.nudFlCount = New NumericUpDown()
+        Me.btnFlRun = New Button()
+        Me.btnFlCancel = New Button()
+        Me.progressFl = New ProgressBar()
+        Me.lblFlProgress = New Label()
+        Me.txtFlResults = New TextBox()
+        CType(Me.nudFlCount, System.ComponentModel.ISupportInitialize).BeginInit()
         Me.tabSttConcurrency = New TabPage()
         Me.tabSttResources = New TabPage()
 
@@ -450,8 +465,104 @@ Partial Class FormTranslationBenchmark
 
         ' tabSttInner — nested TabControl inside STT tab
         Me.tabSttInner.Controls.Add(Me.tabSttComparison)
+        Me.tabSttInner.Controls.Add(Me.tabSttQuality)
         Me.tabSttInner.Controls.Add(Me.tabSttConcurrency)
         Me.tabSttInner.Controls.Add(Me.tabSttResources)
+
+        ' tabSttQuality — WER/CER vs FLEURS references
+        Me.tabSttQuality.AutoScroll = True
+        Me.tabSttQuality.Controls.Add(Me.lblFlInfo)
+        Me.tabSttQuality.Controls.Add(Me.btnFlDownload)
+        Me.tabSttQuality.Controls.Add(Me.lblFlLang)
+        Me.tabSttQuality.Controls.Add(Me.cboFlLang)
+        Me.tabSttQuality.Controls.Add(Me.lblFlEngine)
+        Me.tabSttQuality.Controls.Add(Me.cboFlEngine)
+        Me.tabSttQuality.Controls.Add(Me.lblFlCount)
+        Me.tabSttQuality.Controls.Add(Me.nudFlCount)
+        Me.tabSttQuality.Controls.Add(Me.btnFlRun)
+        Me.tabSttQuality.Controls.Add(Me.btnFlCancel)
+        Me.tabSttQuality.Controls.Add(Me.progressFl)
+        Me.tabSttQuality.Controls.Add(Me.lblFlProgress)
+        Me.tabSttQuality.Controls.Add(Me.txtFlResults)
+        Me.tabSttQuality.Location = New Point(4, 26)
+        Me.tabSttQuality.Name = "tabSttQuality"
+        Me.tabSttQuality.Padding = New Padding(8)
+        Me.tabSttQuality.Size = New Size(558, 650)
+        Me.tabSttQuality.TabIndex = 3
+        Me.tabSttQuality.Text = "Quality (FLEURS)"
+        Me.tabSttQuality.UseVisualStyleBackColor = True
+
+        Me.lblFlInfo.Location = New Point(11, 11)
+        Me.lblFlInfo.Name = "lblFlInfo"
+        Me.lblFlInfo.Size = New Size(400, 34)
+        Me.lblFlInfo.Text = "FLEURS: native-speaker recordings of the FLORES sentences, with reference transcripts. WER/CER per engine."
+
+        Me.btnFlDownload.Location = New Point(420, 11)
+        Me.btnFlDownload.Name = "btnFlDownload"
+        Me.btnFlDownload.Size = New Size(126, 28)
+        Me.btnFlDownload.Text = "Download lang..."
+
+        Me.lblFlLang.AutoSize = True
+        Me.lblFlLang.Location = New Point(11, 52)
+        Me.lblFlLang.Name = "lblFlLang"
+        Me.lblFlLang.Text = "Language (FLEURS config):"
+
+        Me.cboFlLang.DropDownStyle = ComboBoxStyle.DropDownList
+        Me.cboFlLang.Location = New Point(11, 70)
+        Me.cboFlLang.Name = "cboFlLang"
+        Me.cboFlLang.Size = New Size(200, 23)
+
+        Me.lblFlEngine.AutoSize = True
+        Me.lblFlEngine.Location = New Point(225, 52)
+        Me.lblFlEngine.Name = "lblFlEngine"
+        Me.lblFlEngine.Text = "STT engine:"
+
+        Me.cboFlEngine.DropDownStyle = ComboBoxStyle.DropDownList
+        Me.cboFlEngine.Location = New Point(225, 70)
+        Me.cboFlEngine.Name = "cboFlEngine"
+        Me.cboFlEngine.Size = New Size(200, 23)
+        Me.cboFlEngine.DropDownWidth = 300
+
+        Me.lblFlCount.AutoSize = True
+        Me.lblFlCount.Location = New Point(440, 52)
+        Me.lblFlCount.Name = "lblFlCount"
+        Me.lblFlCount.Text = "Clips:"
+
+        Me.nudFlCount.Location = New Point(440, 70)
+        Me.nudFlCount.Minimum = New Decimal(New Integer() {5, 0, 0, 0})
+        Me.nudFlCount.Maximum = New Decimal(New Integer() {400, 0, 0, 0})
+        Me.nudFlCount.Value = New Decimal(New Integer() {40, 0, 0, 0})
+        Me.nudFlCount.Name = "nudFlCount"
+        Me.nudFlCount.Size = New Size(80, 23)
+
+        Me.btnFlRun.Location = New Point(11, 104)
+        Me.btnFlRun.Name = "btnFlRun"
+        Me.btnFlRun.Size = New Size(120, 28)
+        Me.btnFlRun.Text = "Run"
+
+        Me.btnFlCancel.Enabled = False
+        Me.btnFlCancel.Location = New Point(137, 104)
+        Me.btnFlCancel.Name = "btnFlCancel"
+        Me.btnFlCancel.Size = New Size(80, 28)
+        Me.btnFlCancel.Text = "Cancel"
+
+        Me.progressFl.Location = New Point(11, 140)
+        Me.progressFl.Name = "progressFl"
+        Me.progressFl.Size = New Size(535, 16)
+
+        Me.lblFlProgress.Location = New Point(11, 160)
+        Me.lblFlProgress.Name = "lblFlProgress"
+        Me.lblFlProgress.Size = New Size(535, 16)
+        Me.lblFlProgress.Text = ""
+
+        Me.txtFlResults.Anchor = CType((((AnchorStyles.Top Or AnchorStyles.Bottom) Or AnchorStyles.Left) Or AnchorStyles.Right), AnchorStyles)
+        Me.txtFlResults.Font = New Drawing.Font("Consolas", 9.0!)
+        Me.txtFlResults.Location = New Point(11, 182)
+        Me.txtFlResults.Multiline = True
+        Me.txtFlResults.Name = "txtFlResults"
+        Me.txtFlResults.ReadOnly = True
+        Me.txtFlResults.ScrollBars = ScrollBars.Vertical
+        Me.txtFlResults.Size = New Size(535, 456)
         Me.tabSttInner.Dock = DockStyle.Fill
         Me.tabSttInner.Name = "tabSttInner"
         Me.tabSttInner.SelectedIndex = 0
@@ -1604,6 +1715,9 @@ Partial Class FormTranslationBenchmark
         CType(Me.nudAbCount, System.ComponentModel.ISupportInitialize).EndInit()
         Me.tabTransPairAb.ResumeLayout(False)
         Me.tabTransPairAb.PerformLayout()
+        CType(Me.nudFlCount, System.ComponentModel.ISupportInitialize).EndInit()
+        Me.tabSttQuality.ResumeLayout(False)
+        Me.tabSttQuality.PerformLayout()
         Me.grpResults.ResumeLayout(False)
         Me.grpResults.PerformLayout()
         CType(Me.dgvResults, System.ComponentModel.ISupportInitialize).EndInit()
@@ -1694,6 +1808,20 @@ Partial Class FormTranslationBenchmark
 
     Friend WithEvents tabSttInner As TabControl
     Friend WithEvents tabSttComparison As TabPage
+    Friend WithEvents tabSttQuality As TabPage
+    Friend WithEvents lblFlInfo As Label
+    Friend WithEvents btnFlDownload As Button
+    Friend WithEvents lblFlLang As Label
+    Friend WithEvents cboFlLang As ComboBox
+    Friend WithEvents lblFlEngine As Label
+    Friend WithEvents cboFlEngine As ComboBox
+    Friend WithEvents lblFlCount As Label
+    Friend WithEvents nudFlCount As NumericUpDown
+    Friend WithEvents btnFlRun As Button
+    Friend WithEvents btnFlCancel As Button
+    Friend WithEvents progressFl As ProgressBar
+    Friend WithEvents lblFlProgress As Label
+    Friend WithEvents txtFlResults As TextBox
     Friend WithEvents tabSttConcurrency As TabPage
     Friend WithEvents tabSttResources As TabPage
     Friend WithEvents lblSttAudioFile As Label
