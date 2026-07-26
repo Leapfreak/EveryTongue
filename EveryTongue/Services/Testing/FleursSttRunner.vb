@@ -242,22 +242,53 @@ Namespace Services.Testing
                         Dim ok = False
                         Dim sw = Diagnostics.Stopwatch.StartNew()
                         For attempt = 0 To 1
-                            Dim resp = Await http.PostAsync(
-                                $"http://127.0.0.1:{port}/transcribe?lang={langIso1}",
-                                New ByteArrayContent(audio), ct)
-                            If resp.IsSuccessStatusCode Then
-                                Using doc = JsonDocument.Parse(Await resp.Content.ReadAsStringAsync())
-                                    Dim t As JsonElement = Nothing
-                                    If doc.RootElement.TryGetProperty("text", t) Then hyp = If(t.GetString(), "")
-                                End Using
-                                ok = True
-                                Exit For
-                            End If
-                            If String.IsNullOrEmpty(result.FirstError) Then
-                                Dim errBody = Await resp.Content.ReadAsStringAsync()
-                                result.FirstError = $"HTTP {CInt(resp.StatusCode)}: {errBody.Substring(0, Math.Min(200, errBody.Length))}"
-                            End If
-                            If attempt = 0 Then Await Task.Delay(5000, ct) ' session-slot cooldown
+                            Try
+                                Dim resp = Await http.PostAsync(
+                                    $"http://127.0.0.1:{port}/transcribe?lang={langIso1}",
+                                    New ByteArrayContent(audio), ct)
+                                If resp.IsSuccessStatusCode Then
+                                    Using doc = JsonDocument.Parse(Await resp.Content.ReadAsStringAsync())
+                                        Dim t As JsonElement = Nothing
+                                        If doc.RootElement.TryGetProperty("text", t) Then hyp = If(t.GetString(), "")
+                                    End Using
+                                    ok = True
+                                    Exit For
+                                End If
+                                If String.IsNullOrEmpty(result.FirstError) Then
+                                    Dim errBody = Await resp.Content.ReadAsStringAsync()
+                                    result.FirstError = $"HTTP {CInt(resp.StatusCode)}: {errBody.Substring(0, Math.Min(200, errBody.Length))}"
+                                End If
+                            Catch ex As OperationCanceledException
+                                Throw
+                            Catch ex As Exception
+                                ' Transport failure — the sidecar may have died mid-run.
+                                ' One dead clip must not kill the whole benchmark:
+                                ' health-check, restart the server if needed, retry.
+                                If String.IsNullOrEmpty(result.FirstError) Then result.FirstError = $"transport: {ex.Message}"
+                                Dim alive = False
+                                Try
+                                    alive = (Await http.GetAsync($"http://127.0.0.1:{port}/health", ct)).IsSuccessStatusCode
+                                Catch : End Try
+                                If Not alive Then
+                                    progress($"Engine process died at clip {i + 1} — restarting...", i, n)
+                                    AppLogger.Log(LogEvents.BENCH_ERROR, $"FLEURS: sidecar died at clip {i + 1} — restarting (see live-server.log for its crash)")
+                                    Try : host.Stop(2000) : Catch : End Try
+                                    host.Start(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "live-server", "server.py"),
+                                               $"--backend {engineKey}")
+                                    For w = 0 To 120
+                                        Try
+                                            If (Await http.GetAsync($"http://127.0.0.1:{port}/health", ct)).IsSuccessStatusCode Then Exit For
+                                        Catch : End Try
+                                        Await Task.Delay(500, ct)
+                                    Next
+                                    If isOnline Then
+                                        Await http.PostAsync($"http://127.0.0.1:{port}/config",
+                                            New StringContent(JsonSerializer.Serialize(New With {.stt_api_key = config.GetSttApiKey(engineKey)}),
+                                                              Text.Encoding.UTF8, "application/json"), ct)
+                                    End If
+                                End If
+                            End Try
+                            If attempt = 0 Then Await Task.Delay(5000, ct) ' session-slot / recovery cooldown
                         Next
                         sw.Stop() : totalMs += sw.ElapsedMilliseconds
                         If Not ok Then result.FailedClips += 1
