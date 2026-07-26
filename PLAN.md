@@ -127,6 +127,8 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
 
 - [ ] **BUILT post-2.9.0 (2026-07-27, unreleased) — FLEURS STT quality benchmark** (the STT sibling of the FLORES instrument): benchmark STT tab → "Quality (FLEURS)" — per-language dev-set download from HF (google/fleurs, ungated, ~250 MB/lang, configs discovered live from the repo tree, bsdtar extract), WerScorer (corpus WER+CER, normalized), FleursSttRunner (temp live-server per run: --backend <key>, online keys injected via NEW /config stt_api_key so no capture /start needed, faster-whisper via /load-model; whisper-cpp variants NOT wired v1), results + examples + cumulative benchmarks/stt-scores.csv. WER guide: <10%% excellent / 10-20 usable / >25 painful; WER within-language, CER across. UNTESTED live — first run: ca_es on speechmatics vs faster-whisper. Phase 2 (not built): house-clips folder with corrected transcripts from real services → vocab on/off A/B (GLS terms) + ca/es code-switch measurement — where the real answers live.
 
+**v2.10.0 released (2026-07-26): git + ghcr :2.10.0/:latest + GitHub Release. FLEURS validated live: Speechmatics ca 5.1%% WER / whisper-cpp-vulkan 6.0%% (tie; number-normalization fix pending biases SM). OPEN: Speechmatics account throttled new RT sessions after ~150 one-shot sessions (20 consecutive timeouts 06:15-06:21) — switch runner to the batch API for sweeps; sidecar teardown exit(-1) cosmetic; chained FLEURS→STT→translate→FLORES end-to-end benchmark is the next instrument.**
+
 **v2.9.0 released (2026-07-26): git + ghcr :2.9.0/:latest + GitHub Release (installer + app zip incl. qe-server + aws-sdk carry-over + manifest).**
 
 ## STT / Translation Improvements — from GLS 2026 field log (2026-06-27)
