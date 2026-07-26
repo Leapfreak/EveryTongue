@@ -231,26 +231,42 @@ Namespace Services.Testing
                     For i = 0 To n - 1
                         ct.ThrowIfCancellationRequested()
                         Dim audio = File.ReadAllBytes(clips(i).Wav)
-                        Dim sw = Diagnostics.Stopwatch.StartNew()
-                        Dim resp = Await http.PostAsync(
-                            $"http://127.0.0.1:{port}/transcribe?lang={langIso1}",
-                            New ByteArrayContent(audio), ct)
-                        sw.Stop() : totalMs += sw.ElapsedMilliseconds
+                        ' Same lesson as the DeepL 429 fix: cloud services throttle
+                        ' rapid session churn (Speechmatics caps concurrent RT
+                        ' sessions; teardown lags a few seconds). Pace between
+                        ' clips and retry a failed clip once after a cooldown —
+                        ' otherwise failures corrupt WER with 100%-wrong scores.
+                        Dim isOnline = entry IsNot Nothing AndAlso entry.RequiresInternet
+                        If isOnline AndAlso i > 0 Then Await Task.Delay(1500, ct)
                         Dim hyp = ""
-                        If resp.IsSuccessStatusCode Then
-                            Using doc = JsonDocument.Parse(Await resp.Content.ReadAsStringAsync())
-                                Dim t As JsonElement = Nothing
-                                If doc.RootElement.TryGetProperty("text", t) Then hyp = If(t.GetString(), "")
-                            End Using
-                        Else
-                            result.FailedClips += 1
+                        Dim ok = False
+                        Dim sw = Diagnostics.Stopwatch.StartNew()
+                        For attempt = 0 To 1
+                            Dim resp = Await http.PostAsync(
+                                $"http://127.0.0.1:{port}/transcribe?lang={langIso1}",
+                                New ByteArrayContent(audio), ct)
+                            If resp.IsSuccessStatusCode Then
+                                Using doc = JsonDocument.Parse(Await resp.Content.ReadAsStringAsync())
+                                    Dim t As JsonElement = Nothing
+                                    If doc.RootElement.TryGetProperty("text", t) Then hyp = If(t.GetString(), "")
+                                End Using
+                                ok = True
+                                Exit For
+                            End If
                             If String.IsNullOrEmpty(result.FirstError) Then
                                 Dim errBody = Await resp.Content.ReadAsStringAsync()
                                 result.FirstError = $"HTTP {CInt(resp.StatusCode)}: {errBody.Substring(0, Math.Min(200, errBody.Length))}"
                             End If
+                            If attempt = 0 Then Await Task.Delay(5000, ct) ' session-slot cooldown
+                        Next
+                        sw.Stop() : totalMs += sw.ElapsedMilliseconds
+                        If Not ok Then result.FailedClips += 1
+                        ' Failed clips are reported, never scored — scoring an empty
+                        ' hypothesis as 100% WER conflates availability with accuracy.
+                        If ok Then
+                            scorer.AddClip(hyp, clips(i).Ref)
+                            If result.Examples.Count < 3 Then result.Examples.Add((clips(i).Ref, hyp))
                         End If
-                        scorer.AddClip(hyp, clips(i).Ref)
-                        If result.Examples.Count < 3 Then result.Examples.Add((clips(i).Ref, hyp))
                         progress($"{i + 1}/{n} clips", i + 1, n)
                     Next
                     result.Wer = scorer.Wer()
