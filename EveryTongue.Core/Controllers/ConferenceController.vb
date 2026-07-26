@@ -121,6 +121,78 @@ Namespace Controllers
         End Sub
 
         ''' <summary>
+        ''' The session-lifetime people-names payload (engine "service" vocab layer)
+        ''' from config: speakers and sermon-notes nouns entered via Tools → Service
+        ''' Names. Lowercase-key JSON shape the engines expect.
+        ''' </summary>
+        Private Function BuildServiceVocabPayload() As List(Of Dictionary(Of String, Object))
+            Dim payload As New List(Of Dictionary(Of String, Object))
+            Dim seen As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+            For Each entry In If(_config.ServiceNames, New List(Of ServiceNameEntry))
+                Dim content = entry?.Content?.Trim()
+                If String.IsNullOrEmpty(content) OrElse Not seen.Add(content) Then Continue For
+                Dim d As New Dictionary(Of String, Object) From {{"content", content}}
+                Dim alts = entry.SoundsLike?.Where(Function(s) Not String.IsNullOrWhiteSpace(s)).
+                                             Select(Function(s) s.Trim()).ToList()
+                If alts IsNot Nothing AndAlso alts.Count > 0 Then d("sounds_like") = alts
+                payload.Add(d)
+            Next
+            Return payload
+        End Function
+
+        ''' <summary>
+        ''' Push the service-names vocab to a just-started backend once its
+        ''' live-server answers health (UpdateConfigAsync silently no-ops before
+        ''' that). Fire-and-forget; skipped when the list is empty (avoids a
+        ''' pointless session reconnect right after start).
+        ''' </summary>
+        Private Sub PushServiceVocabWhenReady(roomId As String, backend As ISttBackend)
+            Dim payload = BuildServiceVocabPayload()
+            If payload.Count = 0 Then Return
+            Task.Run(Async Function()
+                         Try
+                             For attempt = 1 To 30
+                                 Try
+                                     Using cts As New Threading.CancellationTokenSource(3000)
+                                         If Await backend.CheckHealthAsync(cts.Token) Then Exit For
+                                     End Using
+                                 Catch
+                                 End Try
+                                 Await Task.Delay(2000)
+                             Next
+                             Await backend.UpdateConfigAsync(New Dictionary(Of String, Object) From {{"service_vocab", payload}})
+                             AppLogger.Log(LogEvents.STT_SERVICE_VOCAB,
+                                 $"room={roomId}: {payload.Count} people names → service vocab layer")
+                         Catch ex As Exception
+                             _log($"[Conference] service-vocab push failed for room {roomId}: {ex.Message}")
+                         End Try
+                     End Function)
+        End Sub
+
+        ''' <summary>
+        ''' Re-push the current service-names list to every running backend —
+        ''' called when the user edits Service Names mid-session. An empty list
+        ''' IS pushed here (it clears the engine's service layer).
+        ''' </summary>
+        Public Sub PushServiceVocabToAll()
+            Dim payload = BuildServiceVocabPayload()
+            For Each kv In _sttBackends
+                Dim roomId = kv.Key
+                Dim backend = kv.Value
+                If backend Is Nothing Then Continue For
+                Task.Run(Async Function()
+                             Try
+                                 Await backend.UpdateConfigAsync(New Dictionary(Of String, Object) From {{"service_vocab", payload}})
+                                 AppLogger.Log(LogEvents.STT_SERVICE_VOCAB,
+                                     $"room={roomId}: {payload.Count} people names → service vocab layer (live update)")
+                             Catch ex As Exception
+                                 _log($"[Conference] service-vocab update failed for room {roomId}: {ex.Message}")
+                             End Try
+                         End Function)
+            Next
+        End Sub
+
+        ''' <summary>
         ''' Wires the endpoint handler callbacks so the web client can create/configure/close conference rooms.
         ''' Call after Kestrel has started.
         ''' </summary>
@@ -373,6 +445,7 @@ Namespace Controllers
                     Services.Rooms.WebMicRouter.Instance.RegisterRoom(roomId, port)
                 End If
                 StartReadinessWatch(roomId, backend)
+                PushServiceVocabWhenReady(roomId, backend)
             Else
                 _log($"[Conference] Backend FAILED to start for room {roomId}")
                 DropKey(_sttBackends, roomId)
@@ -579,7 +652,10 @@ Namespace Controllers
             _sttBackends(roomId) = newBackend
             _log($"[Pipeline:{roomId}] Restarting backend (port={sttConfig.ServerPort})")
             newBackend.Start(sttConfig)
-            If newBackend.IsRunning Then StartReadinessWatch(roomId, newBackend)
+            If newBackend.IsRunning Then
+                StartReadinessWatch(roomId, newBackend)
+                PushServiceVocabWhenReady(roomId, newBackend)
+            End If
         End Sub
 
         ''' <summary>

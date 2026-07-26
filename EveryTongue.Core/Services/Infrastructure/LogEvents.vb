@@ -62,6 +62,7 @@ Namespace Services.Infrastructure
         Public Const STT_WHISPER_SERVER_STOP As Integer = 3007
         Public Const STT_WHISPER_SERVER_ERROR As Integer = 3008
         Public Const STT_HEALTH_CHECK As Integer = 3009
+        Public Const STT_SERVICE_VOCAB As Integer = 3010
 
         ' ── Translation (4000–4099) ──
         Public Const TRANS_SERVER_STARTING As Integer = 4000
@@ -263,6 +264,7 @@ Namespace Services.Infrastructure
             R(STT_WHISPER_SERVER_STOP, LogCategory.Stt, LogSeverity.Info, "whisper-server process stopped")
             R(STT_WHISPER_SERVER_ERROR, LogCategory.Stt, LogSeverity.[Error], "whisper-server error")
             R(STT_HEALTH_CHECK, LogCategory.Stt, LogSeverity.Debug, "STT health check")
+            R(STT_SERVICE_VOCAB, LogCategory.Stt, LogSeverity.Info, "Service people-names vocab (session-lifetime layer) pushed to STT engines")
 
             ' Translation
             R(TRANS_SERVER_STARTING, LogCategory.Translation, LogSeverity.Info, "Translation server starting")

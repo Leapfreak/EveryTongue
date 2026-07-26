@@ -65,6 +65,7 @@
     <Content Include="..\live-server\server.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\server.py</Link></Content>
     <Content Include="..\live-server\sat_segmenter.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\sat_segmenter.py</Link></Content>
     <Content Include="..\live-server\vocab\build_vocab.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vocab\build_vocab.py</Link></Content>
+    <Content Include="..\live-server\vocab\notes_names.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vocab\notes_names.py</Link></Content>
     <Content Include="..\live-server\requirements.txt"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\requirements.txt</Link></Content>
     <Content Include="..\live-server\requirements-lite.txt"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\requirements-lite.txt</Link></Content>
     <Content Include="..\live-server\hallucinations.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\hallucinations.json</Link></Content>

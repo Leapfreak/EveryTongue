@@ -870,6 +870,7 @@ del ""%~f0""
             mnuToolsTranslate.Text = GetString("Menu_ToolsTranslate")
             mnuToolsBible.Text = GetString("Menu_ToolsBible")
             mnuToolsGlossary.Text = GetString("Menu_ToolsGlossary")
+            mnuToolsServiceNames.Text = GetString("Menu_ToolsServiceNames")
             mnuToolsLocalization.Text = GetString("Menu_ToolsLocalization")
             mnuToolsDownloadMgr.Text = GetString("Menu_ToolsDownloadMgr")
             mnuToolsVerifyPaths.Text = GetString("Menu_ToolsVerifyPaths")

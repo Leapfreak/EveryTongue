@@ -1272,6 +1272,38 @@ Namespace Models
             Return output
         End Function
 
+        ''' <summary>
+        ''' Extract people/place name candidates from a sermon-notes file for the
+        ''' Service Names dialog. notes_names.py handles pdf/docx/odt/pages/rtf/txt
+        ''' with document-derived (never static per-language) heuristics.
+        ''' </summary>
+        Public Async Function ExtractNotesNamesAsync(notesPath As String) As Task(Of List(Of String))
+            Dim pythonPath = PythonExePath()
+            If Not File.Exists(pythonPath) Then
+                Throw New FileNotFoundException("Python not installed — install Python packages first")
+            End If
+            Dim script = Path.Combine(BiblicalVocabDir(), "notes_names.py")
+            If Not File.Exists(script) Then
+                Throw New FileNotFoundException("notes_names.py not found — reinstall the app", script)
+            End If
+            Dim output = Await RunProcessCaptureAsync(pythonPath, $"""{script}"" ""{notesPath}""", _toolsDir, 60000)
+            Dim names As New List(Of String)
+            Using doc = JsonDocument.Parse(output)
+                Dim err As JsonElement = Nothing
+                If doc.RootElement.TryGetProperty("error", err) Then
+                    Throw New InvalidOperationException(err.GetString())
+                End If
+                Dim arr As JsonElement = Nothing
+                If doc.RootElement.TryGetProperty("names", arr) AndAlso arr.ValueKind = JsonValueKind.Array Then
+                    For Each el In arr.EnumerateArray()
+                        Dim v = el.GetString()
+                        If Not String.IsNullOrWhiteSpace(v) Then names.Add(v.Trim())
+                    Next
+                End If
+            End Using
+            Return names
+        End Function
+
         ' ──────────────────────────────────────────
         '  GGML Whisper Model (for whisper.cpp)
         ' ──────────────────────────────────────────

@@ -30,6 +30,7 @@ Partial Class FormMain
         mnuToolsBible = New ToolStripMenuItem()
         mnuToolsSep1 = New ToolStripSeparator()
         mnuToolsGlossary = New ToolStripMenuItem()
+        mnuToolsServiceNames = New ToolStripMenuItem()
         mnuToolsLocalization = New ToolStripMenuItem()
         mnuToolsSep2 = New ToolStripSeparator()
         mnuToolsDownloadMgr = New ToolStripMenuItem()
@@ -285,7 +286,7 @@ Partial Class FormMain
         ' 
         ' mnuTools
         ' 
-        mnuTools.DropDownItems.AddRange(New ToolStripItem() {mnuToolsTranscribe, mnuToolsTranslate, mnuToolsBible, mnuToolsSep1, mnuToolsGlossary, mnuToolsLocalization, mnuToolsSep2, mnuToolsDownloadMgr, mnuToolsVerifyPaths, mnuToolsVerifyIntegrity, mnuToolsBenchmark, mnuToolsLogConfig, mnuToolsLogViewer, mnuToolsSep3, mnuToolsOptions})
+        mnuTools.DropDownItems.AddRange(New ToolStripItem() {mnuToolsTranscribe, mnuToolsTranslate, mnuToolsBible, mnuToolsSep1, mnuToolsGlossary, mnuToolsServiceNames, mnuToolsLocalization, mnuToolsSep2, mnuToolsDownloadMgr, mnuToolsVerifyPaths, mnuToolsVerifyIntegrity, mnuToolsBenchmark, mnuToolsLogConfig, mnuToolsLogViewer, mnuToolsSep3, mnuToolsOptions})
         mnuTools.Name = "mnuTools"
         mnuTools.Size = New Size(47, 20)
         mnuTools.Text = "&Tools"
@@ -318,9 +319,15 @@ Partial Class FormMain
         mnuToolsGlossary.Name = "mnuToolsGlossary"
         mnuToolsGlossary.Size = New Size(184, 22)
         mnuToolsGlossary.Text = "Filter Editor..."
-        ' 
+        '
+        ' mnuToolsServiceNames
+        '
+        mnuToolsServiceNames.Name = "mnuToolsServiceNames"
+        mnuToolsServiceNames.Size = New Size(184, 22)
+        mnuToolsServiceNames.Text = "Service Names..."
+        '
         ' mnuToolsLocalization
-        ' 
+        '
         mnuToolsLocalization.Enabled = False
         mnuToolsLocalization.Name = "mnuToolsLocalization"
         mnuToolsLocalization.Size = New Size(184, 22)
@@ -1902,6 +1909,7 @@ Partial Class FormMain
     Friend WithEvents mnuToolsBible As ToolStripMenuItem
     Friend WithEvents mnuToolsSep1 As ToolStripSeparator
     Friend WithEvents mnuToolsGlossary As ToolStripMenuItem
+    Friend WithEvents mnuToolsServiceNames As ToolStripMenuItem
     Friend WithEvents mnuToolsLocalization As ToolStripMenuItem
     Friend WithEvents mnuToolsSep2 As ToolStripSeparator
     Friend WithEvents mnuToolsDownloadMgr As ToolStripMenuItem

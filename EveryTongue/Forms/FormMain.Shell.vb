@@ -86,6 +86,11 @@ Partial Class FormMain
                                                     dlg.ShowDialog(Me)
                                                 End Using
                                             End Sub
+        AddHandler mnuToolsServiceNames.Click, Sub(s, e)
+                                                   Using dlg As New FormServiceNames(_config, Sub() _conferenceController?.PushServiceVocabToAll())
+                                                       dlg.ShowDialog(Me)
+                                                   End Using
+                                               End Sub
         AddHandler mnuToolsDownloadMgr.Click, Sub(s, e) OpenDownloadManager()
         AddHandler mnuToolsVerifyPaths.Click, Sub(s, e) VerifyAllPaths()
         AddHandler mnuToolsVerifyIntegrity.Click, Sub(s, e) VerifyFileIntegrity()

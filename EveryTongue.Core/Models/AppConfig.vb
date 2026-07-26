@@ -423,6 +423,9 @@ Namespace Models
         ''' <summary>Feed biblical proper nouns to Speechmatics as additional_vocab (auto-selected by session language). DEFAULT OFF (2026-07-09): the whole-Bible list misfires (rare names like "Haixum" replacing common words) with no proven benefit — opt in only after a proper A/B, and prefer the book-scoped redesign.</summary>
         Public Property SpeechmaticsBiblicalVocab As Boolean = False
 
+        ''' <summary>Session-lifetime people names fed to STT engines as the service_vocab layer (speakers, sermon-notes nouns). Survives book and language changes; edited via Tools → Service Names. PROVEN lever 2026-07-26: Joni 0/9 → 9/9 on real service audio.</summary>
+        Public Property ServiceNames As New List(Of ServiceNameEntry)
+
         ''' <summary>Master switch for log-only second-opinion translations (TRANS_SHADOW 4012).</summary>
         Public Property ShadowTranslationsEnabled As Boolean = True
         ''' <summary>Comma-separated CLOUD translation engine keys (e.g. "google-translate,deepl") that give LOG-ONLY second/third-opinion translations of every conference commit, so engines can be compared on real service data post-session (TRANS_SHADOW 4012). Never broadcast; raw engine output (no glossary) for a fair comparison. Engines without a key are skipped silently. Cloud engines cost per character. NOTE: Speechmatics can't be a shadow — it has no standalone text-translation API, and its inline translations are per-fragment (not comparable to whole-clause output).</summary>
