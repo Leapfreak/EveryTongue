@@ -1987,7 +1987,10 @@ Public Class FormTranslationBenchmark
             sb.AppendLine($"{r.Config}  on {r.EngineKey}, {r.ClipCount} clips (WER/CER vs FLEURS reference)")
             sb.AppendLine()
             sb.AppendLine($"  WER {r.Wer,6:F1}%   CER {r.Cer,6:F1}%   avg {r.AvgMs,6:F0} ms" &
-                          If(r.FailedClips > 0, $"   ({r.FailedClips} clips FAILED — check log)", ""))
+                          If(r.FailedClips > 0, $"   ({r.FailedClips} clips FAILED)", ""))
+            If Not String.IsNullOrEmpty(r.FirstError) Then
+                sb.AppendLine($"  First failure: {r.FirstError}")
+            End If
             sb.AppendLine()
             sb.AppendLine("  Rough guide: <10% WER excellent, 10-20% usable, >25% painful.")
             sb.AppendLine("  Compare engines on the SAME language with WER; across languages prefer CER.")

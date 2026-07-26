@@ -153,6 +153,8 @@ Namespace Services.Testing
         Public Property Cer As Double
         Public Property AvgMs As Double
         Public Property FailedClips As Integer
+        ''' <summary>First per-clip error body — the actual reason, not just a count.</summary>
+        Public Property FirstError As String = ""
         Public Property RunAt As DateTime
         Public Property Examples As New List(Of (Ref As String, Hyp As String))
     End Class
@@ -204,9 +206,17 @@ Namespace Services.Testing
                     If entry IsNot Nothing AndAlso entry.RequiresInternet Then
                         Dim key = config.GetSttApiKey(engineKey)
                         If String.IsNullOrEmpty(key) Then Throw New Exception($"no API key configured for {engineKey}")
-                        Await http.PostAsync($"http://127.0.0.1:{port}/config",
+                        Dim cfgResp = Await http.PostAsync($"http://127.0.0.1:{port}/config",
                             New StringContent(JsonSerializer.Serialize(New With {.stt_api_key = key}),
                                               Text.Encoding.UTF8, "application/json"), ct)
+                        ' The stt_api_key /config support is newer than v2.9.0 —
+                        ' an older live-server silently ignores it and every
+                        ' /transcribe then 503s. Verify it was ACCEPTED.
+                        Dim cfgBody = Await cfgResp.Content.ReadAsStringAsync()
+                        If Not cfgBody.Contains("stt_api_key") Then
+                            Throw New Exception("this machine's live-server/server.py is too old to accept the API key " &
+                                                "(needs the post-2.9.0 /config stt_api_key support) — update live-server\server.py from the current publish")
+                        End If
                     Else
                         progress("Loading local model...", 0, n)
                         Dim modelPath = AppConfig.ResolvePath(If(entry?.ModelPathFromConfig?.Invoke(config), ""))
@@ -234,6 +244,10 @@ Namespace Services.Testing
                             End Using
                         Else
                             result.FailedClips += 1
+                            If String.IsNullOrEmpty(result.FirstError) Then
+                                Dim errBody = Await resp.Content.ReadAsStringAsync()
+                                result.FirstError = $"HTTP {CInt(resp.StatusCode)}: {errBody.Substring(0, Math.Min(200, errBody.Length))}"
+                            End If
                         End If
                         scorer.AddClip(hyp, clips(i).Ref)
                         If result.Examples.Count < 3 Then result.Examples.Add((clips(i).Ref, hyp))
