@@ -285,8 +285,8 @@ Partial Class FormTranslationBenchmark
         ' tabTransInner — nested TabControl inside Translation tab
         Me.tabTransInner.Controls.Add(Me.tabTransPipeline)
         Me.tabTransInner.Controls.Add(Me.tabTransConcurrency)
-        Me.tabTransInner.Controls.Add(Me.tabTransPairAb)
         Me.tabTransInner.Controls.Add(Me.tabTransResources)
+        Me.tabTransInner.Controls.Add(Me.tabTransPairAb)
         Me.tabTransInner.Dock = DockStyle.Fill
         Me.tabTransInner.Name = "tabTransInner"
         Me.tabTransInner.SelectedIndex = 0
@@ -465,9 +465,9 @@ Partial Class FormTranslationBenchmark
 
         ' tabSttInner — nested TabControl inside STT tab
         Me.tabSttInner.Controls.Add(Me.tabSttComparison)
-        Me.tabSttInner.Controls.Add(Me.tabSttQuality)
         Me.tabSttInner.Controls.Add(Me.tabSttConcurrency)
         Me.tabSttInner.Controls.Add(Me.tabSttResources)
+        Me.tabSttInner.Controls.Add(Me.tabSttQuality)
 
         ' tabSttQuality — WER/CER vs FLEURS references
         Me.tabSttQuality.AutoScroll = True
