@@ -205,6 +205,12 @@ function pickLang(code){
   ssSet('transLang',code);
   ssSet('langChosen','true');
   hideLangPicker();
+  /* Re-assert host state after ANY language pick. tryClaimHost only fires on
+     WS welcome, so picker paths that don't reconnect (e.g. reached via the
+     admin menu) could leave an admin/host without their controls. Both calls
+     are safe to repeat. */
+  if(isHost){showHostControls()}
+  else if(sessionStorage.getItem('adminPin')){tryClaimHost()}
   setTransLang(code);
   applyDictationSpeakLang(code);
   /* sync dropdown */
