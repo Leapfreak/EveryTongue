@@ -635,6 +635,13 @@ Namespace Services.Bible
             StandardBookNumbers.GroupBy(Function(k) k.Value).
                 ToDictionary(Function(g) g.Key, Function(g) g.First().Key)
 
+        ''' <summary>Universal book_number for a standard wire code ("Mat" → 470); 0 if unknown.</summary>
+        Public Shared Function StandardNumberForCode(code As String) As Integer
+            Dim n = 0
+            If StandardBookNumbers.TryGetValue(If(code, ""), n) Then Return n
+            Return 0
+        End Function
+
         Private Class ResolvedBook
             Public Property Code As String
             Public Property Ambiguous As Boolean

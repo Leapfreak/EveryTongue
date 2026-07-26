@@ -58,17 +58,22 @@ def _candidate(token):
     return token if token[:1].isupper() else None
 
 
-def _scan_db(db_path, cap, low):
-    """Accumulate capitalized / lowercase counts from one MyBible DB."""
+def _scan_db(db_path, cap, low, books=None):
+    """Accumulate capitalized / lowercase counts from one MyBible DB.
+    `books` (optional dict) records which book_numbers each name appears in,
+    enabling BOOK-SCOPED vocab (load only the current sermon book's names)."""
     c = sqlite3.connect(db_path)
     try:
-        for (text,) in c.execute("SELECT text FROM verses"):
+        for (bn, text) in c.execute("SELECT book_number, text FROM verses"):
             text = TAG.sub(" ", text or "")
             for m in WORD.finditer(text):
                 tok = m.group(0)
                 seg = _candidate(tok)
                 if seg is not None:
-                    cap[seg.lower()] += 1
+                    key = seg.lower()
+                    cap[key] += 1
+                    if books is not None:
+                        books.setdefault(key, set()).add(bn)
                 else:
                     low[tok.lower().split("'")[-1]] += 1
     finally:
@@ -143,13 +148,15 @@ def build(bibles_dir, out_dir, lang_codes_path=None):
             print(f"VOCAB {subdir} SKIP unknown-language")
             continue
         cap, low = collections.Counter(), collections.Counter()
+        books = {}
         for db in uniq:
             try:
-                _scan_db(db, cap, low)
+                _scan_db(db, cap, low, books)
             except Exception as e:
                 print(f"VOCAB {lang} WARN {os.path.basename(db)}: {e}")
         final = _clean_and_merge(_candidates(cap, low))
-        entries = [{"content": disp(k)} for _, k in final]
+        entries = [{"content": disp(k), "books": sorted(books.get(k, []))}
+                   for _, k in final]
         out_path = os.path.join(out_dir, f"biblical-vocab-{lang}.json")
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(entries, f, ensure_ascii=False, indent=1)

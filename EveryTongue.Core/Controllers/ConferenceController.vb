@@ -46,6 +46,8 @@ Namespace Controllers
         Private ReadOnly _marshal As Action(Of Action)
 
         Private ReadOnly _sttBackends As New Concurrent.ConcurrentDictionary(Of String, ISttBackend)()
+        ' Book currently scoping the STT biblical vocab (0 = none detected yet).
+        Private _currentVocabBook As Integer = 0
         Private ReadOnly _roomTemplateIds As New Concurrent.ConcurrentDictionary(Of String, String)()
         Private ReadOnly _sentenceBuffers As New Concurrent.ConcurrentDictionary(Of String, SentenceBuffer)()
         ' Speechmatics-only clause hold-and-lock decision state machine (engine-owned).
@@ -192,6 +194,26 @@ Namespace Controllers
                                                               _log($"[Conference] ERROR invoking room closed handler: {ex.Message}")
                                                           End Try
                                                       End Sub
+
+            ' Scripture-reference detection → scope the STT engines' biblical
+            ' vocab to the book being preached (a few dozen relevant names, not
+            ' the whole-Bible 1000). Fires only on BOOK CHANGE; each change is
+            ' one in-place session reconnect (same machinery as the EOU retune).
+            ' Engines without vocab support ignore the config key.
+            Services.Subtitle.SubtitleService.BookDetectedHandler =
+                Sub(bookCode As String)
+                    Try
+                        Dim num = Services.Bible.BibleService.StandardNumberForCode(bookCode)
+                        If num <= 0 OrElse num = _currentVocabBook Then Return
+                        _currentVocabBook = num
+                        _log($"[Conference] scripture book detected ({bookCode}/{num}) — scoping STT vocab")
+                        For Each kv In _sttBackends
+                            kv.Value?.UpdateConfigAsync(New Dictionary(Of String, Object) From {{"vocab_book", num}})
+                        Next
+                    Catch ex As Exception
+                        _log($"[Conference] vocab-book update failed: {ex.Message}")
+                    End Try
+                End Sub
 
             ' Host pause → reset the STT per-speaker pace auto-tune (context change).
             ' Speechmatics handles reset_pace; other engines' pipelines ignore it.

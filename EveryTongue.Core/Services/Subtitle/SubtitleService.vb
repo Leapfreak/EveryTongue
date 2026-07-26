@@ -632,6 +632,13 @@ Namespace Services.Subtitle
         End Class
 
         ''' <summary>
+        ''' Fired (with the standard book code) whenever a scripture reference
+        ''' is detected in live text — the trigger for book-scoped STT vocab
+        ''' (ConferenceController wires it to the engines).
+        ''' </summary>
+        Public Shared Property BookDetectedHandler As Action(Of String)
+
+        ''' <summary>
         ''' Detect Bible references in text and return them as wire DTOs (Nothing when none).
         ''' Also stores refs on the CommittedEntry for replay.
         ''' </summary>
@@ -641,6 +648,10 @@ Namespace Services.Subtitle
                 Dim refs = BibleService.DetectReferencesInText(text)
                 If refs Is Nothing OrElse refs.Count = 0 Then Return Nothing
                 entry.BibleRefs = refs.ToList()
+                Try
+                    BookDetectedHandler?.Invoke(refs(0).Reference.Book)
+                Catch
+                End Try
                 Return BuildRefDtos(entry.BibleRefs)
             Catch ex As Exception
                 AppLogger.Log(LogEvents.BIBLE_ERROR, $"Bible reference detection failed: {ex.Message}")

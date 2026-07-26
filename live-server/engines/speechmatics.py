@@ -66,10 +66,16 @@ RECONNECT_BACKOFF_S = 2.0
 RECONNECT_MAX_BACKOFF_S = 15.0
 
 
-def _load_biblical_vocab(lang):
+def _load_biblical_vocab(lang, book=None):
     """Load the generated biblical proper-noun list for `lang` (any language with a
     list in ..\\vocab) as Speechmatics additional_vocab so STT stops garbling names
-    ("Elies"→"aliens"). Returns [] when there's no list for the language."""
+    ("Elies"→"aliens"). Returns [] when there's no list for the language.
+
+    `book` (universal book_number, 470=Matthew) scopes the list to names that
+    appear in THAT book — a few dozen relevant names instead of the whole-Bible
+    1000 (which misfires with obscure cross-book names). Needs a vocab file
+    regenerated with per-name "books" data; old-format files fall back to the
+    full list."""
     code = (lang or "").split("-")[0].split("_")[0].lower()
     if not code:
         return []
@@ -80,7 +86,10 @@ def _load_biblical_vocab(lang):
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-        return [e for e in data if isinstance(e, dict) and e.get("content")]
+        entries = [e for e in data if isinstance(e, dict) and e.get("content")]
+        if book and any("books" in e for e in entries):
+            entries = [e for e in entries if book in (e.get("books") or [])]
+        return entries
     except Exception as e:
         logging.getLogger("live-server.speechmatics").warning(
             "biblical vocab load failed for %s (%s) — skipping", code, e)
@@ -278,6 +287,24 @@ class SpeechmaticsStreamingPipeline:
             if new_lang != self._language:
                 self._language = new_lang
                 restart = True
+        # Scripture-book detection → scope the biblical vocab to THAT book's
+        # names (a few dozen relevant entries, not the whole-Bible 1000).
+        # Works regardless of the whole-Bible flag — book-scoped is the safe
+        # mode the whole-Bible list wanted to be.
+        if "vocab_book" in kwargs:
+            try:
+                nb = int(kwargs["vocab_book"])
+            except (TypeError, ValueError):
+                nb = 0
+            if nb > 0 and nb != getattr(self, "_vocab_book", None):
+                self._vocab_book = nb
+                scoped = _load_biblical_vocab(self._language, nb)
+                if scoped:
+                    self._additional_vocab = scoped
+                    restart = True
+                    logger.info(f"[SPEECHMATICS] vocab scoped to book {nb}: {len(scoped)} names")
+                else:
+                    logger.info(f"[SPEECHMATICS] vocab_book {nb}: no scoped names available (vocab file missing or old format) — keeping current vocab")
         if "translation_targets" in kwargs:
             new_targets = list(kwargs["translation_targets"] or [])
             if new_targets != self._translation_targets:
@@ -294,8 +321,13 @@ class SpeechmaticsStreamingPipeline:
             self._eou_silence = self._eou_baseline
             # The new session gets the vocab for the NEW language (the old full
             # restart kept the previous language's list — stale vocab bug).
-            self._additional_vocab = (_load_biblical_vocab(self._language)
-                                      if self._biblical_vocab_requested else [])
+            # A detected book scope carries across the language change.
+            scoped_book = getattr(self, "_vocab_book", None)
+            if scoped_book:
+                self._additional_vocab = _load_biblical_vocab(self._language, scoped_book) or []
+            else:
+                self._additional_vocab = (_load_biblical_vocab(self._language)
+                                          if self._biblical_vocab_requested else [])
             if self._thread is not None and self._thread.is_alive():
                 logger.info(
                     f"[SPEECHMATICS] config change → lang={self._language} "
