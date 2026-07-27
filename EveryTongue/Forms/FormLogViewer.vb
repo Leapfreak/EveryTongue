@@ -49,8 +49,13 @@ Public Class FormLogViewer
         lblCategory.Text = _getString("LogViewer_CategoryFilter")
         lblLevel.Text = _getString("LogViewer_LevelFilter")
         txtSearch.PlaceholderText = _getString("LogViewer_Search")
+        btnSearchNext.Text = _getString("LogViewer_Next")
         btnCopy.Text = _getString("LogViewer_Copy")
         btnClose.Text = _getString("LogViewer_Close")
+        colTime.HeaderText = _getString("LogCol_Time")
+        colCategory.HeaderText = _getString("LogCol_Category")
+        colLevel.HeaderText = _getString("LogCol_Level")
+        colMessage.HeaderText = _getString("LogCol_Message")
     End Sub
 
     Private Sub ApplyTheme()

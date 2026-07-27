@@ -875,6 +875,7 @@ del ""%~f0""
             mnuToolsDownloadMgr.Text = GetString("Menu_ToolsDownloadMgr")
             mnuToolsVerifyPaths.Text = GetString("Menu_ToolsVerifyPaths")
             mnuToolsVerifyIntegrity.Text = GetString("Menu_ToolsVerifyIntegrity")
+            mnuToolsBenchmark.Text = GetString("Menu_ToolsBenchmark")
             mnuToolsLogConfig.Text = GetString("Menu_ToolsLogConfig")
             mnuToolsLogViewer.Text = GetString("Menu_ToolsLogViewer")
             mnuToolsOptions.Text = GetString("Menu_ToolsOptions")
@@ -896,6 +897,26 @@ del ""%~f0""
             mnuHelpSpecSheet.Text = GetString("Menu_HelpSpecSheet")
             mnuHelpUpdates.Text = GetString("Menu_HelpUpdates")
             mnuHelpAbout.Text = GetString("Menu_HelpAbout")
+
+            ' Bottom status bar + log panel toolbar (shell)
+            tslLogToggle.Text = GetString("Shell_LogLink")
+            lblLogTitle.Text = GetString("Shell_LogOutput")
+            btnLogClear.Text = GetString("Shell_LogClear")
+            btnLogCopy.Text = GetString("LogViewer_Copy")
+            If _logAutoScroll Then btnLogPause.Text = GetString("Shell_LogPause")
+            btnLogSearchNext.Text = GetString("Shell_LogFind")
+            txtLogSearch.PlaceholderText = GetString("LogViewer_Search")
+            colLogTime.HeaderText = GetString("LogCol_Time")
+            colLogCategory.HeaderText = GetString("LogCol_Category")
+            colLogLevel.HeaderText = GetString("LogCol_Level")
+            colLogMessage.HeaderText = GetString("LogCol_Message")
+            If cboLogCategory.Items.Count > 0 Then cboLogCategory.Items(0) = GetString("LogViewer_FilterAll")
+            If cboLogLevel.Items.Count > 0 Then cboLogLevel.Items(0) = GetString("LogViewer_FilterAll")
+
+            ' Bible tab context menu
+            ctxBibleCopySelection.Text = GetString("Bible_CtxCopySelection")
+            ctxBibleCopyVerse.Text = GetString("Bible_CtxCopyVerse")
+            ctxBibleCopyChapter.Text = GetString("Bible_CtxCopyChapter")
 
             ' Nav rail buttons
             btnNavLog.Text = GetString("Nav_Log")

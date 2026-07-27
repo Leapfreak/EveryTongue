@@ -46,6 +46,16 @@ Public Class FormConnectedClients
     Private Sub ApplyLocale()
         Dim lp = Services.Infrastructure.LanguagePackService.Instance
         Me.Text = lp.GetString("CC_Title")
+        tabClients.Text = lp.GetString("CC_TabClients")
+        tabPerformance.Text = lp.GetString("CC_TabPerformance")
+        colDevice.HeaderText = lp.GetString("CC_ColDevice")
+        colOS.HeaderText = lp.GetString("CC_ColOS")
+        colBrowser.HeaderText = lp.GetString("CC_ColBrowser")
+        colLanguage.HeaderText = lp.GetString("CC_ColLanguage")
+        colConnected.HeaderText = lp.GetString("CC_ColConnected")
+        colIP.HeaderText = lp.GetString("CC_ColIP")
+        colSent.HeaderText = lp.GetString("CC_ColSent")
+        colDropped.HeaderText = lp.GetString("CC_ColDropped")
     End Sub
 
     Private Sub RefreshGrid()

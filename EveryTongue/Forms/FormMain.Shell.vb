@@ -175,8 +175,9 @@ Partial Class FormMain
         AddHandler tslLogToggle.Click, Sub(s, e) ToggleLogPanel()
 
         ' ── Wire log panel handlers ──────────────────────────────
-        ' Populate category filter from enum
-        cboLogCategory.Items.Add("All")
+        ' Populate category filter from enum. Index 0 is ALWAYS the "everything"
+        ' entry — filtering keys off the index, not the (localized) text.
+        cboLogCategory.Items.Add(GetString("LogViewer_FilterAll"))
         For Each cat In [Enum].GetValues(GetType(Services.Infrastructure.LogCategory)).Cast(Of Services.Infrastructure.LogCategory)()
             cboLogCategory.Items.Add(cat.ToString())
         Next
@@ -204,7 +205,7 @@ Partial Class FormMain
                                       End Sub
         AddHandler btnLogPause.Click, Sub(s, e)
                                            _logAutoScroll = Not _logAutoScroll
-                                           btnLogPause.Text = If(_logAutoScroll, "Pause", ChrW(&H25B6))
+                                           btnLogPause.Text = If(_logAutoScroll, GetString("Shell_LogPause"), ChrW(&H25B6))
                                        End Sub
         AddHandler btnLogSearchNext.Click, Sub(s, e) SearchLog()
         AddHandler txtLogSearch.KeyDown, Sub(s, e)
@@ -428,8 +429,8 @@ Partial Class FormMain
         End If
 
         ' Append only new entries that pass the current filter
-        Dim catFilter = If(cboLogCategory.SelectedItem, "All").ToString()
-        Dim lvlFilter = If(cboLogLevel.SelectedItem, "All").ToString()
+        Dim catFilter = LogComboFilter(cboLogCategory)
+        Dim lvlFilter = LogComboFilter(cboLogLevel)
         Dim rendered = If(TypeOf dgvLog.Tag Is Integer, CInt(dgvLog.Tag), 0)
 
         For i = rendered To _unifiedLogEntries.Count - 1
@@ -445,10 +446,20 @@ Partial Class FormMain
         End If
     End Sub
 
+    ''' <summary>
+    ''' Filter value for PassesFilter: index 0 is the localized "everything"
+    ''' entry (its display text varies by language), so the index — not the
+    ''' text — decides "All"; other items are enum/category names.
+    ''' </summary>
+    Private Shared Function LogComboFilter(cbo As ComboBox) As String
+        If cbo.SelectedIndex <= 0 OrElse cbo.SelectedItem Is Nothing Then Return "All"
+        Return cbo.SelectedItem.ToString()
+    End Function
+
     ''' <summary>Re-renders the entire log for current filter settings.</summary>
     Private Sub RenderFilteredLog()
-        Dim catFilter = If(cboLogCategory.SelectedItem, "All").ToString()
-        Dim lvlFilter = If(cboLogLevel.SelectedItem, "All").ToString()
+        Dim catFilter = LogComboFilter(cboLogCategory)
+        Dim lvlFilter = LogComboFilter(cboLogLevel)
 
         dgvLog.Rows.Clear()
         For Each e In _unifiedLogEntries
