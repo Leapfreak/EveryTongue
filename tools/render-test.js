@@ -28,6 +28,12 @@ const STUB = `<script>
       deliver({type:'update',text:'PARTIAL_TEXT_MARKER'},300);
       deliver({type:'commit',id:1,text:'HELLO_SUBTITLE_MARKER',lang:'en',sourceLang:'eng_Latn',time:'12:00:00'},600);
       deliver({type:'commit',id:2,text:'SECOND_SUBTITLE_MARKER',lang:'en',sourceLang:'eng_Latn',time:'12:00:05'},900);
+      /* Ref rendering: valid offsets -> inline underline; start=-1 (source-language
+         ref on a translated feed) -> trailing chip, never a wrong underline. */
+      deliver({type:'commit',id:3,text:'Reading from Matthew 4 today.',lang:'en',sourceLang:'eng_Latn',time:'12:00:10',
+        refs:[{book:'Mat',chapter:4,verseStart:0,verseEnd:0,matched:'Matthew 4',start:13,len:9}]},1100);
+      deliver({type:'commit',id:4,text:'CHIP_MODE_MARKER translated text here.',lang:'en',sourceLang:'cat_Latn',time:'12:00:15',
+        refs:[{book:'Mat',chapter:4,verseStart:0,verseEnd:0,matched:'Mateu 4',start:-1,len:0}]},1300);
     },30);
     self.send=function(d){self.sent.push(d)};
     self.close=function(){self.readyState=3};
@@ -69,6 +75,12 @@ const STUB = `<script>
       containerParent:(function(){
         var c=document.getElementById('container');
         return c&&c.parentElement?(c.parentElement.id||c.parentElement.tagName):'(none)';
+      })(),
+      refLinks:(function(){
+        var out=[];
+        var links=document.querySelectorAll('.bible-ref-link');
+        for(var i=0;i<links.length;i++){out.push(links[i].textContent)}
+        return out;
       })()
     };
     fetch('/report',{method:'POST',body:JSON.stringify(report)});
@@ -133,7 +145,12 @@ server.listen(PORT, async () => {
     console.log("caption badge:", JSON.stringify(report.capBadgeText), "(expect '● 2' — 2 commits delivered)");
     console.log("container parent:", report.containerParent, "(must be BODY)");
     console.log("last line physically visible:", report.lastLineVisible);
-    const pass = report.hasCommit1 && report.hasCommit2 && report.lastLineVisible && report.containerParent === "BODY";
+    console.log("ref links:", JSON.stringify(report.refLinks));
+    const refsOk = report.refLinks && report.refLinks.indexOf("Matthew 4") >= 0 &&
+        report.refLinks.some(x => x.indexOf("📖") >= 0 && x.indexOf("Mat 4") >= 0) &&
+        !report.refLinks.some(x => x.indexOf(":0") >= 0);
+    console.log("ref rendering (inline + chip, no :0):", refsOk);
+    const pass = report.hasCommit1 && report.hasCommit2 && report.lastLineVisible && report.containerParent === "BODY" && refsOk;
     console.log("\nVERDICT:", pass ? "CAPTIONS RENDER AND ARE VISIBLE" : "FAILURE — in DOM but NOT visible (or missing)");
     process.exitCode = pass ? 0 : 1;
     server.close();

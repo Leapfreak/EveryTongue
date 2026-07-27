@@ -838,26 +838,44 @@ function addLineSpeakBtn(lineEl,text,ttsLang){
   lineEl.appendChild(btn);
 }
 
+function makeRefLink(r,label){
+  var link=document.createElement('span');
+  link.className='bible-ref-link';
+  link.textContent=label;
+  link.dataset.book=r.book;link.dataset.ch=r.chapter;
+  link.dataset.vs=r.verseStart;link.dataset.ve=r.verseEnd;
+  link.onclick=function(e){
+    e.stopPropagation();
+    openBibleRef(this.dataset.book,parseInt(this.dataset.ch),parseInt(this.dataset.vs),parseInt(this.dataset.ve));
+  };
+  return link;
+}
 function renderTextWithRefs(el,text,refs){
-  /* Sort refs by start index descending so we can splice from the end */
-  var sorted=refs.slice().sort(function(a,b){return a.start-b.start});
+  /* Refs with valid offsets for THIS text render as inline underlines; refs
+     without (start<0, or offsets that don't fit — e.g. detected on the source
+     language while this client reads a translation) become a trailing 📖 chip
+     instead of underlining the wrong characters. */
+  var inline=[],chips=[];
+  for(var i=0;i<refs.length;i++){
+    var r=refs[i];
+    if(r.start>=0&&r.len>0&&r.start+r.len<=text.length){inline.push(r)}else{chips.push(r)}
+  }
+  inline.sort(function(a,b){return a.start-b.start});
   var pos=0;
-  for(var i=0;i<sorted.length;i++){
-    var r=sorted[i];
+  for(var i=0;i<inline.length;i++){
+    var r=inline[i];
+    if(r.start<pos)continue; /* overlapping ref — skip */
     if(r.start>pos){el.appendChild(document.createTextNode(text.substring(pos,r.start)))}
-    var link=document.createElement('span');
-    link.className='bible-ref-link';
-    link.textContent=text.substring(r.start,r.start+r.len);
-    link.dataset.book=r.book;link.dataset.ch=r.chapter;
-    link.dataset.vs=r.verseStart;link.dataset.ve=r.verseEnd;
-    link.onclick=function(e){
-      e.stopPropagation();
-      openBibleRef(this.dataset.book,parseInt(this.dataset.ch),parseInt(this.dataset.vs),parseInt(this.dataset.ve));
-    };
-    el.appendChild(link);
+    el.appendChild(makeRefLink(r,text.substring(r.start,r.start+r.len)));
     pos=r.start+r.len;
   }
   if(pos<text.length){el.appendChild(document.createTextNode(text.substring(pos)))}
+  for(var i=0;i<chips.length;i++){
+    var c=chips[i];
+    var label='📖 '+c.book+' '+c.chapter+(c.verseStart>0?':'+c.verseStart+(c.verseEnd>c.verseStart?'-'+c.verseEnd:''):'');
+    el.appendChild(document.createTextNode(' '));
+    el.appendChild(makeRefLink(c,label));
+  }
 }
 function updateCurrent(text){
   if(!currentEl){currentEl=document.createElement('div');currentEl.className='line in-progress';currentEl.style.fontSize=fontSize+'px';currentEl.style.fontFamily=fontFamily;currentEl.style.fontWeight=isBold?'bold':'normal';insertLine(currentEl)}
@@ -1499,14 +1517,17 @@ function openBibleRef(book,chapter,verseStart,verseEnd){
     setTimeout(function(){openBibleRef(book,chapter,verseStart,verseEnd)},1500);
     return;
   }
-  var versePath=verseStart+(verseEnd>verseStart?'-'+verseEnd:'');
+  /* verseStart 0 = chapter-only reference ("Matthew 4") — show the whole
+     chapter, never a literal ":0" */
+  var versePath=verseStart>0?verseStart+(verseEnd>verseStart?'-'+verseEnd:''):'';
   bibleNavStack=[{type:'books'},{type:'chapters',book:book}];
   btnBibleBack.style.display='';
-  bibleNavTitle.textContent=book+' '+chapter+':'+versePath;
+  bibleNavTitle.textContent=book+' '+chapter+(versePath?':'+versePath:'');
   bibleSearchBox.style.display='none';
   bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">Loading...</div>';
 
-  fetch('/bible/'+encodeURIComponent(currentBibleTrans)+'/'+encodeURIComponent(book)+'/'+chapter+'/'+versePath).then(function(r){return r.json()}).then(function(data){
+  var refUrl='/bible/'+encodeURIComponent(currentBibleTrans)+'/'+encodeURIComponent(book)+'/'+chapter+(versePath?'/'+versePath:'');
+  fetch(refUrl).then(function(r){return r.json()}).then(function(data){
     bibleContent.innerHTML='';
     var verses=Array.isArray(data)?data:(data&&data.verses?data.verses:[]);
     for(var i=0;i<verses.length;i++){

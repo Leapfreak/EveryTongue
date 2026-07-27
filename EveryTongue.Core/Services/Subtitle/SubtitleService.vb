@@ -334,8 +334,12 @@ Namespace Services.Subtitle
             _lastCommittedEntry = entry
             EnqueueWithCap(entry)
 
-            ' Detect Bible references in original text
-            Dim refs = DetectRefs(originalText, entry)
+            ' Detect Bible references in original text (stores them on the entry,
+            ' fires the book-detected handler). Per-client refs are then resolved
+            ' against the text THAT client receives — source offsets are wrong in
+            ' translations.
+            DetectRefs(originalText, entry)
+            Dim refsByText As New Dictionary(Of String, List(Of RefDto))(StringComparer.Ordinal)
 
             Dim ts = entry.Timestamp.ToString("HH:mm:ss")
             Dim deadKeys As New List(Of String)
@@ -378,7 +382,12 @@ Namespace Services.Subtitle
                     Dim langTag As String = ""
                     If langTags IsNot Nothing Then langTags.TryGetValue(tag, langTag)
                     If langTag Is Nothing Then langTag = tag
-                    Dim json = SerializeCommit(text, langTag, ts, entry.Id, refs)
+                    Dim clientRefs As List(Of RefDto) = Nothing
+                    If Not refsByText.TryGetValue(text, clientRefs) Then
+                        clientRefs = RefsForClientText(text, entry)
+                        refsByText(text) = clientRefs
+                    End If
+                    Dim json = SerializeCommit(text, langTag, ts, entry.Id, clientRefs)
                     Dim buffer = Encoding.UTF8.GetBytes(json)
                     If Not TrySendToClient(kvp.Value, buffer) Then
                         deadKeys.Add(kvp.Key)
@@ -531,7 +540,7 @@ Namespace Services.Subtitle
                         Dim text = GetTextForClient(client, entry.OriginalText, entry.Translations)
                         Dim clientLang = GetLangForClient(client, entry.SourceLang, entry.Translations, entry.LangTags)
                         Dim ts = entry.Timestamp.ToString("HH:mm:ss")
-                        Dim refs = BuildRefDtos(entry.BibleRefs)
+                        Dim refs = RefsForClientText(text, entry)
                         Dim json = SerializeCommit(text, clientLang, ts, entry.Id, refs)
                         Dim buf = Encoding.UTF8.GetBytes(json)
                         If client.WebSocket.State = WebSocketState.Open Then
@@ -678,6 +687,36 @@ Namespace Services.Subtitle
                 })
             Next
             Return result
+        End Function
+
+        ''' <summary>
+        ''' Refs whose offsets are valid for the text a client actually receives.
+        ''' The stored refs were detected on the SOURCE text; their character
+        ''' offsets are meaningless in a translation (a Catalan-detected "Mateu 4"
+        ''' underlined " 4 we c" in the English feed). For a different text:
+        ''' re-detect on it (correct offsets AND localized book names when that
+        ''' language's Bible is installed); if nothing is found, reuse the source
+        ''' refs with start=-1 — the client renders those as a trailing 📖 chip
+        ''' instead of underlining the wrong characters.
+        ''' </summary>
+        Private Function RefsForClientText(clientText As String, entry As CommittedEntry) As List(Of RefDto)
+            If entry.BibleRefs Is Nothing OrElse entry.BibleRefs.Count = 0 Then Return Nothing
+            If String.Equals(clientText, entry.OriginalText, StringComparison.Ordinal) Then
+                Return BuildRefDtos(entry.BibleRefs)
+            End If
+            Try
+                Dim redetected = BibleService?.DetectReferencesInText(clientText)
+                If redetected IsNot Nothing AndAlso redetected.Count > 0 Then
+                    Return BuildRefDtos(redetected.ToList())
+                End If
+            Catch
+            End Try
+            Dim chips = BuildRefDtos(entry.BibleRefs)
+            For Each c In chips
+                c.start = -1
+                c.len = 0
+            Next
+            Return chips
         End Function
 
         ''' <summary>
