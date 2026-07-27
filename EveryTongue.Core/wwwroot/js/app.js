@@ -1513,8 +1513,14 @@ function openBibleRef(book,chapter,verseStart,verseEnd){
   if(!biblePanel.classList.contains('open')){closeAllPanels();biblePanel.classList.add('open')}
   if(bibleTranslations.length===0){
     loadBibleTranslations();
-    /* Retry after translations load */
-    setTimeout(function(){openBibleRef(book,chapter,verseStart,verseEnd)},1500);
+    /* Retry as soon as the translation list lands (poll fast, give up at ~6s)
+       — the old fixed 1500ms wait made every first click feel slow */
+    var tries=0;
+    var poll=setInterval(function(){
+      tries++;
+      if(bibleTranslations.length>0){clearInterval(poll);openBibleRef(book,chapter,verseStart,verseEnd)}
+      else if(tries>40){clearInterval(poll)}
+    },150);
     return;
   }
   /* verseStart 0 = chapter-only reference ("Matthew 4") — show the whole
