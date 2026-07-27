@@ -150,20 +150,20 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
 - [ ] 12. Permanent template QR scanned BEFORE the service → friendly waiting page → auto-joins within ~5s of the room starting
 - [ ] 13. Host ends/restarts the room mid-service → guest shows "room ended", then auto-rejoins the new room (joinTpl healing)
 - [ ] 14. Old per-room QR (?room=) still drops straight into the room
-- [ ] 15. Guest home button re-opens the language picker (no lobby); changing output language works mid-service any time
-- [ ] 16. Bare URL → lobby lock screen; room list does NOT render without the code
-- [ ] 17. Normal client is clean (no badges/heartbeat); ?diag=1 turns diagnostics on
+- [x] 15. Guest home button re-opens the language picker (no lobby); changing output language works mid-service any time
+- [x] 16. Bare URL → lobby lock screen; room list does NOT render without the code
+- [x] 17. Normal client is clean (no badges/heartbeat); ?diag=1 turns diagnostics on
 **C. Phone as VOLUNTEER** (caution: ~10 wrong codes in 5 min rate-limits the IP — don't lock yourself out):
-- [ ] 18. Lobby demands creator code up-front; wrong rejected; correct persists across browser restarts
-- [ ] 19. Volunteer home button → lobby (not the picker)
+- [x] 18. Lobby demands creator code up-front; wrong rejected; correct persists across browser restarts
+- [x] 19. Volunteer home button → lobby (not the picker)
 - [ ] 20. Create a conference room → post-create overlay shows the permanent QR + "print this" hint
-- [ ] 21. Dictation section only reachable inside creator-gated tools
+- [x] 21. Dictation section only reachable inside creator-gated tools
 **D. Phone as ADMIN:**
-- [ ] 22. /admin.html: PIN login, UI auto-follows browser language (no language step)
+- [x] 22. /admin.html: PIN login, UI auto-follows browser language (no language step)
 - [ ] 23. Every card usable on a small screen: server settings (•••• for configured keys), template editor (+ per-template QR), Bible downloads (search → download → stage progress), raw config (bad JSON → precise error; valid → applied live), log tail
-- [ ] 24. Settings save with wrong PIN → "Not authorized", never fake success
+- [x] 24. Settings save with wrong PIN → "Not authorized", never fake success
 - [ ] 25. Live remote card: visible on desktop head, hidden on Lite; start/stop still works through PIN-gated /api/control
-- [ ] 26. Picker "Administrator" link + host panel Admin button both reach /admin.html
+- [x] 26. Picker "Administrator" link + host panel Admin button both reach /admin.html
 - [ ] 27. Host a REAL service from a template created entirely in the browser (correct engine/language/audio source)
 - [ ] 28. Download a Bible from web admin on the desktop head → desktop Bible tab sees it WITHOUT restart (two-viewers rule)
 
@@ -173,15 +173,15 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
 - [ ] 31. Copy (✓ flash), Clear, Done (stops mic + deletes room + back to lobby)
 
 **F. LOCALIZATION on real devices:**
-- [ ] 32. Phone set to Catalan, then Spanish: lobby/room/picker/admin — hunt English stragglers (report any → get filled)
-- [ ] 33. Speaker Language + dictation dropdowns show the 55-language native-name list (not the old 13)
+- [x] 32. Phone set to Catalan, then Spanish: lobby/room/picker/admin — hunt English stragglers (report any → get filled)
+- [x] 33. Speaker Language + dictation dropdowns show the 55-language native-name list (not the old 13)
 - [ ] 34. Desktop dialogs localized: shortcuts table, Log Configuration, language chooser, QR form, Filter Editor
 
 **G. LITE / CONTAINER:**
 - [ ] 35. Conversation-room PTT on Lite with REAL phones (only simulated so far)
-- [ ] 36. BCI/BEC visible in the container Bible panel (Linux case-sensitivity fix)
-- [ ] 37. Re-run get-lite.ps1/.sh as an update → clean replace, correct LAN-IP URLs incl. /admin.html
-- [ ] 38. Image update pulls MBs, not the 1.3GB torch stack (layer-order fix)
+- [x] 36. BCI/BEC visible in the container Bible panel (Linux case-sensitivity fix)
+- [x] 37. Re-run get-lite.ps1/.sh as an update → clean replace, correct LAN-IP URLs incl. /admin.html
+- [x] 38. Image update pulls MBs, not the 1.3GB torch stack (layer-order fix)
 - [ ] 39. Stage 3 gate: full end-to-end Lite service (web-mic room + phones + cloud translation)
 
 **H. OPT-IN / TEST-MACHINE:**
