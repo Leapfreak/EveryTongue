@@ -127,11 +127,32 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
 
 - [x] **✅ RELEASED in v2.10.0 + VALIDATED LIVE (2026-07-26/27) — FLEURS STT quality benchmark** (Speechmatics ca 5.1%% WER / whisper-cpp-vulkan 6.0%% — tie at human-transcriber range; hardening shipped in v2.10.1) (the STT sibling of the FLORES instrument): benchmark STT tab → "Quality (FLEURS)" — per-language dev-set download from HF (google/fleurs, ungated, ~250 MB/lang, configs discovered live from the repo tree, bsdtar extract), WerScorer (corpus WER+CER, normalized), FleursSttRunner (temp live-server per run: --backend <key>, online keys injected via NEW /config stt_api_key so no capture /start needed, faster-whisper via /load-model; whisper-cpp variants NOT wired v1), results + examples + cumulative benchmarks/stt-scores.csv. WER guide: <10%% excellent / 10-20 usable / >25 painful; WER within-language, CER across. UNTESTED live — first run: ca_es on speechmatics vs faster-whisper. Phase 2 (not built): house-clips folder with corrected transcripts from real services → vocab on/off A/B (GLS terms) + ca/es code-switch measurement — where the real answers live.
 
-## NEXT UP (consolidated 2026-07-27, post name-discovery + group update)
+**v2.11.0 released (2026-07-28): git tag + GitHub Release (installer + app zip + manifest + aws-sdk carry-over) + ghcr :2.11.0/:latest. THE names-stack release: two-layer STT vocab (service + book-scoped), scripture detection via derived alias index, Tools → Service Names with multi-format notes import (pdf/docx/odt/pages/rtf/txt/json/xml), log events 6003/6004/3010, BCI integrity false-alarm fix. THIS is the build for the Jezer clean install.**
+
+## ☑ VERIFICATION CHECKLIST (consolidated 2026-07-28 — 13 scattered gates collapsed into 3 bundles; ticking a line here closes the matching gate-notes elsewhere in this file)
+
+**Bundle 1 — one normal Sunday service on Jezer (desktop, v2.11.0):**
+- [ ] Names stack log chain: [6004] alias index ready → [3010] service vocab push → engine "vocab service layer: N names" → [6003] scripture detection → "vocab book layer → book N". (Prereqs: REGENERATE biblical vocab in Download Manager — pre-2026-07-27 files have no per-book data; enter service names incl. `Eareckson = Erikson`.)
+- [ ] EOU auto-tune on a real service (boundary-hysteresis code finally on the field machine — no more retune flip-flop)
+- [ ] Host controls after language pick via the admin-menu path (post-2.10.0 fix — poke it once during the service)
+- [ ] Stage 2 gate: full service on the desktop app = zero regression from the Core split
+- [ ] v2.8.3 field-checks: web-mic exit guard, End Room confirm, event 5017 only on REAL live-server restarts
+
+**Bundle 2 — one ~15-min phone walk-through (any time):**
+- [ ] Settings page on a phone (Stage 4 gate)
+- [ ] Raw JSON config editor on a phone
+- [ ] Bible downloads from web settings on a phone
+- [ ] Web template editor on a phone (+ host a room from a web-created template)
+- [ ] Three-page IA walk-through + join via the permanent QR
+
+**Bundle 3 — one Lite/Docker session (low-stakes occasion):**
+- [ ] Stage 3 gate: full end-to-end Lite service (web-mic room + phones + cloud translation)
+- [ ] Web dictation live end-to-end (talk → text in the editor)
+
+**Opt-in stray:** SaT live-validation (needs SpeechmaticsUseSat ON + HoldClauses — deliberate toggle-flip during a service).
 
 **Field / ops:**
-- [ ] **Jezer: clean install (v2.10.1 or newer with the names stack)** — fixes EOU retune flip-flop (pre-2026-07-12 hysteresis on that machine), the WebSockets-assembly startup crash (partial install), and mixed file vintages. THEN: (a) **REGENERATE the biblical vocab** (Download Manager → Biblical Vocabulary → Generate) — vocab files generated before 2026-07-27 have NO per-book data, so book-scoping silently falls back to the whole-Bible 1000 list; (b) enter/import the service names (Tools → Service Names) incl. `Eareckson = Erikson` sounds_like (the proven residual); (c) Sunday validation = watch the log chain: [6004] alias index ready → [3010] service vocab push → engine "vocab service layer: N names" → [6003] scripture detection → "vocab book layer → book N".
-- [ ] **Web fix to verify**: host controls after language pick via the admin-menu path (fix shipped post-2.10.0, awaiting a live repro test).
+- [ ] **Jezer: clean install of v2.11.0** — fixes EOU retune flip-flop (pre-2026-07-12 hysteresis on that machine), the WebSockets-assembly startup crash (partial install), and mixed file vintages; brings the names stack. Then run Bundle 1 above on Sunday. (Also run `tools/fix_spavbl.py` there if the Spanish Bible is installed.)
 
 **Builds (priority order):**
 - [x] **★ Names priming — the proven quality lever. CORE SHIPPED 2026-07-27** (two-layer service+book vocab, Tools → Service Names dialog, multi-format notes import pdf/docx/odt/pages/rtf/txt, sounds_like syntax, push-on-start + live re-push; speaker profiles deliberately NOT a source — moved away from them in favour of EOU auto-tune). **Remaining pieces:**
