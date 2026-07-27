@@ -216,6 +216,15 @@ function pickLang(code){
   /* sync dropdown */
   var sel=document.getElementById('transLangSelect');
   for(var i=0;i<sel.options.length;i++){if(sel.options[i].value===code){sel.selectedIndex=i;break}}
+  /* sync the dictation output box too — the picker resets the subscription to
+     the spoken language (raw transcript), and a stale value here made the box
+     claim one output language while the server delivered another */
+  var dsel=document.getElementById('dictOutLang');
+  if(dsel){
+    var found=false;
+    for(var j=0;j<dsel.options.length;j++){if(dsel.options[j].value===code){dsel.selectedIndex=j;found=true;break}}
+    if(!found)dsel.selectedIndex=0;
+  }
   /* Auto-select a matching voice for the new language, unless user manually chose one */
   if(!voiceManuallySet&&!serverTtsActive){autoSelectVoiceForLang(code)}
 }
