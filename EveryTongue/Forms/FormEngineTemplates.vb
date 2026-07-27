@@ -80,6 +80,9 @@ Public Class FormEngineTemplates
         lblEngine.Text = S("EngTpl_Engine")
         grpDetail.Text = S("EngTpl_Details")
         chkIncludeAdvanced.Text = S("EngTpl_IncludeAdvanced")
+        btnSave.Text = S("Tmpl_Save")
+        btnCancelEdit.Text = S("Btn_Cancel")
+        btnClose.Text = S("LogViewer_Close")
     End Sub
 
     Private Sub PopulateEngineDropdown()

@@ -56,6 +56,9 @@ Public Class FormSpeakerProfiles
         lblTts.Text = S("Spk_Tts")
         lblGlossary.Text = S("Spk_Glossary")
         grpDetail.Text = S("Spk_Details")
+        btnSave.Text = S("Tmpl_Save")
+        btnCancelEdit.Text = S("Btn_Cancel")
+        btnClose.Text = S("LogViewer_Close")
     End Sub
 
     Private Sub RefreshList()

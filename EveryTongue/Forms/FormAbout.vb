@@ -15,17 +15,26 @@ Public Class FormAbout
             picLogo.Image = Drawing.Image.FromStream(logoStream)
         End If
 
+        Dim lp = Services.Infrastructure.LanguagePackService.Instance
+        Me.Text = lp.GetString("About_Title")
+        lblFree.Text = lp.GetString("About_Free")
+        lblGlory.Text = lp.GetString("About_Glory")
+
         ' Set version text at runtime
         Dim ver = Assembly.GetExecutingAssembly().GetName().Version
-        lblVersion.Text = $"Version {ver.Major}.{ver.Minor}.{ver.Build}"
+        lblVersion.Text = String.Format(lp.GetString("About_Version"), $"{ver.Major}.{ver.Minor}.{ver.Build}")
 
         ' Set copyright year at runtime
         lblCopy.Text = $"Copyright © 2024-{DateTime.Now.Year} Jeremy Smit"
 
-        ' Set up link regions on lnkBoth
+        ' Link regions computed from the LOCALIZED parts — fixed character
+        ' offsets would land on the wrong characters in other languages.
+        Dim licenseText = lp.GetString("About_License")
+        Dim noticesText = lp.GetString("About_Notices")
+        lnkBoth.Text = licenseText & "  |  " & noticesText
         lnkBoth.Links.Clear()
-        lnkBoth.Links.Add(0, 7, "license")   ' "License"
-        lnkBoth.Links.Add(12, 20, "notices") ' "Third-Party Notices"
+        lnkBoth.Links.Add(0, licenseText.Length, "license")
+        lnkBoth.Links.Add(licenseText.Length + 5, noticesText.Length, "notices")
 
         ' Center AutoSize link labels via Layout
         AddHandler Me.Layout, Sub(s As Object, ev As LayoutEventArgs)

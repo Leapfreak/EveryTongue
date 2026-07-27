@@ -41,6 +41,9 @@ Public Class FormFilterSets
         btnCopyGlobal.Text = S("FSet_CopyGlobal")
         btnOpenFolder.Text = S("FSet_OpenFolder")
         grpDetail.Text = S("FSet_Details")
+        btnSave.Text = S("Tmpl_Save")
+        btnCancelEdit.Text = S("Btn_Cancel")
+        btnClose.Text = S("LogViewer_Close")
     End Sub
 
     Private Shared Function SetFolder(id As String) As String

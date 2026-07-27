@@ -56,6 +56,22 @@ Public Class FormConnectedClients
         colIP.HeaderText = lp.GetString("CC_ColIP")
         colSent.HeaderText = lp.GetString("CC_ColSent")
         colDropped.HeaderText = lp.GetString("CC_ColDropped")
+        btnClose.Text = lp.GetString("LogViewer_Close")
+        btnRefresh.Text = lp.GetString("CC_Refresh")
+        chkAutoRefresh.Text = lp.GetString("CC_AutoRefresh")
+        ' Initial "no data yet" state — the same format strings the refresh
+        ' uses, with an em-dash so the labels aren't English until first poll.
+        Dim dash = "—"
+        lblPerfClients.Text = String.Format(lp.GetString("CC_ConnectedClients"), dash)
+        lblPerfCpu.Text = String.Format(lp.GetString("CC_CpuUsage"), dash, dash)
+        lblPerfGpu.Text = String.Format(lp.GetString("CC_Gpu"), dash)
+        lblPerfMemory.Text = String.Format(lp.GetString("CC_Memory"), dash)
+        lblPerfNetwork.Text = String.Format(lp.GetString("CC_LanguagesActive"), dash, "")
+        lblPerfBroadcast.Text = String.Format(lp.GetString("CC_BroadcastLatency"), dash)
+        lblPerfTranslation.Text = String.Format(lp.GetString("CC_TranslationLatency"), dash)
+        lblPerfMsgSent.Text = String.Format(lp.GetString("CC_MessagesSent"), dash)
+        lblPerfMsgDropped.Text = String.Format(lp.GetString("CC_MessagesDropped"), dash)
+        lblPerfUptime.Text = String.Format(lp.GetString("CC_ServerUptime"), dash)
     End Sub
 
     Private Sub RefreshGrid()

@@ -54,6 +54,7 @@ Namespace Forms
             lblVocabInfo.Text = lp.GetString("DM_VocabInfo")
             btnGenerateVocab.Text = lp.GetString("DM_VocabGenerate")
             tabBibles.Text = lp.GetString("DM_TabBibles")
+            txtBibleSearch.PlaceholderText = lp.GetString("DM_BibleSearchPh")
             btnFetchCatalog.Text = lp.GetString("DM_FetchCatalog")
             btnDownloadBibles.Text = lp.GetString("DM_DownloadSelected")
             btnOpenBiblesFolder.Text = lp.GetString("DM_OpenFolder")

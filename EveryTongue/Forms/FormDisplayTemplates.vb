@@ -56,6 +56,9 @@ Public Class FormDisplayTemplates
         lblLayout.Text = S("Disp_Layout")
         lblOffered.Text = S("Disp_Offered")
         grpDetail.Text = S("Disp_Details")
+        btnSave.Text = S("Tmpl_Save")
+        btnCancelEdit.Text = S("Btn_Cancel")
+        btnClose.Text = S("LogViewer_Close")
     End Sub
 
     Private Sub PopulateStaticCombos()
