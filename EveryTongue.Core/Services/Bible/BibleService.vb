@@ -342,8 +342,14 @@ Namespace Services.Bible
                                 Dim maxCh = If(reader.IsDBNull(2), 0, reader.GetInt32(2))
                                 If verseCount = 0 Then
                                     issues.Add($"{shortName}: no verses")
-                                ElseIf maxCh > 0 Then
-                                    ' Check for gaps in chapters
+                                ElseIf maxCh > 0 AndAlso CodeForNumber.ContainsKey(reader.GetInt32(1)) Then
+                                    ' Check for gaps in chapters — ONLY for the 66-book
+                                    ' canon (books with a standard wire code), where
+                                    ' chapters are contiguous by definition. Supplementary
+                                    ' books legitimately skip chapters (e.g. BCI's
+                                    ' "Daniel (fragments grecs)" holds only 3, 13, 14 —
+                                    ' the Greek additions), so a gap there is design,
+                                    ' not corruption.
                                     Using cmd2 = conn.CreateCommand()
                                         cmd2.CommandText = "SELECT DISTINCT chapter FROM verses WHERE book_number = @bn ORDER BY chapter"
                                         cmd2.Parameters.AddWithValue("@bn", reader.GetInt32(1))
