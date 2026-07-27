@@ -185,7 +185,7 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
 - [ ] 39. Stage 3 gate: full end-to-end Lite service (web-mic room + phones + cloud translation)
 
 **H. OPT-IN / TEST-MACHINE:**
-- [ ] 40. SaT live validation (SpeechmaticsUseSat ON + HoldClauses ON for one service; judge translation quality)
+- [x] 40. SaT live validation — CLOSED 2026-07-28: Sunday 2026-07-26 ran WITH SaT on (segmenter ready at start; 158 [5013] clause-splits: 122×2, 24×3, 8×4, 4×5 sentences) and the forensics measured that pipeline at batch-whisper segmentation parity (285 units @10.0 words vs 311 @9.7). Strict on/off isolation skipped — no headroom left to find.
 - [ ] 41. Cloud-engine smoke tests (Deepgram/Gladia/Azure…) with real API keys — test-machine work
 
 **Field / ops:**
