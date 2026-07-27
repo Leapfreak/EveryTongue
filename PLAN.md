@@ -129,27 +129,62 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
 
 **v2.11.0 released (2026-07-28): git tag + GitHub Release (installer + app zip + manifest + aws-sdk carry-over) + ghcr :2.11.0/:latest. THE names-stack release: two-layer STT vocab (service + book-scoped), scripture detection via derived alias index, Tools → Service Names with multi-format notes import (pdf/docx/odt/pages/rtf/txt/json/xml), log events 6003/6004/3010, BCI integrity false-alarm fix. THIS is the build for the Jezer clean install.**
 
-## ☑ VERIFICATION CHECKLIST (consolidated 2026-07-28 — 13 scattered gates collapsed into 3 bundles; ticking a line here closes the matching gate-notes elsewhere in this file)
+## ☑ VERIFICATION CHECKLIST (numbered 2026-07-28 — ALL open gates merged + deduped; user ticks by number. Ticking a number closes the matching gate-notes elsewhere in this file. Dropped as already-closed: biblical vocab on/off A/B — PROVEN 2026-07-26 on real service audio, Joni 0/9→9/9.)
 
-**Bundle 1 — one normal Sunday service on Jezer (desktop, v2.11.0):**
-- [ ] Names stack log chain: [6004] alias index ready → [3010] service vocab push → engine "vocab service layer: N names" → [6003] scripture detection → "vocab book layer → book N". (Prereqs: REGENERATE biblical vocab in Download Manager — pre-2026-07-27 files have no per-book data; enter service names incl. `Eareckson = Erikson`.)
-- [ ] EOU auto-tune on a real service (boundary-hysteresis code finally on the field machine — no more retune flip-flop)
-- [ ] Host controls after language pick via the admin-menu path (post-2.10.0 fix — poke it once during the service)
-- [ ] Stage 2 gate: full service on the desktop app = zero regression from the Core split
-- [ ] v2.8.3 field-checks: web-mic exit guard, End Room confirm, event 5017 only on REAL live-server restarts
+**A. Sunday service on Jezer (desktop v2.11.0)** — prereqs: clean install, REGENERATE biblical vocab (Download Manager — pre-2026-07-27 files have no per-book data), enter service names incl. `Eareckson = Erikson`, run tools/fix_spavbl.py if Spanish Bible installed:
+- [ ] 1. Names-stack log chain: [6004] alias index ready → [3010] service vocab push → "vocab service layer: N names" → [6003] scripture detection → "vocab book layer → book N"
+- [ ] 2. EOU auto-tune across a full sermon — fragmentation actually improves (retune events sane, no flip-flop)
+- [ ] 3. Host controls appear after language pick via the admin-menu path (post-2.10.0 fix)
+- [ ] 4. Stage 2 zero-regression gate: the service simply running normally on the desktop app closes it
+- [ ] 5. The ~40s "web-mic forward failed"/5017 warnings are gone; 5017 only on a REAL live-server restart (b65715e)
+- [ ] 6. Broadcasting phone: close tab / back-swipe → "Leave site?" warning; dictation Done / End Room do NOT double-prompt
+- [ ] 7. End Room asks "close this room for everyone?" before killing the room
+- [ ] 8. Speaker-language change mid-service: log shows in-place reconnect, no input-overflow, no lost words (speak through the swap), session vocab count matches the NEW language
+- [ ] 9. Listeners see "Waiting for microphone…" banner before Broadcast starts
+- [ ] 10. Host reclaim after a phone reload (hostToken recovery — picker PIN login no longer exists)
+- [ ] 11. No-regress check only: captions visibly on screen (v2.8.1 fix is field-confirmed)
 
-**Bundle 2 — one ~15-min phone walk-through (any time):**
-- [ ] Settings page on a phone (Stage 4 gate)
-- [ ] Raw JSON config editor on a phone
-- [ ] Bible downloads from web settings on a phone
-- [ ] Web template editor on a phone (+ host a room from a web-created template)
-- [ ] Three-page IA walk-through + join via the permanent QR
+**B. Phone as GUEST:**
+- [ ] 12. Permanent template QR scanned BEFORE the service → friendly waiting page → auto-joins within ~5s of the room starting
+- [ ] 13. Host ends/restarts the room mid-service → guest shows "room ended", then auto-rejoins the new room (joinTpl healing)
+- [ ] 14. Old per-room QR (?room=) still drops straight into the room
+- [ ] 15. Guest home button re-opens the language picker (no lobby); changing output language works mid-service any time
+- [ ] 16. Bare URL → lobby lock screen; room list does NOT render without the code
+- [ ] 17. Normal client is clean (no badges/heartbeat); ?diag=1 turns diagnostics on
+**C. Phone as VOLUNTEER** (caution: ~10 wrong codes in 5 min rate-limits the IP — don't lock yourself out):
+- [ ] 18. Lobby demands creator code up-front; wrong rejected; correct persists across browser restarts
+- [ ] 19. Volunteer home button → lobby (not the picker)
+- [ ] 20. Create a conference room → post-create overlay shows the permanent QR + "print this" hint
+- [ ] 21. Dictation section only reachable inside creator-gated tools
+**D. Phone as ADMIN:**
+- [ ] 22. /admin.html: PIN login, UI auto-follows browser language (no language step)
+- [ ] 23. Every card usable on a small screen: server settings (•••• for configured keys), template editor (+ per-template QR), Bible downloads (search → download → stage progress), raw config (bad JSON → precise error; valid → applied live), log tail
+- [ ] 24. Settings save with wrong PIN → "Not authorized", never fake success
+- [ ] 25. Live remote card: visible on desktop head, hidden on Lite; start/stop still works through PIN-gated /api/control
+- [ ] 26. Picker "Administrator" link + host panel Admin button both reach /admin.html
+- [ ] 27. Host a REAL service from a template created entirely in the browser (correct engine/language/audio source)
+- [ ] 28. Download a Bible from web admin on the desktop head → desktop Bible tab sees it WITHOUT restart (two-viewers rule)
 
-**Bundle 3 — one Lite/Docker session (low-stakes occasion):**
-- [ ] Stage 3 gate: full end-to-end Lite service (web-mic room + phones + cloud translation)
-- [ ] Web dictation live end-to-end (talk → text in the editor)
+**E. Web DICTATION (live):**
+- [ ] 29. Lobby → dictation → talk → text appears in the editor (real voice, first time ever)
+- [ ] 30. Output-language dropdown: translated text arrives; "No translation" → raw transcript
+- [ ] 31. Copy (✓ flash), Clear, Done (stops mic + deletes room + back to lobby)
 
-**Opt-in stray:** SaT live-validation (needs SpeechmaticsUseSat ON + HoldClauses — deliberate toggle-flip during a service).
+**F. LOCALIZATION on real devices:**
+- [ ] 32. Phone set to Catalan, then Spanish: lobby/room/picker/admin — hunt English stragglers (report any → get filled)
+- [ ] 33. Speaker Language + dictation dropdowns show the 55-language native-name list (not the old 13)
+- [ ] 34. Desktop dialogs localized: shortcuts table, Log Configuration, language chooser, QR form, Filter Editor
+
+**G. LITE / CONTAINER:**
+- [ ] 35. Conversation-room PTT on Lite with REAL phones (only simulated so far)
+- [ ] 36. BCI/BEC visible in the container Bible panel (Linux case-sensitivity fix)
+- [ ] 37. Re-run get-lite.ps1/.sh as an update → clean replace, correct LAN-IP URLs incl. /admin.html
+- [ ] 38. Image update pulls MBs, not the 1.3GB torch stack (layer-order fix)
+- [ ] 39. Stage 3 gate: full end-to-end Lite service (web-mic room + phones + cloud translation)
+
+**H. OPT-IN / TEST-MACHINE:**
+- [ ] 40. SaT live validation (SpeechmaticsUseSat ON + HoldClauses ON for one service; judge translation quality)
+- [ ] 41. Cloud-engine smoke tests (Deepgram/Gladia/Azure…) with real API keys — test-machine work
 
 **Field / ops:**
 - [ ] **Jezer: clean install of v2.11.0** — fixes EOU retune flip-flop (pre-2026-07-12 hysteresis on that machine), the WebSockets-assembly startup crash (partial install), and mixed file vintages; brings the names stack. Then run Bundle 1 above on Sunday. (Also run `tools/fix_spavbl.py` there if the Spanish Bible is installed.)
