@@ -184,9 +184,9 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
 - [x] 38. Image update pulls MBs, not the 1.3GB torch stack (layer-order fix)
 - [ ] 39. Stage 3 gate: full end-to-end Lite service (web-mic room + phones + cloud translation)
 
-**H. OPT-IN / TEST-MACHINE:**
+**H. OPT-IN:**
 - [x] 40. SaT live validation — CLOSED 2026-07-28: Sunday 2026-07-26 ran WITH SaT on (segmenter ready at start; 158 [5013] clause-splits: 122×2, 24×3, 8×4, 4×5 sentences) and the forensics measured that pipeline at batch-whisper segmentation parity (285 units @10.0 words vs 311 @9.7). Strict on/off isolation skipped — no headroom left to find.
-- [ ] 41. Cloud-engine smoke tests (Deepgram/Gladia/Azure…) with real API keys — test-machine work
+- [x] ~~41. Cloud-engine smoke tests~~ — moved out of the verification checklist 2026-07-28: it's BLOCKED on acquiring Deepgram/Gladia/Azure API keys, not a check anyone can perform; see "Blocked / waiting" below.
 
 **Field / ops:**
 - [ ] **Jezer: clean install of v2.11.0** — fixes EOU retune flip-flop (pre-2026-07-12 hysteresis on that machine), the WebSockets-assembly startup crash (partial install), and mixed file vintages; brings the names stack. Then run Bundle 1 above on Sunday. (Also run `tools/fix_spavbl.py` there if the Spanish Bible is installed.)
@@ -201,7 +201,9 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
 - [ ] **Benchmark polish batch**: Speechmatics BATCH API for big sweeps (RT session-churn triggered account throttling: 20 consecutive timeouts 06:15-06:21 on 2026-07-26); WER number-normalization data file (digits vs spelled-out biases engine comparisons ~1-2 pts); exclude retry cooldowns from avg-latency stat; sidecar teardown exit(0) + timeout messages with detail.
 - [ ] **Pause-aware service-log analysis script** — automate tonight's manual method (join session.log pause windows [5105] with live-server/conference commits; sermon-window stats, name checks, whisper-SRT diff when audio provided). One command per service.
 
-**Watching:** Speechmatics **Melia** RT GA — vendor-side automatic language switching is the only credible path for the ca/es code-switching problem (our hardest open issue); trial is near-zero code via the model dual-path.
+**Blocked / waiting (not actionable until the external thing happens):**
+- **Speechmatics Melia RT GA** — vendor-side automatic language switching is the only credible path for the ca/es code-switching problem (our hardest open issue); trial is near-zero code via the model dual-path.
+- **Cloud-STT engine smoke tests (Deepgram/Gladia/Azure/Google STT)** — the plugin code shipped untested against real vendors; needs API keys (free tiers exist for Deepgram/Gladia). When keys arrive, also restructure their language-change to the in-place reconnect (validated live for Speechmatics).
 
 ## ★ KEY DISCOVERY 2026-07-26 — NAMES are the quality lever, and it is PROVEN
 Proper nouns are where the live pipeline visibly fails and where listeners notice: a garbled name at STT poisons EVERY downstream translation in every language (Joni→jonny/johnny/jenny/'la tata' reached all screens; Marina→'the Navy' in English via NLLB treating a name as a noun). Fixing the name at the SOURCE (STT additional_vocab) fixes all languages at once — measured on real service audio: **Joni 0/9 → 9/9 correct** with a vocab list auto-extracted from the preacher's notes PDF. Hearing/segmentation/translation are all measured at-ceiling; names are the one reachable gap. BUILT 2026-07-27: layered vocab (service+book) + Service Names dialog with multi-format notes import + sounds_like (see below). STILL TO DO: LOAD THE VOCAB ON JEZER (regenerate biblical vocab via Download Manager for per-book data, enter/import service names) + weekly batch-whisper harvest + translation-side name protection.
