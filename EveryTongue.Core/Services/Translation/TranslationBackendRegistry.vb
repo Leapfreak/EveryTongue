@@ -50,18 +50,21 @@ Namespace Services.Translation
             ''' DeepL self-pivots internally; LLMs are natively multilingual; Google
             ''' measured 2026-07-26 (FLORES cat→swe): direct output IDENTICAL to
             ''' explicit pivot — it pivots internally, so ours only doubles cost.
-            ''' NLLB stays True conservatively until more pairs are measured
-            ''' (measured entries in translation-direct-pairs[.local].json override
-            ''' this per pair).
+            ''' NLLB flipped to False 2026-07-28: it is genuinely many-to-many by
+            ''' design, and the one weak pair measured (FLORES cat→swe) was a tie
+            ''' (direct 60.1 vs pivot 60.7 chrF) — the conservative True had almost
+            ''' the whole language picker badged "via English" for no measured gain.
+            ''' (Measured entries in translation-direct-pairs[.local].json still
+            ''' override this per pair, either direction.)
             ''' </summary>
             Public Property EnglishCentric As Boolean = True
         End Class
 
         Private Shared ReadOnly _backends As New List(Of Entry) From {
-            New Entry With {.Key = "nllb", .DisplayName = "NLLB 1.3B (offline, ~3 GB VRAM)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-model", .BackendName = "Local", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb")},
-            New Entry With {.Key = "nllb-int8", .DisplayName = "NLLB 1.3B int8 (offline, ~1.5 GB VRAM)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-model", .BackendName = "Local", .ComputeType = "int8_float16", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb-int8")},
-            New Entry With {.Key = "nllb-3.3b", .DisplayName = "NLLB 3.3B (offline, ~8 GB VRAM)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-3.3b-model", .BackendName = "Local", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb-3.3b")},
-            New Entry With {.Key = "nllb-3.3b-int8", .DisplayName = "NLLB 3.3B int8 (offline, ~4 GB VRAM)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-3.3b-model", .BackendName = "Local", .ComputeType = "int8_float16", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb-3.3b-int8")},
+            New Entry With {.Key = "nllb", .DisplayName = "NLLB 1.3B (offline, ~3 GB VRAM)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-model", .BackendName = "Local", .EnglishCentric = False, .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb")},
+            New Entry With {.Key = "nllb-int8", .DisplayName = "NLLB 1.3B int8 (offline, ~1.5 GB VRAM)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-model", .BackendName = "Local", .ComputeType = "int8_float16", .EnglishCentric = False, .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb-int8")},
+            New Entry With {.Key = "nllb-3.3b", .DisplayName = "NLLB 3.3B (offline, ~8 GB VRAM)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-3.3b-model", .BackendName = "Local", .EnglishCentric = False, .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb-3.3b")},
+            New Entry With {.Key = "nllb-3.3b-int8", .DisplayName = "NLLB 3.3B int8 (offline, ~4 GB VRAM)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-3.3b-model", .BackendName = "Local", .ComputeType = "int8_float16", .EnglishCentric = False, .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb-3.3b-int8")},
             New Entry With {.Key = "google-translate", .DisplayName = "Google Translate (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "Google", .EnglishCentric = False, .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("google-translate")},
             New Entry With {.Key = "deepl", .DisplayName = "DeepL (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "DeepL", .EnglishCentric = False, .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("deepl")},
             New Entry With {.Key = "azure-translator", .DisplayName = "Azure Translator (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "Azure", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("azure-translator")},
