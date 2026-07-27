@@ -35,6 +35,7 @@ Public Class FormSessionWizard
         InitializeComponent()
 
         Me.CancelButton = btnCancel
+        ApplyLocale()
 
         ' Wire button events
         AddHandler btnBack.Click, Sub(s, e) ShowStep(_currentStep - 1)
@@ -57,7 +58,6 @@ Public Class FormSessionWizard
         AddHandler chkWizBold.CheckedChanged, Sub(s, e) UpdatePreview()
 
         ' Save-as-template controls (final step)
-        chkSaveTemplate.Text = Services.Infrastructure.LanguagePackService.Instance.GetString("SW_SaveTemplate")
         AddHandler chkSaveTemplate.CheckedChanged, Sub(s, e) txtTemplateName.Enabled = chkSaveTemplate.Checked
 
         ' Wire color-picker events
@@ -76,6 +76,27 @@ Public Class FormSessionWizard
         StartHardwareScan()
 
         ShowStep(0)
+    End Sub
+
+    Private Sub ApplyLocale()
+        Dim lp = Services.Infrastructure.LanguagePackService.Instance
+        Me.Text = lp.GetString("SW_Title")
+        btnBack.Text = lp.GetString("SW_BtnBack")
+        btnCancel.Text = lp.GetString("Opt_Cancel")
+        lblHwStatus.Text = lp.GetString("SW_HwScanning")
+        lblDev.Text = lp.GetString("SW_SelectDevice")
+        lblLang.Text = lp.GetString("SW_SpeakerLang")
+        chkEnableTrans.Text = lp.GetString("SW_EnableTrans")
+        lblDevice.Text = lp.GetString("SW_TransDevice")
+        lblTransStatus.Text = lp.GetString("SW_TransStatusNote")
+        lblAppear.Text = lp.GetString("SW_Appear")
+        lblBg.Text = lp.GetString("SW_Bg")
+        lblFg.Text = lp.GetString("SW_Fg")
+        lblFont.Text = lp.GetString("SW_Font")
+        lblSize.Text = lp.GetString("SW_Size")
+        chkWizBold.Text = lp.GetString("Opt_Bold")
+        lblPreview.Text = lp.GetString("SW_Preview")
+        chkSaveTemplate.Text = lp.GetString("SW_SaveTemplate")
     End Sub
 
     ' ═══════════════════════════════════════════════════════════════
@@ -113,16 +134,17 @@ Public Class FormSessionWizard
             Case Else : ratingColor = Drawing.Color.Red
         End Select
 
-        lblHwStatus.Text = $"Overall: {_hwInfo.OverallScore}/100 — {_hwInfo.GetRatingDescription(Services.Infrastructure.LanguagePackService.Instance)}"
+        Dim lp = Services.Infrastructure.LanguagePackService.Instance
+        lblHwStatus.Text = String.Format(lp.GetString("SW_HwOverall"), _hwInfo.OverallScore, _hwInfo.GetRatingDescription(lp))
         lblHwStatus.ForeColor = ratingColor
 
         pnlHwBars.Controls.Clear()
         Dim y = 10
 
         AddScoreBar(pnlHwBars, $"GPU:  {_hwInfo.GpuName}", _hwInfo.GpuScore, _hwInfo.GpuMemoryMB & " MB", y) : y += 55
-        AddScoreBar(pnlHwBars, $"CPU:  {_hwInfo.CpuName}", _hwInfo.CpuScore, _hwInfo.CpuCores & " cores", y) : y += 55
+        AddScoreBar(pnlHwBars, $"CPU:  {_hwInfo.CpuName}", _hwInfo.CpuScore, String.Format(lp.GetString("SW_HwCores"), _hwInfo.CpuCores), y) : y += 55
         AddScoreBar(pnlHwBars, "RAM:", _hwInfo.RamScore, FormatMB(_hwInfo.RamTotalMB), y) : y += 55
-        AddScoreBar(pnlHwBars, "Disk free:", _hwInfo.DiskScore, FormatMB(_hwInfo.DiskFreeMB), y)
+        AddScoreBar(pnlHwBars, lp.GetString("SW_HwDiskFree"), _hwInfo.DiskScore, FormatMB(_hwInfo.DiskFreeMB), y)
     End Sub
 
     Private Shared Sub AddScoreBar(parent As Panel, label As String, score As Integer, detail As String, y As Integer)
