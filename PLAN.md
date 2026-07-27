@@ -175,7 +175,7 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
 **F. LOCALIZATION on real devices:**
 - [x] 32. Phone set to Catalan, then Spanish: lobby/room/picker/admin — hunt English stragglers (report any → get filled)
 - [x] 33. Speaker Language + dictation dropdowns show the 55-language native-name list (not the old 13)
-- [ ] 34. Desktop dialogs localized: shortcuts table, Log Configuration, language chooser, QR form, Filter Editor
+- [x] 34. Desktop dialogs localized — CLOSED 2026-07-28 after the user-driven hunt + all-forms audit sweep (shell log panel/status bar, Session Logs, Connected Clients, Session Wizard, Translate/Bible workspaces, tray menu, Benchmark form, About, 5 template dialogs; tools/audit-all-forms.js reports 0 genuine stragglers)
 
 **G. LITE / CONTAINER:**
 - [ ] 35. Conversation-room PTT on Lite with REAL phones (only simulated so far)
