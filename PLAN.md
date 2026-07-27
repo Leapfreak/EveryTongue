@@ -168,8 +168,8 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
 - [ ] 28. Download a Bible from web admin on the desktop head → desktop Bible tab sees it WITHOUT restart (two-viewers rule)
 
 **E. Web DICTATION (live):**
-- [ ] 29. Lobby → dictation → talk → text appears in the editor (real voice, first time ever)
-- [ ] 30. Output-language dropdown: translated text arrives; "No translation" → raw transcript
+- [x] 29. Dictation with real voice — VERIFIED by user 2026-07-28 (found the stale output-language box bug en route, fixed 161d9ec)
+- [x] 30. Output-language dropdown translated vs raw — VERIFIED by user 2026-07-28 (Spanish translation worked once selected; sync bug fixed 161d9ec)
 - [ ] 31. Copy (✓ flash), Clear, Done (stops mic + deletes room + back to lobby)
 
 **F. LOCALIZATION on real devices:**
