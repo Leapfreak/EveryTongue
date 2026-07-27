@@ -76,7 +76,7 @@ Public Class FormServiceNames
 
     Private Async Sub btnImport_Click(sender As Object, e As EventArgs) Handles btnImport.Click
         Using dlg As New OpenFileDialog()
-            dlg.Filter = $"{S("SvcNames_ImportFilter")}|*.pdf;*.docx;*.odt;*.pages;*.rtf;*.txt;*.md|{S("SvcNames_ImportAllFiles")}|*.*"
+            dlg.Filter = $"{S("SvcNames_ImportFilter")}|*.pdf;*.docx;*.odt;*.pages;*.rtf;*.txt;*.md;*.json;*.xml|{S("SvcNames_ImportAllFiles")}|*.*"
             If dlg.ShowDialog(Me) <> DialogResult.OK Then Return
             btnImport.Enabled = False
             lblStatus.Text = S("SvcNames_Importing")

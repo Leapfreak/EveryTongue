@@ -5,7 +5,8 @@ Usage: python notes_names.py <notes-file>
 Prints JSON: {"names": ["Joni Eareckson Tada", ...]} or {"error": "..."}.
 
 Supported formats: .pdf (pypdf), .docx/.odt/.pages (zip+XML, stdlib only),
-.rtf (control-word strip), .txt/.md and anything else (plain text).
+.rtf (control-word strip), .xml (tag strip), .json (string values),
+.txt/.md and anything else (plain text).
 
 The candidate heuristic is LANGUAGE-NEUTRAL and derived from the document
 itself (no static word lists, per project rules):
@@ -97,6 +98,34 @@ def _plain_text(path):
     return raw.decode("latin-1", "replace")
 
 
+def _xml_text(path):
+    xml = _plain_text(path)
+    # Closing tags act as sentence breaks so sibling elements don't glue into
+    # one fake capitalized run; then strip all remaining markup.
+    xml = re.sub(r"</[^>]+>", ". ", xml)
+    return re.sub(r"<[^>]+>", " ", xml)
+
+
+def _json_text(path):
+    # Every string value becomes its own "sentence" — keys are skipped
+    # (they're identifiers, not prose).
+    data = json.loads(_plain_text(path))
+    parts = []
+
+    def walk(node):
+        if isinstance(node, str):
+            parts.append(node)
+        elif isinstance(node, dict):
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(data)
+    return ". ".join(parts)
+
+
 def extract_text(path):
     ext = path.lower().rsplit(".", 1)[-1] if "." in path else ""
     if ext == "pdf":
@@ -109,6 +138,10 @@ def extract_text(path):
         return _pages_text(path)
     if ext == "rtf":
         return _rtf_text(open(path, "rb").read())
+    if ext == "xml":
+        return _xml_text(path)
+    if ext == "json":
+        return _json_text(path)
     return _plain_text(path)
 
 
