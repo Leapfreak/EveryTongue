@@ -170,7 +170,7 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
 **E. Web DICTATION (live):**
 - [x] 29. Dictation with real voice — VERIFIED by user 2026-07-28 (found the stale output-language box bug en route, fixed 161d9ec)
 - [x] 30. Output-language dropdown translated vs raw — VERIFIED by user 2026-07-28 (Spanish translation worked once selected; sync bug fixed 161d9ec)
-- [ ] 31. Copy (✓ flash), Clear, Done (stops mic + deletes room + back to lobby)
+- [x] 31. Copy/Clear/Done — VERIFIED by user 2026-07-28 (dictation working ok end-to-end)
 
 **F. LOCALIZATION on real devices:**
 - [x] 32. Phone set to Catalan, then Spanish: lobby/room/picker/admin — hunt English stragglers (report any → get filled)
