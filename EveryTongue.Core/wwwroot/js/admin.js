@@ -148,13 +148,18 @@
     // ── Connection status card — the "am I connected" signal, on live plumbing ──
     function pollStatus() {
         fetch("/api/health").then(r => r.json()).then(h => {
-            const ok = h.overall === "healthy";
+            // /api/health reports {status:"healthy"|"degraded"} — h.overall never
+            // existed, so the card showed DEGRADED even on a healthy server.
+            const ok = h.status === "healthy";
             $("statLine").textContent = ok ? t("statConnected") : t("statDegraded");
             $("statLine").style.color = ok ? "#4f4" : "#fa0";
-            return fetch("/api/rooms").then(r => r.json()).then(rooms => {
-                const list = (rooms && rooms.rooms) || rooms || [];
+            // Room list is volunteer-gated; CreatorCodeOk accepts the admin PIN
+            // as the code (higher privilege). Without it the 403 error object
+            // rendered "undefined active room(s)".
+            return fetch("/api/rooms?code=" + encodeURIComponent(pin)).then(r => r.json()).then(rooms => {
+                const list = Array.isArray(rooms) ? rooms : (rooms && Array.isArray(rooms.rooms) ? rooms.rooms : null);
                 $("statDetail").textContent = "v" + h.version + " · " + t("statUptime") + " " + h.uptime +
-                    " · " + list.length + " " + t("statRooms");
+                    (list ? " · " + list.length + " " + t("statRooms") : "");
             }).catch(() => { $("statDetail").textContent = "v" + h.version + " · " + h.uptime; });
         }).catch(() => {
             $("statLine").textContent = t("statOffline");
