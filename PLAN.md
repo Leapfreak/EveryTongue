@@ -131,7 +131,6 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
 
 **Field / ops:**
 - [ ] **Jezer: clean install (v2.10.1 or newer with the names stack)** — fixes EOU retune flip-flop (pre-2026-07-12 hysteresis on that machine), the WebSockets-assembly startup crash (partial install), and mixed file vintages. THEN: (a) **REGENERATE the biblical vocab** (Download Manager → Biblical Vocabulary → Generate) — vocab files generated before 2026-07-27 have NO per-book data, so book-scoping silently falls back to the whole-Bible 1000 list; (b) enter/import the service names (Tools → Service Names) incl. `Eareckson = Erikson` sounds_like (the proven residual); (c) Sunday validation = watch the log chain: [6004] alias index ready → [3010] service vocab push → engine "vocab service layer: N names" → [6003] scripture detection → "vocab book layer → book N".
-- [ ] **Win10 → Win11 migration of the translation machine** — the pending "showdown", not yet attempted.
 - [ ] **Web fix to verify**: host controls after language pick via the admin-menu path (fix shipped post-2.10.0, awaiting a live repro test).
 
 **Builds (priority order):**
