@@ -129,7 +129,9 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
 
 **v2.11.0 released (2026-07-28): git tag + GitHub Release (installer + app zip + manifest + aws-sdk carry-over) + ghcr :2.11.0/:latest. THE names-stack release: two-layer STT vocab (service + book-scoped), scripture detection via derived alias index, Tools → Service Names with multi-format notes import (pdf/docx/odt/pages/rtf/txt/json/xml), log events 6003/6004/3010, BCI integrity false-alarm fix. THIS is the build for the Jezer clean install.**
 
-## ☑ VERIFICATION CHECKLIST (numbered 2026-07-28 — ALL open gates merged + deduped; user ticks by number. Ticking a number closes the matching gate-notes elsewhere in this file. Dropped as already-closed: biblical vocab on/off A/B — PROVEN 2026-07-26 on real service audio, Joni 0/9→9/9.)
+## ☑ VERIFICATION CHECKLIST
+
+**2026-07-28: #15-19, 21, 22, 24, 26, 32, 33, 36-38 verified via headless-Edge harness (tools/verify-bucket1*.js) against a live local Lite v2.11.0 + real room + Docker.** Found + fixed en route (a0eb805): admin Status card always showed DEGRADED (h.overall vs h.status), room count rendered "undefined" (uncredentialed /api/rooms), and 33 admin locale keys missing from en.json (Settings/Status/pivot cards were hardcoded English for every language). #32 caveat: on-phone visual pass still worthwhile; #33 caveat: API-level only, dropdown DOM not exercised. (numbered 2026-07-28 — ALL open gates merged + deduped; user ticks by number. Ticking a number closes the matching gate-notes elsewhere in this file. Dropped as already-closed: biblical vocab on/off A/B — PROVEN 2026-07-26 on real service audio, Joni 0/9→9/9.)
 
 **A. Sunday service on Jezer (desktop v2.11.0)** — prereqs: clean install, REGENERATE biblical vocab (Download Manager — pre-2026-07-27 files have no per-book data), enter service names incl. `Eareckson = Erikson`, run tools/fix_spavbl.py if Spanish Bible installed:
 - [ ] 1. Names-stack log chain: [6004] alias index ready → [3010] service vocab push → "vocab service layer: N names" → [6003] scripture detection → "vocab book layer → book N"
