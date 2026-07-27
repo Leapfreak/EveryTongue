@@ -925,10 +925,44 @@ del ""%~f0""
             btnNavBible.Text = GetString("Nav_Bible")
             btnNavWeb.Text = GetString("Nav_Web")
 
-            ' Translate workspace TTS + Bible verse translation controls
+            ' Translate workspace
+            lblTransFrom.Text = GetString("Trans_From")
+            lblTransTo.Text = GetString("Trans_To")
+            btnTranslate.Text = GetString("Trans_Translate")
             btnTransSpeak.Text = GetString("Trans_Speak")
+            btnTransCopy.Text = GetString("Trans_Copy")
+            btnTransClear.Text = GetString("Trans_Clear")
+            btnTransOutCopy.Text = GetString("Trans_Copy")
+            btnTransOutClear.Text = GetString("Trans_Clear")
+
+            ' Bible workspace
+            lblBibleLang.Text = GetString("Bible_Language")
+            lblBibleTrans.Text = GetString("Bible_Translation")
+            btnBibleGo.Text = GetString("Bible_Go")
+            lblBibleNavTitle.Text = GetString("Bible_Books")
             lblBibleTransTo.Text = GetString("Bible_TranslateTo")
             btnBibleSpeak.Text = GetString("Bible_ReadAloud")
+            tabPageTranslate.Text = GetString("Nav_Translate")
+            tabPageBibleWs.Text = GetString("Nav_Bible")
+
+            ' Translate input/output context menus
+            ctxTransInputCut.Text = GetString("Ctx_Cut")
+            ctxTransInputCopy.Text = GetString("Ctx_Copy")
+            ctxTransInputPaste.Text = GetString("Ctx_Paste")
+            ctxTransInputSelectAll.Text = GetString("Ctx_SelectAll")
+            ctxTransOutputCopy.Text = GetString("Ctx_Copy")
+            ctxTransOutputSelectAll.Text = GetString("Ctx_SelectAll")
+
+            ' Transcribe workspace
+            btnResume.Text = GetString("Job_Resume")
+
+            ' Tray menu
+            trayMenuShow.Text = GetString("Tray_Show")
+            trayMenuDictation.Text = GetString("Tray_Dictation")
+            trayMenuQR.Text = GetString("Tray_QR")
+            trayMenuBrowser.Text = GetString("Tray_Browser")
+            trayMenuAbout.Text = GetString("Tray_About")
+            trayMenuExit.Text = GetString("Tray_Exit")
             AppLogger.Log(LogEvents.LOCALE_LOADED, $"ApplyLocale complete: Nav_Transcribe={btnNavTranscribe.Text}, Menu_File={mnuFile.Text}")
         Catch ex As Exception
             AppLogger.Log(LogEvents.LOCALE_FALLBACK, $"ApplyLocale: {ex.Message}")
