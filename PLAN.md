@@ -144,7 +144,7 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
 - [ ] 8. Speaker-language change mid-service: log shows in-place reconnect, no input-overflow, no lost words (speak through the swap), session vocab count matches the NEW language
 - [ ] 9. Listeners see "Waiting for microphone…" banner before Broadcast starts
 - [ ] 10. Host reclaim after a phone reload (hostToken recovery — picker PIN login no longer exists)
-- [ ] 11. No-regress check only: captions visibly on screen (v2.8.1 fix is field-confirmed)
+- [x] 11. Captions visibly on screen — CLOSED 2026-07-29: user read live caption text on the CURRENT build during 2026-07-28 testing (quoted the on-screen English feed verbatim) + render-test asserts physical visibility every run.
 
 **B. Phone as GUEST:**
 - [ ] 12. Permanent template QR scanned BEFORE the service → friendly waiting page → auto-joins within ~5s of the room starting
