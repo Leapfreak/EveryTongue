@@ -91,6 +91,16 @@ def load(model_name=None):
                 sys.path.insert(0, libs)
             if cache and os.path.isdir(cache):
                 os.environ.setdefault("HF_HOME", cache)
+            # Numpy >=1.24 removed the deprecated scalar aliases (np.long,
+            # np.float, ...) that sat-libs' pinned transformers still touch —
+            # the v2.11 embedded Python upgrade silently killed SaT on Jezer
+            # ("module 'numpy' has no attribute 'long'"). Restore them before
+            # wtpsplit imports anything.
+            import numpy as _np
+            for _alias, _typ in (("long", int), ("int", int), ("float", float),
+                                 ("bool", bool), ("object", object), ("str", str)):
+                if not hasattr(_np, _alias):
+                    setattr(_np, _alias, _typ)
             from wtpsplit import SaT
             _model = SaT(_model_name)
             _available = True

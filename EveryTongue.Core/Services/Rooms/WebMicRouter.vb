@@ -26,6 +26,10 @@ Namespace Services.Rooms
             Public ReadOnly SendLock As New SemaphoreSlim(1, 1)
             Public FramesForwarded As Long
             Public LastErrorLogged As DateTime = DateTime.MinValue
+            ''' <summary>The live-server refused /audio-in (HTTP 403 = its engine
+            ''' didn't start in web-mic mode, e.g. a whisper room). Permanent for
+            ''' this session — stop hammering it; cleared on a new broadcaster.</summary>
+            Public PermanentRefusal As Boolean = False
         End Class
 
         Private ReadOnly _routes As New ConcurrentDictionary(Of String, RoomRoute)()
@@ -59,6 +63,7 @@ Namespace Services.Rooms
             If Not _routes.TryGetValue(roomId, route) Then Return ""
             Dim previous = route.BroadcasterClientId
             route.BroadcasterClientId = If(clientId, "")
+            route.PermanentRefusal = False   ' new broadcast attempt earns one fresh try
             Return If(previous = route.BroadcasterClientId, "", previous)
         End Function
 
@@ -85,6 +90,7 @@ Namespace Services.Rooms
         Public Async Function SendFrameAsync(roomId As String, frame As Byte(), ct As CancellationToken) As Task
             Dim route As RoomRoute = Nothing
             If Not _routes.TryGetValue(roomId, route) OrElse frame Is Nothing OrElse frame.Length = 0 Then Return
+            If route.PermanentRefusal Then Return
 
             Await route.SendLock.WaitAsync(ct).ConfigureAwait(False)
             Try
@@ -101,8 +107,16 @@ Namespace Services.Rooms
                 route.FramesForwarded += 1
             Catch ex As Exception
                 CloseSocket(route)
-                ' Rate-limit: at most one error line per 5s per room (frames arrive 10/s).
-                If (DateTime.Now - route.LastErrorLogged).TotalSeconds > 5 Then
+                If ex.Message.Contains("403") Then
+                    ' Permanent: the engine didn't start in web-mic mode (whisper
+                    ' rooms capture a local device). Retrying can never succeed —
+                    ' the old behavior logged this every 5s for the room's life.
+                    route.PermanentRefusal = True
+                    AppLogger.Log(LogEvents.CONF_WEBMIC_ERROR,
+                        $"room={roomId} live-server refused /audio-in (403) — its engine is not in web-mic mode " &
+                        "(whisper rooms capture a local device; browser frames are ignored). Stopping forward attempts for this broadcast.")
+                ElseIf (DateTime.Now - route.LastErrorLogged).TotalSeconds > 5 Then
+                    ' Rate-limit transient failures: at most one line per 5s per room.
                     route.LastErrorLogged = DateTime.Now
                     AppLogger.Log(LogEvents.CONF_WEBMIC_ERROR, $"room={roomId} web-mic forward failed: {ex.Message}")
                 End If
