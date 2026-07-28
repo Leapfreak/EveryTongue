@@ -135,7 +135,7 @@ All 9 phases implemented and tested. Frame-level Silero VAD with 4-tier commit s
 
 **A. Sunday service on Jezer (desktop v2.11.0)** — prereqs: clean install, REGENERATE biblical vocab (Download Manager — pre-2026-07-27 files have no per-book data), enter service names incl. `Eareckson = Erikson`, run tools/fix_spavbl.py if Spanish Bible installed:
 - [ ] 1. Names-stack log chain: [6004] alias index ready → [3010] service vocab push → "vocab service layer: N names" → [6003] scripture detection → "vocab book layer → book N"
-- [ ] 2. EOU auto-tune across a full sermon — fragmentation actually improves (retune events sane, no flip-flop)
+- [ ] 2. EOU auto-tune across a full sermon on the HYSTERESIS build — Sunday 2026-07-26 (v2.6.5, pre-hysteresis) baseline: 33 retunes incl. 0.7↔1.0 oscillation ~every minute, yet fragmentation at whisper parity. Pass bar next Sunday: calmer retunes, fragmentation no worse.
 - [ ] 3. Host controls appear after language pick via the admin-menu path (post-2.10.0 fix)
 - [ ] 4. Stage 2 zero-regression gate: the service simply running normally on the desktop app closes it
 - [ ] 5. The ~40s "web-mic forward failed"/5017 warnings are gone; 5017 only on a REAL live-server restart (b65715e)
