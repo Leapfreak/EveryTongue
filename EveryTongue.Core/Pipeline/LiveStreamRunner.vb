@@ -462,6 +462,11 @@ Namespace Pipeline
                         If list.Count > 0 Then Return list
                     End If
                 End Using
+            Catch ex As OperationCanceledException
+                ' In-flight segment request cut off by room teardown (or the
+                ' 1500ms bound) — routine, and the caller gets the unsplit
+                ' fallback; an ERROR here was teardown noise.
+                AppLogger.Log(LogEvents.STT_HEALTH_CHECK, "SegmentAsync canceled (teardown/timeout) — clause passed through unsplit")
             Catch ex As Exception
                 AppLogger.Log(LogEvents.STT_WHISPER_SERVER_ERROR, $"SegmentAsync failed: {ex.Message}")
             End Try
