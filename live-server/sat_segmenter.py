@@ -97,8 +97,13 @@ def load(model_name=None):
             # ("module 'numpy' has no attribute 'long'"). Restore them before
             # wtpsplit imports anything.
             import numpy as _np
-            for _alias, _typ in (("long", int), ("int", int), ("float", float),
-                                 ("bool", bool), ("object", object), ("str", str)):
+            # Full alias family: field test showed fixing "long" just surfaced
+            # "ulong" next — cover every scalar alias numpy 2 has that 1.x lacks.
+            for _alias, _typ in (("long", int), ("ulong", int), ("longlong", int),
+                                 ("ulonglong", int), ("intp", int), ("uintp", int),
+                                 ("int", int), ("uint", int), ("float", float),
+                                 ("double", float), ("bool", bool),
+                                 ("object", object), ("str", str)):
                 if not hasattr(_np, _alias):
                     setattr(_np, _alias, _typ)
             from wtpsplit import SaT
