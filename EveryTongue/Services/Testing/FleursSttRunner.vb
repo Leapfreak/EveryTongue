@@ -254,6 +254,7 @@ Namespace Services.Testing
                         Dim hyp = ""
                         Dim ok = False
                         Dim transportFail = False
+                        Dim clipErr = ""
                         Dim sw = Diagnostics.Stopwatch.StartNew()
                         For attempt = 0 To 1
                             Try
@@ -268,17 +269,17 @@ Namespace Services.Testing
                                     ok = True
                                     Exit For
                                 End If
-                                If String.IsNullOrEmpty(result.FirstError) Then
-                                    Dim errBody = Await resp.Content.ReadAsStringAsync()
-                                    result.FirstError = $"HTTP {CInt(resp.StatusCode)}: {errBody.Substring(0, Math.Min(200, errBody.Length))}"
-                                End If
+                                Dim errBody = Await resp.Content.ReadAsStringAsync()
+                                clipErr = $"HTTP {CInt(resp.StatusCode)}: {errBody.Substring(0, Math.Min(200, errBody.Length))}"
+                                If String.IsNullOrEmpty(result.FirstError) Then result.FirstError = clipErr
                             Catch ex As OperationCanceledException
                                 Throw
                             Catch ex As Exception
                                 ' Transport failure — the sidecar may have died mid-run.
                                 ' One dead clip must not kill the whole benchmark.
                                 ' (VB: no Await inside Catch — recovery happens below.)
-                                If String.IsNullOrEmpty(result.FirstError) Then result.FirstError = $"transport: {ex.Message}"
+                                clipErr = $"transport: {ex.Message}"
+                                If String.IsNullOrEmpty(result.FirstError) Then result.FirstError = clipErr
                                 transportFail = True
                             End Try
                             If transportFail Then
@@ -315,7 +316,13 @@ Namespace Services.Testing
                             If attempt = 0 Then Await Task.Delay(5000, ct) ' session-slot / recovery cooldown
                         Next
                         sw.Stop() : totalMs += sw.ElapsedMilliseconds
-                        If Not ok Then result.FailedClips += 1
+                        If Not ok Then
+                            result.FailedClips += 1
+                            ' Every failure with full context — "timeout" alone made
+                            ' the throttling diagnosis needlessly slow.
+                            AppLogger.Log(LogEvents.BENCH_ERROR,
+                                $"FLEURS: clip {i + 1}/{n} FAILED on {engineKey} ({fleursConfig}) after {sw.ElapsedMilliseconds}ms over 2 attempts — {If(String.IsNullOrEmpty(clipErr), "(no detail)", clipErr)}")
+                        End If
                         ' Failed clips are reported, never scored — scoring an empty
                         ' hypothesis as 100% WER conflates availability with accuracy.
                         If ok Then

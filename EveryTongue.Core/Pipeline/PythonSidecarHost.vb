@@ -22,6 +22,10 @@ Namespace Pipeline
 
         Private _process As Process
         Private _isRunning As Boolean = False
+        ''' <summary>Set by Stop() so the Exited handler can tell a PLANNED stop
+        ''' (calm log) from a crash (warning) — every planned teardown used to
+        ''' log an error-shaped "exited with code -1".</summary>
+        Private _deliberateStop As Boolean = False
         Private _isRestarting As Boolean = False
         Private _restartCount As Integer = 0
         Private _cts As CancellationTokenSource
@@ -80,6 +84,7 @@ Namespace Pipeline
             SyncLock _lock
                 If _isRunning Then Return
                 _isRestarting = False
+                _deliberateStop = False
                 _scriptPath = scriptPath
                 _extraArgs = extraArgs
 
@@ -183,7 +188,15 @@ Namespace Pipeline
                                                     SyncLock _lock
                                                         Dim exitCode = -1
                                                         Try : exitCode = If(_process?.ExitCode, -1) : Catch : End Try
-                                                        AppLogger.Log(LogCategory.Pipeline, LogSeverity.Info, $"{Label} process exited with code {exitCode}")
+                                                        If _deliberateStop OrElse GlobalShutdown Then
+                                                            AppLogger.Log(LogCategory.Pipeline, LogSeverity.Info,
+                                                                If(exitCode = 0, $"{Label} stopped cleanly", $"{Label} stopped (forced kill, code {exitCode})"))
+                                                        Else
+                                                            ' A sidecar dying on its own IS warn-worthy — the calm
+                                                            ' wording is reserved for stops we asked for.
+                                                            AppLogger.Log(LogCategory.Pipeline, LogSeverity.Warning,
+                                                                $"{Label} process exited unexpectedly with code {exitCode}")
+                                                        End If
                                                         _isRunning = False
                                                         ' GlobalShutdown gate: at app close the sidecars are killed
                                                         ' DELIBERATELY, and the per-host cancel can race the Exited
@@ -344,6 +357,7 @@ Namespace Pipeline
 
         Public Sub [Stop](Optional waitMs As Integer = 5000)
             _cts?.Cancel()
+            _deliberateStop = True
 
             ' Nothing to stop if no process is running
             If _process Is Nothing OrElse _process.HasExited Then
@@ -366,6 +380,13 @@ Namespace Pipeline
                 Catch ex As Exception
                     AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"{Label}: Graceful shutdown failed, force-killing: {ex.Message}")
                 End Try
+                ' Give the graceful exit a moment to actually happen — the kill
+                ' below used to fire immediately and ALWAYS won the race, so even
+                ' a working /shutdown ended as a forced 'code -1' teardown.
+                Dim p = _process
+                If p IsNot Nothing Then
+                    Try : p.WaitForExit(4000) : Catch : End Try
+                End If
             End If
 
             SyncLock _lock
