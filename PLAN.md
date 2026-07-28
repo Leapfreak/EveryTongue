@@ -114,7 +114,7 @@ All 5 phases done. Replaced flat `AppLogger.Log(msg)` with numbered, categorised
 - [x] Filter Editor overhaul — shared language combo, per-language glossary, checkboxes, friendly names, filter hit logging (#5)
 - [x] Log workspace — full-screen Log with nav button, bottom toolbar, whisper-server recovery (v1.8.4)
 - [x] Structured Logging System — event IDs, categories, configurable routing (v1.8.5)
-- [ ] Audio Level Monitor — operator feedback, prevents bad audio (#3)
+- [ ] Audio Level Monitor — operator feedback, prevents bad audio (#3). **Field evidence 2026-07-29 (Jezer whisper-room tests):** dozens of VAD 'SPEAKING -> IDLE (silence-only, discarded)' per 10s while the user was speaking — device 0 (default mic, distance) hovered at the VAD threshold, so quieter words/phrases were silently binned before whisper ever heard them (truncated commits 'Now that we have the…', missing subtitles). A visible level meter would have surfaced this in seconds instead of appearing downstream as lost words.
 - [ ] Rooms desktop dashboard — active rooms overview (#19g)
 
 ---
