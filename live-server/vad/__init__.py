@@ -12,6 +12,10 @@ import dataclasses
 class VadConfig:
     """Configuration for the VAD pipeline. Constructed by server.py from endpoint params."""
     device_index: int = 0
+    # "local" = sounddevice capture on this machine; "web" = 16k s16 PCM frames
+    # pushed via /audio-in (browser mic relayed through the app's hub) — same
+    # dual-source contract the streaming engines implement.
+    audio_source: str = "local"
     language: str = "auto"
     beam_size: int = 5
     best_of: int = 1

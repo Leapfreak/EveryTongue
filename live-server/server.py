@@ -889,6 +889,7 @@ async def start_capture_endpoint(request: Request):
     # Create VAD config from request body
     vad_config = VadConfig(
         device_index=body.get("device_index", 0),
+        audio_source=body.get("audio_source", "local"),
         language=body.get("language", "auto"),
         beam_size=body.get("beam_size", 5),
         best_of=body.get("best_of", 1),
@@ -951,7 +952,10 @@ async def start_capture_endpoint(request: Request):
     # that want audio accumulation enable it via their vad_preset (e.g. Google sets
     # accumulate_audio=True on the VadPipeline) — they do NOT need this class.
     use_accumulating = (body.get("use_accumulating_pipeline", False)
-                        and not getattr(vad_config, "force_vad_pipeline", False))
+                        and not getattr(vad_config, "force_vad_pipeline", False)
+                        # Web-mic feed is implemented on VadPipeline only; the
+                        # opt-in accumulating class still captures locally.
+                        and vad_config.audio_source != "web")
     PipelineClass = VadPipeline
     if use_accumulating:
         try:
@@ -979,8 +983,9 @@ async def start_capture_endpoint(request: Request):
 
     _vad_pipeline = pipeline
     capturing = True
+    source_desc = "web-mic" if vad_config.audio_source == "web" else f"device={vad_config.device_index}"
     logger.info(
-        f"CAPTURE START device={vad_config.device_index} lang={vad_config.language} "
+        f"CAPTURE START {source_desc} lang={vad_config.language} "
         f"beam_size={vad_config.beam_size} best_of={vad_config.best_of} "
         f"vad_silence={vad_config.vad_silence_ms}ms max_seg={vad_config.vad_max_segment_s}s"
     )

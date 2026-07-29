@@ -124,6 +124,11 @@ Namespace Services.Stt
                 .LiveInterimIntervalMs = ec.InterimIntervalMs,
                 .InitialPrompt = ec.InitialPrompt
             }
+            ' Web-mic rooms: the live-server must skip local capture and take
+            ' frames from /audio-in. The streaming backends always forwarded
+            ' this; the whisper path silently captured a local device instead
+            ' (field finding 2026-07-29).
+            _runner.AudioSource = If(String.IsNullOrEmpty(config.AudioSource), "local", config.AudioSource)
             _runner.Start(appConfig, config.DeviceIndex, config.Language, config.TranslateToEnglish)
         End Sub
 

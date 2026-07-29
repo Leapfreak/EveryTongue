@@ -90,6 +90,9 @@ Namespace Services.Stt
                 .LiveComputeType = ec.ComputeType,
                 .InitialPrompt = ec.InitialPrompt
             }
+            ' Web-mic rooms: same forward the streaming backends always did
+            ' (whisper paths silently captured a local device — 2026-07-29).
+            _runner.AudioSource = If(String.IsNullOrEmpty(config.AudioSource), "local", config.AudioSource)
             _runner.Start(appConfig, config.DeviceIndex, config.Language, config.TranslateToEnglish)
         End Sub
 

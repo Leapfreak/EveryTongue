@@ -49,6 +49,12 @@ class VadPipeline:
         self._broadcast_fn = broadcast_fn
         self._hallucination_fn = hallucination_fn
         self._stats = stats
+        # "local" = sounddevice capture; "web" = frames pushed via feed()
+        # (browser mic → hub → /audio-in). Mirrors the streaming engines'
+        # dual-source contract so /audio-in and /health treat both alike.
+        self.audio_source = getattr(config, "audio_source", "local")
+        self._last_feed_monotonic = 0.0
+        self._feed_remainder = np.zeros(0, dtype=np.float32)
         self._stop_event = threading.Event()
         self._threads = []
         self._stream = None
@@ -139,20 +145,26 @@ class VadPipeline:
             f"max_soft={cfg.vad_max_soft_segment_s}s"
         )
 
-        # Open audio stream (blocksize=1536 ensures each callback = one Silero frame)
-        logger.debug(
-            f"[PIPELINE] Opening audio stream: device={cfg.device_index} "
-            f"rate={SAMPLE_RATE} blocksize={FrameVAD.SILERO_FRAME_SAMPLES}"
-        )
-        self._stream = sd.InputStream(
-            samplerate=SAMPLE_RATE,
-            channels=1,
-            dtype="float32",
-            blocksize=FrameVAD.SILERO_FRAME_SAMPLES,
-            device=cfg.device_index,
-            callback=self._audio_callback,
-        )
-        logger.debug("[PIPELINE] Audio stream created OK")
+        # Open audio stream (blocksize=1536 ensures each callback = one Silero
+        # frame). Web-mic sessions have no local device — frames arrive via
+        # feed() from /audio-in instead.
+        if self.audio_source == "web":
+            self._stream = None
+            logger.info("[PIPELINE] web-mic mode: no local device capture, waiting for /audio-in frames")
+        else:
+            logger.debug(
+                f"[PIPELINE] Opening audio stream: device={cfg.device_index} "
+                f"rate={SAMPLE_RATE} blocksize={FrameVAD.SILERO_FRAME_SAMPLES}"
+            )
+            self._stream = sd.InputStream(
+                samplerate=SAMPLE_RATE,
+                channels=1,
+                dtype="float32",
+                blocksize=FrameVAD.SILERO_FRAME_SAMPLES,
+                device=cfg.device_index,
+                callback=self._audio_callback,
+            )
+            logger.debug("[PIPELINE] Audio stream created OK")
 
         # Start worker threads
         vad_thread = threading.Thread(
@@ -173,7 +185,8 @@ class VadPipeline:
             t.start()
             logger.debug(f"[PIPELINE] Thread '{t.name}' started")
 
-        self._stream.start()
+        if self._stream is not None:
+            self._stream.start()
 
         logger.debug(
             f"[PIPELINE] READY: device={cfg.device_index} lang={cfg.language} "
@@ -236,6 +249,43 @@ class VadPipeline:
                 self._vad._silence_thresh = kwargs["vad_silence_threshold"]
         if "language" in kwargs:
             self._config.language = kwargs["language"]
+
+    # ------------------------------------------------------------------
+    # Web-mic ingest (called from the /audio-in websocket handler)
+    # ------------------------------------------------------------------
+    def feed(self, frame_bytes):
+        """Push a 16kHz mono s16 PCM frame from the browser mic into the same
+        pre-roll + VAD queue the sounddevice callback fills — everything
+        downstream (Silero, state machine, whisper) is untouched. Browser
+        frames are ~100ms (1600 samples), Silero wants 512-sample frames, so a
+        remainder buffer carries the leftover into the next call (single
+        caller: the /audio-in handler — no locking needed)."""
+        try:
+            samples = np.frombuffer(frame_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+            if self._feed_remainder.size:
+                samples = np.concatenate((self._feed_remainder, samples))
+            n = FrameVAD.SILERO_FRAME_SAMPLES
+            full = (len(samples) // n) * n
+            self._feed_remainder = samples[full:]
+            for i in range(0, full, n):
+                chunk = samples[i:i + n]
+                self._preroll.write(chunk)
+                try:
+                    self._vad_queue.put_nowait(chunk)
+                except queue.Full:
+                    pass  # drop rather than block the ingest socket
+                self._audio_callback_count += 1
+            self._last_feed_monotonic = time.monotonic()
+        except Exception as e:
+            self._audio_callback_errors += 1
+            if self._audio_callback_errors <= 5:
+                logger.error(f"[AUDIO] web feed EXCEPTION #{self._audio_callback_errors}: {e}")
+
+    def web_feed_recent(self, window_s=5.0):
+        """True when web-mic frames arrived within the window — the honest
+        'capturing' signal for /health when audio_source == 'web'."""
+        return (self._last_feed_monotonic > 0
+                and (time.monotonic() - self._last_feed_monotonic) < window_s)
 
     # ------------------------------------------------------------------
     # Audio callback (runs on OS audio thread)
