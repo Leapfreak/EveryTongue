@@ -190,6 +190,7 @@ class SpeechmaticsStreamingPipeline:
         self._eou_baseline = self._eou_silence
         self._current_speaker = None
         self._reset_pending = False   # set by host pause / language change → _pump_audio reconnects
+        self._session_live = False    # True between Session started and session close
         # Speechmatics translation targets (its own ISO codes, e.g. "es","de","cmn").
         # Set from /start options; English-pivot only, capped at 5 by the caller.
         self._translation_targets = list(translation_targets or [])
@@ -352,11 +353,23 @@ class SpeechmaticsStreamingPipeline:
                                           if self._biblical_vocab_requested else [])
             self._additional_vocab = self._merge_vocab()
             if self._thread is not None and self._thread.is_alive():
-                logger.info(
-                    f"[SPEECHMATICS] config change → lang={self._language} "
-                    f"targets={self._translation_targets}; reconnecting session in-place "
-                    f"(capture stream stays up, pace reset)")
-                self._reset_pending = True   # _pump_audio exits → _run reconnects with the new config
+                if not self._session_live:
+                    # Session not connected yet (e.g. the service-vocab push lands
+                    # ~1s after start): the pending connection is built from the
+                    # self._* values we just updated — no reconnect needed, and no
+                    # concurrent-quota window (field 2026-07-31: the old session's
+                    # slot releases lazily; back-to-back sessions hit
+                    # 'Concurrent Quota Exceeded').
+                    logger.info(
+                        f"[SPEECHMATICS] config change → lang={self._language} "
+                        f"targets={self._translation_targets}; session still connecting — "
+                        f"the pending session picks this up, no reconnect")
+                else:
+                    logger.info(
+                        f"[SPEECHMATICS] config change → lang={self._language} "
+                        f"targets={self._translation_targets}; reconnecting session in-place "
+                        f"(capture stream stays up, pace reset)")
+                    self._reset_pending = True   # _pump_audio exits → _run reconnects with the new config
             else:
                 # Engine thread not running (never started, or died) — a full
                 # restart is the only way back to a live session.
@@ -527,6 +540,7 @@ class SpeechmaticsStreamingPipeline:
         while not self._stop_event.is_set():
             self._last_word_end = None       # word timings restart with each session
             self._current_speaker = None     # diarization voice labels restart too
+            self._session_live = False
             self._reset_pending = False
             retune = False
             try:
@@ -572,6 +586,7 @@ class SpeechmaticsStreamingPipeline:
 
                     @client.on(ServerMessageType.ERROR)
                     def _on_error(message):
+                        self._last_server_error = str(message)
                         logger.error(f"[SPEECHMATICS] Server error: {message}")
 
                     tc_kwargs = dict(
@@ -607,6 +622,7 @@ class SpeechmaticsStreamingPipeline:
                         audio_format=audio_format,
                         translation_config=translation_config,
                     )
+                    self._session_live = True
                     logger.info(
                         f"[SPEECHMATICS] Session started "
                         f"(eou={self._eou_silence}s max_delay={self._max_delay}s "
@@ -640,8 +656,18 @@ class SpeechmaticsStreamingPipeline:
                                  f"{reconnect_failures} reconnect attempts: {e}")
                     break
                 backoff = min(RECONNECT_BACKOFF_S * reconnect_failures, RECONNECT_MAX_BACKOFF_S)
-                logger.warning(f"[SPEECHMATICS] connection lost ({e}); reconnecting in "
-                               f"{backoff:.0f}s (attempt {reconnect_failures}/{RECONNECT_MAX_ATTEMPTS})")
+                last_err = getattr(self, "_last_server_error", "") or ""
+                if "quota" in last_err.lower():
+                    # Concurrent-session slot still held server-side — hammering
+                    # the short ladder hits the same wall. Wait it out.
+                    backoff = 10.0
+                    self._last_server_error = ""
+                    logger.warning(f"[SPEECHMATICS] concurrent-session quota still held — "
+                                   f"waiting {backoff:.0f}s for the slot to release "
+                                   f"(attempt {reconnect_failures}/{RECONNECT_MAX_ATTEMPTS}; audio keeps buffering)")
+                else:
+                    logger.warning(f"[SPEECHMATICS] connection lost ({e}); reconnecting in "
+                                   f"{backoff:.0f}s (attempt {reconnect_failures}/{RECONNECT_MAX_ATTEMPTS})")
                 await asyncio.sleep(backoff)
                 continue   # audio kept buffering → reconnect with no loss
 
@@ -650,6 +676,9 @@ class SpeechmaticsStreamingPipeline:
             logger.info(f"[SPEECHMATICS] reconnecting session in-place "
                         f"(lang={self._language} EOU={self._eou_silence}s "
                         f"targets={self._translation_targets})")
+            # Let the closed session's concurrency slot release before we take a
+            # new one — Speechmatics counts it for a few seconds after close.
+            await asyncio.sleep(2.0)
 
     async def _pump_audio(self, client, loop):
         """Drain captured PCM frames and forward them to Speechmatics. Returns True if
