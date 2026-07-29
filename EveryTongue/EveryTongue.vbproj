@@ -63,12 +63,14 @@
     </Content>
   </ItemGroup>
 
-  <!-- Hardcoded-string audit: flags user-facing English literals that bypass
-       LanguagePackService (the localisation rule made MECHANICAL — added
-       2026-07-29 after repeated hand-enforcement failures). Warn-only so a
-       machine without node still publishes; treat any warning as a must-fix. -->
-  <Target Name="AuditHardcodedStrings" AfterTargets="Publish">
-    <Exec Command="node &quot;$(MSBuildProjectDirectory)\..\tools\audit-hardcoded-strings.js&quot;" ContinueOnError="true" />
+  <!-- Audit suite, publish tier: exact zero-noise rule checks (hardcoded
+       strings, locale parity, ES5 app.js, API footgun, code bans). The
+       recurring-problem rules made MECHANICAL — added 2026-07-29 after
+       repeated hand-enforcement failures. Warn-only so a machine without
+       node still publishes; treat any warning as a must-fix.
+       Full suite incl. heuristics: node tools/audit-suite.js -->
+  <Target Name="AuditSuite" AfterTargets="Publish">
+    <Exec Command="node &quot;$(MSBuildProjectDirectory)\..\tools\audit-suite.js&quot; --publish" ContinueOnError="true" />
   </Target>
 
   <!-- Generate checksums.json after publish for file integrity verification -->

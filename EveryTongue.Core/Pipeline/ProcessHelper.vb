@@ -29,6 +29,11 @@ Namespace Pipeline
                         .CreateNoWindow = True
                     }
                     Using proc = Process.Start(psi)
+                        ' Drain BOTH redirected pipes before waiting (4KB pipe
+                        ' rule) — "--version" is tiny, but the pattern is the law.
+                        Dim stderrTask = proc.StandardError.ReadToEndAsync()
+                        proc.StandardOutput.ReadToEnd()
+                        stderrTask.Wait(5000)
                         proc.WaitForExit(5000)
                         If proc.ExitCode = 0 Then Return candidate
                     End Using
