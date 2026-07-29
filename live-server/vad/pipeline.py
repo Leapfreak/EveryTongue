@@ -167,6 +167,11 @@ class VadPipeline:
                 blocksize=FrameVAD.SILERO_FRAME_SAMPLES,
                 device=cfg.device_index,
                 callback=self._audio_callback,
+                # "high" = bigger ring buffer. Field finding 2026-07-29: the SaT
+                # model load spiked the CPU ~24s into the first session and the
+                # default buffer overflowed ("input overflow" ×3) — ~1.5s of
+                # speech was lost before whisper ever saw it.
+                latency="high",
             )
             logger.debug("[PIPELINE] Audio stream created OK")
 

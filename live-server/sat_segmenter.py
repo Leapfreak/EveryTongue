@@ -106,8 +106,27 @@ def load(model_name=None):
                                  ("object", object), ("str", str)):
                 if not hasattr(_np, _alias):
                     setattr(_np, _alias, _typ)
+            # Tame the load spike: the model load + library imports can peg the
+            # CPU hard enough to starve the audio-capture callback (field
+            # finding 2026-07-29: "input overflow" ×3 during SaT load lost
+            # ~1.5s of speech). Cap torch threads for the duration of the load;
+            # restore afterwards (SaT inference itself is ~8ms, thread count is
+            # irrelevant to it).
+            _prev_threads = None
+            try:
+                import torch as _torch
+                _prev_threads = _torch.get_num_threads()
+                _torch.set_num_threads(1)
+            except Exception:
+                pass
             from wtpsplit import SaT
             _model = SaT(_model_name)
+            try:
+                if _prev_threads:
+                    import torch as _torch
+                    _torch.set_num_threads(_prev_threads)
+            except Exception:
+                pass
             _available = True
             logger.info("SaT segmenter ready (model=%s, libs=%s)", _model_name, libs)
         except Exception as e:
