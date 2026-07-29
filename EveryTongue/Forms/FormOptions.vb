@@ -107,6 +107,7 @@ Public Class FormOptions
                                            cboDictDevice.Enabled = True
                                        End Sub)
                     Catch
+                        ' Form may be closing — UI marshal is best-effort.
                     End Try
                 End Try
             End Sub)

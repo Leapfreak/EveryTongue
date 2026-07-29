@@ -597,6 +597,7 @@ class VadPipeline:
             if self._hold_texts:
                 self._flush_hold(utterance_id, "STOP-FLUSH")
         except Exception:
+            # STOP-FLUSH is best-effort — the worker is exiting regardless.
             pass
         logger.debug(f"[{thread_name}] Exited ({utterance_id} utterances processed)")
 

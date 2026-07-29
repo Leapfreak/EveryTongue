@@ -2,6 +2,7 @@ Imports System.Diagnostics
 Imports System.IO
 Imports System.Threading
 Imports EveryTongue.Services.Interfaces
+Imports EveryTongue.Services.Infrastructure
 Imports EveryTongue.Services.Models
 
 Namespace Services.Tts
@@ -81,10 +82,16 @@ Namespace Services.Tts
                                               ct As CancellationToken
         ) As Task(Of TtsResult) Implements ITtsBackend.SynthesiseAsync
             Dim piperExe = FindPiperExe()
-            If piperExe Is Nothing Then Return Nothing
+            If piperExe Is Nothing Then
+                AppLogger.Log(LogEvents.TTS_ENGINE_ERROR, "Piper: piper.exe not found — synthesis skipped")
+                Return Nothing
+            End If
 
             Dim voicePath = FindVoiceModel(language)
-            If voicePath Is Nothing Then Return Nothing
+            If voicePath Is Nothing Then
+                AppLogger.Log(LogEvents.TTS_ENGINE_ERROR, $"Piper: no voice model for '{language}' — synthesis skipped")
+                Return Nothing
+            End If
 
             Dim tempFile = Path.Combine(Path.GetTempPath(), $"piper_{Guid.NewGuid():N}.wav")
             Try
@@ -117,6 +124,21 @@ Namespace Services.Tts
                             Throw
                         End Try
                     End Using
+
+                    If proc.ExitCode <> 0 Then
+
+
+                        Dim errTail = (Await stderrTask).Trim()
+
+
+                        If errTail.Length > 200 Then errTail = errTail.Substring(errTail.Length - 200)
+
+
+                        AppLogger.Log(LogEvents.TTS_ENGINE_ERROR, $"Piper exited {proc.ExitCode} for '{language}': {errTail}")
+
+
+                    End If
+
 
                     If proc.ExitCode = 0 AndAlso File.Exists(tempFile) Then
                         Dim audioBytes = Await File.ReadAllBytesAsync(tempFile, ct)

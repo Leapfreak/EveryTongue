@@ -127,10 +127,12 @@ def _log_writer_thread():
                 try:
                     handler.emit(record)
                 except Exception:
+                    # A failing log handler can't be logged — drop the record.
                     pass
         except _queue_mod.Empty:
             continue
         except Exception:
+            # Queue torn down at shutdown — writer thread exits.
             break
 
 _log_writer = threading.Thread(target=_log_writer_thread, daemon=True, name="log-writer")
@@ -259,6 +261,7 @@ def _start_whisper_server(server_path: str, model_path: str, port: int, no_gpu: 
                     del _ws_stderr_tail[:-15]
                     logger.debug(f"WHISPER-SERVER: {decoded}")
         except Exception:
+            # Pipe closes when whisper-server exits — drain thread ends.
             pass
     _ws_drain = threading.Thread(target=_drain_whisper_stderr, args=(_whisper_server_process,), daemon=True)
     _ws_drain.start()
@@ -278,6 +281,7 @@ def _start_whisper_server(server_path: str, model_path: str, port: int, no_gpu: 
                     _warmup_whisper_server(port)
                     return
         except Exception:
+            # Not up yet — retried until the 60s deadline below.
             pass
         time.sleep(0.5)
     raise RuntimeError("whisper-server startup timeout (60s)")
@@ -315,9 +319,11 @@ def _stop_whisper_server():
             _whisper_server_process.terminate()
             _whisper_server_process.wait(timeout=5)
         except Exception:
+            # Terminate failed — escalate to kill below.
             try:
                 _whisper_server_process.kill()
             except Exception:
+                # Best-effort kill at teardown.
                 pass
     _whisper_server_process = None
 
@@ -827,6 +833,7 @@ async def get_devices():
         default_input = sd.query_devices(sd.default.device[0])
         default_api = default_input["hostapi"]
     except Exception:
+        # No default device (headless) — list all APIs instead.
         default_api = None
     result = []
     for i, d in enumerate(devices):
@@ -1145,6 +1152,7 @@ async def transcribe_audio(request: Request):
                 indices = np.linspace(0, len(audio) - 1, new_len)
                 audio = np.interp(indices, np.arange(len(audio)), audio).astype(np.float32)
     except Exception:
+        # Resample is best-effort — original audio used on failure.
         pass
 
     # If the stdlib WAV reader failed, decode via ffmpeg — not only for sniffed
@@ -1169,10 +1177,12 @@ async def transcribe_audio(request: Request):
                 try:
                     os.unlink(tmp_in_path)
                 except Exception:
+                    # Best-effort temp-file cleanup.
                     pass
                 try:
                     os.unlink(tmp_out_path)
                 except Exception:
+                    # Best-effort temp-file cleanup.
                     pass
         except Exception as e:
             logger.warning(f"ffmpeg decode failed: {e}")
@@ -1183,6 +1193,7 @@ async def transcribe_audio(request: Request):
         try:
             audio = np.frombuffer(body[:len(body) - (len(body) % 4)], dtype=np.float32)
         except Exception as e:
+            # Surfaced to the caller as HTTP 400.
             return JSONResponse({"status": "error", "detail": f"undecodable audio: {e}"}, status_code=400)
 
     if len(audio) < SAMPLE_RATE * 0.3:
@@ -1275,6 +1286,7 @@ async def benchmark_endpoint(request: Request):
             audio_data = np.interp(indices, np.arange(len(audio_data)), audio_data).astype(np.float32)
         total_duration = len(audio_data) / SAMPLE_RATE
     except Exception as e:
+        # Surfaced to the caller as HTTP 400.
         return JSONResponse({"status": "error", "detail": f"Failed to load audio: {e}"}, status_code=400)
 
     logger.info(f"[BENCHMARK] Starting: {audio_path} ({total_duration:.1f}s), backend={_backend_mode}")
@@ -1357,6 +1369,7 @@ async def benchmark_endpoint(request: Request):
     try:
         pipeline.stop()
     except Exception:
+        # Best-effort pipeline stop at benchmark end.
         pass
 
     bench_duration = time.time() - bench_start

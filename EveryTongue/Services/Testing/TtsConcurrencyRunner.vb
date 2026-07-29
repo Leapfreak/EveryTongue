@@ -97,6 +97,7 @@ Namespace Services.Testing
             Catch ex As OperationCanceledException When token.IsCancellationRequested
                 Throw
             Catch ex As Exception
+                ' Failure is captured in result.ErrorMessage for the report.
                 result.ErrorMessage = ex.Message
             End Try
 

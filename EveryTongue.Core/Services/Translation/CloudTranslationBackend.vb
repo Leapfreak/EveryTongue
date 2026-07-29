@@ -175,6 +175,7 @@ Namespace Services.Translation
                                 $"DeepLBackend: HTTP {CInt(response.StatusCode)} for {If(dlSource, "auto")}→{dlTarget}: {If(errBody, "").Substring(0, Math.Min(120, If(errBody, "").Length))}")
                         End If
                     Catch ex As OperationCanceledException
+                        ' Cancelled — normal; the Exception branch below logs real failures.
                     Catch ex As Exception
                         Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR, $"DeepLBackend.TranslateAsync: target={targetLang} - {ex.Message}")
                     Finally
@@ -289,6 +290,7 @@ Namespace Services.Translation
                                 $"GoogleBackend: {response.StatusCode} for {googleSource}->{googleTarget}: {errBody}")
                         End If
                     Catch ex As OperationCanceledException
+                        ' Cancelled — normal; the Exception branch below logs real failures.
                     Catch ex As Exception
                         Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR, $"GoogleBackend.TranslateAsync: target={tl} - {ex.Message}")
                     End Try
@@ -386,6 +388,7 @@ Namespace Services.Translation
                         $"AzureBackend: HTTP {CInt(response.StatusCode)}: {If(errBody, "").Substring(0, Math.Min(120, If(errBody, "").Length))}")
                 End If
             Catch ex As OperationCanceledException
+                ' Cancelled — normal; the Exception branch below logs real failures.
             Catch ex As Exception
                 Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR, $"AzureBackend.TranslateAsync: {ex.Message}")
             End Try

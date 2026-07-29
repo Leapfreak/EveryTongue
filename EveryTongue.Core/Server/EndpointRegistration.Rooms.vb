@@ -35,6 +35,7 @@ Namespace Server
                 Next
                 Return list.ToArray()
             Catch
+                ' Speaker enumeration is optional decoration — empty list on failure.
                 Return Array.Empty(Of SpeakerDto)()
             End Try
         End Function
@@ -275,6 +276,7 @@ Namespace Server
                                                    .hostToken = room.HostToken
                                                })
                                            Catch ex As Exception
+                                               AppLogger.Log(LogEvents.SERVER_ERROR, $"room create failed (returned 400): {ex.Message}")
                                                context.Response.StatusCode = 400
                                                context.Response.WriteAsync("{""error"":""Invalid request""}").Wait()
                                            Finally
@@ -640,6 +642,7 @@ Namespace Server
                                               Try
                                                   body = Await JsonSerializer.DeserializeAsync(Of JsonElement)(context.Request.Body)
                                               Catch
+                                                  ' Malformed JSON — handled just below via parseOk.
                                                   parseOk = False
                                               End Try
                                               If Not parseOk Then
@@ -683,6 +686,7 @@ Namespace Server
                                                       translated = results(targetLang)
                                                   End If
                                               Catch ex As Exception
+                                                  AppLogger.Log(LogEvents.SERVER_ERROR, $"room one-shot translate failed: {ex.Message}")
                                                   translateOk = False
                                               End Try
                                               If Not translateOk Then

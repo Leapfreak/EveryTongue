@@ -178,6 +178,7 @@ Namespace Forms
                 btnDownloadAll.Enabled = hasActionable
 
             Catch ex As Exception
+                AppLogger.Log(LogEvents.DL_CHECK_RESULT, $"Dependency status check failed: {ex.Message}")
                 lblProgress.Text = $"Error checking: {ex.Message}"
             End Try
 
@@ -291,6 +292,7 @@ Namespace Forms
                 End If
                 LoadQeStatus()
             Catch ex As Exception
+                AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"QE install failed: {ex.Message}")
                 pbProgress.Style = ProgressBarStyle.Continuous
                 lblProgress.Text = $"Error: {ex.Message}"
                 btnInstallQe.Enabled = True
@@ -335,6 +337,7 @@ Namespace Forms
                 LoadVocabStatus()
                 lblProgress.Text = lp.GetString("DM_VocabDone")
             Catch ex As Exception
+                AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"Vocab build failed: {ex.Message}")
                 pbProgress.Style = ProgressBarStyle.Continuous
                 lblProgress.Text = $"Error: {ex.Message}"
             Finally
@@ -428,6 +431,7 @@ Namespace Forms
                 lblProgress.Text = String.Format(lp.GetString("DM_FoundTranslations"), _catalog.Count)
 
             Catch ex As Exception
+                AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"Bible catalog fetch failed: {ex.Message}")
                 lblProgress.Text = String.Format(lp.GetString("DM_ErrorFetchingCatalog"), ex.Message)
             Finally
                 pbProgress.Style = ProgressBarStyle.Continuous
@@ -522,6 +526,7 @@ Namespace Forms
                 End If
 
             Catch ex As Exception
+                AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"Bible download failed: {ex.Message}")
                 lblProgress.Text = $"Error: {ex.Message}"
             Finally
                 _downloading = False
@@ -639,6 +644,7 @@ Namespace Forms
                 PathsUpdated = True
 
             Catch ex As Exception
+                AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"Component download failed: {ex.Message}")
                 pbProgress.Style = ProgressBarStyle.Continuous
                 lblProgress.Text = $"Error: {ex.Message}"
             Finally
@@ -702,6 +708,7 @@ Namespace Forms
                 lblProgress.Text = String.Format(lp.GetString("DM_DownloadedVoices"), toDownload.Count)
                 pbProgress.Value = 100
             Catch ex As Exception
+                AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"Voice download failed: {ex.Message}")
                 lblProgress.Text = $"Error: {ex.Message}"
             Finally
                 _downloading = False
@@ -788,6 +795,7 @@ Namespace Forms
                     btnInstallMmsTts.Enabled = True
                 End If
             Catch ex As Exception
+                AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"MMS-TTS install failed: {ex.Message}")
                 pbProgress.Style = ProgressBarStyle.Continuous
                 lblProgress.Text = $"Error: {ex.Message}"
                 btnInstallMmsTts.Enabled = True
@@ -900,6 +908,7 @@ Namespace Forms
                 pbProgress.Value = pbProgress.Maximum
                 lblProgress.Text = String.Format(lp.GetString("DM_DownloadedLangPacks"), downloaded, toDownload.Count)
             Catch ex As Exception
+                AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"Language-pack download failed: {ex.Message}")
                 lblProgress.Text = $"Error: {ex.Message}"
             Finally
                 _downloading = False

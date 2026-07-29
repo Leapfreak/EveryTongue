@@ -139,6 +139,7 @@ Namespace Services.Infrastructure
                         IO.File.AppendAllText(logPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [?{eventId}] {message}{Environment.NewLine}")
                     End SyncLock
                 Catch
+                    ' Logging the logger's own file-write failure would recurse — deliberately silent.
                 End Try
                 Return
             End If
@@ -214,6 +215,7 @@ Namespace Services.Infrastructure
                             })
                         End If
                     Catch
+                        ' UI sink may be closing/disposed — the logger must never throw into callers.
                     End Try
                 End Try
             End If
@@ -235,6 +237,7 @@ Namespace Services.Infrastructure
                         })
                     End If
                 Catch
+                    ' UI sink may be closing/disposed — the logger must never throw into callers.
                 End Try
             End If
         End Sub
@@ -297,6 +300,7 @@ Namespace Services.Infrastructure
                     IO.File.AppendAllText(logPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {formatted}{Environment.NewLine}")
                 End SyncLock
             Catch
+                ' Logging the logger's own file-write failure would recurse — deliberately silent.
             End Try
 
             Try
@@ -313,6 +317,7 @@ Namespace Services.Infrastructure
                     })
                 End If
             Catch
+                ' UI sink may be closing/disposed — the logger must never throw into callers.
             End Try
         End Sub
 
@@ -391,6 +396,7 @@ Namespace Services.Infrastructure
                     End If
                 Next
             Catch
+                ' Best-effort old-log cleanup — a locked/missing file must not break logging.
             End Try
 
             ' Clean up legacy logs from the old location (install directory)
@@ -403,6 +409,7 @@ Namespace Services.Infrastructure
                     IO.File.Delete(f)
                 Next
             Catch
+                ' Best-effort legacy-log cleanup — same as above.
             End Try
         End Sub
 

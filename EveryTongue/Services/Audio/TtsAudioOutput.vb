@@ -135,6 +135,7 @@ Namespace Services.Audio
                             Continue While
                         End If
                     Catch ex As OperationCanceledException
+                        ' Cancelled — exit the playback loop.
                         Exit While
                     End Try
 
@@ -145,6 +146,7 @@ Namespace Services.Audio
                     End Try
                 End While
             Catch ex As OperationCanceledException
+                ' Cancelled — normal shutdown of the playback worker.
             End Try
         End Sub
 

@@ -57,6 +57,7 @@ Namespace Server
                 Try
                     Return _app?.Services
                 Catch ex As ObjectDisposedException
+                    ' Host disposed mid-read — Nothing tells the caller the server is gone.
                     Return Nothing
                 End Try
             End Get

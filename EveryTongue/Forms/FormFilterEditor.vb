@@ -175,6 +175,7 @@ Partial Public Class FormFilterEditor
                 End Using
             End If
         Catch ex As Exception
+            ' Shown to the operator via MessageBox.
             MessageBox.Show($"Failed to load hallucinations.json: {ex.Message}", S("Msg_Error"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End Try
     End Sub
@@ -205,6 +206,7 @@ Partial Public Class FormFilterEditor
                 End Using
             End If
         Catch ex As Exception
+            ' Shown to the operator via MessageBox.
             MessageBox.Show($"Failed to load profanity.json: {ex.Message}", S("Msg_Error"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End Try
     End Sub
@@ -225,6 +227,7 @@ Partial Public Class FormFilterEditor
                 End Using
             End If
         Catch ex As Exception
+            ' Shown to the operator via MessageBox.
             MessageBox.Show($"Failed to load glossary.json: {ex.Message}", S("Msg_Error"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End Try
     End Sub
@@ -612,6 +615,7 @@ Partial Public Class FormFilterEditor
             SaveProfanity()
             SaveGlossary()
         Catch ex As Exception
+            ' Shown to the operator via MessageBox.
             MessageBox.Show($"Failed to save: {ex.Message}", S("Msg_Error"), MessageBoxButtons.OK, MessageBoxIcon.Error)
             Return
         End Try

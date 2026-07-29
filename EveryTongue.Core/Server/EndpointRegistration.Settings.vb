@@ -458,6 +458,7 @@ Namespace Server
                         Try
                             parsed = JsonSerializer.Deserialize(Of Models.AppConfig)(jsonText, Models.ConfigManager.SerializerOptions)
                         Catch ex As Exception
+                            ' Parse failure captured in parseError and returned to the caller below.
                             parseError = ex.Message
                         End Try
                         If parsed Is Nothing Then
@@ -558,6 +559,7 @@ Namespace Server
                     Try
                         catalog = Await Services.Bible.BibleDownloadService.GetCatalogAsync(biblesDir)
                     Catch ex As Exception
+                        ' Fetch failure captured in fetchError and returned to the caller below.
                         fetchError = ex.Message
                     End Try
                     If catalog Is Nothing Then
@@ -693,6 +695,7 @@ Namespace Server
                         Dim tail = lines.Skip(Math.Max(0, lines.Count - 200)).ToList()
                         Return Results.Json(New With {.lines = tail})
                     Catch ex As Exception
+                        ' Error surfaced to the caller as JSON 500.
                         Return Results.Json(New With {.error = ex.Message}, statusCode:=500)
                     End Try
                 End Function)

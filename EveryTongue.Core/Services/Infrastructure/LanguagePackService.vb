@@ -42,6 +42,7 @@ Namespace Services.Infrastructure
             Try
                 _userLocalesDir = Path.Combine(EveryTongue.Models.ConfigManager.ConfigDirectory, "locales")
             Catch
+                ' Config dir unavailable (portable/first-run edge) — user locale overlay disabled.
                 _userLocalesDir = ""
             End Try
         End Sub
@@ -261,6 +262,7 @@ Namespace Services.Infrastructure
                         displayName = ci.EnglishName
                         nativeName = ci.NativeName
                     Catch
+                        ' Unknown culture code — the code itself is a fine display fallback.
                         displayName = code
                         nativeName = code
                     End Try

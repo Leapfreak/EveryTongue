@@ -119,6 +119,7 @@ Namespace Services.Stt
                     Dim interval = Math.Max(50, _config.SpeechmaticsClauseTimerMs)
                     _bufferFlushTimer?.Change(interval, System.Threading.Timeout.Infinite)
                 Catch
+                    ' Timer may be disposed during room teardown — re-arm is moot then.
                 End Try
             End Try
         End Sub

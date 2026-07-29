@@ -84,6 +84,7 @@ Namespace Server.Hubs
                             WebSocketMessageType.Text, True, context.RequestAborted).ConfigureAwait(False)
                         Await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Room is locked", context.RequestAborted).ConfigureAwait(False)
                     Catch
+                        ' Best-effort refusal notice — the client is being turned away regardless.
                     End Try
                     Return
                 Else
@@ -101,6 +102,7 @@ Namespace Server.Hubs
                 Await ws.SendAsync(New ArraySegment(Of Byte)(welcomeJson),
                     WebSocketMessageType.Text, True, context.RequestAborted).ConfigureAwait(False)
             Catch
+                ' Best-effort welcome — a dead socket is reaped by the receive loop.
             End Try
 
             ' Broadcast memberJoined to room
@@ -403,6 +405,7 @@ Namespace Server.Hubs
                                          WebSocketMessageType.Text, True, CancellationToken.None).ConfigureAwait(False)
                                  End If
                              Catch
+                                 ' Dead socket — reaped by the receive loop; per-send noise is not log-worthy.
                              Finally
                                  Interlocked.Exchange(capturedClient.SendBusy, 0)
                              End Try
@@ -429,6 +432,7 @@ Namespace Server.Hubs
                                      WebSocketMessageType.Text, True, CancellationToken.None).ConfigureAwait(False)
                              End If
                          Catch
+                             ' Dead socket — reaped by the receive loop; per-send noise is not log-worthy.
                          Finally
                              Interlocked.Exchange(client.SendBusy, 0)
                          End Try

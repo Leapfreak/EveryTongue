@@ -146,6 +146,7 @@ Public Class FormFilterSets
             Next
             AppLogger.Log(LogEvents.CONFIG_TEMPLATE_LIB_SAVED, $"Filter set '{_editing.Name}' seeded from global files → {folder}")
         Catch ex As Exception
+            ' Shown to the operator via MessageBox.
             MessageBox.Show(ex.Message, Me.Text, MessageBoxButtons.OK, MessageBoxIcon.Warning)
         End Try
     End Sub

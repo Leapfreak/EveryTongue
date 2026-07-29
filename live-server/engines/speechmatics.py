@@ -134,6 +134,7 @@ def _apply_operating_point(kwargs, transcription_config_cls, tier):
         try:
             kwargs["operating_point"] = OperatingPoint(str(tier))
         except Exception:
+            # Unknown tier string — ENHANCED is the safe default.
             kwargs["operating_point"] = OperatingPoint.ENHANCED
     return kwargs
 
@@ -428,9 +429,11 @@ class SpeechmaticsStreamingPipeline:
             try:
                 return TranscriptResult.from_message(message).metadata.transcript or ""
             except Exception:
+                # SDK message-shape change — fall back to the raw dict below.
                 try:
                     return (message.get("metadata", {}) or {}).get("transcript", "") or ""
                 except Exception:
+                    # Neither shape matched — no transcript in this message.
                     return ""
 
         def _extract_translation(message):
@@ -440,12 +443,14 @@ class SpeechmaticsStreamingPipeline:
                 lang = message.get("language", "") if isinstance(message, dict) else ""
                 results = (message.get("results", []) if isinstance(message, dict) else []) or []
             except Exception:
+                # Unexpected translation-message shape — skip it.
                 return "", ""
             parts = []
             for r in results:
                 try:
                     c = r.get("content", "")
                 except Exception:
+                    # Fragment without content — skip.
                     c = ""
                 if c:
                     parts.append(c)
@@ -478,6 +483,7 @@ class SpeechmaticsStreamingPipeline:
             try:
                 results = message.get("results", []) if isinstance(message, dict) else []
             except Exception:
+                # Unexpected message shape — nothing to feed the pace tuner.
                 return
             for r in results or []:
                 try:
@@ -487,6 +493,7 @@ class SpeechmaticsStreamingPipeline:
                     spk = alt.get("speaker")
                     word = alt.get("content", "")
                 except Exception:
+                    # Result entry without timing/speaker fields — skip it.
                     continue
                 if spk and spk != self._current_speaker:
                     if self._current_speaker is not None:
@@ -735,6 +742,7 @@ def _transcribe_speechmatics(audio_array, language=None,
                     try:
                         t = TranscriptResult.from_message(message).metadata.transcript or ""
                     except Exception:
+                        # SDK message-shape change — raw-dict fallback.
                         t = (message.get("metadata", {}) or {}).get("transcript", "") or ""
                     if t:
                         result["texts"].append(t)
@@ -750,6 +758,7 @@ def _transcribe_speechmatics(audio_array, language=None,
         try:
             asyncio.run(_run_once())
         except Exception as e:
+            # Captured in result["error"] — the caller logs/reports it.
             result["error"] = f"{type(e).__name__}: {e}"
 
     t0 = time.time()

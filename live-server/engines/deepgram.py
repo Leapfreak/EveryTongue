@@ -198,6 +198,7 @@ class DeepgramStreamingPipeline:
         try:
             msg = json.loads(raw)
         except Exception:
+            # Malformed frame from the vendor — drop it.
             return
         if not isinstance(msg, dict):
             return
@@ -207,6 +208,7 @@ class DeepgramStreamingPipeline:
                 alts = ((msg.get("channel") or {}).get("alternatives") or [])
                 alt = alts[0] if alts else {}
             except Exception:
+                # Unexpected message shape — treated as empty transcript.
                 alt = {}
             text = (alt.get("transcript") or "").strip()
             langs = alt.get("languages") or []
@@ -268,6 +270,7 @@ class DeepgramStreamingPipeline:
                 try:
                     await asyncio.wait_for(recv_task, timeout=3.0)
                 except (asyncio.TimeoutError, Exception):
+                    # Receiver didn't finish in time at close — cancel it and move on.
                     recv_task.cancel()
 
                 self._flush_commit()  # emit any trailing accumulated utterance

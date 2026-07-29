@@ -19,6 +19,7 @@ Friend Module Program
         Try
             _lockStream = New FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None)
         Catch ex As IOException
+            ' Second instance holding the lock — user informed, this instance exits.
             MessageBox.Show(Services.Infrastructure.LanguagePackService.Instance.GetString("App_AlreadyRunning"), "Every Tongue", MessageBoxButtons.OK, MessageBoxIcon.Information)
             Return
         End Try
@@ -72,6 +73,7 @@ Friend Module Program
                 $"Started={DateTime.Now:yyyy-MM-dd HH:mm:ss}" & Environment.NewLine &
                 $"Version={ver.Major}.{ver.Minor}.{ver.Build}")
         Catch
+            ' Best-effort startup-marker write — never block launch on it.
         End Try
     End Sub
 
@@ -97,6 +99,7 @@ Friend Module Program
                 Environment.NewLine & "This may indicate a crash. Details have been written to the log file.",
                 "Crash Detected", MessageBoxButtons.OK, MessageBoxIcon.Warning)
         Catch
+            ' Crash-notice dialog is best-effort (may have no UI yet).
         End Try
     End Sub
 
@@ -175,6 +178,7 @@ Friend Module Program
         Try
             AppLogger.Log(LogEvents.STARTUP_CRASH_DETECTED, $"{tag} {detail}")
         Catch
+            ' Crash path: AppLogger itself may be the casualty — fall through to the raw write.
         End Try
         ' Also write directly in case AppLogger failed
         Try
@@ -182,6 +186,7 @@ Friend Module Program
             File.AppendAllText(logPath,
                 $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {tag} {detail}{Environment.NewLine}")
         Catch
+            ' Last-resort raw write — nothing left to report to.
         End Try
     End Sub
 

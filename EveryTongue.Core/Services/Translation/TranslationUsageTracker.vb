@@ -173,6 +173,7 @@ Namespace Services.Translation
                 Dim provider = BudgetProvider
                 If provider IsNot Nothing Then Return provider(backendKey)
             Catch
+                ' Budget provider is optional — 0 = no budget configured.
             End Try
             Return 0
         End Function

@@ -1679,6 +1679,7 @@ Namespace Models
                         Dim result = If(String.IsNullOrWhiteSpace(stdout), stderr, stdout)
                         Return result.Trim()
                     Catch ex As OperationCanceledException
+                        ' Timeout — the process is killed (kill failure logged inline), empty output returned.
                         Try : proc.Kill() : Catch killEx As Exception : AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"Failed to kill timed-out process: {killEx.Message}") : End Try
                         Return ""
                     End Try

@@ -106,6 +106,7 @@ Namespace Services.Translation
                                 $"LibreTranslateBackend: {response.StatusCode} for {libreSource}->{libreTarget}: {errBody}")
                         End If
                     Catch ex As OperationCanceledException
+                        ' Cancelled — normal; the Exception branch below logs real failures.
                     Catch ex As Exception
                         AppLogger.Log(LogEvents.TRANS_ERROR,
                             $"LibreTranslateBackend.TranslateAsync: target={tl} - {ex.Message}")

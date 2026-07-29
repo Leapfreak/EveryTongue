@@ -92,6 +92,7 @@ Public Class FormMain
                         Dim ci = Globalization.CultureInfo.GetCultureInfo(code)
                         result.Add((code, ci.NativeName.Substring(0, 1).ToUpper() & ci.NativeName.Substring(1)))
                     Catch ex As Exception
+                        ' Unknown culture code — the code itself is a fine display fallback.
                         result.Add((code, code))
                     End Try
                 Next
@@ -507,6 +508,7 @@ Public Class FormMain
             _exitForReal = True
             Application.Exit()
         Catch ex As Exception
+            ' Shown to the operator via MessageBox (and the release page opens).
             MessageBox.Show(String.Format(GetString("Main_UpdateDownloadFailed"), ex.Message) & vbCrLf & vbCrLf &
                            GetString("Main_OpeningReleasePage"),
                            GetString("Msg_Error"), MessageBoxButtons.OK, MessageBoxIcon.Warning)
@@ -993,6 +995,7 @@ del ""%~f0""
                 rtbHelp.Text = GetString("Main_HelpNotFound")
             End If
         Catch ex As Exception
+            ' Shown in the Help pane itself.
             rtbHelp.Text = String.Format(GetString("Main_HelpLoadError"), ex.Message)
         End Try
     End Sub

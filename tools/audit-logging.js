@@ -22,7 +22,7 @@ const { ROOT, walkFiles, vbFiles, rel, finish } = require('./audit-lib');
 const suspects = [];
 
 // ── 1. Silent VB Catch blocks ───────────────────────────────────────────────
-const VB_LOG_TOKENS = /AppLogger\.|\b_log\s*\(|\bWriteLog\b|\bThrow\b|\bSLOG\b/;
+const VB_LOG_TOKENS = /AppLogger\.|\b_log\s*\(|\b_debugLog\s*\(|\bLogToUnified\s*\(|\bWriteLog\b|\bThrow\b|\bSLOG\b|\bLog\s*\(\s*\$?"|\.Log(Warning|Error|Information|Debug|Critical|Trace)\b|\bRaiseEvent\s+\w*(Error|Status|Failed)/;
 for (const file of vbFiles(false)) {
   const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
   // Stack of open Try contexts; each Catch segment is evaluated on close.
@@ -36,6 +36,10 @@ for (const file of vbFiles(false)) {
   };
   lines.forEach((raw, i) => {
     const line = raw.trim();
+    // Single-line `Try : x : Catch : End Try` is the self-documenting
+    // best-effort idiom — accepted without a comment (decision 2026-07-29).
+    // It must not touch the stack or it desyncs the depth tracking.
+    if (/^Try\b/.test(line) && /\bEnd Try\b/.test(line)) return;
     if (/^Try\b/.test(line)) { stack.push(true); return; }
     if (/^Catch\b/.test(line) && stack.length) {
       if (seg && seg.depth === stack.length) closeSeg();
@@ -64,10 +68,15 @@ for (const dir of ['live-server', 'translate-server', 'mms-tts-server', 'qe-serv
   for (const file of walkFiles(full, ['.py'])) {
     const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
     lines.forEach((raw, i) => {
-      const m = /^(\s*)except\b.*:\s*(.*)$/.exec(raw);
+      const m = /^(\s*)except\b([^:]*):\s*(.*)$/.exec(raw);
       if (!m) return;
+      // A TYPED narrow except (queue.Empty, (TypeError, ValueError), OSError…)
+      // with a fallback is self-documenting — the danger class is bare
+      // `except:` / broad `except Exception` (policy 2026-07-29).
+      const types = m[2].trim();
+      if (types && !/\b(Exception|BaseException)\b/.test(types)) return;
       const indent = m[1].length;
-      let hasEvidence = PY_LOG_TOKENS.test(m[2]) || m[2].includes('#');
+      let hasEvidence = PY_LOG_TOKENS.test(m[3]) || m[3].includes('#');
       // Walk the indented block.
       for (let j = i + 1; j < lines.length && !hasEvidence; j++) {
         const l = lines[j];
@@ -84,9 +93,21 @@ for (const dir of ['live-server', 'translate-server', 'mms-tts-server', 'qe-serv
 // ── 3. Unlogged feature areas ───────────────────────────────────────────────
 const AREA_DIRS = ['Services', 'Controllers', 'Pipeline', 'Server'];
 const MIN_LINES = 150;
+// Reviewed 2026-07-29: files whose errors flow to a logging caller by design.
+const AREA_ALLOW = {
+  'UsfmConverter.vb': 'pure transform — errors returned in the issues list; the Download Manager logs installs',
+  'IntegrityChecker.vb': 'its OUTPUT is the report — Program.vb logs it at startup',
+  'PriorityWorkQueue.vb': 'data structure — callers own the logging',
+  'CloudStreamingSttBackend.vb': 'thin adapter — LiveStreamRunner + sidecar own the logging',
+  'FasterWhisperBackend.vb': 'thin adapter — LiveStreamRunner + sidecar own the logging',
+  'SpeechmaticsConfig.vb': 'declarative config block',
+  'SpeechmaticsClauseAccumulator.vb': 'data structure — the clause coordinator logs fragments/locks',
+  'ResourceMonitor.vb': 'benchmark collector — results land in the report',
+};
 for (const file of vbFiles(false)) {
   const r = rel(file);
   if (!AREA_DIRS.some(d => r.includes('/' + d + '/'))) continue;
+  if (AREA_ALLOW[path.basename(file)]) continue;
   const text = fs.readFileSync(file, 'utf8');
   const lineCount = text.split('\n').length;
   if (lineCount < MIN_LINES) continue;

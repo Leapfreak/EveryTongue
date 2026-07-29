@@ -145,6 +145,7 @@ Namespace Services.Input
                 Try
                     If saved IsNot Nothing Then Clipboard.SetDataObject(saved, True) Else Clipboard.Clear()
                 Catch
+                    ' Best-effort clipboard restore — the paste already happened.
                 End Try
             End Try
         End Sub

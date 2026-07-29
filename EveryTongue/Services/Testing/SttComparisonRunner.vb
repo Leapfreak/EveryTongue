@@ -276,6 +276,7 @@ Namespace Services.Testing
                         Do While Await proc.StandardOutput.ReadLineAsync() IsNot Nothing
                         Loop
                     Catch
+                        ' Pipe closes when the process exits — the drain loop just ends.
                     End Try
                 End Function)
                 Dim stderrTask = Task.Run(Async Function()
@@ -288,6 +289,7 @@ Namespace Services.Testing
                             End If
                         Loop While line IsNot Nothing
                     Catch
+                        ' Pipe closes when the process exits — the drain loop just ends.
                     End Try
                 End Function)
 
@@ -371,6 +373,7 @@ Namespace Services.Testing
                         Catch ex As OperationCanceledException
                             Throw
                         Catch ex As Exception
+                            ' Failure is captured in the result (latency + ErrorMessage) for the report.
                             sw.Stop()
                             latencies.Add(sw.ElapsedMilliseconds)
                             If String.IsNullOrEmpty(result.ErrorMessage) Then
@@ -390,6 +393,7 @@ Namespace Services.Testing
             Catch ex As OperationCanceledException
                 Throw
             Catch ex As Exception
+                ' Failure is captured in the result (Failed + ErrorMessage) for the report.
                 result.Failed = True
                 result.ErrorMessage = ex.Message
             Finally
@@ -452,6 +456,7 @@ Namespace Services.Testing
                         Catch ex As OperationCanceledException When ct.IsCancellationRequested
                             Throw
                         Catch
+                            ' Poll failure — retried on the next loop iteration.
                         End Try
                         Await Task.Delay(500, ct)
                     Next
@@ -516,6 +521,7 @@ Namespace Services.Testing
                         Catch ex As OperationCanceledException
                             Throw
                         Catch ex As Exception
+                            ' Failure is captured in the result (latency + ErrorMessage) for the report.
                             sw.Stop()
                             latencies.Add(sw.ElapsedMilliseconds)
                             If String.IsNullOrEmpty(result.ErrorMessage) Then
@@ -535,6 +541,7 @@ Namespace Services.Testing
             Catch ex As OperationCanceledException
                 Throw
             Catch ex As Exception
+                ' Failure is captured in the result (Failed + ErrorMessage) for the report.
                 result.Failed = True
                 result.ErrorMessage = ex.Message
             Finally
@@ -567,6 +574,7 @@ Namespace Services.Testing
                     End If
                 End Using
             Catch
+                ' Optional JSON pretty-parse — raw text returned on failure.
             End Try
             Return json
         End Function

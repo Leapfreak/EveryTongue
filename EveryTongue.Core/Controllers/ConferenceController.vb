@@ -158,6 +158,7 @@ Namespace Controllers
                                          If Await backend.CheckHealthAsync(cts.Token) Then Exit For
                                      End Using
                                  Catch
+                                     ' Health poll — failure just means "not up yet", retried after the delay.
                                  End Try
                                  Await Task.Delay(2000)
                              Next

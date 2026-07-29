@@ -212,6 +212,7 @@ Public Class FormConnectedClients
                 Return output
             End Using
         Catch
+            ' No nvidia-smi — localized "no NVIDIA GPU" text is the answer.
             Return Services.Infrastructure.LanguagePackService.Instance.GetString("CC_GpuNoNvidia")
         End Try
     End Function

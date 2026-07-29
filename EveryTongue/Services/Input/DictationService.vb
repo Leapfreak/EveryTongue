@@ -135,6 +135,7 @@ Namespace Services.Input
                              RemoveHandler b.ErrorReceived, AddressOf OnError
                              b.Stop()
                          Catch
+                             ' Best-effort teardown of the old backend.
                          End Try
                      End Sub)
             _log(LogEvents.DICT_SESSION_STOPPED, "Dictation disarmed")

@@ -60,10 +60,12 @@ def _log_writer_thread():
                 try:
                     handler.emit(record)
                 except Exception:
+                    # A failing log handler can't be logged — drop the record.
                     pass
         except _queue_mod.Empty:
             continue
         except Exception:
+            # Queue torn down at shutdown — writer thread exits.
             break
 
 

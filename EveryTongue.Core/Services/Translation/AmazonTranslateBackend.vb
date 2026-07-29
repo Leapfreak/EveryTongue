@@ -169,6 +169,7 @@ Namespace Services.Translation
                             Interlocked.Add(CharactersUsed, text.Length)
                         End If
                     Catch ex As OperationCanceledException
+                        ' Cancelled — normal; the Exception branch below logs real failures.
                     Catch ex As Exception
                         AppLogger.Log(LogEvents.TRANS_ERROR,
                             $"AmazonTranslateBackend.TranslateAsync: target={tl} - {ex.Message}")

@@ -432,6 +432,7 @@ Namespace Pipeline
                     Return True
                 End Using
             Catch
+                ' Health probe — any failure means "down"; the caller acts on False.
                 Return False
             End Try
         End Function

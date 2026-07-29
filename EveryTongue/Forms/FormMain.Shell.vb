@@ -842,6 +842,7 @@ Partial Class FormMain
                                     writer.WriteLine($"  Uptime: {metrics.System.UptimeSeconds} s")
                                 End If
                             Catch ex As Exception
+                                ' Written into the export file itself — the reader sees the gap.
                                 writer.WriteLine($"  (metrics unavailable: {ex.Message})")
                             End Try
                             writer.WriteLine()
@@ -895,6 +896,7 @@ Partial Class FormMain
                 MessageBox.Show(String.Format(GetString("Shell_ExportedTo"), dlg.FileName),
                     GetString("Shell_ExportComplete"), MessageBoxButtons.OK, MessageBoxIcon.Information)
             Catch ex As Exception
+                ' Shown to the operator via MessageBox.
                 MessageBox.Show(String.Format(GetString("Shell_ExportFailed"), ex.Message),
                     GetString("Shell_ExportError"), MessageBoxButtons.OK, MessageBoxIcon.Error)
             End Try

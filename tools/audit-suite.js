@@ -23,6 +23,7 @@ const AUDITS = [
   { script: 'audit-code-bans.js',         tier: 'publish', desc: 'Debug.WriteLine / List(Of Object) bans' },
   { script: 'audit-language-lists.js',    tier: 'full',    desc: 'HEURISTIC: inline language-code lists (canonical = language-codes.json)' },
   { script: 'audit-pipe-drain.js',        tier: 'full',    desc: 'HEURISTIC: pipe redirect + WaitForExit without draining both pipes' },
+  { script: 'audit-logging.js',         tier: 'full',    desc: 'HEURISTIC: silent catch/except blocks + feature files with no logging' },
   { script: 'audit-dead-code.js',         tier: 'full',    desc: 'HEURISTIC: unreferenced Private members (partial-aware) + never-logged LogEvents IDs' },
   { script: 'audit-clones.js',            tier: 'full',    desc: 'HEURISTIC: copy-paste blocks (extract-shared-rule candidates)' },
   { script: 'audit-capability-matrix.js', tier: 'report',  desc: 'REPORT: engines x capabilities matrix — empty cells are questions' },

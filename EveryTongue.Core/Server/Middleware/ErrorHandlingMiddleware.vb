@@ -29,6 +29,7 @@ Namespace Server.Middleware
                 context.Response.StatusCode = 499
                 Return
             Catch ex As Exception
+                ' Stored and handled below — this IS the error handler.
                 caught = ex
             End Try
 

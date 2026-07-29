@@ -118,6 +118,7 @@ def load(model_name=None):
                 _prev_threads = _torch.get_num_threads()
                 _torch.set_num_threads(1)
             except Exception:
+                # Thread-cap is an optimization — load proceeds either way.
                 pass
             from wtpsplit import SaT
             _model = SaT(_model_name)
@@ -126,6 +127,7 @@ def load(model_name=None):
                     import torch as _torch
                     _torch.set_num_threads(_prev_threads)
             except Exception:
+                # Restoring the cap is best-effort.
                 pass
             _available = True
             logger.info("SaT segmenter ready (model=%s, libs=%s)", _model_name, libs)

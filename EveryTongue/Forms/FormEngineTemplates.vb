@@ -323,6 +323,7 @@ Public Class FormEngineTemplates
                 Try
                     nud.Value = Math.Max(nud.Minimum, Math.Min(nud.Maximum, Convert.ToDecimal(If(value, 0))))
                 Catch
+                    ' Out-of-range/malformed value — control keeps its default.
                 End Try
                 Return nud
             Case EngineConfigFieldType.Toggle

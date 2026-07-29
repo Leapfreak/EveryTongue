@@ -180,10 +180,12 @@ Namespace Services.Bible
                                 End If
                             End Using
                         Catch
+                            ' Per-book alias derivation is best-effort — a bad entry skips, index still builds.
                         End Try
                     Next
                 End If
             Catch
+                ' Per-Bible alias scan is best-effort — the index works with what loaded.
             End Try
 
             ' Derive each language's ORDINAL WORDS by diffing sibling-book

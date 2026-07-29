@@ -156,6 +156,7 @@ Namespace Services.Translation
                 If Not File.Exists(path) Then Return Nothing
                 mtime = File.GetLastWriteTimeUtc(path)
             Catch
+                ' File probe failed — Nothing = no glossary, feature no-ops.
                 Return Nothing
             End Try
 

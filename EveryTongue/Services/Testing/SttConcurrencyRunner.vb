@@ -91,6 +91,7 @@ Namespace Services.Testing
                         Do While Await proc.StandardOutput.ReadLineAsync() IsNot Nothing
                         Loop
                     Catch
+                        ' Pipe closes when the process exits — the drain loop just ends.
                     End Try
                 End Function)
                 Dim stderrTask = Task.Run(Async Function()
@@ -103,6 +104,7 @@ Namespace Services.Testing
                             End If
                         Loop While line IsNot Nothing
                     Catch
+                        ' Pipe closes when the process exits — the drain loop just ends.
                     End Try
                 End Function)
 
@@ -176,6 +178,7 @@ Namespace Services.Testing
             Catch ex As OperationCanceledException When token.IsCancellationRequested
                 Throw
             Catch ex As Exception
+                ' Failure is captured in result.ErrorMessage for the report.
                 result.ErrorMessage = ex.Message
             Finally
                 If proc IsNot Nothing AndAlso Not proc.HasExited Then
@@ -183,6 +186,7 @@ Namespace Services.Testing
                         proc.Kill(entireProcessTree:=True)
                         proc.WaitForExit(5000)
                     Catch
+                        ' Best-effort kill of a hung process at teardown.
                     End Try
                 End If
                 proc?.Dispose()

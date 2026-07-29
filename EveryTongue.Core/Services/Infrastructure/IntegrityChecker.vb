@@ -75,6 +75,7 @@ Namespace Services.Infrastructure
             Try
                 json = JsonDocument.Parse(File.ReadAllText(manifestPath))
             Catch ex As Exception
+                ' Unreadable manifest = ManifestFound:=False — the report states it.
                 result.ManifestFound = False
                 Return result
             End Try

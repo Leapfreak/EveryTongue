@@ -134,6 +134,7 @@ Namespace Server
                                                              ConferenceRoomCreatedHandler?.Invoke(room.Id, templateId)
 
                                                          Catch ex As Exception
+                                                             AppLogger.Log(LogEvents.SERVER_ERROR, $"template room-create failed (returned 400): {ex.Message}")
                                                              context.Response.StatusCode = 400
                                                              context.Response.WriteAsync("{""error"":""Invalid request""}").Wait()
                                                          Finally
@@ -217,6 +218,7 @@ Namespace Server
                                                           })
 
                                                       Catch ex As Exception
+                                                          AppLogger.Log(LogEvents.SERVER_ERROR, $"template save failed (returned 400): {ex.Message}")
                                                           context.Response.StatusCode = 400
                                                           context.Response.WriteAsync("{""error"":""Invalid request""}").Wait()
                                                       Finally
@@ -265,6 +267,7 @@ Namespace Server
                                                                 Await context.Response.WriteAsJsonAsync(New With {.ok = True})
 
                                                             Catch ex As Exception
+                                                                AppLogger.Log(LogEvents.SERVER_ERROR, $"template delete failed (returned 400): {ex.Message}")
                                                                 context.Response.StatusCode = 400
                                                                 context.Response.WriteAsync("{""error"":""Invalid request""}").Wait()
                                                             Finally

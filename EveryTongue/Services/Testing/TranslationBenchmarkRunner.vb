@@ -148,7 +148,9 @@ Namespace Services.Testing
                                                Dim result = Await ExecuteTranslation(svc, capturedWi, ct)
                                                results.Add(result)
                                            Catch ex As OperationCanceledException
+                                               ' Cancelled run — workers just stop, the UI shows the cancel.
                                            Catch ex As Exception
+                                               ' Failure is captured in the result row — the benchmark report displays it.
                                                results.Add(New RequestResult() With {
                                                    .EntryId = capturedWi.Entry.Id,
                                                    .SourceLang = capturedWi.Entry.SourceLang,
@@ -167,6 +169,7 @@ Namespace Services.Testing
                                                Try
                                                    sem.Release()
                                                Catch ex As ObjectDisposedException
+                                                   ' Run torn down mid-release — benign.
                                                End Try
                                            End Try
                                        End Function))
@@ -213,6 +216,7 @@ Namespace Services.Testing
             Catch ex As OperationCanceledException
                 Throw
             Catch ex As Exception
+                ' Failure is captured in result.ErrorMessage — the report displays it.
                 sw.Stop()
                 result.LatencyMs = sw.ElapsedMilliseconds
                 result.ErrorMessage = ex.Message
@@ -294,7 +298,9 @@ Namespace Services.Testing
                                                    .SourceText = captured.SourceText,
                                                    .SpokenText = captured.Text})
                                            Catch ex As OperationCanceledException
+                                               ' Cancelled run — workers just stop, the UI shows the cancel.
                                            Catch ex As Exception
+                                               ' Failure is captured in the result row — the benchmark report displays it.
                                                results.Add(New TtsRequestResult() With {
                                                    .Language = captured.Language,
                                                    .LatencyMs = 0,
@@ -362,7 +368,9 @@ Namespace Services.Testing
                                                Dim result = Await ExecuteStt(liveServerPort, captured, ct)
                                                results.Add(result)
                                            Catch ex As OperationCanceledException
+                                               ' Cancelled run — workers just stop, the UI shows the cancel.
                                            Catch ex As Exception
+                                               ' Failure is captured in the result row — the benchmark report displays it.
                                                results.Add(New SttRequestResult() With {
                                                    .Language = captured.Language,
                                                    .ExpectedText = captured.ExpectedText,
@@ -431,12 +439,14 @@ Namespace Services.Testing
                             End If
                         End Using
                     Catch
+                        ' Optional error-detail parse — the plain status text is kept on failure.
                     End Try
                     result.ErrorMessage = detail
                 End If
             Catch ex As OperationCanceledException
                 Throw
             Catch ex As Exception
+                ' Failure is captured in result.ErrorMessage — the report displays it.
                 sw.Stop()
                 result.LatencyMs = sw.ElapsedMilliseconds
                 result.ErrorMessage = ex.Message

@@ -431,6 +431,7 @@ Namespace Services.Rooms
                 Return True
 
             Catch ex As OperationCanceledException
+                ' Cancellation = normal stop — not an error.
                 Return False
             Catch ex As Exception
                 _logger.LogError(ex, "EnsureLiveServerAsync failed")
@@ -455,6 +456,7 @@ Namespace Services.Rooms
                 ' Server is up (no whisper_server_running field = legacy server, assume ready)
                 Return True
             Catch
+                ' Readiness probe: any failure just means "not ready" — the caller acts on False.
                 Return False
             End Try
         End Function
@@ -465,6 +467,7 @@ Namespace Services.Rooms
                 Dim response = Await _httpClient.GetAsync($"http://127.0.0.1:{LiveServerPort}/health", ct).ConfigureAwait(False)
                 Return response.IsSuccessStatusCode
             Catch
+                ' Health probe: any failure just means "down" — the caller acts on False.
                 Return False
             End Try
         End Function
@@ -885,6 +888,7 @@ Namespace Services.Rooms
                         Try
                             proc.Kill(True)
                         Catch
+                            ' Best-effort kill of a hung ffmpeg — the timeout path already returns Nothing.
                         End Try
                         Return Nothing
                     End If
@@ -906,10 +910,12 @@ Namespace Services.Rooms
                 Try
                     If File.Exists(tempIn) Then File.Delete(tempIn)
                 Catch
+                    ' Best-effort temp-file cleanup.
                 End Try
                 Try
                     If File.Exists(tempOut) Then File.Delete(tempOut)
                 Catch
+                    ' Best-effort temp-file cleanup.
                 End Try
             End Try
         End Function

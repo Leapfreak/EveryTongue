@@ -89,6 +89,7 @@ Namespace Services.Rooms
                                  AppLogger.Log(LogEvents.ROOM_READINESS, $"room={roomId} translation ready")
                              End If
                          Catch
+                             ' One-shot readiness push is best-effort — the room UI also polls /status.
                          End Try
                      End Function)
         End Sub
@@ -103,6 +104,7 @@ Namespace Services.Rooms
                 Try
                     ok = Await probe(CancellationToken.None).ConfigureAwait(False)
                 Catch
+                    ' Probe failure = not ready — retried on the next tick.
                     ok = False
                 End Try
                 If ok Then Return

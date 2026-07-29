@@ -92,6 +92,7 @@ Namespace Pipeline
             Catch ex As OperationCanceledException
                 Throw
             Catch ex As Exception
+                ' QE readiness probe — the caller treats False as "unavailable".
                 Return False
             End Try
         End Function

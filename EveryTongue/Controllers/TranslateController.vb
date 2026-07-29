@@ -338,12 +338,15 @@ Namespace Controllers
                     _lblStatus.ForeColor = Drawing.Color.Green
                 End Using
             Catch ex As System.Net.Http.HttpRequestException
+                ' Shown to the user in the status label (connection failed).
                 _lblStatus.Text = _getString("Trans_ConnectionFailed")
                 _lblStatus.ForeColor = Drawing.Color.Red
             Catch ex As TaskCanceledException
+                ' Shown to the user in the status label (timeout).
                 _lblStatus.Text = _getString("Trans_Timeout")
                 _lblStatus.ForeColor = Drawing.Color.Red
             Catch ex As Exception
+                ' Shown to the user in the status label.
                 _lblStatus.Text = $"Error: {ex.Message}"
                 _lblStatus.ForeColor = Drawing.Color.Red
             Finally

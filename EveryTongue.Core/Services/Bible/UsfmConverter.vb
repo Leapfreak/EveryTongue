@@ -412,6 +412,7 @@ Namespace Services.Bible
                     End Using
                 End Using
             Catch ex As Exception
+                ' Captured in the issues list the caller reports.
                 issues.Add($"Verification error: {ex.Message}")
             End Try
             Return issues

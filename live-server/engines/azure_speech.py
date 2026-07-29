@@ -201,6 +201,7 @@ class AzureSpeechStreamingPipeline:
         try:
             detected = speechsdk.AutoDetectSourceLanguageResult(result).language or ""
         except Exception:
+            # No autodetect metadata on this result — empty means "keep previous".
             detected = ""
         if detected:
             self._last_detected_lang = detected.split("-")[0].lower()

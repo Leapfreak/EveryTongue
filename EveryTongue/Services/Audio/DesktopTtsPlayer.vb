@@ -56,6 +56,7 @@ Namespace Services.Audio
                         queued += 1
                     End If
                 Catch ex As OperationCanceledException
+                    ' Cancelled — stop playing, drain no further.
                     Exit For
                 Catch ex As Exception
                     AppLogger.Log(LogEvents.AUDIO_PLAYBACK_ERROR, $"DesktopTtsPlayer: synthesis failed ({iso3Lang}): {ex.Message}")

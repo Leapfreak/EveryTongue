@@ -104,6 +104,7 @@ class GladiaStreamingPipeline:
             try:
                 conn.close()
             except Exception:
+                # Best-effort close of the session-init connection.
                 pass
 
         if resp.status not in (200, 201):
@@ -214,6 +215,7 @@ class GladiaStreamingPipeline:
         try:
             msg = json.loads(raw)
         except Exception:
+            # Malformed frame from the vendor — drop it.
             return
         if not isinstance(msg, dict):
             return
@@ -270,6 +272,7 @@ class GladiaStreamingPipeline:
                 try:
                     await asyncio.wait_for(recv_task, timeout=3.0)
                 except (asyncio.TimeoutError, Exception):
+                    # Receiver didn't finish in time at close — cancel it and move on.
                     recv_task.cancel()
         except Exception as e:
             self._thread_error = str(e)

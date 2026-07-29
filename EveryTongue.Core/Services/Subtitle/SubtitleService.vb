@@ -261,6 +261,7 @@ Namespace Services.Subtitle
                         deadKeys.Add(kvp.Key)
                     End If
                 Catch ex As Exception
+                    ' Dead socket — queued for cleanup below; per-client noise is not log-worthy.
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -463,6 +464,7 @@ Namespace Services.Subtitle
                     If Not String.IsNullOrEmpty(kvp.Value.RoomId) Then Continue For
                     If Not TrySendToClient(kvp.Value, buffer) Then deadKeys.Add(kvp.Key)
                 Catch ex As Exception
+                    ' Dead socket — queued for cleanup below.
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -480,6 +482,7 @@ Namespace Services.Subtitle
                     If Not String.IsNullOrEmpty(kvp.Value.RoomId) Then Continue For
                     If Not TrySendToClient(kvp.Value, buffer) Then deadKeys.Add(kvp.Key)
                 Catch ex As Exception
+                    ' Dead socket — queued for cleanup below.
                     deadKeys.Add(kvp.Key)
                 End Try
             Next
@@ -503,6 +506,7 @@ Namespace Services.Subtitle
                     If Not String.IsNullOrEmpty(excludeClientId) AndAlso kvp.Key = excludeClientId Then Continue For
                     TrySendToClient(kvp.Value, buffer)
                 Catch
+                    ' Best-effort room send — dead sockets are reaped by the cleanup loop.
                 End Try
             Next
         End Sub
@@ -515,6 +519,7 @@ Namespace Services.Subtitle
             Try
                 TrySendToClient(c, Encoding.UTF8.GetBytes(json))
             Catch
+                ' Best-effort single-client send — dead sockets are reaped by the cleanup loop.
             End Try
         End Sub
 
@@ -647,7 +652,9 @@ Namespace Services.Subtitle
                     String.Join("; ", refs.Select(Function(r) $"{r.Reference.Book} {r.Reference.Chapter}:{r.Reference.VerseStart} (""{r.MatchedText}"")")))
                 Try
                     BookDetectedHandler?.Invoke(refs(0).Reference.Book)
-                Catch
+                Catch ex As Exception
+                    ' A dead handler here silently kills book-scoped STT vocab — say so.
+                    AppLogger.Log(LogCategory.Bible, LogSeverity.Warning, $"BookDetected handler failed: {ex.Message}")
                 End Try
                 Return BuildRefDtos(entry.BibleRefs)
             Catch ex As Exception
@@ -694,6 +701,7 @@ Namespace Services.Subtitle
                     Return BuildRefDtos(redetected.ToList())
                 End If
             Catch
+                ' Best-effort re-detection — falls back to the stored refs below.
             End Try
             Dim chips = BuildRefDtos(entry.BibleRefs)
             For Each c In chips

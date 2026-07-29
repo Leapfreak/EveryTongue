@@ -784,6 +784,7 @@ Public Class FormTranslationBenchmark
                 OrderBy(Function(n) n).
                 ToArray()
         Catch
+            ' Invalid input — the operator is told via MessageBox.
             MessageBox.Show("Invalid concurrency levels. Use comma-separated numbers (e.g. 1, 2, 5, 10).",
                             "Concurrent Test", MessageBoxButtons.OK, MessageBoxIcon.Warning)
             Return
@@ -963,6 +964,7 @@ Public Class FormTranslationBenchmark
                 OrderBy(Function(n) n).
                 ToArray()
         Catch
+            ' Invalid input — the operator is told via MessageBox.
             MessageBox.Show("Invalid concurrency levels. Use comma-separated numbers (e.g. 1, 2, 5, 10).",
                             "Translation Concurrency", MessageBoxButtons.OK, MessageBoxIcon.Warning)
             Return
@@ -1347,6 +1349,7 @@ Public Class FormTranslationBenchmark
                 OrderBy(Function(n) n).
                 ToArray()
         Catch
+            ' Invalid input — the operator is told via MessageBox.
             MessageBox.Show("Invalid concurrency levels. Use comma-separated numbers (e.g. 1, 2, 5, 10).",
                             "TTS Concurrency", MessageBoxButtons.OK, MessageBoxIcon.Warning)
             Return
@@ -1792,6 +1795,7 @@ Public Class FormTranslationBenchmark
                 End If
             End If
         Catch ex As OperationCanceledException
+            ' Cancelled — normal; the Exception branch below logs real failures.
         Catch ex As Exception
             AppLogger.Log(LogEvents.BENCH_ERROR, $"QE scoring failed: {ex.Message}")
             lblAbProgress.Text = $"QE scoring failed: {ex.Message} (chrF results unaffected)"
@@ -1964,6 +1968,7 @@ Public Class FormTranslationBenchmark
             AppendPairScoreHistory(_abResult)
             AutoSaveResults()
         Catch ex As OperationCanceledException
+            ' Cancelled by the operator — the status label shows it.
             lblAbProgress.Text = "Cancelled."
         Catch ex As Exception
             lblAbProgress.Text = $"A/B failed: {ex.Message}"
@@ -2146,6 +2151,7 @@ Public Class FormTranslationBenchmark
             lblFlProgress.Text = "Done."
             AppendSttScoreHistory(r)
         Catch ex As OperationCanceledException
+            ' Cancelled by the operator — the status label shows it.
             lblFlProgress.Text = "Cancelled."
         Catch ex As Exception
             lblFlProgress.Text = $"Run failed: {ex.Message}"

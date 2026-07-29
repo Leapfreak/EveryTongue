@@ -203,6 +203,7 @@ Public Class FormLogViewer
 
             lblSessionInfo.Text = String.Format(_getString("LogViewer_Lines"), _allEntries.Count)
         Catch ex As Exception
+            ' Shown in the session-info label.
             lblSessionInfo.Text = $"Error: {ex.Message}"
         End Try
 

@@ -464,7 +464,9 @@ Public Class FormSessionWizard
             ConfigManager.Save(_config)
             Try
                 Services.Rooms.TemplateStore.Instance?.SyncFromConfig(_config.ConferenceTemplates)
-            Catch
+            Catch ex As Exception
+                ' A failed sync leaves rooms on STALE templates — must be visible in the log.
+                AppLogger.Log(LogEvents.SERVER_ERROR, $"TemplateStore sync failed: {ex.Message}")
             End Try
 
             AppLogger.Log(LogEvents.CONFIG_TEMPLATE_LIB_SAVED,

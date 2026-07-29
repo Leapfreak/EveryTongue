@@ -137,6 +137,7 @@ Namespace Services.Translation
                                 $"{_backendName}Backend: {response.StatusCode} for {sourceName}->{targetLang}: {errBody}")
                         End If
                     Catch ex As OperationCanceledException
+                        ' Cancelled — normal; the Exception branch below logs real failures.
                     Catch ex As Exception
                         AppLogger.Log(LogEvents.TRANS_ERROR,
                             $"{_backendName}Backend.TranslateAsync: target={targetLang} - {ex.Message}")

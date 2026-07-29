@@ -184,8 +184,10 @@ Namespace Pipeline
                         End If
                     End Using
                 Catch ex As OperationCanceledException
+                    ' Cancellation = normal stop of the reader loop.
                     Return
                 Catch ex As Exception
+                    ' Cancellation race — treated as a normal stop; real faults keep the loop alive.
                     If ct.IsCancellationRequested Then Return
                 End Try
             End While

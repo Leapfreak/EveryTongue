@@ -142,6 +142,7 @@ Public Class FormTemplateManager
                                                             btnRefreshDevices.Enabled = True
                                                         End Sub)
                                      Catch ex As Exception
+                                         ' Enumeration failed — combo resets to default; the session-start resolver logs device problems.
                                          Me.BeginInvoke(Sub()
                                                             cboAudioDevice.SelectedIndex = 0
                                                             cboAudioDevice.Enabled = True

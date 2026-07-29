@@ -54,6 +54,7 @@ Namespace Controllers
                                             Try
                                                 If _ownerForm.IsHandleCreated Then _ownerForm.BeginInvoke(Sub() OnEngineReady(ready))
                                             Catch
+                                                ' Form may be closing — UI marshal is best-effort.
                                             End Try
                                         End Sub
 
@@ -61,6 +62,7 @@ Namespace Controllers
                                     Try
                                         If _ownerForm.IsHandleCreated Then _ownerForm.BeginInvoke(Sub() RouteText(text))
                                     Catch
+                                        ' Form may be closing — UI marshal is best-effort.
                                     End Try
                                 End Sub
 

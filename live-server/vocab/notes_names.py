@@ -42,6 +42,7 @@ def _pdf_text(path):
             try:
                 chunks.append(zlib.decompress(m.group(1)).decode("latin-1", "replace"))
             except Exception:
+                # Undecodable PDF stream chunk — skip it, other chunks still mine names.
                 pass
         blob = " ".join(chunks)
         parts = re.findall(r"\((?:[^()\\]|\\.)*\)", blob)

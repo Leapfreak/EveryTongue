@@ -175,6 +175,7 @@ Public Class FormDisplayTemplates
             btnBg.BackColor = Drawing.ColorTranslator.FromHtml(If(d.BgColor, "#000000"))
             btnFg.BackColor = Drawing.ColorTranslator.FromHtml(If(d.FgColor, "#FFFFFF"))
         Catch
+            ' Malformed color string — defaults applied.
             btnBg.BackColor = Drawing.Color.Black
             btnFg.BackColor = Drawing.Color.White
         End Try

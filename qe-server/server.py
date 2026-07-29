@@ -52,6 +52,7 @@ def _log_writer_thread():
         except _queue_mod.Empty:
             continue
         except Exception:
+            # Log-writer must never die on a bad record — drop and continue.
             pass
 
 
