@@ -21,6 +21,8 @@ Namespace Services.Stt.Configs
         Public Property MaxSegmentSec As Integer = 15
         Public Property InterimIntervalMs As Integer = 1000
         Public Property InitialPrompt As String = ""
+        ''' <summary>Clause treatment: send raw chunk text (no per-chunk sentence split); merge-to-pause + SaT happen downstream. See AppConfig.WhisperUseSatHold.</summary>
+        Public Property UseSatHold As Boolean = False
 
         Public Sub ApplyMachineBaseline(cfg As AppConfig) Implements IEngineConfigBlock.ApplyMachineBaseline
             If String.IsNullOrEmpty(ModelPath) Then ModelPath = cfg.PathWhisperCppModel
@@ -29,6 +31,7 @@ Namespace Services.Stt.Configs
             WhisperServerPort = cfg.WhisperServerPort
             BestOf = cfg.BestOf
             InterimIntervalMs = cfg.LiveInterimIntervalMs
+            UseSatHold = cfg.WhisperUseSatHold
         End Sub
     End Class
 
@@ -56,6 +59,7 @@ Namespace Services.Stt.Configs
             New EngineConfigField With {.Key = "MaxSegmentSec", .LabelKey = "EngineCfg_MaxSegmentSec", .FieldType = EngineConfigFieldType.Integer, .Min = 3, .Max = 60},
             New EngineConfigField With {.Key = "InterimIntervalMs", .LabelKey = "EngineCfg_InterimIntervalMs", .FieldType = EngineConfigFieldType.Integer, .Min = 200, .Max = 10000, .Advanced = True},
             New EngineConfigField With {.Key = "InitialPrompt", .LabelKey = "EngineCfg_InitialPrompt", .FieldType = EngineConfigFieldType.Text, .Advanced = True},
+            New EngineConfigField With {.Key = "UseSatHold", .LabelKey = "EngineCfg_WhisperSatHold", .FieldType = EngineConfigFieldType.Toggle, .Advanced = True},
             New EngineConfigField With {.Key = "WhisperServerPath", .LabelKey = "EngineCfg_WhisperServerPath", .FieldType = EngineConfigFieldType.FilePath, .Advanced = True},
             New EngineConfigField With {.Key = "WhisperServerPort", .LabelKey = "EngineCfg_WhisperServerPort", .FieldType = EngineConfigFieldType.Integer, .Min = 1024, .Max = 65535, .Advanced = True},
             New EngineConfigField With {.Key = "SileroVadModelPath", .LabelKey = "EngineCfg_SileroVadModelPath", .FieldType = EngineConfigFieldType.FilePath, .Advanced = True}

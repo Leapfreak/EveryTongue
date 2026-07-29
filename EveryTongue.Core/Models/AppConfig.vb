@@ -426,6 +426,9 @@ Namespace Models
         ''' <summary>Session-lifetime people names fed to STT engines as the service_vocab layer (speakers, sermon-notes nouns). Survives book and language changes; edited via Tools → Service Names. PROVEN lever 2026-07-26: Joni 0/9 → 9/9 on real service audio.</summary>
         Public Property ServiceNames As New List(Of ServiceNameEntry)
 
+        ''' <summary>Give WHISPER rooms the Speechmatics clause treatment: raw VAD-chunk commits are merged until a real pause, then SaT re-splits into proper sentences before translation. MEASURED 2026-07-29 (tools/whisper_sat_ab.py, real sermon): current pipeline 1.35× over-fragmented vs batch (the 15s max-segment cut slices mid-sentence during continuous speech); with this treatment 0.96 = batch parity. Default OFF until live-validated.</summary>
+        Public Property WhisperUseSatHold As Boolean = False
+
         ''' <summary>Master switch for log-only second-opinion translations (TRANS_SHADOW 4012).</summary>
         Public Property ShadowTranslationsEnabled As Boolean = True
         ''' <summary>Comma-separated CLOUD translation engine keys (e.g. "google-translate,deepl") that give LOG-ONLY second/third-opinion translations of every conference commit, so engines can be compared on real service data post-session (TRANS_SHADOW 4012). Never broadcast; raw engine output (no glossary) for a fair comparison. Engines without a key are skipped silently. Cloud engines cost per character. NOTE: Speechmatics can't be a shadow — it has no standalone text-translation API, and its inline translations are per-fragment (not comparable to whole-clause output).</summary>

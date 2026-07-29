@@ -11,7 +11,7 @@ Namespace Services.Stt
     ''' Thin adapter — delegates to LiveStreamRunner with backend="faster-whisper".
     ''' </summary>
     Friend Class FasterWhisperBackend
-        Implements ISttBackend
+        Implements ISttBackend, ISegmentingSttBackend
 
         Private ReadOnly _runner As New LiveStreamRunner()
 
@@ -93,12 +93,19 @@ Namespace Services.Stt
             ' Web-mic rooms: same forward the streaming backends always did
             ' (whisper paths silently captured a local device — 2026-07-29).
             _runner.AudioSource = If(String.IsNullOrEmpty(config.AudioSource), "local", config.AudioSource)
+            ' Clause treatment: server-side chunk glue + SaT at real pauses.
+            _runner.SatHold = ec.UseSatHold
             _runner.Start(appConfig, config.DeviceIndex, config.Language, config.TranslateToEnglish)
         End Sub
 
         Public Sub [Stop]() Implements ISttBackend.Stop
             _runner.Stop()
         End Sub
+
+        ''' <summary>Split a held clause into sentences via live-server's SaT segmenter (clause coordinator flush).</summary>
+        Public Function Segment(text As String, thresholdPercent As Integer, model As String) As List(Of String) Implements ISegmentingSttBackend.Segment
+            Return _runner.Segment(text, thresholdPercent, model)
+        End Function
 
         Public Function UpdateConfigAsync(params As Dictionary(Of String, Object)) As Task Implements ISttBackend.UpdateConfigAsync
             Return _runner.UpdateConfigAsync(params)

@@ -162,6 +162,10 @@ Namespace Pipeline
         ''' <summary>"local" (default) = live-server captures from a device on this machine;
         ''' "web" = frames arrive via the live-server's /audio-in (browser web-mic broadcast).</summary>
         Public Property AudioSource As String = "local"
+        ''' <summary>Whisper clause treatment: the live-server glues guillotined chunks
+        ''' (FORCE/SOFT commits = no real pause) and SaT re-splits at a genuine silence.
+        ''' Also warms the SaT model at /start.</summary>
+        Public Property SatHold As Boolean = False
 
         ''' <summary>
         ''' Engine-specific extra /start JSON fields as a leading-comma fragment,
@@ -305,6 +309,10 @@ Namespace Pipeline
                 If String.Equals(AudioSource, "web", StringComparison.OrdinalIgnoreCase) Then
                     jsonBody &= ",""audio_source"":""web"""
                 End If
+
+                ' Whisper clause treatment: hold guillotined chunks server-side,
+                ' SaT re-split at real pauses; warm SaT at session start.
+                If SatHold Then jsonBody &= ",""sat_hold"":true,""sat_segment"":true"
 
                 ' Add API key for online backends (not logged in plaintext)
                 If IsOnlineBackend(backendKey) AndAlso Not String.IsNullOrEmpty(SttApiKey) Then

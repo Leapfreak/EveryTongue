@@ -14,7 +14,7 @@ Namespace Services.Stt
     ''' registry entry, not a new class here.
     ''' </summary>
     Friend Class CloudStreamingSttBackend
-        Implements ISttBackend, IRetargetableSttBackend
+        Implements ISttBackend, IRetargetableSttBackend, ISegmentingSttBackend
 
         Private ReadOnly _runner As New LiveStreamRunner()
         Private ReadOnly _backendKey As String
@@ -116,7 +116,7 @@ Namespace Services.Stt
         End Function
 
         ''' <summary>Split a held clause into sentences via live-server's SaT segmenter (blocking; used by the clause accumulator flush).</summary>
-        Public Function Segment(text As String, thresholdPercent As Integer, model As String) As List(Of String)
+        Public Function Segment(text As String, thresholdPercent As Integer, model As String) As List(Of String) Implements ISegmentingSttBackend.Segment
             Return _runner.Segment(text, thresholdPercent, model)
         End Function
 

@@ -123,7 +123,7 @@ Namespace Services.Stt
             End Try
         End Sub
 
-        ''' <summary>Whether clause hold-and-lock applies to this room (pinned template value, else live master switch; Speechmatics only).</summary>
+        ''' <summary>Whether clause hold-and-lock applies to this room (pinned template value, else live master switch; Speechmatics only — the whisper family gets its clause treatment INSIDE live-server, where the audio-truth commit types live: this accumulator merges by commit-ARRIVAL gaps, which fits Speechmatics' 1-2s fragment cadence but can never merge whisper chunks arriving ~15s apart).</summary>
         Public Function IsHoldEnabled(roomId As String) As Boolean
             Dim pinned As Configs.SpeechmaticsConfig = Nothing
             ' SaT segmentation needs the buffering path, so enabling "Split with SaT"

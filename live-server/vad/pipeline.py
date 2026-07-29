@@ -55,6 +55,10 @@ class VadPipeline:
         self.audio_source = getattr(config, "audio_source", "local")
         self._last_feed_monotonic = 0.0
         self._feed_remainder = np.zeros(0, dtype=np.float32)
+        # Clause treatment (sat_hold): texts glued across guillotined chunks,
+        # flushed through SaT at a real pause. Owned by the transcribe worker.
+        self._hold_texts = []
+        self._hold_lang = ""
         self._stop_event = threading.Event()
         self._threads = []
         self._stream = None
@@ -513,6 +517,34 @@ class VadPipeline:
                 if did_strip:
                     self._stats.record_merge_strip()
 
+                # Clause treatment: FORCE-COMMIT (15s guillotine) and SOFT-MAX
+                # (8s soft guillotine) mean the chunk was cut WITHOUT a pause —
+                # glue their text to the next chunk instead of emitting a
+                # fragment. Pause-backed commits (COMMIT = 800ms silence,
+                # SOFT-COMMIT = 400ms pause) flush the clause through SaT.
+                if getattr(self._config, "sat_hold", False):
+                    self._hold_texts.append(merged_text)
+                    if detected_lang:
+                        self._hold_lang = detected_lang
+                    self._merger.record_commit(merged_text)
+                    self._stats.record_commit(
+                        commit_type.lower(), speech_dur, merged_text, detected_lang,
+                        sentence_count=0,
+                    )
+                    held_chars = sum(len(t) for t in self._hold_texts)
+                    if commit_type not in ("FORCE-COMMIT", "SOFT-MAX") or held_chars >= 600:
+                        self._flush_hold(utterance_id, commit_type)
+                    else:
+                        logger.info(
+                            f"[WHISPER-HOLD] utterance #{utterance_id} held "
+                            f"({commit_type}, clause now {held_chars} chars)"
+                        )
+                    if detected_lang:
+                        self._recent_langs.append(detected_lang)
+                        if len(self._recent_langs) > 10:
+                            self._recent_langs.pop(0)
+                    continue
+
                 # Split into sentences and broadcast each individually
                 if self._config.enable_sentence_split:
                     sentences = split_sentences(merged_text)
@@ -551,7 +583,40 @@ class VadPipeline:
                 f"[{thread_name}] CRASHED after {utterance_id} utterances: {e}\n"
                 f"{traceback.format_exc()}"
             )
+        # Don't strand a held clause at room close
+        try:
+            if self._hold_texts:
+                self._flush_hold(utterance_id, "STOP-FLUSH")
+        except Exception:
+            pass
         logger.debug(f"[{thread_name}] Exited ({utterance_id} utterances processed)")
+
+    def _flush_hold(self, utterance_id, reason):
+        """Emit the held clause: SaT re-splits the glued chunk texts into real
+        sentences (fallback: the punctuation splitter). Called by the transcribe
+        worker only — no locking needed."""
+        clause = " ".join(t for t in self._hold_texts if t).strip()
+        self._hold_texts = []
+        if not clause:
+            return
+        sentences = None
+        try:
+            import sat_segmenter
+            if sat_segmenter.load():
+                sentences = sat_segmenter.segment(clause, 0.10)
+        except Exception as e:
+            logger.warning(f"[WHISPER-HOLD] SaT unavailable at flush ({e}) — punctuation split")
+        if not sentences:
+            sentences = split_sentences(clause) or [clause]
+        for i, sentence in enumerate(sentences):
+            self._broadcast_fn("commit", sentence, lang=self._hold_lang)
+            logger.info(
+                f"[WHISPER-HOLD] flush({reason}) sentence {i+1}/{len(sentences)}: \"{sentence}\""
+            )
+        logger.info(
+            f"[WHISPER-HOLD] utterance #{utterance_id}: clause {len(clause)} chars -> "
+            f"{len(sentences)} sentence(s) [{reason}]"
+        )
 
     # ------------------------------------------------------------------
     # Interim worker thread (optional)

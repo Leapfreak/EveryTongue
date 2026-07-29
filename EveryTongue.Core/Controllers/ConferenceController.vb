@@ -104,10 +104,11 @@ Namespace Controllers
                 log:=log,
                 segment:=Function(roomId As String, text As String) As List(Of String)
                              ' Split a held clause into sentences via the room's
-                             ' live-server SaT segmenter (Speechmatics/cloud only).
+                             ' live-server SaT segmenter — any backend whose
+                             ' live-server hosts /segment (streaming + whisper).
                              Dim backend As ISttBackend = Nothing
-                             If _sttBackends.TryGetValue(roomId, backend) AndAlso TypeOf backend Is CloudStreamingSttBackend Then
-                                 Return DirectCast(backend, CloudStreamingSttBackend).Segment(
+                             If _sttBackends.TryGetValue(roomId, backend) AndAlso TypeOf backend Is ISegmentingSttBackend Then
+                                 Return DirectCast(backend, ISegmentingSttBackend).Segment(
                                      text, config.SpeechmaticsSatThresholdPercent, config.SpeechmaticsSatModel)
                              End If
                              Return New List(Of String) From {text}

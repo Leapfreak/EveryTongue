@@ -91,7 +91,9 @@ class UtteranceStateMachine:
 
             # 2. Duration commit -- continuous speech exceeded max soft segment
             #    Prevents 10+ second utterances from bulk-committing many sentences.
-            #    Uses SOFT-COMMIT type (no audio overlap to dedup).
+            #    Distinct type: this cut happens WITHOUT a pause (unlike case 4's
+            #    SOFT-COMMIT) — the sat_hold clause treatment glues these, and
+            #    only pause-backed commits flush the clause.
             if (utterance_duration >= self._max_soft_utterance_s
                     and self._has_speech_since_commit):
                 logger.debug(
@@ -100,7 +102,7 @@ class UtteranceStateMachine:
                 )
                 audio = self._utterance.get_audio()
                 self._utterance.clear()
-                self._commit_cb(audio, "SOFT-COMMIT")
+                self._commit_cb(audio, "SOFT-MAX")
                 # Stay SPEAKING -- start fresh with pre-roll
                 self._utterance.start(self._preroll.read())
                 self._utterance_start_time = now

@@ -3,6 +3,7 @@
   "Bible_Books": "Libros",
   "Bible_Go": "Ir",
   "Bm_Title": "Prueba de motores",
+  "EngineCfg_WhisperSatHold": "Fusionar hasta la pausa + dividir con SaT (tratamiento de cláusulas estilo Speechmatics)",
   "Bm_TabTranslation": "Traducción",
   "Bm_TabPipeline": "Pipeline",
   "Bm_TabConcurrency": "Concurrencia",

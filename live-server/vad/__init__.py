@@ -32,6 +32,11 @@ class VadConfig:
     enable_interim: bool = True
     interim_interval_s: float = 3.0
     enable_sentence_split: bool = True
+    # Clause treatment (whisper family): glue chunks that were cut WITHOUT a
+    # real pause (FORCE/SOFT commits — the 15s max-segment guillotine), then
+    # SaT re-splits the merged clause when a genuine silence commit arrives.
+    # Measured 2026-07-29: fixes 1.35x over-fragmentation to 0.96 batch parity.
+    sat_hold: bool = False
     # When True, the transcription worker accumulates audio across multiple
     # VAD commits and only transcribes when there's a long pause or enough
     # audio. Designed for cloud STT APIs that work best with longer audio.
