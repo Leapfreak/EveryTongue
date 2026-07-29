@@ -318,49 +318,28 @@ Namespace Controllers
         End Sub
 
         ' Shared outcome handlers for the two pipeline launchers (Run + Resume) —
-
         ' the catch ladders were pasted verbatim in both (CLONE-REPORT Group 6).
-
         Private Sub OnPipelineCancelled()
-
             _lblStepStatus.Text = _getString("Msg_Cancelled")
-
             LogToUnified("Pipeline cancelled by user.", PipelineRunner.LogLevel.Err)
-
         End Sub
-
 
         Private Sub OnPipelineError(ex As PipelineException)
-
             _lblStepStatus.Text = _getString(ex.MessageKey)
-
             LogToUnified($"ERROR: {ex.Message}", PipelineRunner.LogLevel.Err)
-
             If ex.MessageKey = "Err_ToolNotFound" Then
-
                 Services.Infrastructure.AppLogger.PromptDownloadManager(
-
                     ex.Message & vbCrLf & vbCrLf & _getString("Msg_OpenDownloadManager"),
-
                     _getString("Msg_DepsMissing"))
-
             Else
-
                 _notify?.Invoke(ex.Message, _getString("Msg_PipelineError"), MessageBoxIcon.Error)
-
             End If
-
         End Sub
 
-
         Private Sub OnPipelineUnexpected(ex As Exception)
-
             _lblStepStatus.Text = _getString("Transcribe_Error")
-
             LogToUnified($"UNEXPECTED ERROR: {ex.Message}", PipelineRunner.LogLevel.Err)
-
             _notify?.Invoke(ex.Message, _getString("Msg_UnexpectedError"), MessageBoxIcon.Error)
-
         End Sub
 
 

@@ -62,7 +62,6 @@ Namespace Pipeline
                 Directory.CreateDirectory(outputDir)
             End If
 
-            Dim isLocalFile = File.Exists(url)
             Dim fullVideoPath = Path.Combine(outputDir, "yt_video_full.mp4")
             Dim previewPath = Path.Combine(outputDir, "preview.mp4")
             Dim audioPath = Path.Combine(outputDir, "yt_audio.wav")
@@ -72,44 +71,14 @@ Namespace Pipeline
             Report(1, "Downloading video...")
             Log("=== Step 1: Downloading video ===")
 
-            If File.Exists(fullVideoPath) Then
-                Log("SKIP - yt_video_full.mp4 already exists.", LogLevel.Success)
-            ElseIf resumeMode Then
-                Throw New PipelineException("Err_DownloadFailed", "Cannot resume: yt_video_full.mp4 not found in output folder")
-            ElseIf isLocalFile Then
-                Log("Local file provided, copying...")
-                File.Copy(url, fullVideoPath, True)
-            Else
-                Await RunProcessAsync(AppConfig.ResolvePath(_config.PathYtdlp),
-                    $"-f ""{_config.YtdlpFormat}"" ""{url}"" -o ""{fullVideoPath}""",
-                    outputDir, "Err_DownloadFailed", "yt-dlp failed")
-            End If
-
-            If Not File.Exists(fullVideoPath) Then
-                Throw New PipelineException("Err_DownloadFailed", "yt_video_full.mp4 was not created")
-            End If
-            Log("Download OK.", LogLevel.Success)
+            Await DownloadStep(url, fullVideoPath, resumeMode, outputDir)
 
             ' Step 2: Trim video
             _ct.ThrowIfCancellationRequested()
             Report(2, "Trimming video...")
             Log("=== Step 2: Trimming video ===")
 
-            If File.Exists(previewPath) Then
-                Log("SKIP - preview.mp4 already exists.", LogLevel.Success)
-            Else
-                Dim trimArgs = $"-y -i ""{fullVideoPath}"""
-                If Not String.IsNullOrWhiteSpace(startTime) AndAlso TimeToSec(startTime) > 0 Then trimArgs &= $" -ss {startTime}"
-                If Not String.IsNullOrWhiteSpace(endTime) AndAlso TimeToSec(endTime) > 0 Then trimArgs &= $" -to {endTime}"
-                trimArgs &= $" -c:v copy -c:a copy ""{previewPath}"""
-
-                Await RunProcessAsync(AppConfig.ResolvePath(_config.PathFfmpeg), trimArgs, outputDir, "Err_TrimFailed", "ffmpeg trim failed")
-            End If
-
-            If Not File.Exists(previewPath) Then
-                Throw New PipelineException("Err_TrimFailed", "preview.mp4 was not created")
-            End If
-            Log("Trim OK.", LogLevel.Success)
+            Await TrimStep(fullVideoPath, previewPath, startTime, endTime, outputDir)
 
             ' Step 3: Extract audio
             _ct.ThrowIfCancellationRequested()
@@ -145,34 +114,9 @@ Namespace Pipeline
             Report(5, "Splitting audio into chunks...")
             Log("=== Step 5: Splitting into chunks ===")
 
-            Dim chunkSec = _config.ChunkSizeSec
-            Dim numChunks = CInt(Math.Ceiling(durSec / chunkSec))
             Dim chunkPaths As New List(Of String)
             Dim chunkStarts As New List(Of Double)
-
-            For i = 0 To numChunks - 1
-                _ct.ThrowIfCancellationRequested()
-                Dim chunkStart = i * chunkSec
-                Dim idx = i.ToString("D3")
-                Dim outChunk = Path.Combine(outputDir, $"chunk_{idx}.wav")
-
-                chunkPaths.Add(outChunk)
-                chunkStarts.Add(chunkStart)
-
-                If File.Exists(outChunk) Then
-                    Log($"SKIP - chunk_{idx}.wav already exists.", LogLevel.Success)
-                Else
-                    Log($"Creating chunk_{idx}.wav (start={chunkStart}s)")
-                    Await RunProcessAsync(AppConfig.ResolvePath(_config.PathFfmpeg),
-                        $"-y -ss {chunkStart} -i ""{audioPath}"" -t {chunkSec} -ac 1 -ar 16000 -c:a pcm_s16le ""{outChunk}""",
-                        outputDir, "Err_ChunkFailed", $"ffmpeg chunking failed on chunk {i}")
-                End If
-
-                If Not File.Exists(outChunk) Then
-                    Throw New PipelineException("Err_ChunkFailed", $"chunk_{idx}.wav was not created")
-                End If
-            Next
-            Log($"Chunking OK. {numChunks} chunks created.", LogLevel.Success)
+            Dim numChunks = Await ChunkStep(audioPath, outputDir, durSec, chunkPaths, chunkStarts)
 
             ' Step 6: Transcribe chunks in parallel batches
             _ct.ThrowIfCancellationRequested()
@@ -204,27 +148,9 @@ Namespace Pipeline
                 Await TranslateSubtitlesAsync(mergedPath, "Step 8")
             End If
 
-            ' Clean up chunks if configured
-            If Not _config.KeepChunkFiles Then
-                For i = 0 To chunkPaths.Count - 1
-                    Try
-                        If File.Exists(chunkPaths(i)) Then File.Delete(chunkPaths(i))
-                        If File.Exists(srtPaths(i)) Then File.Delete(srtPaths(i))
-                    Catch ex As Exception
-                        AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"Failed to delete chunk file: {ex.Message}")
-                    End Try
-                Next
-                Log("Chunk files cleaned up.")
-            End If
+            CleanupChunksIfConfigured(chunkPaths, srtPaths)
 
-            ' Clean up preview.mp4 if not keeping
-            If Not _config.KeepPreview Then
-                Try
-                    If File.Exists(previewPath) Then File.Delete(previewPath)
-                Catch ex As Exception
-                    AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"Failed to delete preview file: {ex.Message}")
-                End Try
-            End If
+            CleanupPreviewIfConfigured(previewPath)
 
             Report(If(NeedsTranslation(), 8, 7), "Done!")
             Log("=================================================", LogLevel.Success)
@@ -250,7 +176,6 @@ Namespace Pipeline
                 Directory.CreateDirectory(outputDir)
             End If
 
-            Dim isLocalFile = File.Exists(url)
             Dim fullVideoPath = Path.Combine(outputDir, "yt_video_full.mp4")
             Dim previewPath = Path.Combine(outputDir, "preview.mp4")
 
@@ -259,44 +184,14 @@ Namespace Pipeline
             Report(1, "Downloading video...")
             Log("=== Step 1: Downloading video ===")
 
-            If File.Exists(fullVideoPath) Then
-                Log("SKIP - yt_video_full.mp4 already exists.", LogLevel.Success)
-            ElseIf resumeMode Then
-                Throw New PipelineException("Err_DownloadFailed", "Cannot resume: yt_video_full.mp4 not found in output folder")
-            ElseIf isLocalFile Then
-                Log("Local file provided, copying...")
-                File.Copy(url, fullVideoPath, True)
-            Else
-                Await RunProcessAsync(AppConfig.ResolvePath(_config.PathYtdlp),
-                    $"-f ""{_config.YtdlpFormat}"" ""{url}"" -o ""{fullVideoPath}""",
-                    outputDir, "Err_DownloadFailed", "yt-dlp failed")
-            End If
-
-            If Not File.Exists(fullVideoPath) Then
-                Throw New PipelineException("Err_DownloadFailed", "yt_video_full.mp4 was not created")
-            End If
-            Log("Download OK.", LogLevel.Success)
+            Await DownloadStep(url, fullVideoPath, resumeMode, outputDir)
 
             ' Step 2: Trim video
             _ct.ThrowIfCancellationRequested()
             Report(2, "Trimming video...")
             Log("=== Step 2: Trimming video ===")
 
-            If File.Exists(previewPath) Then
-                Log("SKIP - preview.mp4 already exists.", LogLevel.Success)
-            Else
-                Dim trimArgs = $"-y -i ""{fullVideoPath}"""
-                If Not String.IsNullOrWhiteSpace(startTime) AndAlso TimeToSec(startTime) > 0 Then trimArgs &= $" -ss {startTime}"
-                If Not String.IsNullOrWhiteSpace(endTime) AndAlso TimeToSec(endTime) > 0 Then trimArgs &= $" -to {endTime}"
-                trimArgs &= $" -c:v copy -c:a copy ""{previewPath}"""
-
-                Await RunProcessAsync(AppConfig.ResolvePath(_config.PathFfmpeg), trimArgs, outputDir, "Err_TrimFailed", "ffmpeg trim failed")
-            End If
-
-            If Not File.Exists(previewPath) Then
-                Throw New PipelineException("Err_TrimFailed", "preview.mp4 was not created")
-            End If
-            Log("Trim OK.", LogLevel.Success)
+            Await TrimStep(fullVideoPath, previewPath, startTime, endTime, outputDir)
 
             Report(2, "Done!")
             Log("=================================================", LogLevel.Success)
@@ -321,7 +216,6 @@ Namespace Pipeline
                 Directory.CreateDirectory(outputDir)
             End If
 
-            Dim isLocalFile = File.Exists(url)
             Dim fullVideoPath = Path.Combine(outputDir, "yt_video_full.mp4")
             Dim previewPath = Path.Combine(outputDir, "preview.mp4")
             Dim audioPath = Path.Combine(outputDir, "yt_audio.mp3")
@@ -331,44 +225,14 @@ Namespace Pipeline
             Report(1, "Downloading video...")
             Log("=== Step 1: Downloading video ===")
 
-            If File.Exists(fullVideoPath) Then
-                Log("SKIP - yt_video_full.mp4 already exists.", LogLevel.Success)
-            ElseIf resumeMode Then
-                Throw New PipelineException("Err_DownloadFailed", "Cannot resume: yt_video_full.mp4 not found in output folder")
-            ElseIf isLocalFile Then
-                Log("Local file provided, copying...")
-                File.Copy(url, fullVideoPath, True)
-            Else
-                Await RunProcessAsync(AppConfig.ResolvePath(_config.PathYtdlp),
-                    $"-f ""{_config.YtdlpFormat}"" ""{url}"" -o ""{fullVideoPath}""",
-                    outputDir, "Err_DownloadFailed", "yt-dlp failed")
-            End If
-
-            If Not File.Exists(fullVideoPath) Then
-                Throw New PipelineException("Err_DownloadFailed", "yt_video_full.mp4 was not created")
-            End If
-            Log("Download OK.", LogLevel.Success)
+            Await DownloadStep(url, fullVideoPath, resumeMode, outputDir)
 
             ' Step 2: Trim video
             _ct.ThrowIfCancellationRequested()
             Report(2, "Trimming video...")
             Log("=== Step 2: Trimming video ===")
 
-            If File.Exists(previewPath) Then
-                Log("SKIP - preview.mp4 already exists.", LogLevel.Success)
-            Else
-                Dim trimArgs = $"-y -i ""{fullVideoPath}"""
-                If Not String.IsNullOrWhiteSpace(startTime) AndAlso TimeToSec(startTime) > 0 Then trimArgs &= $" -ss {startTime}"
-                If Not String.IsNullOrWhiteSpace(endTime) AndAlso TimeToSec(endTime) > 0 Then trimArgs &= $" -to {endTime}"
-                trimArgs &= $" -c:v copy -c:a copy ""{previewPath}"""
-
-                Await RunProcessAsync(AppConfig.ResolvePath(_config.PathFfmpeg), trimArgs, outputDir, "Err_TrimFailed", "ffmpeg trim failed")
-            End If
-
-            If Not File.Exists(previewPath) Then
-                Throw New PipelineException("Err_TrimFailed", "preview.mp4 was not created")
-            End If
-            Log("Trim OK.", LogLevel.Success)
+            Await TrimStep(fullVideoPath, previewPath, startTime, endTime, outputDir)
 
             ' Step 3: Extract audio (full quality, no re-encoding)
             _ct.ThrowIfCancellationRequested()
@@ -388,14 +252,7 @@ Namespace Pipeline
             End If
             Log("Audio extraction OK.", LogLevel.Success)
 
-            ' Clean up preview.mp4 if not keeping
-            If Not _config.KeepPreview Then
-                Try
-                    If File.Exists(previewPath) Then File.Delete(previewPath)
-                Catch ex As Exception
-                    AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"Failed to delete preview file: {ex.Message}")
-                End Try
-            End If
+            CleanupPreviewIfConfigured(previewPath)
 
             Report(3, "Done!")
             Log("=================================================", LogLevel.Success)
@@ -412,18 +269,7 @@ Namespace Pipeline
             If String.IsNullOrWhiteSpace(inputFile) OrElse Not File.Exists(inputFile) Then
                 Throw New PipelineException("Err_NoInput", $"Audio file not found: {inputFile}")
             End If
-            If Not File.Exists(AppConfig.ResolvePath(_config.PathFfmpeg)) Then
-                Throw New PipelineException("Err_ToolNotFound", $"ffmpeg not found: {AppConfig.ResolvePath(_config.PathFfmpeg)}")
-            End If
-            If Not File.Exists(AppConfig.ResolvePath(_config.PathFfprobe)) Then
-                Throw New PipelineException("Err_ToolNotFound", $"ffprobe not found: {AppConfig.ResolvePath(_config.PathFfprobe)}")
-            End If
-            If Not File.Exists(AppConfig.ResolvePath(_config.PathWhisper)) Then
-                Throw New PipelineException("Err_ToolNotFound", $"whisper-cli not found: {AppConfig.ResolvePath(_config.PathWhisper)}")
-            End If
-            If Not File.Exists(AppConfig.ResolvePath(_config.PathModel)) Then
-                Throw New PipelineException("Err_ToolNotFound", $"Model file not found: {AppConfig.ResolvePath(_config.PathModel)}")
-            End If
+            ValidateWhisperTools()
 
             If Not Directory.Exists(outputDir) Then
                 Directory.CreateDirectory(outputDir)
@@ -465,34 +311,9 @@ Namespace Pipeline
             Report(3, "Splitting audio into chunks...")
             Log("=== Step 3: Splitting into chunks ===")
 
-            Dim chunkSec = _config.ChunkSizeSec
-            Dim numChunks = CInt(Math.Ceiling(durSec / chunkSec))
             Dim chunkPaths As New List(Of String)
             Dim chunkStarts As New List(Of Double)
-
-            For i = 0 To numChunks - 1
-                _ct.ThrowIfCancellationRequested()
-                Dim chunkStart = i * chunkSec
-                Dim idx = i.ToString("D3")
-                Dim outChunk = Path.Combine(outputDir, $"chunk_{idx}.wav")
-
-                chunkPaths.Add(outChunk)
-                chunkStarts.Add(chunkStart)
-
-                If File.Exists(outChunk) Then
-                    Log($"SKIP - chunk_{idx}.wav already exists.", LogLevel.Success)
-                Else
-                    Log($"Creating chunk_{idx}.wav (start={chunkStart}s)")
-                    Await RunProcessAsync(AppConfig.ResolvePath(_config.PathFfmpeg),
-                        $"-y -ss {chunkStart} -i ""{audioPath}"" -t {chunkSec} -ac 1 -ar 16000 -c:a pcm_s16le ""{outChunk}""",
-                        outputDir, "Err_ChunkFailed", $"ffmpeg chunking failed on chunk {i}")
-                End If
-
-                If Not File.Exists(outChunk) Then
-                    Throw New PipelineException("Err_ChunkFailed", $"chunk_{idx}.wav was not created")
-                End If
-            Next
-            Log($"Chunking OK. {numChunks} chunks created.", LogLevel.Success)
+            Dim numChunks = Await ChunkStep(audioPath, outputDir, durSec, chunkPaths, chunkStarts)
 
             ' Step 4: Transcribe chunks
             _ct.ThrowIfCancellationRequested()
@@ -522,24 +343,107 @@ Namespace Pipeline
                 Await TranslateSubtitlesAsync(mergedPath, "Step 6")
             End If
 
-            ' Clean up chunks if configured
-            If Not _config.KeepChunkFiles Then
-                For i = 0 To chunkPaths.Count - 1
-                    Try
-                        If File.Exists(chunkPaths(i)) Then File.Delete(chunkPaths(i))
-                        If File.Exists(srtPaths(i)) Then File.Delete(srtPaths(i))
-                    Catch ex As Exception
-                        AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"Failed to delete chunk file: {ex.Message}")
-                    End Try
-                Next
-                Log("Chunk files cleaned up.")
-            End If
+            CleanupChunksIfConfigured(chunkPaths, srtPaths)
 
             Report(If(NeedsTranslation(), 6, 5), "Done!")
             Log("=================================================", LogLevel.Success)
             Log($"Done! {entryCount} subtitles saved to: {mergedPath}", LogLevel.Success)
             Log("=================================================", LogLevel.Success)
         End Function
+
+        ' ── Shared pipeline steps ─────────────────────────────────────────────
+        ' These were copy-pasted across the four Run modes (CLONE-REPORT Group 1)
+        ' — a bug fixed in one mode silently survived in the others. Step
+        ' numbering/Report() headers stay with the callers; the work lives here.
+
+        ''' <summary>Acquire yt_video_full.mp4: skip if present, copy a local file, else yt-dlp.</summary>
+        Private Async Function DownloadStep(url As String, fullVideoPath As String, resumeMode As Boolean, outputDir As String) As Task
+            If File.Exists(fullVideoPath) Then
+                Log("SKIP - yt_video_full.mp4 already exists.", LogLevel.Success)
+            ElseIf resumeMode Then
+                Throw New PipelineException("Err_DownloadFailed", "Cannot resume: yt_video_full.mp4 not found in output folder")
+            ElseIf File.Exists(url) Then
+                Log("Local file provided, copying...")
+                File.Copy(url, fullVideoPath, True)
+            Else
+                Await RunProcessAsync(AppConfig.ResolvePath(_config.PathYtdlp),
+                    $"-f ""{_config.YtdlpFormat}"" ""{url}"" -o ""{fullVideoPath}""",
+                    outputDir, "Err_DownloadFailed", "yt-dlp failed")
+            End If
+            If Not File.Exists(fullVideoPath) Then
+                Throw New PipelineException("Err_DownloadFailed", "yt_video_full.mp4 was not created")
+            End If
+            Log("Download OK.", LogLevel.Success)
+        End Function
+
+        ''' <summary>Trim yt_video_full.mp4 to preview.mp4 (stream copy; optional -ss/-to).</summary>
+        Private Async Function TrimStep(fullVideoPath As String, previewPath As String, startTime As String, endTime As String, outputDir As String) As Task
+            If File.Exists(previewPath) Then
+                Log("SKIP - preview.mp4 already exists.", LogLevel.Success)
+            Else
+                Dim trimArgs = $"-y -i ""{fullVideoPath}"""
+                If Not String.IsNullOrWhiteSpace(startTime) AndAlso TimeToSec(startTime) > 0 Then trimArgs &= $" -ss {startTime}"
+                If Not String.IsNullOrWhiteSpace(endTime) AndAlso TimeToSec(endTime) > 0 Then trimArgs &= $" -to {endTime}"
+                trimArgs &= $" -c:v copy -c:a copy ""{previewPath}"""
+                Await RunProcessAsync(AppConfig.ResolvePath(_config.PathFfmpeg), trimArgs, outputDir, "Err_TrimFailed", "ffmpeg trim failed")
+            End If
+            If Not File.Exists(previewPath) Then
+                Throw New PipelineException("Err_TrimFailed", "preview.mp4 was not created")
+            End If
+            Log("Trim OK.", LogLevel.Success)
+        End Function
+
+        ''' <summary>Split audio into 16 kHz mono WAV chunks; fills chunkPaths/chunkStarts, returns the chunk count.</summary>
+        Private Async Function ChunkStep(audioPath As String, outputDir As String, durSec As Double,
+                                         chunkPaths As List(Of String), chunkStarts As List(Of Double)) As Task(Of Integer)
+            Dim chunkSec = _config.ChunkSizeSec
+            Dim numChunks = CInt(Math.Ceiling(durSec / chunkSec))
+            For i = 0 To numChunks - 1
+                _ct.ThrowIfCancellationRequested()
+                Dim chunkStart = i * chunkSec
+                Dim idx = i.ToString("D3")
+                Dim outChunk = Path.Combine(outputDir, $"chunk_{idx}.wav")
+                chunkPaths.Add(outChunk)
+                chunkStarts.Add(chunkStart)
+                If File.Exists(outChunk) Then
+                    Log($"SKIP - chunk_{idx}.wav already exists.", LogLevel.Success)
+                Else
+                    Log($"Creating chunk_{idx}.wav (start={chunkStart}s)")
+                    Await RunProcessAsync(AppConfig.ResolvePath(_config.PathFfmpeg),
+                        $"-y -ss {chunkStart} -i ""{audioPath}"" -t {chunkSec} -ac 1 -ar 16000 -c:a pcm_s16le ""{outChunk}""",
+                        outputDir, "Err_ChunkFailed", $"ffmpeg chunking failed on chunk {i}")
+                End If
+                If Not File.Exists(outChunk) Then
+                    Throw New PipelineException("Err_ChunkFailed", $"chunk_{idx}.wav was not created")
+                End If
+            Next
+            Log($"Chunking OK. {numChunks} chunks created.", LogLevel.Success)
+            Return numChunks
+        End Function
+
+        ''' <summary>Delete chunk WAV/SRT files unless KeepChunkFiles.</summary>
+        Private Sub CleanupChunksIfConfigured(chunkPaths As List(Of String), srtPaths As List(Of String))
+            If _config.KeepChunkFiles Then Return
+            For i = 0 To chunkPaths.Count - 1
+                Try
+                    If File.Exists(chunkPaths(i)) Then File.Delete(chunkPaths(i))
+                    If File.Exists(srtPaths(i)) Then File.Delete(srtPaths(i))
+                Catch ex As Exception
+                    AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"Failed to delete chunk file: {ex.Message}")
+                End Try
+            Next
+            Log("Chunk files cleaned up.")
+        End Sub
+
+        ''' <summary>Delete preview.mp4 unless KeepPreview.</summary>
+        Private Sub CleanupPreviewIfConfigured(previewPath As String)
+            If _config.KeepPreview Then Return
+            Try
+                If File.Exists(previewPath) Then File.Delete(previewPath)
+            Catch ex As Exception
+                AppLogger.Log(LogEvents.PIPELINE_SIDECAR_ERROR, $"Failed to delete preview file: {ex.Message}")
+            End Try
+        End Sub
 
         Private Async Function TranscribeChunksAsync(chunkPaths As List(Of String),
                                                        srtPaths As List(Of String),
@@ -692,10 +596,8 @@ Namespace Pipeline
             End If
         End Sub
 
-        Private Sub ValidateInputsForResume(outputDir As String)
-            If Not Directory.Exists(outputDir) Then
-                Throw New PipelineException("Err_NoInput", $"Output folder not found: {outputDir}")
-            End If
+        ''' <summary>The four tools every transcribing mode needs (was pasted in three validators — CLONE-REPORT Group 1).</summary>
+        Private Sub ValidateWhisperTools()
             If Not File.Exists(AppConfig.ResolvePath(_config.PathFfmpeg)) Then
                 Throw New PipelineException("Err_ToolNotFound", $"ffmpeg not found: {AppConfig.ResolvePath(_config.PathFfmpeg)}")
             End If
@@ -708,6 +610,13 @@ Namespace Pipeline
             If Not File.Exists(AppConfig.ResolvePath(_config.PathModel)) Then
                 Throw New PipelineException("Err_ToolNotFound", $"Model file not found: {AppConfig.ResolvePath(_config.PathModel)}")
             End If
+        End Sub
+
+        Private Sub ValidateInputsForResume(outputDir As String)
+            If Not Directory.Exists(outputDir) Then
+                Throw New PipelineException("Err_NoInput", $"Output folder not found: {outputDir}")
+            End If
+            ValidateWhisperTools()
         End Sub
 
         Private Sub ValidateInputs(url As String, outputDir As String)
@@ -723,18 +632,7 @@ Namespace Pipeline
                 End If
             End If
 
-            If Not File.Exists(AppConfig.ResolvePath(_config.PathFfmpeg)) Then
-                Throw New PipelineException("Err_ToolNotFound", $"ffmpeg not found: {AppConfig.ResolvePath(_config.PathFfmpeg)}")
-            End If
-            If Not File.Exists(AppConfig.ResolvePath(_config.PathFfprobe)) Then
-                Throw New PipelineException("Err_ToolNotFound", $"ffprobe not found: {AppConfig.ResolvePath(_config.PathFfprobe)}")
-            End If
-            If Not File.Exists(AppConfig.ResolvePath(_config.PathWhisper)) Then
-                Throw New PipelineException("Err_ToolNotFound", $"whisper-cli not found: {AppConfig.ResolvePath(_config.PathWhisper)}")
-            End If
-            If Not File.Exists(AppConfig.ResolvePath(_config.PathModel)) Then
-                Throw New PipelineException("Err_ToolNotFound", $"Model file not found: {AppConfig.ResolvePath(_config.PathModel)}")
-            End If
+            ValidateWhisperTools()
         End Sub
 
         ''' <summary>

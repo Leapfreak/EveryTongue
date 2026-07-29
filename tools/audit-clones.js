@@ -33,6 +33,8 @@ function normalize(file) {
   fs.readFileSync(file, 'utf8').split(/\r?\n/).forEach((line, i) => {
     const t = line.trim().replace(/\s+/g, ' ');
     if (!t || t.startsWith("'") || t.startsWith('//') || t.startsWith('#') || t.startsWith('*') || t.startsWith('/*')) return;
+    // Import headers repeat across files by nature — not clones.
+    if (/^(Imports |import |from .+ import )/.test(t)) return;
     out.push({ text: t, lineNo: i + 1 });
   });
   return out;
