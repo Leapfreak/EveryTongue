@@ -22,7 +22,10 @@ const { ROOT, walkFiles, vbFiles, rel, finish } = require('./audit-lib');
 const suspects = [];
 
 // ── 1. Silent VB Catch blocks ───────────────────────────────────────────────
-const VB_LOG_TOKENS = /AppLogger\.|\b_log\s*\(|\b_debugLog\s*\(|\bLogToUnified\s*\(|\bWriteLog\b|\bThrow\b|\bSLOG\b|\bLog\s*\(\s*\$?"|\.Log(Warning|Error|Information|Debug|Critical|Trace)\b|\bRaiseEvent\s+\w*(Error|Status|Failed)/;
+// Note the last alternative: a catch that DELEGATES to a named outcome handler
+// (OnPipelineError(ex), HandleXxxFailed(...)) counts as handled — the handler
+// owns the logging (pattern introduced by the G6 catch-ladder extraction).
+const VB_LOG_TOKENS = /AppLogger\.|\b_log\s*\(|\b_debugLog\s*\(|\bLogToUnified\s*\(|\bWriteLog\b|\bThrow\b|\bSLOG\b|\bLog\s*\(\s*\$?"|\.Log(Warning|Error|Information|Debug|Critical|Trace)\b|\bRaiseEvent\s+\w*(Error|Status|Failed)|\b(On|Handle)\w*(Error|Cancelled|Unexpected|Failed)\w*\s*\(/;
 for (const file of vbFiles(false)) {
   const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
   // Stack of open Try contexts; each Catch segment is evaluated on close.
