@@ -75,30 +75,20 @@
            Download Manager component, so it is deliberately not tracked here. -->
       <!-- Web client -->
       <ChecksumFile Include="$(PublishDir)wwwroot\**\*" />
-      <!-- Python servers -->
-      <ChecksumFile Include="$(PublishDir)translate-server\server.py" />
+      <!-- Python servers: glob EVERY shipped .py so a new module can never be
+           silently missing from verification again (2026-07-29: the new
+           pace_tuner.py was absent from both the content list and this manifest —
+           a synced field machine crashed at import with no integrity warning).
+           .pyc/__pycache__ are deliberately NOT matched: they regenerate on the
+           user's machine and would always false-fail. -->
+      <ChecksumFile Include="$(PublishDir)translate-server\**\*.py" />
       <ChecksumFile Include="$(PublishDir)translate-server\glossary.json" />
       <ChecksumFile Include="$(PublishDir)translate-server\profanity.json" />
       <ChecksumFile Include="$(PublishDir)translate-server\requirements.txt" />
-      <ChecksumFile Include="$(PublishDir)live-server\server.py" />
+      <ChecksumFile Include="$(PublishDir)live-server\**\*.py" />
       <ChecksumFile Include="$(PublishDir)live-server\hallucinations.json" />
       <ChecksumFile Include="$(PublishDir)live-server\requirements.txt" />
-      <ChecksumFile Include="$(PublishDir)live-server\vad\__init__.py" />
-      <ChecksumFile Include="$(PublishDir)live-server\vad\buffers.py" />
-      <ChecksumFile Include="$(PublishDir)live-server\vad\frame_vad.py" />
-      <ChecksumFile Include="$(PublishDir)live-server\vad\merger.py" />
-      <ChecksumFile Include="$(PublishDir)live-server\vad\pipeline.py" />
-      <ChecksumFile Include="$(PublishDir)live-server\vad\segment.py" />
-      <ChecksumFile Include="$(PublishDir)live-server\vad\state_machine.py" />
-      <ChecksumFile Include="$(PublishDir)live-server\vad\accumulating_pipeline.py" />
-      <ChecksumFile Include="$(PublishDir)live-server\engines\__init__.py" />
-      <ChecksumFile Include="$(PublishDir)live-server\engines\common.py" />
-      <ChecksumFile Include="$(PublishDir)live-server\engines\azure_speech.py" />
-      <ChecksumFile Include="$(PublishDir)live-server\engines\deepgram.py" />
-      <ChecksumFile Include="$(PublishDir)live-server\engines\gladia.py" />
-      <ChecksumFile Include="$(PublishDir)live-server\engines\google.py" />
-      <ChecksumFile Include="$(PublishDir)live-server\engines\speechmatics.py" />
-      <ChecksumFile Include="$(PublishDir)mms-tts-server\server.py" />
+      <ChecksumFile Include="$(PublishDir)mms-tts-server\**\*.py" />
       <ChecksumFile Include="$(PublishDir)mms-tts-server\requirements.txt" />
       <!-- Locale JSON — only en.json ships; others downloaded on demand -->
       <ChecksumFile Include="$(PublishDir)locales\en.json" />
