@@ -511,24 +511,48 @@ Namespace Models
         ''' Empty list means all required packages are installed.
         ''' </summary>
         Public Function GetMissingPythonPackages() As List(Of String)
-            Dim packages As New List(Of String) From {
-                "ctranslate2", "sentencepiece", "fastapi", "uvicorn",
-                "silero-vad", "sounddevice", "edge-tts", "faster-whisper"}
-
-            ' Online STT engines need their SDK only when that engine is the
-            ' selected backend — these are optional and not required for the
-            ' offline whisper engines. (pip distribution names, matched by pip show.)
+            ' The required list is DERIVED from the shipped requirements files —
+            ' the same source InstallPythonDepsAsync installs from. A hardcoded
+            ' copy here is exactly how pypdf got stranded dev-only (2026-07-31):
+            ' the installer would have delivered it, but this check never asked
+            ' for it, so the Download Manager showed "Up to date" with nothing
+            ' to click. One source of truth now.
+            Dim packages As New List(Of String)
+            Dim seen As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+            ' Cloud STT SDKs are required only when that engine is selected —
+            ' optional for the offline whisper engines.
+            Dim optionalSdks As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
+                {"speechmatics-rt", "speechmatics"},
+                {"google-cloud-speech", "google-cloud-stt"},
+                {"azure-cognitiveservices-speech", "azure-speech"}}
             Dim sttBackend = If(_config.SttBackend, "")
-            If sttBackend.Equals("speechmatics", StringComparison.OrdinalIgnoreCase) Then
-                packages.Add("speechmatics-rt")
-            ElseIf sttBackend.Equals("google-cloud-stt", StringComparison.OrdinalIgnoreCase) Then
-                packages.Add("google-cloud-speech")
-            ElseIf sttBackend.Equals("azure-speech", StringComparison.OrdinalIgnoreCase) Then
-                packages.Add("azure-cognitiveservices-speech")
-            End If
+            For Each reqFile In {Path.Combine(_toolsDir, "translate-server", "requirements.txt"),
+                                 Path.Combine(_toolsDir, "live-server", "requirements.txt")}
+                If Not File.Exists(reqFile) Then Continue For
+                For Each raw In File.ReadAllLines(reqFile)
+                    Dim line = raw.Trim()
+                    If line.Length = 0 OrElse line.StartsWith("#") Then Continue For
+                    ' Package name = everything before any version/extras specifier.
+                    Dim name = line.Split("="c, "<"c, ">"c, "~"c, "!"c, ";"c, "["c)(0).Trim()
+                    If name.Length = 0 OrElse Not seen.Add(name) Then Continue For
+                    Dim requiredBackend As String = Nothing
+                    If optionalSdks.TryGetValue(name, requiredBackend) AndAlso
+                       Not sttBackend.Equals(requiredBackend, StringComparison.OrdinalIgnoreCase) Then
+                        Continue For
+                    End If
+                    packages.Add(name)
+                Next
+            Next
+            ' Extras installed outside the requirements files (see InstallPythonDepsAsync).
+            If seen.Add("edge-tts") Then packages.Add("edge-tts")
 
             If Not File.Exists(PythonExePath()) Then
                 Return New List(Of String) From {"(Python not installed)"}
+            End If
+            If packages.Count = 0 Then
+                ' Requirements files missing next to the app — the install can't
+                ' run either; surface it instead of reporting "all good".
+                Return New List(Of String) From {"(requirements files not found)"}
             End If
 
             ' Single pip call to check all packages at once
