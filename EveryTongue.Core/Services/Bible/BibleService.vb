@@ -707,6 +707,18 @@ Namespace Services.Bible
             For Each m As Match In RefPattern.Matches(text)
                 Dim bookName = m.Groups("book").Value.Trim()
                 Dim resolved = ResolveBookAlias(bookName)
+                ' "Mateu capítol 4" (field miss 2026-07-31): the greedy book
+                ' group swallows the spoken chapter word, and the resolver only
+                ' drops LEADING junk ("en Mateu"). Mirror it with a trailing
+                ' drop — language-neutral, no chapter-word lists; the ambiguity
+                ' tiering below still gates weak matches.
+                If resolved Is Nothing Then
+                    Dim toks = bookName.Split(" "c)
+                    For dropEnd = 1 To Math.Min(2, toks.Length - 1)
+                        resolved = ResolveBookAlias(String.Join(" ", toks.Take(toks.Length - dropEnd)))
+                        If resolved IsNot Nothing Then Exit For
+                    Next
+                End If
                 If resolved Is Nothing Then Continue For
                 Dim bookCode = resolved.Code
 
