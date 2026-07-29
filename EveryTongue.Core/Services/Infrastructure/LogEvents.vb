@@ -36,7 +36,6 @@ Namespace Services.Infrastructure
 
         ' ── Server (1200–1299) ──
         Public Const SERVER_STARTING As Integer = 1200
-        Public Const SERVER_STARTED As Integer = 1201
         Public Const SERVER_STOPPED As Integer = 1202
         Public Const SERVER_ERROR As Integer = 1203
         Public Const SERVER_ENDPOINT_CALLED As Integer = 1204
@@ -45,21 +44,13 @@ Namespace Services.Infrastructure
         Public Const PIPELINE_SIDECAR_STARTING As Integer = 2000
         Public Const PIPELINE_SIDECAR_STARTED As Integer = 2001
         Public Const PIPELINE_SIDECAR_EXITED As Integer = 2002
-        Public Const PIPELINE_SIDECAR_RESTART As Integer = 2003
         Public Const PIPELINE_SIDECAR_STOP As Integer = 2004
         Public Const PIPELINE_SIDECAR_ERROR As Integer = 2005
         Public Const PIPELINE_PROCESS_KILL As Integer = 2006
         Public Const PIPELINE_LOG_TAIL_ERROR As Integer = 2007
 
         ' ── STT (3000–3099) ──
-        Public Const STT_SESSION_START As Integer = 3000
-        Public Const STT_SESSION_STOP As Integer = 3001
-        Public Const STT_VAD_STATE_CHANGE As Integer = 3002
-        Public Const STT_INFERENCE_START As Integer = 3003
-        Public Const STT_INFERENCE_RESULT As Integer = 3004
-        Public Const STT_COMMIT As Integer = 3005
         Public Const STT_WHISPER_SERVER_START As Integer = 3006
-        Public Const STT_WHISPER_SERVER_STOP As Integer = 3007
         Public Const STT_WHISPER_SERVER_ERROR As Integer = 3008
         Public Const STT_HEALTH_CHECK As Integer = 3009
         Public Const STT_SERVICE_VOCAB As Integer = 3010
@@ -67,8 +58,6 @@ Namespace Services.Infrastructure
         ' ── Translation (4000–4099) ──
         Public Const TRANS_SERVER_STARTING As Integer = 4000
         Public Const TRANS_SERVER_READY As Integer = 4001
-        Public Const TRANS_MODEL_LOADING As Integer = 4002
-        Public Const TRANS_MODEL_LOADED As Integer = 4003
         Public Const TRANS_REQUEST As Integer = 4004
         Public Const TRANS_RESULT As Integer = 4005
         Public Const TRANS_ERROR As Integer = 4006
@@ -83,10 +72,7 @@ Namespace Services.Infrastructure
         ' ── TTS (4100–4199) ──
         Public Const TTS_SYNTHESISE As Integer = 4100
         Public Const TTS_SYNTHESISE_DONE As Integer = 4101
-        Public Const TTS_ENGINE_START As Integer = 4102
-        Public Const TTS_ENGINE_STOP As Integer = 4103
         Public Const TTS_ENGINE_ERROR As Integer = 4104
-        Public Const TTS_PLAYBACK As Integer = 4105
         Public Const TTS_BACKEND_CONFIGURED As Integer = 4106
 
         ' ── Conference (5000–5099) ──
@@ -120,23 +106,19 @@ Namespace Services.Infrastructure
         Public Const ROOM_READINESS As Integer = 5108
 
         ' ── Subtitle (5200–5299) ──
-        Public Const SUB_BROADCAST As Integer = 5200
         Public Const SUB_CLIENT_CONNECTED As Integer = 5201
         Public Const SUB_CLIENT_DISCONNECTED As Integer = 5202
-        Public Const SUB_TTS_FIRED As Integer = 5203
         Public Const SUB_SEND_ERROR As Integer = 5204
         Public Const SUB_LANG_CHANGE As Integer = 5205
         Public Const SUB_INPUT_LANG_CHANGE As Integer = 5206
 
         ' ── Bible (6000–6099) ──
         Public Const BIBLE_LOOKUP As Integer = 6000
-        Public Const BIBLE_DOWNLOAD As Integer = 6001
         Public Const BIBLE_ERROR As Integer = 6002
         Public Const BIBLE_REF_DETECTED As Integer = 6003
         Public Const BIBLE_ALIAS_INDEX As Integer = 6004
 
         ' ── Download (6100–6199) ──
-        Public Const DL_CHECK_START As Integer = 6100
         Public Const DL_CHECK_RESULT As Integer = 6101
         Public Const DL_DOWNLOAD_START As Integer = 6102
         Public Const DL_DOWNLOAD_DONE As Integer = 6103
@@ -158,7 +140,6 @@ Namespace Services.Infrastructure
         Public Const UPDATE_ERROR As Integer = 6402
 
         ' ── Hardware (6500–6599) ──
-        Public Const HW_SCAN_START As Integer = 6500
         Public Const HW_SCAN_RESULT As Integer = 6501
         Public Const HW_SCAN_ERROR As Integer = 6502
 
@@ -238,30 +219,21 @@ Namespace Services.Infrastructure
 
             ' Server
             R(SERVER_STARTING, LogCategory.Server, LogSeverity.Info, "Kestrel web server starting")
-            R(SERVER_STARTED, LogCategory.Server, LogSeverity.Info, "Kestrel web server started")
             R(SERVER_STOPPED, LogCategory.Server, LogSeverity.Info, "Kestrel web server stopped")
             R(SERVER_ERROR, LogCategory.Server, LogSeverity.[Error], "Kestrel web server error")
-            R(SERVER_ENDPOINT_CALLED, LogCategory.Server, LogSeverity.Debug, "API endpoint called")
+            R(SERVER_ENDPOINT_CALLED, LogCategory.Server, LogSeverity.Info, "API endpoint error or slow response")
 
             ' Pipeline
             R(PIPELINE_SIDECAR_STARTING, LogCategory.Pipeline, LogSeverity.Info, "Python sidecar process starting")
             R(PIPELINE_SIDECAR_STARTED, LogCategory.Pipeline, LogSeverity.Info, "Python sidecar process started")
             R(PIPELINE_SIDECAR_EXITED, LogCategory.Pipeline, LogSeverity.Warning, "Python sidecar process exited")
-            R(PIPELINE_SIDECAR_RESTART, LogCategory.Pipeline, LogSeverity.Warning, "Python sidecar process restarting")
             R(PIPELINE_SIDECAR_STOP, LogCategory.Pipeline, LogSeverity.Info, "Python sidecar process stopped")
             R(PIPELINE_SIDECAR_ERROR, LogCategory.Pipeline, LogSeverity.[Error], "Python sidecar process error")
             R(PIPELINE_PROCESS_KILL, LogCategory.Pipeline, LogSeverity.Debug, "Killed process on port")
             R(PIPELINE_LOG_TAIL_ERROR, LogCategory.Pipeline, LogSeverity.[Error], "Log file tail failed")
 
             ' STT
-            R(STT_SESSION_START, LogCategory.Stt, LogSeverity.Info, "STT session started")
-            R(STT_SESSION_STOP, LogCategory.Stt, LogSeverity.Info, "STT session stopped")
-            R(STT_VAD_STATE_CHANGE, LogCategory.Stt, LogSeverity.Debug, "VAD state changed")
-            R(STT_INFERENCE_START, LogCategory.Stt, LogSeverity.Debug, "Whisper inference started")
-            R(STT_INFERENCE_RESULT, LogCategory.Stt, LogSeverity.Debug, "Whisper inference result")
-            R(STT_COMMIT, LogCategory.Stt, LogSeverity.Info, "STT text committed")
             R(STT_WHISPER_SERVER_START, LogCategory.Stt, LogSeverity.Info, "whisper-server process started")
-            R(STT_WHISPER_SERVER_STOP, LogCategory.Stt, LogSeverity.Info, "whisper-server process stopped")
             R(STT_WHISPER_SERVER_ERROR, LogCategory.Stt, LogSeverity.[Error], "whisper-server error")
             R(STT_HEALTH_CHECK, LogCategory.Stt, LogSeverity.Debug, "STT health check")
             R(STT_SERVICE_VOCAB, LogCategory.Stt, LogSeverity.Info, "Service people-names vocab (session-lifetime layer) pushed to STT engines")
@@ -269,8 +241,6 @@ Namespace Services.Infrastructure
             ' Translation
             R(TRANS_SERVER_STARTING, LogCategory.Translation, LogSeverity.Info, "Translation server starting")
             R(TRANS_SERVER_READY, LogCategory.Translation, LogSeverity.Info, "Translation server ready")
-            R(TRANS_MODEL_LOADING, LogCategory.Translation, LogSeverity.Info, "Translation model loading")
-            R(TRANS_MODEL_LOADED, LogCategory.Translation, LogSeverity.Info, "Translation model loaded")
             R(TRANS_REQUEST, LogCategory.Translation, LogSeverity.Debug, "Translation request sent")
             R(TRANS_RESULT, LogCategory.Translation, LogSeverity.Info, "Translation result (backend, source→targets, timing, full source + output text)")
             R(TRANS_ERROR, LogCategory.Translation, LogSeverity.[Error], "Translation failed")
@@ -285,10 +255,7 @@ Namespace Services.Infrastructure
             ' TTS
             R(TTS_SYNTHESISE, LogCategory.Tts, LogSeverity.Debug, "TTS synthesis requested")
             R(TTS_SYNTHESISE_DONE, LogCategory.Tts, LogSeverity.Info, "TTS synthesis complete (engine, language, timing)")
-            R(TTS_ENGINE_START, LogCategory.Tts, LogSeverity.Info, "TTS engine started")
-            R(TTS_ENGINE_STOP, LogCategory.Tts, LogSeverity.Info, "TTS engine stopped")
             R(TTS_ENGINE_ERROR, LogCategory.Tts, LogSeverity.[Error], "TTS engine error")
-            R(TTS_PLAYBACK, LogCategory.Tts, LogSeverity.Debug, "TTS audio playback")
             R(TTS_BACKEND_CONFIGURED, LogCategory.Tts, LogSeverity.Info, "Cloud TTS backend API key/endpoint configured")
 
             ' Conference
@@ -322,23 +289,19 @@ Namespace Services.Infrastructure
             R(ROOM_READINESS, LogCategory.Rooms, LogSeverity.Info, "Room engine readiness (STT/translation preparing → ready) relayed to clients")
 
             ' Subtitle
-            R(SUB_BROADCAST, LogCategory.Subtitle, LogSeverity.Debug, "Subtitle broadcast to clients")
             R(SUB_CLIENT_CONNECTED, LogCategory.Subtitle, LogSeverity.Info, "WebSocket client connected")
             R(SUB_CLIENT_DISCONNECTED, LogCategory.Subtitle, LogSeverity.Info, "WebSocket client disconnected")
-            R(SUB_TTS_FIRED, LogCategory.Subtitle, LogSeverity.Debug, "Server-side TTS triggered for commit")
             R(SUB_SEND_ERROR, LogCategory.Subtitle, LogSeverity.Warning, "WebSocket send failed")
             R(SUB_LANG_CHANGE, LogCategory.Subtitle, LogSeverity.Debug, "Client display-language changed")
             R(SUB_INPUT_LANG_CHANGE, LogCategory.Subtitle, LogSeverity.Info, "Desktop input language changed")
 
             ' Bible
             R(BIBLE_LOOKUP, LogCategory.Bible, LogSeverity.Debug, "Bible verse lookup")
-            R(BIBLE_DOWNLOAD, LogCategory.Bible, LogSeverity.Info, "Bible translation downloaded")
             R(BIBLE_ERROR, LogCategory.Bible, LogSeverity.[Error], "Bible operation failed")
             R(BIBLE_REF_DETECTED, LogCategory.Bible, LogSeverity.Info, "Scripture reference detected in live text (book/chapter/verse + matched words) — drives verse links and book-scoped STT vocab")
             R(BIBLE_ALIAS_INDEX, LogCategory.Bible, LogSeverity.Info, "Derived book-alias index built (names per installed Bible, ambiguous count)")
 
             ' Download
-            R(DL_CHECK_START, LogCategory.Download, LogSeverity.Info, "Dependency check started")
             R(DL_CHECK_RESULT, LogCategory.Download, LogSeverity.Info, "Dependency check result")
             R(DL_DOWNLOAD_START, LogCategory.Download, LogSeverity.Info, "Download started")
             R(DL_DOWNLOAD_DONE, LogCategory.Download, LogSeverity.Info, "Download completed")
@@ -360,7 +323,6 @@ Namespace Services.Infrastructure
             R(UPDATE_ERROR, LogCategory.Update, LogSeverity.[Error], "Update check failed")
 
             ' Hardware
-            R(HW_SCAN_START, LogCategory.Hardware, LogSeverity.Info, "Hardware scan started")
             R(HW_SCAN_RESULT, LogCategory.Hardware, LogSeverity.Debug, "Hardware scan result")
             R(HW_SCAN_ERROR, LogCategory.Hardware, LogSeverity.[Error], "Hardware scan failed")
 

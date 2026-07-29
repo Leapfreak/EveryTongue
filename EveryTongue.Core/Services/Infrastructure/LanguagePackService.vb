@@ -25,6 +25,8 @@ Namespace Services.Infrastructure
         Private ReadOnly _localesDir As String
         Private ReadOnly _userLocalesDir As String
         Private ReadOnly _strings As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase)
+        ' Missing-key log gate: each unknown key is logged ONCE per session (LOCALE_MISSING_KEY).
+        Private ReadOnly _missingLogged As New Concurrent.ConcurrentDictionary(Of String, Boolean)(StringComparer.OrdinalIgnoreCase)
         Private ReadOnly _httpClient As New HttpClient() With {
             .Timeout = TimeSpan.FromSeconds(15)
         }
@@ -118,6 +120,9 @@ Namespace Services.Infrastructure
             If String.IsNullOrEmpty(key) Then Return ""
             Dim val As String = Nothing
             If _strings.TryGetValue(key, val) Then Return val
+            If _missingLogged.TryAdd(key, True) Then
+                AppLogger.Log(LogEvents.LOCALE_MISSING_KEY, $"GetString: no entry for key '{key}' — raw key shown to user")
+            End If
             Return key
         End Function
 

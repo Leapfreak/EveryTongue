@@ -435,11 +435,11 @@ Namespace Controllers
             _sttBackends(roomId) = backend
             _roomTemplateIds(roomId) = templateId
 
-            _log($"[Conference] Starting backend for room {roomId} (template={template.Name}, port={port}, lang={sttConfig.Language}, backend={backendKey})")
+            AppLogger.Log(LogEvents.CONF_BACKEND_STARTED, $"room {roomId}: starting backend (template={template.Name}, port={port}, lang={sttConfig.Language}, backend={backendKey})")
             backend.Start(sttConfig)
 
             If backend.IsRunning Then
-                _log($"[Conference] Backend started for room {roomId}")
+                AppLogger.Log(LogEvents.CONF_BACKEND_STARTED, $"room {roomId}: backend started")
                 ' Web-mic rooms: open the hub→live-server frame route so the host's
                 ' Broadcast button has somewhere to send audio.
                 If String.Equals(sttConfig.AudioSource, "web", StringComparison.OrdinalIgnoreCase) Then
@@ -498,6 +498,7 @@ Namespace Controllers
                         AppLogger.Log(LogEvents.CONF_BACKEND_STARTING,
                             $"Audio device '{storedName}' re-resolved to current index {byName.Id} (saved index was {storedId}).")
                     End If
+                    AppLogger.Log(LogEvents.AUDIO_DEVICE_SELECTED, $"Conference capture device: '{storedName}' (index {byName.Id})")
                     Return byName.Id
                 End If
             End If
@@ -505,6 +506,7 @@ Namespace Controllers
             ' No name match — validate the stored index is still a real input device.
             Dim byId = devices.FirstOrDefault(Function(d) d IsNot Nothing AndAlso d.Id = storedId)
             If byId IsNot Nothing Then
+                AppLogger.Log(LogEvents.AUDIO_DEVICE_SELECTED, $"Conference capture device: '{byId.Name}' (saved index {storedId})")
                 Return storedId
             End If
 
@@ -562,12 +564,12 @@ Namespace Controllers
             ' an HTTP config call to a live-server that is about to be shut down just races
             ' the shutdown and logs a spurious "UpdateConfigAsync failed" error.
             If runtimeParams.Count > 0 AndAlso Not needsRestart Then
-                _log($"[Pipeline:{roomId}] Updating runtime params: {String.Join(", ", runtimeParams.Keys)}")
+                AppLogger.Log(LogEvents.CONF_PIPELINE_CONFIG, $"room {roomId}: updating runtime params: {String.Join(", ", runtimeParams.Keys)}")
                 Task.Run(Function() backend.UpdateConfigAsync(runtimeParams))
             End If
 
             If needsRestart AndAlso Not String.IsNullOrEmpty(roomId) Then
-                _log($"[Pipeline:{roomId}] Restart required for params: {String.Join(", ", params.Keys)}")
+                AppLogger.Log(LogEvents.CONF_PIPELINE_RESTART, $"room {roomId}: restart required for params: {String.Join(", ", params.Keys)}")
                 RestartConferenceBackend(roomId, params)
             End If
         End Sub
@@ -659,7 +661,7 @@ Namespace Controllers
             WireBackendLogging(roomId, newBackend, restartBackendKey)
 
             _sttBackends(roomId) = newBackend
-            _log($"[Pipeline:{roomId}] Restarting backend (port={sttConfig.ServerPort})")
+            AppLogger.Log(LogEvents.CONF_PIPELINE_RESTART, $"room {roomId}: restarting backend (port={sttConfig.ServerPort})")
             newBackend.Start(sttConfig)
             If newBackend.IsRunning Then
                 StartReadinessWatch(roomId, newBackend)
@@ -743,7 +745,7 @@ Namespace Controllers
                 _log($"[Conference] Reset requested but no backend for room {roomId}")
                 Return
             End If
-            _log($"[Conference] RESET requested for room {roomId}")
+            AppLogger.Log(LogEvents.CONF_BACKEND_RESET, $"room {roomId}: RESET requested")
             RestartConferenceBackend(roomId, New Dictionary(Of String, Object))
         End Sub
 
@@ -775,7 +777,7 @@ Namespace Controllers
 
             Dim backend As ISttBackend = Nothing
             If _sttBackends.TryGetValue(roomId, backend) Then
-                _log($"[Conference] Stopping backend for room {roomId}")
+                AppLogger.Log(LogEvents.CONF_BACKEND_STOPPED, $"room {roomId}: stopping backend")
                 DropKey(_sttBackends, roomId)
                 DropKey(_roomTemplateIds, roomId)
                 ' Stop on background thread to avoid freezing the UI
@@ -808,7 +810,7 @@ Namespace Controllers
             ' Stop all backends in parallel on background threads to avoid UI freeze
             Dim stopTasks As New List(Of Task)()
             For Each kvp In _sttBackends.ToList()
-                _log($"[Conference] Stopping backend for room {kvp.Key}")
+                AppLogger.Log(LogEvents.CONF_BACKEND_STOPPED, $"room {kvp.Key}: stopping backend")
                 Dim backend = kvp.Value
                 Dim rid = kvp.Key
                 stopTasks.Add(Task.Run(Sub()

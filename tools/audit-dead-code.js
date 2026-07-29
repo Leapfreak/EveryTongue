@@ -15,7 +15,14 @@ const { ROOT, vbFiles, rel, finish } = require('./audit-lib');
 
 // Reviewed suspects that are intentionally kept (name -> reason).
 const ALLOW = {
-  // (none yet)
+  // LogEvents referenced by ID ARITHMETIC, not by name (triage 2026-07-29):
+  // PYLOG_* DEBUG/WARN/ERROR are BaseEventId+1/2/3 offsets (PythonSidecarHost),
+  // LEGACY is id 0 — the ILogger-bridge / unregistered-call catch-all.
+  LEGACY: 'id 0 catch-all for ILogger-bridged + unregistered log calls',
+  ...Object.fromEntries(
+    ['LIVE', 'TRANSLATE', 'MMS_TTS', 'QE'].flatMap(s =>
+      ['DEBUG', 'WARN', 'ERROR'].map(l =>
+        [`PYLOG_${s}_${l}`, 'referenced via BaseEventId+offset arithmetic']))),
 };
 
 const suspects = [];

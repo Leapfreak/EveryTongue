@@ -61,8 +61,10 @@ Namespace Server
                             New With {.error = "Bible service not available"})
                         Return
                     End If
+                    Dim sw = Diagnostics.Stopwatch.StartNew()
                     Dim result = Await bibleService.GetChapterAsync(
                         id, book, chapter, context.RequestAborted)
+                    AppLogger.Log(LogEvents.BIBLE_LOOKUP, $"{id} {book} {chapter} (whole chapter) in {sw.ElapsedMilliseconds}ms")
                     Await context.Response.WriteAsJsonAsync(result)
                 End Function)
 
@@ -79,8 +81,10 @@ Namespace Server
                     Dim parts = verses.Split("-"c)
                     Dim vStart = Integer.Parse(parts(0))
                     Dim vEnd = If(parts.Length > 1, Integer.Parse(parts(1)), -1)
+                    Dim sw = Diagnostics.Stopwatch.StartNew()
                     Dim result = Await bibleService.GetVersesAsync(
                         id, book, chapter, vStart, vEnd, context.RequestAborted)
+                    AppLogger.Log(LogEvents.BIBLE_LOOKUP, $"{id} {book} {chapter}:{verses} in {sw.ElapsedMilliseconds}ms")
                     Await context.Response.WriteAsJsonAsync(result)
                 End Function)
 

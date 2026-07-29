@@ -85,6 +85,7 @@ Namespace Pipeline
                 If _isRunning Then Return
                 _isRestarting = False
                 _deliberateStop = False
+                AppLogger.Log(LogEvents.PIPELINE_SIDECAR_STARTING, $"{Label}: starting ({IO.Path.GetFileName(scriptPath)}, port {Port})")
                 _scriptPath = scriptPath
                 _extraArgs = extraArgs
 
@@ -194,7 +195,7 @@ Namespace Pipeline
                                                         Else
                                                             ' A sidecar dying on its own IS warn-worthy — the calm
                                                             ' wording is reserved for stops we asked for.
-                                                            AppLogger.Log(LogCategory.Pipeline, LogSeverity.Warning,
+                                                            AppLogger.Log(LogEvents.PIPELINE_SIDECAR_EXITED,
                                                                 $"{Label} process exited unexpectedly with code {exitCode}")
                                                         End If
                                                         _isRunning = False

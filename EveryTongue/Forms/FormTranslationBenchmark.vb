@@ -1488,10 +1488,6 @@ Public Class FormTranslationBenchmark
         Return $"{backend} ({modelFile})"
     End Function
 
-    Private Function GetTtsModelInfo(backendName As String) As String
-        Return backendName
-    End Function
-
     Private Sub StampModelInfo(report As ResourceReport, modelInfo As String)
         If report IsNot Nothing Then report.ModelInfo = modelInfo
     End Sub

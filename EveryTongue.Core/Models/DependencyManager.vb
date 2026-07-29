@@ -1631,6 +1631,7 @@ Namespace Models
                     Loop While bytesRead > 0
                 End Using
             End Using
+            AppLogger.Log(LogEvents.DL_INSTALL, $"Downloaded {Path.GetFileName(destPath)} ({url})")
         End Function
 
         Private Shared Sub ExtractFilesFromZip(zipPath As String, fileNames As String(), destDir As String)

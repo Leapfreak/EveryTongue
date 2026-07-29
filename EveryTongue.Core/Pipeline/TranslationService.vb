@@ -210,8 +210,7 @@ Namespace Pipeline
                         If _modelLoaded AndAlso
                            _device.StartsWith("cuda", StringComparison.OrdinalIgnoreCase) AndAlso
                            String.Equals(actualDevice, "cpu", StringComparison.OrdinalIgnoreCase) Then
-                            AppLogger.Log(Services.Infrastructure.LogCategory.Translation,
-                                          Services.Infrastructure.LogSeverity.Warning,
+                            AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_CUDA_FALLBACK,
                                           "Translation model loaded on CPU although GPU was requested — the model is " &
                                           "likely too large for this GPU's VRAM. Live translation will be far too slow; " &
                                           "switch to an int8 or smaller NLLB model in Options → Translation.")

@@ -45,8 +45,8 @@ Namespace Server.Middleware
                 ' which the ILogger→AppLogger bridge drops, so it no longer floods the event-0 log.
                 Dim isQuiet = QuietPaths.Any(Function(p) path.StartsWith(p, StringComparison.OrdinalIgnoreCase))
                 If statusCode >= 400 OrElse (durationMs > 500 AndAlso Not isQuiet) Then
-                    _logger.LogInformation("{Method} {Path} -> {StatusCode} ({Duration}ms)",
-                                           method, path, statusCode, durationMs)
+                    Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.SERVER_ENDPOINT_CALLED,
+                                           $"{method} {path} -> {statusCode} ({durationMs}ms)")
                 Else
                     _logger.LogDebug("{Method} {Path} -> {StatusCode} ({Duration}ms)",
                                     method, path, statusCode, durationMs)

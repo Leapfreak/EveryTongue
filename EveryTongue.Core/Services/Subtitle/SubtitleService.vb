@@ -601,22 +601,6 @@ Namespace Services.Subtitle
             Return True
         End Function
 
-        Private Sub BroadcastMessage(json As String)
-            Dim buffer = Encoding.UTF8.GetBytes(json)
-            Dim deadKeys As New List(Of String)
-
-            For Each kvp In _clients
-                Try
-                    If Not TrySendToClient(kvp.Value, buffer) Then deadKeys.Add(kvp.Key)
-                Catch ex As Exception
-                    AppLogger.Log(LogEvents.SUB_SEND_ERROR, $"WebSocket send failed for {kvp.Key}: {ex.Message}")
-                    deadKeys.Add(kvp.Key)
-                End Try
-            Next
-
-            CleanupDeadClients(deadKeys)
-        End Sub
-
         Private Sub EnqueueWithCap(entry As CommittedEntry)
             _committedLines.Enqueue(entry)
             ' Enforce history cap

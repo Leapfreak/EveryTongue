@@ -180,15 +180,6 @@ Namespace Controllers
             _updateShellStatus()
         End Sub
 
-        Private Sub RestartServer()
-            EndpointRegistration.RemoteCommandHandler = Nothing
-            Try : _kestrelHost?.Dispose() : Catch : End Try
-            _kestrelHost = Nothing
-            _serverPort = 0
-            _log("[Server] Restarting server...")
-            StartServer()
-        End Sub
-
         Public Function GetSubtitleService() As Services.Interfaces.ISubtitleService
             Return TryCast(_kestrelHost?.Services?.GetService(
                 GetType(Services.Interfaces.ISubtitleService)), Services.Interfaces.ISubtitleService)

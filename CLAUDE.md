@@ -148,7 +148,7 @@
 - **Rate limiter**: Repeated events (>5 in 10s window) are collapsed with a summary line.
 - **Session summary**: `AppLogger.EmitSessionSummary()` called on shutdown — logs duration, total events, errors, top 5 categories.
 - **Python log routing**: `PythonSidecarHost.BaseEventId` property + level offsets (base+0=Info, +1=Debug, +2=Warning, +3=Error). Each Python server has its own base event ID range.
-- **`WriteDebugLog`**: Thin forwarder on FormMain routing to `AppLogger.Log(LogEvents.LEGACY, msg)` — kept only because 4 controllers accept it as `Action(Of String)` delegate.
+- **`LogEvents.LEGACY` (id 0)**: catch-all for ILogger-bridged and unregistered log calls — referenced by ID, never by name (the old `WriteDebugLog` forwarder is gone). Controllers' `_log As Action(Of String)` delegates are for incidental messages only; lifecycle events must use their registered event IDs (never-logged IDs get flagged by `audit-dead-code`).
 - **Adding a new event**: Add a constant to `LogEvents.vb`, register it in the shared `Sub New()` block with `LogEventRegistry.Register(id, category, severity, description)`.
 - **Key files**: `LogEvents.vb`, `LogEventRegistry.vb`, `LogRoutingConfig.vb`, `LogCategory.vb`, `LogSeverity.vb`, `AppLogger.vb`, `FormLogConfig.vb` — all in `Services/Infrastructure/`.
 - Global exception handlers in Program.vb

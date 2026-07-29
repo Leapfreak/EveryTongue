@@ -13,13 +13,6 @@ Public Class FormMain
 
     ' Win32 helpers for RichTextBox flicker-free scrolling
     Private Const WM_SETREDRAW As Integer = &HB
-    Private Const WM_VSCROLL As Integer = &H115
-    Private Const SB_BOTTOM As Integer = 7
-
-    <DllImport("user32.dll", CharSet:=CharSet.Auto)>
-    Private Shared Function SendMessage(hWnd As IntPtr, msg As Integer, wParam As IntPtr, lParam As IntPtr) As IntPtr
-    End Function
-
     Private _config As AppConfig
     Private _transcribeController As Controllers.TranscribeController
     Private _serverController As Controllers.ServerController
