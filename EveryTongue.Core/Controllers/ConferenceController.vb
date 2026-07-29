@@ -604,8 +604,16 @@ Namespace Controllers
             If hasTpl Then cfgDevice = ResolveAudioDeviceIndex(template)
 
             Dim cfgLang As String = "auto"
+            Dim restartRoom = _getRoomManager()?.GetRoom(roomId)
             If configOverrides.ContainsKey("language") Then
                 cfgLang = CStr(configOverrides("language"))
+            ElseIf restartRoom IsNot Nothing AndAlso Not String.IsNullOrEmpty(restartRoom.SourceLang) Then
+                ' The room's CURRENT language — the host may have changed it at
+                ' runtime. A plain RESET used to rebuild from the template and
+                ' silently revert the language (field finding 2026-07-29: host
+                ' switched to Catalan, reset 5s later put the room back on
+                ' English and whisper half-translated the Catalan sermon).
+                cfgLang = restartRoom.SourceLang
             ElseIf hasTpl AndAlso Not String.IsNullOrEmpty(template.SourceLanguage) Then
                 cfgLang = template.SourceLanguage
             End If
