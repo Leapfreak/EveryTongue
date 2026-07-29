@@ -29,6 +29,7 @@ const AUDITS = [
   { script: 'audit-config.js',            tier: 'full',    desc: 'HEURISTIC: dead AppConfig properties + config with no UI to change it' },
   { script: 'audit-download-manager.js',  tier: 'full',    desc: 'HEURISTIC: undeliverable dependencies + unreachable installers + name-matched dispatch' },
   { script: 'audit-capability-matrix.js', tier: 'report',  desc: 'REPORT: engines x capabilities matrix — empty cells are questions' },
+  { script: 'audit-dead-files.js',        tier: 'report',  desc: 'REPORT: whole files nothing references — review list, never a delete list' },
 ];
 
 const publishOnly = process.argv.includes('--publish');
