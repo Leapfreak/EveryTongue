@@ -153,29 +153,9 @@ Namespace Services.Testing
 
             wallSw.Stop()
 
-            Dim latencyList = allLatencies.ToList()
-            latencyList.Sort()
-
-            levelResult.WallTimeMs = wallSw.ElapsedMilliseconds
-            levelResult.TotalRequests = totalRequests
-            levelResult.Errors = errorCount
-
-            If latencyList.Count > 0 Then
-                levelResult.AvgLatencyMs = CLng(latencyList.Average())
-                levelResult.MinLatencyMs = latencyList.First()
-                levelResult.MaxLatencyMs = latencyList.Last()
-                levelResult.P50LatencyMs = Percentile(latencyList, 50)
-                levelResult.P95LatencyMs = Percentile(latencyList, 95)
-                levelResult.InferencesPerSec = Math.Round(latencyList.Count / (wallSw.ElapsedMilliseconds / 1000.0), 1)
-            End If
+            LatencyStats.Apply(levelResult, allLatencies, wallSw.ElapsedMilliseconds, totalRequests, errorCount)
 
             Return levelResult
-        End Function
-
-        Private Shared Function Percentile(sorted As List(Of Long), p As Integer) As Long
-            If sorted.Count = 0 Then Return 0
-            Dim idx = CInt(Math.Ceiling(p / 100.0 * sorted.Count)) - 1
-            Return sorted(Math.Max(0, Math.Min(idx, sorted.Count - 1)))
         End Function
 
         Private Sub RaiseProgress(msg As String)

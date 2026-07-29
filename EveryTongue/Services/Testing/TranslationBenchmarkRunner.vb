@@ -625,12 +625,6 @@ Namespace Services.Testing
             End If
         End Sub
 
-        Private Shared Function Percentile(sortedList As List(Of Long), pct As Integer) As Long
-            If sortedList.Count = 0 Then Return 0
-            Dim idx = CInt(Math.Ceiling(pct / 100.0 * sortedList.Count)) - 1
-            Return sortedList(Math.Max(0, Math.Min(idx, sortedList.Count - 1)))
-        End Function
-
         ' ══════════════════════════════════════════════
         '  Latency profile generation
         ' ══════════════════════════════════════════════

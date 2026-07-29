@@ -706,6 +706,31 @@ Public Class FormTranslationBenchmark
         lblSttResources.Text = sb.ToString().TrimEnd()
     End Sub
 
+    ''' <summary>Stage summary + per-pair rows + queue metrics (shared by the per-run export and the unified report — was pasted twice, CLONE-REPORT Group 5).</summary>
+
+    Private Sub AppendStageCsv(sb As StringBuilder, stage As Services.Testing.StageBenchmarkResult)
+        sb.AppendLine("total_ms,concurrency,total_requests,errors,avg_latency_ms,p50_ms,p95_ms,p99_ms,req_per_sec")
+        sb.AppendLine($"{stage.TotalMs},{stage.Concurrency},{stage.TotalRequests},{stage.Errors}," &
+                       $"{stage.AvgLatencyMs:F1},{stage.P50LatencyMs},{stage.P95LatencyMs}," &
+                       $"{stage.P99LatencyMs},{stage.RequestsPerSec}")
+        sb.AppendLine()
+        sb.AppendLine("source_lang,target_lang,samples,avg_latency_ms,avg_quality,min_quality,max_quality")
+        For Each ps In stage.PairSummaries
+            sb.AppendLine($"{ps.SourceLang},{ps.TargetLang},{ps.Count},{ps.AvgLatencyMs:F0},{ps.AvgQuality:F1},{ps.MinQuality:F1},{ps.MaxQuality:F1}")
+        Next
+        If stage.FinalQueueMetrics IsNot Nothing Then
+            sb.AppendLine()
+            sb.AppendLine("queue_metric,value")
+            Dim qm = stage.FinalQueueMetrics
+            sb.AppendLine($"total_enqueued,{qm.TotalEnqueued}")
+            sb.AppendLine($"total_completed,{qm.TotalCompleted}")
+            sb.AppendLine($"total_errors,{qm.TotalErrors}")
+            sb.AppendLine($"avg_wait_ms,{qm.AvgWaitMs:F1}")
+            sb.AppendLine($"max_wait_ms,{qm.MaxWaitMs}")
+        End If
+    End Sub
+
+
     Private Sub btnExport_Click(sender As Object, e As EventArgs) Handles btnExport.Click
         If _lastResult Is Nothing Then Return
 
@@ -719,27 +744,7 @@ Public Class FormTranslationBenchmark
 
             For Each stage In _lastResult.Stages
                 sb.AppendLine($"# {stage.Stage} Stage")
-                sb.AppendLine("total_ms,concurrency,total_requests,errors,avg_latency_ms,p50_ms,p95_ms,p99_ms,req_per_sec")
-                sb.AppendLine($"{stage.TotalMs},{stage.Concurrency},{stage.TotalRequests},{stage.Errors}," &
-                               $"{stage.AvgLatencyMs:F1},{stage.P50LatencyMs},{stage.P95LatencyMs}," &
-                               $"{stage.P99LatencyMs},{stage.RequestsPerSec}")
-                sb.AppendLine()
-
-                sb.AppendLine("source_lang,target_lang,samples,avg_latency_ms,avg_quality,min_quality,max_quality")
-                For Each ps In stage.PairSummaries
-                    sb.AppendLine($"{ps.SourceLang},{ps.TargetLang},{ps.Count},{ps.AvgLatencyMs:F0},{ps.AvgQuality:F1},{ps.MinQuality:F1},{ps.MaxQuality:F1}")
-                Next
-
-                If stage.FinalQueueMetrics IsNot Nothing Then
-                    sb.AppendLine()
-                    sb.AppendLine("queue_metric,value")
-                    Dim qm = stage.FinalQueueMetrics
-                    sb.AppendLine($"total_enqueued,{qm.TotalEnqueued}")
-                    sb.AppendLine($"total_completed,{qm.TotalCompleted}")
-                    sb.AppendLine($"total_errors,{qm.TotalErrors}")
-                    sb.AppendLine($"avg_wait_ms,{qm.AvgWaitMs:F1}")
-                    sb.AppendLine($"max_wait_ms,{qm.MaxWaitMs}")
-                End If
+                AppendStageCsv(sb, stage)
 
                 sb.AppendLine()
             Next
@@ -1512,25 +1517,7 @@ Public Class FormTranslationBenchmark
             sb.AppendLine($"# Translation Model: {GetTranslationModelInfo()}")
             For Each stage In _lastResult.Stages
                 sb.AppendLine($"## {stage.Stage} Pipeline")
-                sb.AppendLine("total_ms,concurrency,total_requests,errors,avg_latency_ms,p50_ms,p95_ms,p99_ms,req_per_sec")
-                sb.AppendLine($"{stage.TotalMs},{stage.Concurrency},{stage.TotalRequests},{stage.Errors}," &
-                               $"{stage.AvgLatencyMs:F1},{stage.P50LatencyMs},{stage.P95LatencyMs}," &
-                               $"{stage.P99LatencyMs},{stage.RequestsPerSec}")
-                sb.AppendLine()
-                sb.AppendLine("source_lang,target_lang,samples,avg_latency_ms,avg_quality,min_quality,max_quality")
-                For Each ps In stage.PairSummaries
-                    sb.AppendLine($"{ps.SourceLang},{ps.TargetLang},{ps.Count},{ps.AvgLatencyMs:F0},{ps.AvgQuality:F1},{ps.MinQuality:F1},{ps.MaxQuality:F1}")
-                Next
-                If stage.FinalQueueMetrics IsNot Nothing Then
-                    sb.AppendLine()
-                    sb.AppendLine("queue_metric,value")
-                    Dim qm = stage.FinalQueueMetrics
-                    sb.AppendLine($"total_enqueued,{qm.TotalEnqueued}")
-                    sb.AppendLine($"total_completed,{qm.TotalCompleted}")
-                    sb.AppendLine($"total_errors,{qm.TotalErrors}")
-                    sb.AppendLine($"avg_wait_ms,{qm.AvgWaitMs:F1}")
-                    sb.AppendLine($"max_wait_ms,{qm.MaxWaitMs}")
-                End If
+                AppendStageCsv(sb, stage)
                 sb.AppendLine()
             Next
             If _lastResult.Resources IsNot Nothing Then

@@ -306,27 +306,63 @@ Namespace Controllers
                 _btnOpenSubtitleEdit.Enabled = (_cboMode.SelectedIndex = 0 OrElse _cboMode.SelectedIndex = 3)
                 _lnkPreviewSrt.Visible = (_cboMode.SelectedIndex = 0 OrElse _cboMode.SelectedIndex = 3)
             Catch ex As OperationCanceledException
-                _lblStepStatus.Text = _getString("Msg_Cancelled")
-                LogToUnified("Pipeline cancelled by user.", PipelineRunner.LogLevel.Err)
+                OnPipelineCancelled()
             Catch ex As PipelineException
-                _lblStepStatus.Text = _getString(ex.MessageKey)
-                LogToUnified($"ERROR: {ex.Message}", PipelineRunner.LogLevel.Err)
-                If ex.MessageKey = "Err_ToolNotFound" Then
-                    Services.Infrastructure.AppLogger.PromptDownloadManager(
-                        ex.Message & vbCrLf & vbCrLf & _getString("Msg_OpenDownloadManager"),
-                        _getString("Msg_DepsMissing"))
-                Else
-                    _notify?.Invoke(ex.Message, _getString("Msg_PipelineError"), MessageBoxIcon.Error)
-                End If
+                OnPipelineError(ex)
             Catch ex As Exception
-                _lblStepStatus.Text = _getString("Transcribe_Error")
-                LogToUnified($"UNEXPECTED ERROR: {ex.Message}", PipelineRunner.LogLevel.Err)
-                _notify?.Invoke(ex.Message, _getString("Msg_UnexpectedError"), MessageBoxIcon.Error)
+                OnPipelineUnexpected(ex)
             Finally
                 _isRunning = False
                 SetUiRunning(False)
             End Try
         End Sub
+
+        ' Shared outcome handlers for the two pipeline launchers (Run + Resume) —
+
+        ' the catch ladders were pasted verbatim in both (CLONE-REPORT Group 6).
+
+        Private Sub OnPipelineCancelled()
+
+            _lblStepStatus.Text = _getString("Msg_Cancelled")
+
+            LogToUnified("Pipeline cancelled by user.", PipelineRunner.LogLevel.Err)
+
+        End Sub
+
+
+        Private Sub OnPipelineError(ex As PipelineException)
+
+            _lblStepStatus.Text = _getString(ex.MessageKey)
+
+            LogToUnified($"ERROR: {ex.Message}", PipelineRunner.LogLevel.Err)
+
+            If ex.MessageKey = "Err_ToolNotFound" Then
+
+                Services.Infrastructure.AppLogger.PromptDownloadManager(
+
+                    ex.Message & vbCrLf & vbCrLf & _getString("Msg_OpenDownloadManager"),
+
+                    _getString("Msg_DepsMissing"))
+
+            Else
+
+                _notify?.Invoke(ex.Message, _getString("Msg_PipelineError"), MessageBoxIcon.Error)
+
+            End If
+
+        End Sub
+
+
+        Private Sub OnPipelineUnexpected(ex As Exception)
+
+            _lblStepStatus.Text = _getString("Transcribe_Error")
+
+            LogToUnified($"UNEXPECTED ERROR: {ex.Message}", PipelineRunner.LogLevel.Err)
+
+            _notify?.Invoke(ex.Message, _getString("Msg_UnexpectedError"), MessageBoxIcon.Error)
+
+        End Sub
+
 
         Private Async Sub OnResumeClick(sender As Object, e As EventArgs)
             If _isRunning Then Return
@@ -371,22 +407,11 @@ Namespace Controllers
                 _btnOpenOutput.Enabled = True
                 _lnkPreviewSrt.Visible = (_cboMode.SelectedIndex = 3)
             Catch ex As OperationCanceledException
-                _lblStepStatus.Text = _getString("Msg_Cancelled")
-                LogToUnified("Pipeline cancelled by user.", PipelineRunner.LogLevel.Err)
+                OnPipelineCancelled()
             Catch ex As PipelineException
-                _lblStepStatus.Text = _getString(ex.MessageKey)
-                LogToUnified($"ERROR: {ex.Message}", PipelineRunner.LogLevel.Err)
-                If ex.MessageKey = "Err_ToolNotFound" Then
-                    Services.Infrastructure.AppLogger.PromptDownloadManager(
-                        ex.Message & vbCrLf & vbCrLf & _getString("Msg_OpenDownloadManager"),
-                        _getString("Msg_DepsMissing"))
-                Else
-                    _notify?.Invoke(ex.Message, _getString("Msg_PipelineError"), MessageBoxIcon.Error)
-                End If
+                OnPipelineError(ex)
             Catch ex As Exception
-                _lblStepStatus.Text = _getString("Transcribe_Error")
-                LogToUnified($"UNEXPECTED ERROR: {ex.Message}", PipelineRunner.LogLevel.Err)
-                _notify?.Invoke(ex.Message, _getString("Msg_UnexpectedError"), MessageBoxIcon.Error)
+                OnPipelineUnexpected(ex)
             Finally
                 _isRunning = False
                 SetUiRunning(False)

@@ -165,12 +165,6 @@ Namespace Services.Testing
             Return result
         End Function
 
-        Private Shared Function Percentile(sorted As List(Of Long), p As Integer) As Long
-            If sorted.Count = 0 Then Return 0
-            Dim idx = CInt(Math.Ceiling(p / 100.0 * sorted.Count)) - 1
-            Return sorted(Math.Max(0, Math.Min(idx, sorted.Count - 1)))
-        End Function
-
         Private Sub RaiseProgress(msg As String)
             AppLogger.Log(LogEvents.BENCH_PROGRESS, msg)
             RaiseEvent ProgressChanged(Me, msg)
