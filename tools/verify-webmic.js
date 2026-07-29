@@ -10,12 +10,13 @@ const fs = require("fs");
 const { spawn, execSync } = require("child_process");
 
 const ROOM = process.argv[2], TOKEN = process.argv[3];
-if (!ROOM || !TOKEN) { console.error("usage: node verify-webmic.js <roomId> <hostToken>"); process.exit(2); }
+if (!ROOM || !TOKEN) { console.error("usage: node verify-webmic.js <roomId> <hostToken> [wavPath] [runMs]"); process.exit(2); }
 const LITE = { host: "localhost", port: 5981 };
 const PROXY_PORT = 5985;
 const EDGE = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
 const PROFILE = path.join(process.env.TEMP, "et-webmic-profile");
-const WAV = "C:\\tmp\\et-verify\\voice.wav";
+const WAV = process.argv[4] || "C:\\tmp\\et-verify\\voice.wav";
+const RUN_MS = parseInt(process.argv[5] || "75000", 10);
 
 let reports = [];
 const proxy = http.createServer((req, res) => {
@@ -74,7 +75,7 @@ const proxy = http.createServer((req, res) => {
   },1500);
   setTimeout(function(){rep('t20')},20000);
   setTimeout(function(){rep('t45')},45000);
-  setTimeout(function(){rep('final')},70000);
+  setTimeout(function(){rep('final')},${RUN_MS - 5000});
 })();
 </script>`;
                 let html = Buffer.concat(body).toString("utf8").replace(/<script/, inject + "\n<script");
@@ -124,5 +125,5 @@ proxy.listen(PROXY_PORT, () => {
             " gear=" + r.gear + " isHost=" + r.isHostVar + " picker=" + r.pickerOpen +
             (r.extra ? " extra=" + r.extra : "") + (r.lastLines ? "\n  text: " + r.lastLines.replace(/\n/g, " | ").slice(-400) : "")));
         proxy.close(); process.exit(0);
-    }, 75000);
+    }, RUN_MS);
 });
