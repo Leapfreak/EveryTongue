@@ -63,6 +63,14 @@
     </Content>
   </ItemGroup>
 
+  <!-- Hardcoded-string audit: flags user-facing English literals that bypass
+       LanguagePackService (the localisation rule made MECHANICAL — added
+       2026-07-29 after repeated hand-enforcement failures). Warn-only so a
+       machine without node still publishes; treat any warning as a must-fix. -->
+  <Target Name="AuditHardcodedStrings" AfterTargets="Publish">
+    <Exec Command="node &quot;$(MSBuildProjectDirectory)\..\tools\audit-hardcoded-strings.js&quot;" ContinueOnError="true" />
+  </Target>
+
   <!-- Generate checksums.json after publish for file integrity verification -->
   <Target Name="GenerateChecksums" AfterTargets="Publish">
     <ItemGroup>

@@ -1,0 +1,8 @@
+[
+  { "file": "FormLanguagePicker.vb", "kinds": ["*"],
+    "reason": "Deliberately unlocalized: pre-locale first-run picker shows before any language pack is chosen/loaded." },
+  { "file": "FormTranslationBenchmark.vb", "kinds": ["text"],
+    "reason": "Operator-tool runtime STATUS text (Running.../Cancelled./progress) stays English — user decision 2026-07-28." },
+  { "file": "FormTranslationBenchmark.vb", "kinds": ["messagebox"],
+    "reason": "PENDING USER DECISION 2026-07-29: validation prompts in the operator benchmark tool (Select at least one..., Invalid concurrency levels...). Localize or confirm the status-text carve-out extends to prompts." }
+]

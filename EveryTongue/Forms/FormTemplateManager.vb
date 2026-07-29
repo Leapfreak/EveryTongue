@@ -209,12 +209,12 @@ Public Class FormTemplateManager
     Private Sub btnSave_Click(sender As Object, e As EventArgs) Handles btnSave.Click
         If _editingTemplate Is Nothing Then Return
         If String.IsNullOrWhiteSpace(txtName.Text) Then
-            MessageBox.Show("Name is required.", Me.Text, MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            MessageBox.Show(LanguagePackService.Instance.GetString("Tmpl_NameRequired"), Me.Text, MessageBoxButtons.OK, MessageBoxIcon.Warning)
             txtName.Focus()
             Return
         End If
         If String.IsNullOrWhiteSpace(txtHostingCode.Text) Then
-            MessageBox.Show("Hosting code is required.", Me.Text, MessageBoxButtons.OK, MessageBoxIcon.Warning)
+            MessageBox.Show(LanguagePackService.Instance.GetString("Tmpl_HostingCodeRequired"), Me.Text, MessageBoxButtons.OK, MessageBoxIcon.Warning)
             txtHostingCode.Focus()
             Return
         End If

@@ -501,16 +501,17 @@ Public Class FormTranslationBenchmark
             tabSttConcurrency.Controls.Add(dgvConcurrent)
         End If
 
+        Dim lp = Services.Infrastructure.LanguagePackService.Instance
         dgvConcurrent.Columns.AddRange(
-            New DataGridViewTextBoxColumn() With {.Name = "colConcLevel", .HeaderText = "Speakers", .FillWeight = 11},
-            New DataGridViewTextBoxColumn() With {.Name = "colConcRequests", .HeaderText = "Requests", .FillWeight = 11},
-            New DataGridViewTextBoxColumn() With {.Name = "colConcWall", .HeaderText = "Wall (ms)", .FillWeight = 12},
-            New DataGridViewTextBoxColumn() With {.Name = "colConcAvg", .HeaderText = "Avg (ms)", .FillWeight = 11},
-            New DataGridViewTextBoxColumn() With {.Name = "colConcP50", .HeaderText = "P50 (ms)", .FillWeight = 11},
-            New DataGridViewTextBoxColumn() With {.Name = "colConcP95", .HeaderText = "P95 (ms)", .FillWeight = 11},
-            New DataGridViewTextBoxColumn() With {.Name = "colConcMax", .HeaderText = "Max (ms)", .FillWeight = 11},
-            New DataGridViewTextBoxColumn() With {.Name = "colConcThroughput", .HeaderText = "Inf/sec", .FillWeight = 11},
-            New DataGridViewTextBoxColumn() With {.Name = "colConcErrors", .HeaderText = "Errors", .FillWeight = 11}
+            New DataGridViewTextBoxColumn() With {.Name = "colConcLevel", .HeaderText = lp.GetString("Bm_ColSpeakers"), .FillWeight = 11},
+            New DataGridViewTextBoxColumn() With {.Name = "colConcRequests", .HeaderText = lp.GetString("Bm_ColRequests"), .FillWeight = 11},
+            New DataGridViewTextBoxColumn() With {.Name = "colConcWall", .HeaderText = lp.GetString("Bm_ColWallMs"), .FillWeight = 12},
+            New DataGridViewTextBoxColumn() With {.Name = "colConcAvg", .HeaderText = lp.GetString("Bm_ColAvgMs"), .FillWeight = 11},
+            New DataGridViewTextBoxColumn() With {.Name = "colConcP50", .HeaderText = lp.GetString("Bm_ColP50Ms"), .FillWeight = 11},
+            New DataGridViewTextBoxColumn() With {.Name = "colConcP95", .HeaderText = lp.GetString("Bm_ColP95Ms"), .FillWeight = 11},
+            New DataGridViewTextBoxColumn() With {.Name = "colConcMax", .HeaderText = lp.GetString("Bm_ColMaxMs"), .FillWeight = 11},
+            New DataGridViewTextBoxColumn() With {.Name = "colConcThroughput", .HeaderText = lp.GetString("Bm_ColInfPerSec"), .FillWeight = 11},
+            New DataGridViewTextBoxColumn() With {.Name = "colConcErrors", .HeaderText = lp.GetString("Bm_ColErrors"), .FillWeight = 11}
         )
     End Sub
 
@@ -1119,16 +1120,17 @@ Public Class FormTranslationBenchmark
             tabTtsConcurrency.Controls.Add(dgvTtsConcurrent)
         End If
 
+        Dim lp = Services.Infrastructure.LanguagePackService.Instance
         dgvTtsConcurrent.Columns.AddRange(
-            New DataGridViewTextBoxColumn() With {.Name = "colTtsConcLevel", .HeaderText = "Concurrent", .FillWeight = 11},
-            New DataGridViewTextBoxColumn() With {.Name = "colTtsConcRequests", .HeaderText = "Requests", .FillWeight = 11},
-            New DataGridViewTextBoxColumn() With {.Name = "colTtsConcWall", .HeaderText = "Wall (ms)", .FillWeight = 12},
-            New DataGridViewTextBoxColumn() With {.Name = "colTtsConcAvg", .HeaderText = "Avg (ms)", .FillWeight = 11},
-            New DataGridViewTextBoxColumn() With {.Name = "colTtsConcP50", .HeaderText = "P50 (ms)", .FillWeight = 11},
-            New DataGridViewTextBoxColumn() With {.Name = "colTtsConcP95", .HeaderText = "P95 (ms)", .FillWeight = 11},
-            New DataGridViewTextBoxColumn() With {.Name = "colTtsConcMax", .HeaderText = "Max (ms)", .FillWeight = 11},
-            New DataGridViewTextBoxColumn() With {.Name = "colTtsConcThroughput", .HeaderText = "Synth/sec", .FillWeight = 11},
-            New DataGridViewTextBoxColumn() With {.Name = "colTtsConcErrors", .HeaderText = "Errors", .FillWeight = 11}
+            New DataGridViewTextBoxColumn() With {.Name = "colTtsConcLevel", .HeaderText = lp.GetString("Bm_ColConcurrent"), .FillWeight = 11},
+            New DataGridViewTextBoxColumn() With {.Name = "colTtsConcRequests", .HeaderText = lp.GetString("Bm_ColRequests"), .FillWeight = 11},
+            New DataGridViewTextBoxColumn() With {.Name = "colTtsConcWall", .HeaderText = lp.GetString("Bm_ColWallMs"), .FillWeight = 12},
+            New DataGridViewTextBoxColumn() With {.Name = "colTtsConcAvg", .HeaderText = lp.GetString("Bm_ColAvgMs"), .FillWeight = 11},
+            New DataGridViewTextBoxColumn() With {.Name = "colTtsConcP50", .HeaderText = lp.GetString("Bm_ColP50Ms"), .FillWeight = 11},
+            New DataGridViewTextBoxColumn() With {.Name = "colTtsConcP95", .HeaderText = lp.GetString("Bm_ColP95Ms"), .FillWeight = 11},
+            New DataGridViewTextBoxColumn() With {.Name = "colTtsConcMax", .HeaderText = lp.GetString("Bm_ColMaxMs"), .FillWeight = 11},
+            New DataGridViewTextBoxColumn() With {.Name = "colTtsConcThroughput", .HeaderText = lp.GetString("Bm_ColSynthPerSec"), .FillWeight = 11},
+            New DataGridViewTextBoxColumn() With {.Name = "colTtsConcErrors", .HeaderText = lp.GetString("Bm_ColErrors"), .FillWeight = 11}
         )
     End Sub
 
