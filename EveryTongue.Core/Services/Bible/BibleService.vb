@@ -653,7 +653,27 @@ Namespace Services.Bible
             Public Property Code As String
             Public Property Ambiguous As Boolean
             Public Property HadOrdinal As Boolean
+            Public Property BookNumber As Integer
+            Public Property Abbreviation As Boolean
         End Class
+
+        ''' <summary>
+        ''' Full English book names from the static fallback table. Live caption
+        ''' detection only trusts FULL names — the abbreviations exist for typed
+        ''' lookups; in spoken text they only arise from STT garbles ("Amb disset
+        ''' anys" → "Am 10 set anys" false-fired Amos 10 on 2026-07-31).
+        ''' </summary>
+        Private Shared ReadOnly FullEnglishNames As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {
+            "Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy", "Joshua", "Judges", "Ruth",
+            "1 Samuel", "2 Samuel", "1 Kings", "2 Kings", "1 Chronicles", "2 Chronicles",
+            "Ezra", "Nehemiah", "Esther", "Job", "Psalms", "Psalm", "Proverbs", "Ecclesiastes",
+            "Song of Solomon", "Isaiah", "Jeremiah", "Lamentations", "Ezekiel", "Daniel",
+            "Hosea", "Joel", "Amos", "Obadiah", "Jonah", "Micah", "Nahum", "Habakkuk",
+            "Zephaniah", "Haggai", "Zechariah", "Malachi",
+            "Matthew", "Mark", "Luke", "John", "Acts", "Romans", "1 Corinthians", "2 Corinthians",
+            "Galatians", "Ephesians", "Philippians", "Colossians", "1 Thessalonians", "2 Thessalonians",
+            "1 Timothy", "2 Timothy", "Titus", "Philemon", "Hebrews", "James", "1 Peter", "2 Peter",
+            "1 John", "2 John", "3 John", "Jude", "Revelation", "Apocalypse"}
 
         ''' <summary>
         ''' Resolve a matched book name via the derived index (any installed
@@ -685,7 +705,8 @@ Namespace Services.Bible
                     If info IsNot Nothing Then
                         Dim code As String = Nothing
                         If CodeForNumber.TryGetValue(info.BookNumber, code) Then
-                            Return New ResolvedBook With {.Code = code, .Ambiguous = info.Ambiguous, .HadOrdinal = hadOrdinal}
+                            Return New ResolvedBook With {.Code = code, .Ambiguous = info.Ambiguous, .HadOrdinal = hadOrdinal,
+                                                          .BookNumber = info.BookNumber, .Abbreviation = info.Abbreviation}
                         End If
                         ' Deuterocanonical numbers have no wire code yet — skip.
                         Return Nothing
@@ -694,7 +715,11 @@ Namespace Services.Bible
             End If
             Dim fallback As String = Nothing
             If BookAliases.TryGetValue(name, fallback) Then
-                Return New ResolvedBook With {.Code = fallback, .Ambiguous = False, .HadOrdinal = False}
+                Dim num = 0
+                StandardBookNumbers.TryGetValue(fallback, num)
+                Return New ResolvedBook With {.Code = fallback, .Ambiguous = False, .HadOrdinal = False,
+                                              .BookNumber = num,
+                                              .Abbreviation = Not FullEnglishNames.Contains(name)}
             End If
             Return Nothing
         End Function
@@ -720,6 +745,11 @@ Namespace Services.Bible
                     Next
                 End If
                 If resolved Is Nothing Then Continue For
+                ' Spoken text contains FULL book names only — abbreviations in
+                ' captions are STT garbles ("Am 10 set anys" false-fired Amos
+                ' and re-scoped the vocab book, 2026-07-31). Typed lookups
+                ' (ParseReferenceAsync) still accept abbreviations.
+                If resolved.Abbreviation Then Continue For
                 Dim bookCode = resolved.Code
 
                 ' Tiered evidence: names that are also ordinary words ("mateu"
@@ -742,6 +772,11 @@ Namespace Services.Bible
                 End If
 
                 Dim chap = Integer.Parse(m.Groups("chapter").Value)
+                ' Impossible chapters can't be references — validate against the
+                ' Bibles' own structure (Amos has 9 chapters, so "Am 10"/"Amós 10"
+                ' dies here). 0 = book structure unknown (no Bibles) → skip check.
+                Dim maxCh = If(_aliasIndex?.MaxChapter(resolved.BookNumber), 0)
+                If chap < 1 OrElse (maxCh > 0 AndAlso chap > maxCh) Then Continue For
                 Dim vStart = 0
                 Dim vEnd = 0
                 If m.Groups("verse").Success Then

@@ -26,6 +26,11 @@ Namespace Services.Bible
         Public Class AliasInfo
             Public Property BookNumber As Integer
             Public Property Ambiguous As Boolean
+            ''' <summary>Name came ONLY from short_name entries (an abbreviation
+            ''' like "Gèn"). Live caption detection skips these — nobody SAYS an
+            ''' abbreviation; in spoken text they only arise from STT garbles
+            ''' ("Amb disset anys" → "Am 10 set anys" false-fired Amos 10).</summary>
+            Public Property Abbreviation As Boolean
         End Class
 
         ''' <summary>Lowercase standalone-word occurrences in verse text at/above this ⇒ ambiguous.</summary>
@@ -99,6 +104,10 @@ Namespace Services.Bible
             Public Property MTimeTicks As Long
             Public Property Aliases As Dictionary(Of String, Integer)
             Public Property Freq As Dictionary(Of String, Integer)
+            ''' <summary>Aliases that came ONLY from short_name (abbreviations).</summary>
+            Public Property AbbrevNames As List(Of String)
+            ''' <summary>book_number → highest chapter in this Bible (impossible-reference guard).</summary>
+            Public Property MaxChapters As Dictionary(Of Integer, Integer)
         End Class
 
         Private Shared ReadOnly Property CachePath As String
@@ -132,7 +141,8 @@ Namespace Services.Bible
                     Dim fi As New FileInfo(dbPath)
                     Dim entry As CacheEntry = Nothing
                     If cache.TryGetValue(dbPath, entry) AndAlso entry IsNot Nothing AndAlso
-                       entry.Size = fi.Length AndAlso entry.MTimeTicks = fi.LastWriteTimeUtc.Ticks Then
+                       entry.Size = fi.Length AndAlso entry.MTimeTicks = fi.LastWriteTimeUtc.Ticks AndAlso
+                       entry.AbbrevNames IsNot Nothing AndAlso entry.MaxChapters IsNot Nothing Then ' pre-2026-07-31 cache: rescan once for the new fields
                         live(dbPath) = entry
                     Else
                         live(dbPath) = ScanBible(dbPath, fi)
@@ -232,9 +242,12 @@ Namespace Services.Bible
             ' multi-word names are inherently safe.
             For Each entry In live.Values
                 If entry?.Aliases Is Nothing Then Continue For
+                Dim entryAbbrevs As New HashSet(Of String)(
+                    If(entry.AbbrevNames, New List(Of String)), StringComparer.OrdinalIgnoreCase)
                 For Each kvp In entry.Aliases
                     Dim name = NormName(kvp.Key)
                     If name.Length < 3 Then Continue For ' "Sl"/"Mt" abbreviations: high false-positive risk, never spoken
+                    Dim isAbbrev = entryAbbrevs.Contains(name)
                     Dim singleWord = Not name.Contains(" "c)
                     Dim ambiguous = False
                     If singleWord AndAlso Not Char.IsDigit(name(0)) Then
@@ -264,14 +277,34 @@ Namespace Services.Bible
                     If idx._aliases.TryGetValue(name, existing) Then
                         ' Same name in two Bibles: same number is the norm (the
                         ' scheme guarantees it); on conflict keep the first and
-                        ' stay ambiguous-if-either.
+                        ' stay ambiguous-if-either. Abbreviation only sticks if
+                        ' EVERY Bible knows the name solely as a short_name.
                         existing.Ambiguous = existing.Ambiguous OrElse ambiguous
+                        existing.Abbreviation = existing.Abbreviation AndAlso isAbbrev
                     Else
-                        idx._aliases(name) = New AliasInfo With {.BookNumber = kvp.Value, .Ambiguous = ambiguous}
+                        idx._aliases(name) = New AliasInfo With {.BookNumber = kvp.Value, .Ambiguous = ambiguous, .Abbreviation = isAbbrev}
                     End If
                 Next
+                ' Union max chapters (max across Bibles — permissive: a reference
+                ' is possible if ANY installed Bible has that chapter).
+                If entry.MaxChapters IsNot Nothing Then
+                    For Each mc In entry.MaxChapters
+                        Dim cur = 0
+                        idx._maxChapter.TryGetValue(mc.Key, cur)
+                        idx._maxChapter(mc.Key) = Math.Max(cur, mc.Value)
+                    Next
+                End If
             Next
             Return idx
+        End Function
+
+        Private ReadOnly _maxChapter As New Dictionary(Of Integer, Integer)
+
+        ''' <summary>Highest chapter of a book across the installed Bibles (0 = unknown, skip validation).</summary>
+        Public Function MaxChapter(bookNumber As Integer) As Integer
+            Dim n = 0
+            _maxChapter.TryGetValue(bookNumber, n)
+            Return n
         End Function
 
         ''' <summary>One-time scan of a Bible: books table + verse-text word frequencies for its book-name words.</summary>
@@ -284,6 +317,8 @@ Namespace Services.Bible
             Using conn As New SqliteConnection(New SqliteConnectionStringBuilder() With {
                 .DataSource = dbPath, .Mode = SqliteOpenMode.ReadOnly}.ToString())
                 conn.Open()
+                Dim shortNames As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+                Dim longNames As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
                 Using cmd = conn.CreateCommand()
                     cmd.CommandText = "SELECT short_name, long_name, book_number FROM books"
                     Using reader = cmd.ExecuteReader()
@@ -291,8 +326,25 @@ Namespace Services.Bible
                             Dim bookNum = reader.GetInt32(2)
                             For col = 0 To 1
                                 Dim name = NormName(reader.GetString(col))
-                                If name.Length >= 3 Then entry.Aliases(name) = bookNum
+                                If name.Length >= 3 Then
+                                    entry.Aliases(name) = bookNum
+                                    If col = 0 Then shortNames.Add(name) Else longNames.Add(name)
+                                End If
                             Next
+                        End While
+                    End Using
+                End Using
+                ' Abbreviation = appears only as a short_name, never as a full name.
+                entry.AbbrevNames = shortNames.Where(Function(n) Not longNames.Contains(n)).ToList()
+
+                ' Highest chapter per book — the impossible-reference guard
+                ' ("Am 10": Amos has 9 chapters) derives from the Bible itself.
+                entry.MaxChapters = New Dictionary(Of Integer, Integer)
+                Using cmd = conn.CreateCommand()
+                    cmd.CommandText = "SELECT book_number, MAX(chapter) FROM verses GROUP BY book_number"
+                    Using reader = cmd.ExecuteReader()
+                        While reader.Read()
+                            If Not reader.IsDBNull(1) Then entry.MaxChapters(reader.GetInt32(0)) = reader.GetInt32(1)
                         End While
                     End Using
                 End Using
