@@ -26,6 +26,8 @@ const AUDITS = [
   { script: 'audit-logging.js',         tier: 'full',    desc: 'HEURISTIC: silent catch/except blocks + feature files with no logging' },
   { script: 'audit-dead-code.js',         tier: 'full',    desc: 'HEURISTIC: unreferenced Private members (partial-aware) + never-logged LogEvents IDs' },
   { script: 'audit-clones.js',            tier: 'full',    desc: 'HEURISTIC: copy-paste blocks (extract-shared-rule candidates)' },
+  { script: 'audit-config.js',            tier: 'full',    desc: 'HEURISTIC: dead AppConfig properties + config with no UI to change it' },
+  { script: 'audit-download-manager.js',  tier: 'full',    desc: 'HEURISTIC: undeliverable dependencies + unreachable installers + name-matched dispatch' },
   { script: 'audit-capability-matrix.js', tier: 'report',  desc: 'REPORT: engines x capabilities matrix — empty cells are questions' },
 ];
 

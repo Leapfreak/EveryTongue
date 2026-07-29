@@ -50,7 +50,7 @@ Namespace Models
 
     Public Class AppConfig
 
-        ' --- Paths & Tools ---
+#Region "Paths & Tools"
 
         Public Property PathWhisper As String = ".\whisper-cli.exe"
 
@@ -68,11 +68,53 @@ Namespace Models
 
         Public Property PathOutputRoot As String = "."
 
+        ''' <summary>Path to whisper-server.exe (Vulkan build) for whisper-cpp backends.</summary>
+        Public Property PathWhisperServer As String = ".\whisper-server.exe"
+
+        ''' <summary>Path to GGML model file for whisper-cpp backends.</summary>
+        Public Property PathWhisperCppModel As String = ".\ggml-large-v3-turbo.bin"
+
+        ''' <summary>Path to CTranslate2 model directory for faster-whisper backend.</summary>
+        Public Property PathFasterWhisperModel As String = ".\faster-whisper-large-v3"
+
+        ''' <summary>Path to Silero VAD GGML model for whisper-server built-in VAD.</summary>
+        Public Property PathSileroVadModel As String = ".\ggml-silero-v6.2.0.bin"
+
         Public Property YtdlpFormat As String = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]"
 
-        ' --- Settings tab ---
+#End Region
+
+#Region "UI & Shell"
 
         Public Property UiLanguage As String = "en"
+
+        Public Property Theme As ThemeMode = ThemeMode.Light
+
+        Public Property MinimizeToTray As Boolean = True
+
+        Public Property StartMinimized As Boolean = False
+
+        Public Property StartWithWindows As Boolean = False
+
+        Public Property AllowFirewall As Boolean = True
+
+        Public Property FirstRunComplete As Boolean = False
+
+#End Region
+
+#Region "Logging"
+
+        Public Property LogLevel As LogVerbosity = LogVerbosity.Normal
+
+        Public Property LogsDirectory As String = ".\logs"
+
+        Public Property LogPanelHeight As Integer = 250
+
+        Public Property LogRouting As Services.Infrastructure.LogRoutingConfig
+
+#End Region
+
+#Region "Batch transcription (whisper-cli)"
 
         Public Property ParallelJobs As Integer = 4
 
@@ -86,15 +128,6 @@ Namespace Models
 
         Public Property KeepPreview As Boolean = True
 
-
-        Public Property Theme As ThemeMode = ThemeMode.Light
-
-        Public Property LogLevel As LogVerbosity = LogVerbosity.Normal
-
-        Public Property LastLiveDeviceId As String = ""
-
-        ' --- Output formats (Main tab) ---
-
         Public Property OutputSrt As Boolean = True
 
         Public Property OutputVtt As Boolean = False
@@ -106,8 +139,6 @@ Namespace Models
         Public Property OutputCsv As Boolean = False
 
         Public Property OutputLrc As Boolean = False
-
-        ' --- STT Parameters ---
 
         Public Property Language As String = "auto"
 
@@ -149,7 +180,6 @@ Namespace Models
 
         Public Property Tinydiarize As Boolean = False
 
-
         Public Property NoTimestamps As Boolean = False
 
         Public Property MaxSegmentLength As Integer = 0
@@ -160,46 +190,13 @@ Namespace Models
 
         Public Property InitialPrompt As String = ""
 
-
         Public Property TranslateToEnglish As Boolean = False
 
         Public Property VadThreshold As Single = 0.6F
 
+#End Region
 
-        ' --- Subtitle Server ---
-
-        Public Property SubtitleServerPort As Integer = 5080
-
-        Public Property SubtitleBgColor As String = "#000000"
-
-        Public Property SubtitleFgColor As String = "#FFFFFF"
-
-        Public Property SubtitleFontFamily As String = "Segoe UI"
-        Public Property SubtitleFontSize As Single = 14
-        Public Property SubtitleFontBold As Boolean = True
-
-        ' --- Dictation (system-wide voice typing) ---
-
-        ''' <summary>Enable the system-wide dictation feature (tray toggle + hotkeys).</summary>
-        Public Property DictationEnabled As Boolean = True
-        Public Property DictationStyle As DictationStyle = DictationStyle.Continuous
-        Public Property DictationInsertMode As DictationInsertMode = DictationInsertMode.SendInput
-        ''' <summary>Toggle hotkey, e.g. "Control+Alt+D".</summary>
-        Public Property DictationToggleHotkey As String = "Control+Alt+D"
-        ''' <summary>Push-to-talk key, e.g. "F8" (held to talk).</summary>
-        Public Property DictationPttHotkey As String = "F8"
-        ''' <summary>Curated target languages (FLORES codes) shown in the tray output-language submenu.</summary>
-        Public Property DictationTargetLanguages As New List(Of String)
-        ''' <summary>Currently selected output language (FLORES code); "" = None / transcribe only.</summary>
-        Public Property DictationActiveTargetLanguage As String = ""
-        ''' <summary>STT input language ("auto" or a whisper code); used for capture + as translate source fallback.</summary>
-        Public Property DictationSourceLanguage As String = "auto"
-        ''' <summary>Audio input device index for dictation (0 = default input device). Legacy fallback — prefer DictationDeviceName.</summary>
-        Public Property DictationDeviceIndex As Integer = 0
-        ''' <summary>Dictation microphone by NAME (survives device-index drift, like ConferenceTemplate.AudioDeviceName). Empty = follow the Live workspace's last device.</summary>
-        Public Property DictationDeviceName As String = ""
-
-        ' --- Live Server (STT + VAD) ---
+#Region "Live STT (engine selection & session)"
 
         Public Property SttBackend As String = "whisper-cpp-vulkan"
 
@@ -210,6 +207,23 @@ Namespace Models
         ''' </summary>
         Public Property SttApiKeys As New Dictionary(Of String, String)
 
+        ''' <summary>Resolve the API key for an STT backend from the per-engine store.</summary>
+        Public Function GetSttApiKey(backendKey As String) As String
+            If backendKey Is Nothing Then Return ""
+            Dim value As String = Nothing
+            If SttApiKeys IsNot Nothing AndAlso SttApiKeys.TryGetValue(backendKey, value) AndAlso Not String.IsNullOrEmpty(value) Then
+                Return value
+            End If
+            Return ""
+        End Function
+
+        ''' <summary>Store the API key for an STT backend.</summary>
+        Public Sub SetSttApiKey(backendKey As String, value As String)
+            If String.IsNullOrEmpty(backendKey) Then Return
+            If SttApiKeys Is Nothing Then SttApiKeys = New Dictionary(Of String, String)
+            SttApiKeys(backendKey) = If(value, "")
+        End Sub
+
         ''' <summary>
         ''' Legacy single Google STT key — deserialize-only. Read from pre-1.8.x
         ''' configs and migrated once into SttApiKeys by ConfigManager.ApplyDefaults,
@@ -217,6 +231,31 @@ Namespace Models
         ''' </summary>
         <JsonIgnore(Condition:=JsonIgnoreCondition.WhenWritingDefault)>
         Public Property GoogleCloudSttApiKey As String = Nothing
+
+        Public Property LastLiveDeviceId As String = ""
+
+        Public Property LiveServerPort As Integer = 5091
+
+        Public Property LiveComputeType As String = "int8_float16"
+
+        Public Property LiveVadSilenceMs As Integer = 300
+
+        Public Property LiveMaxSegmentSec As Integer = 30
+
+        Public Property LiveInterimIntervalMs As Integer = 1000
+
+        ''' <summary>Port for whisper-server.exe inference endpoint.</summary>
+        Public Property WhisperServerPort As Integer = 8178
+
+        ''' <summary>Give WHISPER rooms the Speechmatics clause treatment: guillotined chunks (cut without a pause) are glued, then SaT re-splits into proper sentences at a real pause before translation. MEASURED 2026-07-29 (tools/whisper_sat_ab.py, real sermon): without it 1.35× over-fragmented vs batch (the 15s max-segment cut slices mid-sentence during continuous speech); with it 0.96 = batch parity. Default ON (user decision 2026-07-29); degrades gracefully to punctuation splitting when the SaT model isn't installed.</summary>
+        Public Property WhisperUseSatHold As Boolean = True
+
+        ''' <summary>EOU auto-tune for WHISPER rooms: the VAD state machine measures the speaker's resumed pauses (silence runs that ended with speech coming back) and retunes the soft/hard commit thresholds in place — fast readers commit sooner, slow deliberate pausers don't get ripped mid-thought. Whisper twin of SpeechmaticsAutoTuneEou; the tuning policy (p85 → bucket, hysteresis, cooldown) is shared via live-server/pace_tuner.py. Default ON (user decision 2026-07-29: "vastly different styles of speakers").</summary>
+        Public Property WhisperAutoTuneEou As Boolean = True
+
+#End Region
+
+#Region "Speechmatics"
 
         ''' <summary>Speechmatics real-time region: "eu2" (default) or "us".</summary>
         Public Property SpeechmaticsRegion As String = "eu2"
@@ -252,48 +291,53 @@ Namespace Models
         ''' SpeechmaticsEouSilenceMs becomes the starting baseline. False = fixed EOU.</summary>
         Public Property SpeechmaticsAutoTuneEou As Boolean = True
 
-        ''' <summary>Resolve the API key for an STT backend from the per-engine store.</summary>
-        Public Function GetSttApiKey(backendKey As String) As String
-            If backendKey Is Nothing Then Return ""
-            Dim value As String = Nothing
-            If SttApiKeys IsNot Nothing AndAlso SttApiKeys.TryGetValue(backendKey, value) AndAlso Not String.IsNullOrEmpty(value) Then
-                Return value
-            End If
-            Return ""
-        End Function
+        ' Speechmatics-only. When on, the conference pipeline holds each
+        ' END_OF_UTTERANCE fragment and merges consecutive fragments into one
+        ' clause before translating, so pause-heavy speakers don't get their
+        ' sentences chopped into separately-translated pieces. Every threshold
+        ' below is a live-tunable dial (read fresh on each evaluation — changes
+        ' apply without restarting a room). All gated behind the master switch
+        ' AND backend == "speechmatics"; other STT pipelines are never affected.
+        ''' <summary>Master switch for Speechmatics clause hold-and-lock. Default OFF (zero behaviour change).</summary>
+        Public Property SpeechmaticsHoldClauses As Boolean = False
 
-        ''' <summary>Store the API key for an STT backend.</summary>
-        Public Sub SetSttApiKey(backendKey As String, value As String)
-            If String.IsNullOrEmpty(backendKey) Then Return
-            If SttApiKeys Is Nothing Then SttApiKeys = New Dictionary(Of String, String)
-            SttApiKeys(backendKey) = If(value, "")
-        End Sub
+        ''' <summary>Silence (ms) after the last fragment before an accumulated clause is locked and broadcast. Default 1400: Phase 0 log analysis found natural mid-thought pauses reach ~p95=1400ms, so 1200 was locking slightly early.</summary>
+        Public Property SpeechmaticsClauseGraceMs As Integer = 1400
 
-        Public Property LiveServerPort As Integer = 5091
+        ''' <summary>Hard cap (ms): lock a clause once it is this old, regardless of pauses (runaway guard).</summary>
+        Public Property SpeechmaticsClauseMaxMs As Integer = 8000
 
-        Public Property LiveComputeType As String = "int8_float16"
-        Public Property LiveVadSilenceMs As Integer = 300
-        Public Property LiveMaxSegmentSec As Integer = 30
-        Public Property LiveInterimIntervalMs As Integer = 1000
+        ''' <summary>Hard cap (chars): lock a clause once it reaches this length (runaway guard).</summary>
+        Public Property SpeechmaticsClauseMaxChars As Integer = 300
 
-        ''' <summary>Path to whisper-server.exe (Vulkan build) for whisper-cpp backends.</summary>
-        Public Property PathWhisperServer As String = ".\whisper-server.exe"
+        ''' <summary>How often (ms) the conference controller polls accumulators for grace-window expiry.</summary>
+        Public Property SpeechmaticsClauseTimerMs As Integer = 300
 
-        ''' <summary>Path to GGML model file for whisper-cpp backends.</summary>
-        Public Property PathWhisperCppModel As String = ".\ggml-large-v3-turbo.bin"
+        ''' <summary>Use SaT (wtpsplit) to re-segment each held clause into proper sentences at the pause — engine-agnostic, list-free (replaces the function-word merge). Requires HoldClauses on. Needs the SaT lib+model available to live-server.</summary>
+        Public Property SpeechmaticsUseSat As Boolean = False
 
-        ''' <summary>Path to CTranslate2 model directory for faster-whisper backend.</summary>
-        Public Property PathFasterWhisperModel As String = ".\faster-whisper-large-v3"
+        ''' <summary>SaT split threshold ×100 (e.g. 10 = 0.10). Lower = more merges (recovers more cuts, risks over-merge); higher = more splits.</summary>
+        Public Property SpeechmaticsSatThresholdPercent As Integer = 10
 
-        ''' <summary>Port for whisper-server.exe inference endpoint.</summary>
-        Public Property WhisperServerPort As Integer = 8178
+        ''' <summary>SaT model name (wtpsplit): sat-3l-sm (default) or sat-12l-sm (heavier, more accurate).</summary>
+        Public Property SpeechmaticsSatModel As String = "sat-3l-sm"
 
-        ''' <summary>Path to Silero VAD GGML model for whisper-server built-in VAD.</summary>
-        Public Property PathSileroVadModel As String = ".\ggml-silero-v6.2.0.bin"
+        ''' <summary>Feed biblical proper nouns to Speechmatics as additional_vocab (auto-selected by session language). DEFAULT OFF (2026-07-09): the whole-Bible list misfires (rare names like "Haixum" replacing common words) with no proven benefit — opt in only after a proper A/B, and prefer the book-scoped redesign.</summary>
+        Public Property SpeechmaticsBiblicalVocab As Boolean = False
 
-        ' --- Translation ---
+#End Region
+
+#Region "Service vocab"
+
+        ''' <summary>Session-lifetime people names fed to STT engines as the service_vocab layer (speakers, sermon-notes nouns). Survives book and language changes; edited via Tools → Service Names. PROVEN lever 2026-07-26: Joni 0/9 → 9/9 on real service audio.</summary>
+        Public Property ServiceNames As New List(Of ServiceNameEntry)
+
+#End Region
+
+#Region "Translation"
 
         Public Property TranslationBackend As String = "nllb"
+
         Public Property TranslationEnabled As Boolean = True
 
         ''' <summary>English-pivot routing mode for weak pairs (Off/Auto/Always). See TranslationPivotMode.</summary>
@@ -304,16 +348,6 @@ Namespace Models
         ''' English-centric today; edit the config file if that ever changes.
         ''' </summary>
         Public Property TranslationPivotLanguage As String = "eng_Latn"
-
-        ''' <summary>Port for the CometKiwi quality-estimation sidecar (benchmark only).</summary>
-        Public Property QeServerPort As Integer = 5096
-
-        ''' <summary>
-        ''' HuggingFace access token — required once by the Download Manager to
-        ''' fetch the license-gated CometKiwi model (free account; accept the
-        ''' model license on its HF page first). Not needed at scoring time.
-        ''' </summary>
-        Public Property HuggingFaceToken As String = ""
 
         ''' <summary>
         ''' API keys for online translation engines, keyed by backend key (e.g.
@@ -389,62 +423,37 @@ Namespace Models
             TranslationMonthlyCharBudgets(backendKey) = Math.Max(0L, value)
         End Sub
 
-        ' --- Speechmatics clause hold-and-lock (translate-and-replace, Phase 1) ---
-        ' Speechmatics-only. When on, the conference pipeline holds each
-        ' END_OF_UTTERANCE fragment and merges consecutive fragments into one
-        ' clause before translating, so pause-heavy speakers don't get their
-        ' sentences chopped into separately-translated pieces. Every threshold
-        ' below is a live-tunable dial (read fresh on each evaluation — changes
-        ' apply without restarting a room). All gated behind the master switch
-        ' AND backend == "speechmatics"; other STT pipelines are never affected.
-
-        ''' <summary>Master switch for Speechmatics clause hold-and-lock. Default OFF (zero behaviour change).</summary>
-        Public Property SpeechmaticsHoldClauses As Boolean = False
-
-        ''' <summary>Silence (ms) after the last fragment before an accumulated clause is locked and broadcast. Default 1400: Phase 0 log analysis found natural mid-thought pauses reach ~p95=1400ms, so 1200 was locking slightly early.</summary>
-        Public Property SpeechmaticsClauseGraceMs As Integer = 1400
-
-        ''' <summary>Hard cap (ms): lock a clause once it is this old, regardless of pauses (runaway guard).</summary>
-        Public Property SpeechmaticsClauseMaxMs As Integer = 8000
-
-        ''' <summary>Hard cap (chars): lock a clause once it reaches this length (runaway guard).</summary>
-        Public Property SpeechmaticsClauseMaxChars As Integer = 300
-
-        ''' <summary>How often (ms) the conference controller polls accumulators for grace-window expiry.</summary>
-        Public Property SpeechmaticsClauseTimerMs As Integer = 300
-
-        ''' <summary>Use SaT (wtpsplit) to re-segment each held clause into proper sentences at the pause — engine-agnostic, list-free (replaces the function-word merge). Requires HoldClauses on. Needs the SaT lib+model available to live-server.</summary>
-        Public Property SpeechmaticsUseSat As Boolean = False
-        ''' <summary>SaT split threshold ×100 (e.g. 10 = 0.10). Lower = more merges (recovers more cuts, risks over-merge); higher = more splits.</summary>
-        Public Property SpeechmaticsSatThresholdPercent As Integer = 10
-        ''' <summary>SaT model name (wtpsplit): sat-3l-sm (default) or sat-12l-sm (heavier, more accurate).</summary>
-        Public Property SpeechmaticsSatModel As String = "sat-3l-sm"
-
-        ''' <summary>Feed biblical proper nouns to Speechmatics as additional_vocab (auto-selected by session language). DEFAULT OFF (2026-07-09): the whole-Bible list misfires (rare names like "Haixum" replacing common words) with no proven benefit — opt in only after a proper A/B, and prefer the book-scoped redesign.</summary>
-        Public Property SpeechmaticsBiblicalVocab As Boolean = False
-
-        ''' <summary>Session-lifetime people names fed to STT engines as the service_vocab layer (speakers, sermon-notes nouns). Survives book and language changes; edited via Tools → Service Names. PROVEN lever 2026-07-26: Joni 0/9 → 9/9 on real service audio.</summary>
-        Public Property ServiceNames As New List(Of ServiceNameEntry)
-
-        ''' <summary>Give WHISPER rooms the Speechmatics clause treatment: guillotined chunks (cut without a pause) are glued, then SaT re-splits into proper sentences at a real pause before translation. MEASURED 2026-07-29 (tools/whisper_sat_ab.py, real sermon): without it 1.35× over-fragmented vs batch (the 15s max-segment cut slices mid-sentence during continuous speech); with it 0.96 = batch parity. Default ON (user decision 2026-07-29); degrades gracefully to punctuation splitting when the SaT model isn't installed.</summary>
-        Public Property WhisperUseSatHold As Boolean = True
-
-        ''' <summary>EOU auto-tune for WHISPER rooms: the VAD state machine measures the speaker's resumed pauses (silence runs that ended with speech coming back) and retunes the soft/hard commit thresholds in place — fast readers commit sooner, slow deliberate pausers don't get ripped mid-thought. Whisper twin of SpeechmaticsAutoTuneEou; the tuning policy (p85 → bucket, hysteresis, cooldown) is shared via live-server/pace_tuner.py. Default ON (user decision 2026-07-29: "vastly different styles of speakers").</summary>
-        Public Property WhisperAutoTuneEou As Boolean = True
-
         ''' <summary>Master switch for log-only second-opinion translations (TRANS_SHADOW 4012).</summary>
         Public Property ShadowTranslationsEnabled As Boolean = True
+
         ''' <summary>Comma-separated CLOUD translation engine keys (e.g. "google-translate,deepl") that give LOG-ONLY second/third-opinion translations of every conference commit, so engines can be compared on real service data post-session (TRANS_SHADOW 4012). Never broadcast; raw engine output (no glossary) for a fair comparison. Engines without a key are skipped silently. Cloud engines cost per character. NOTE: Speechmatics can't be a shadow — it has no standalone text-translation API, and its inline translations are per-fragment (not comparable to whole-clause output).</summary>
         Public Property ShadowTranslationEngines As String = "google-translate"
 
         Public Property TranslationPort As Integer = 5090
+
         Public Property TranslationModelPath As String = ".\nllb-model"
+
         Public Property TranslationModelType As String = "nllb"
+
         Public Property TranslationDevice As String = "cuda"
+
         Public Property TranslationGlossaryPath As String = ".\translate-server\glossary.json"
+
         Public Property TranslationConcurrency As Integer = 3
 
-        ' --- TTS ---
+        ''' <summary>Port for the CometKiwi quality-estimation sidecar (benchmark only).</summary>
+        Public Property QeServerPort As Integer = 5096
+
+        ''' <summary>
+        ''' HuggingFace access token — required once by the Download Manager to
+        ''' fetch the license-gated CometKiwi model (free account; accept the
+        ''' model license on its HF page first). Not needed at scoring time.
+        ''' </summary>
+        Public Property HuggingFaceToken As String = ""
+
+#End Region
+
+#Region "TTS"
 
         ''' <summary>
         ''' Comma-separated list of preferred TTS backends in priority order.
@@ -452,6 +461,7 @@ Namespace Models
         ''' azure-tts, google-tts, openai-tts). Empty = all (default fallback order).
         ''' </summary>
         Public Property TtsBackends As String = ""
+
         Public Property TtsConcurrency As Integer = 3
 
         ''' <summary>
@@ -504,9 +514,21 @@ Namespace Models
             TtsEndpoints(backendKey) = If(value, "")
         End Sub
 
-        Public Property FirstRunComplete As Boolean = False
-        Public Property StartWithWindows As Boolean = False
-        Public Property AllowFirewall As Boolean = True
+#End Region
+
+#Region "Subtitle server & rooms"
+
+        Public Property SubtitleServerPort As Integer = 5080
+
+        Public Property SubtitleBgColor As String = "#000000"
+
+        Public Property SubtitleFgColor As String = "#FFFFFF"
+
+        Public Property SubtitleFontFamily As String = "Segoe UI"
+
+        Public Property SubtitleFontSize As Single = 14
+
+        Public Property SubtitleFontBold As Boolean = True
 
         Public Property AdminPin As String = "1234"
 
@@ -517,17 +539,49 @@ Namespace Models
 
         Public Property ConferenceTemplates As List(Of ConferenceTemplate) = New List(Of ConferenceTemplate)()
 
+#End Region
+
+#Region "Dictation"
+
+        ''' <summary>Enable the system-wide dictation feature (tray toggle + hotkeys).</summary>
+        Public Property DictationEnabled As Boolean = True
+
+        Public Property DictationStyle As DictationStyle = DictationStyle.Continuous
+
+        Public Property DictationInsertMode As DictationInsertMode = DictationInsertMode.SendInput
+
+        ''' <summary>Toggle hotkey, e.g. "Control+Alt+D".</summary>
+        Public Property DictationToggleHotkey As String = "Control+Alt+D"
+
+        ''' <summary>Push-to-talk key, e.g. "F8" (held to talk).</summary>
+        Public Property DictationPttHotkey As String = "F8"
+
+        ''' <summary>Curated target languages (FLORES codes) shown in the tray output-language submenu.</summary>
+        Public Property DictationTargetLanguages As New List(Of String)
+
+        ''' <summary>Currently selected output language (FLORES code); "" = None / transcribe only.</summary>
+        Public Property DictationActiveTargetLanguage As String = ""
+
+        ''' <summary>STT input language ("auto" or a whisper code); used for capture + as translate source fallback.</summary>
+        Public Property DictationSourceLanguage As String = "auto"
+
+        ''' <summary>Audio input device index for dictation (0 = default input device). Legacy fallback — prefer DictationDeviceName.</summary>
+        Public Property DictationDeviceIndex As Integer = 0
+
+        ''' <summary>Dictation microphone by NAME (survives device-index drift, like ConferenceTemplate.AudioDeviceName). Empty = follow the Live workspace's last device.</summary>
+        Public Property DictationDeviceName As String = ""
+
+#End Region
+
+#Region "Bible"
+
         Public Property BiblesDirectory As String = ".\Bibles"
+
         Public Property ShowBibleCopyright As Boolean = True
 
-        Public Property MinimizeToTray As Boolean = True
-        Public Property StartMinimized As Boolean = False
+#End Region
 
-        Public Property LogsDirectory As String = ".\logs"
-
-        Public Property LogPanelHeight As Integer = 250
-
-        Public Property LogRouting As Services.Infrastructure.LogRoutingConfig
+#Region "Factory & path helpers"
 
         Public Shared Function CreateDefault() As AppConfig
             Return New AppConfig()
@@ -538,5 +592,8 @@ Namespace Models
             If IO.Path.IsPathRooted(configPath) Then Return IO.Path.GetFullPath(configPath)
             Return IO.Path.GetFullPath(IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, configPath))
         End Function
+
+#End Region
+
     End Class
 End Namespace
