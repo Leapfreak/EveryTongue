@@ -1,5 +1,6 @@
 Imports System.Collections.Concurrent
 Imports System.IO
+Imports System.Text.Json
 Imports System.Text.RegularExpressions
 Imports System.Threading
 Imports Microsoft.Data.Sqlite
@@ -131,9 +132,56 @@ Namespace Services.Bible
         ' ("Primera de Joan", "Primer Reis") arrive whole; ResolveBookAlias
         ' drops unmatchable leading tokens, so a preceding capitalized word
         ' can't swallow a real reference.
+        ' Between book and chapter: an optional comma and ONE optional lowercase
+        ' filler word ("Mateu, capítol 4" — the spoken announcement form). The
+        ' filler is only ACCEPTED when it is a known chapter word (see
+        ' SpokenChapterWords); any other filler rejects the match, so the comma
+        ' loosening adds no false positives ("Mateu, en 4 dies").
         Private Shared ReadOnly RefPattern As New Regex(
-            "(?<book>(?:\d\s*)?[\p{Lu}][\p{Ll}]+(?:\s+(?:[\p{Ll}]{1,3}\s+)?[\p{Lu}\p{Ll}][\p{Ll}]+)*)\s+(?<chapter>\d{1,3})(?:\s*:\s*(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3}))?)?",
+            "(?<book>(?:\d\s*)?[\p{Lu}][\p{Ll}]+(?:\s+(?:[\p{Ll}]{1,3}\s+)?[\p{Lu}\p{Ll}][\p{Ll}]+)*)(?:\s*,)?\s+(?:(?<chapword>[\p{Ll}][\p{Ll}'’]+)\s+)?(?<chapter>\d{1,3})(?:\s*:\s*(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3}))?)?",
             RegexOptions.Compiled)
+
+        ''' <summary>
+        ''' Spoken chapter words ("capítol", "chapter", "capítulo"), aggregated
+        ''' across ALL locale files (app + user overlay) — the sanctioned
+        ''' per-language channel; a new language pack brings its own words.
+        ''' A chapter word between book and number is STRONG evidence ("Mateu
+        ''' capítol 4" cannot be the verb reading of "mateu").
+        ''' </summary>
+        Private Shared ReadOnly SpokenChapterWords As New Lazy(Of HashSet(Of String))(AddressOf LoadSpokenChapterWords)
+
+        Private Shared Function LoadSpokenChapterWords() As HashSet(Of String)
+                Dim words As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+                Dim dirs As New List(Of String) From {
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "locales")}
+                Try
+                    dirs.Add(Path.Combine(EveryTongue.Models.ConfigManager.ConfigDirectory, "locales"))
+                Catch
+                    ' Config dir unavailable — app locales alone are fine.
+                End Try
+                For Each localeDir In dirs
+                    Try
+                        If Not Directory.Exists(localeDir) Then Continue For
+                        For Each f In Directory.GetFiles(localeDir, "*.json")
+                            Try
+                                Using doc = JsonDocument.Parse(File.ReadAllText(f))
+                                    Dim el As JsonElement = Nothing
+                                    If doc.RootElement.TryGetProperty("Bible_SpokenChapterWords", el) Then
+                                        For Each w In If(el.GetString(), "").Split(","c, "|"c)
+                                            If Not String.IsNullOrWhiteSpace(w) Then words.Add(w.Trim())
+                                        Next
+                                    End If
+                                End Using
+                            Catch
+                                ' Malformed locale file — skip; others still contribute.
+                            End Try
+                        Next
+                    Catch
+                        ' Locale dir unreadable — detection degrades to the no-chapter-word forms.
+                    End Try
+                Next
+                Return words
+        End Function
 
         ' Internal class to track DB path alongside translation info
         Private Class BibleTranslationEntry
@@ -731,18 +779,28 @@ Namespace Services.Bible
 
             For Each m As Match In RefPattern.Matches(text)
                 Dim bookName = m.Groups("book").Value.Trim()
+                ' A filler word between book and number ("Mateu, capítol 4") is
+                ' accepted ONLY when it is a known chapter word — and then it is
+                ' STRONG evidence ("Mateu capítol 4" cannot be the verb reading
+                ' of "mateu", even sentence-initial, which is exactly where
+                ' reading announcements live: "Llegirem. Mateu, capítol 4.").
+                Dim hadChapterWord = False
+                If m.Groups("chapword").Success Then
+                    If Not SpokenChapterWords.Value.Contains(m.Groups("chapword").Value) Then Continue For
+                    hadChapterWord = True
+                End If
                 Dim resolved = ResolveBookAlias(bookName)
-                ' "Mateu capítol 4" (field miss 2026-07-31): the greedy book
-                ' group swallows the spoken chapter word, and the resolver only
-                ' drops LEADING junk ("en Mateu"). Mirror it with a trailing
-                ' drop — language-neutral, no chapter-word lists; the ambiguity
-                ' tiering below still gates weak matches.
+                ' "Mateu capítol 4" without a comma: the greedy book group
+                ' swallows the chapter word, and the resolver only drops LEADING
+                ' junk ("en Mateu"). Drop trailing tokens — but ONLY known
+                ' chapter words, so "Mateu parlava 4 vegades" can't resolve.
                 If resolved Is Nothing Then
                     Dim toks = bookName.Split(" "c)
-                    For dropEnd = 1 To Math.Min(2, toks.Length - 1)
-                        resolved = ResolveBookAlias(String.Join(" ", toks.Take(toks.Length - dropEnd)))
-                        If resolved IsNot Nothing Then Exit For
-                    Next
+                    While toks.Length > 1 AndAlso SpokenChapterWords.Value.Contains(toks(toks.Length - 1))
+                        toks = toks.Take(toks.Length - 1).ToArray()
+                        hadChapterWord = True
+                    End While
+                    If hadChapterWord Then resolved = ResolveBookAlias(String.Join(" ", toks))
                 End If
                 If resolved Is Nothing Then Continue For
                 ' Spoken text contains FULL book names only — abbreviations in
@@ -760,6 +818,7 @@ Namespace Services.Bible
                 ' sentence-initial capitals prove nothing).
                 If resolved.Ambiguous AndAlso
                    Not m.Groups("verse").Success AndAlso
+                   Not hadChapterWord AndAlso
                    Not resolved.HadOrdinal AndAlso
                    Not Char.IsDigit(bookName(0)) Then
                     Dim midSentence = False
