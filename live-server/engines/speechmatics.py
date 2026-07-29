@@ -658,13 +658,16 @@ class SpeechmaticsStreamingPipeline:
                 backoff = min(RECONNECT_BACKOFF_S * reconnect_failures, RECONNECT_MAX_BACKOFF_S)
                 last_err = getattr(self, "_last_server_error", "") or ""
                 if "quota" in last_err.lower():
-                    # Concurrent-session slot still held server-side — hammering
-                    # the short ladder hits the same wall. Wait it out.
-                    backoff = 10.0
+                    # Concurrent-session slot still held server-side. Retry FAST
+                    # (the slot typically frees in 2-6s — reconnect the moment it
+                    # does; audio buffers so captions arrive late, not lost) and
+                    # do NOT count quota hits toward the give-up limit — a live
+                    # service must never die waiting for our own old slot.
+                    backoff = 3.0
+                    reconnect_failures -= 1
                     self._last_server_error = ""
                     logger.warning(f"[SPEECHMATICS] concurrent-session quota still held — "
-                                   f"waiting {backoff:.0f}s for the slot to release "
-                                   f"(attempt {reconnect_failures}/{RECONNECT_MAX_ATTEMPTS}; audio keeps buffering)")
+                                   f"retrying in {backoff:.0f}s (audio keeps buffering)")
                 else:
                     logger.warning(f"[SPEECHMATICS] connection lost ({e}); reconnecting in "
                                    f"{backoff:.0f}s (attempt {reconnect_failures}/{RECONNECT_MAX_ATTEMPTS})")
