@@ -15,8 +15,8 @@ Namespace Services.Stt.Configs
         Public Property MaxSegmentSec As Integer = 15
         Public Property InterimIntervalMs As Integer = 1000
         Public Property InitialPrompt As String = ""
-        ''' <summary>Clause treatment: send raw chunk text (no per-chunk sentence split); merge-to-pause + SaT happen downstream. See AppConfig.WhisperUseSatHold.</summary>
-        Public Property UseSatHold As Boolean = False
+        ''' <summary>Clause treatment: glue guillotined chunks, SaT re-split at real pauses (server-side). See AppConfig.WhisperUseSatHold (default ON).</summary>
+        Public Property UseSatHold As Boolean = True
 
         Public Sub ApplyMachineBaseline(cfg As AppConfig) Implements IEngineConfigBlock.ApplyMachineBaseline
             If String.IsNullOrEmpty(ModelPath) Then ModelPath = cfg.PathFasterWhisperModel

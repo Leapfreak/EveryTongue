@@ -426,8 +426,8 @@ Namespace Models
         ''' <summary>Session-lifetime people names fed to STT engines as the service_vocab layer (speakers, sermon-notes nouns). Survives book and language changes; edited via Tools → Service Names. PROVEN lever 2026-07-26: Joni 0/9 → 9/9 on real service audio.</summary>
         Public Property ServiceNames As New List(Of ServiceNameEntry)
 
-        ''' <summary>Give WHISPER rooms the Speechmatics clause treatment: raw VAD-chunk commits are merged until a real pause, then SaT re-splits into proper sentences before translation. MEASURED 2026-07-29 (tools/whisper_sat_ab.py, real sermon): current pipeline 1.35× over-fragmented vs batch (the 15s max-segment cut slices mid-sentence during continuous speech); with this treatment 0.96 = batch parity. Default OFF until live-validated.</summary>
-        Public Property WhisperUseSatHold As Boolean = False
+        ''' <summary>Give WHISPER rooms the Speechmatics clause treatment: guillotined chunks (cut without a pause) are glued, then SaT re-splits into proper sentences at a real pause before translation. MEASURED 2026-07-29 (tools/whisper_sat_ab.py, real sermon): without it 1.35× over-fragmented vs batch (the 15s max-segment cut slices mid-sentence during continuous speech); with it 0.96 = batch parity. Default ON (user decision 2026-07-29); degrades gracefully to punctuation splitting when the SaT model isn't installed.</summary>
+        Public Property WhisperUseSatHold As Boolean = True
 
         ''' <summary>Master switch for log-only second-opinion translations (TRANS_SHADOW 4012).</summary>
         Public Property ShadowTranslationsEnabled As Boolean = True

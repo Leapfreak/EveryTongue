@@ -532,7 +532,10 @@ class VadPipeline:
                         sentence_count=0,
                     )
                     held_chars = sum(len(t) for t in self._hold_texts)
-                    if commit_type not in ("FORCE-COMMIT", "SOFT-MAX") or held_chars >= 600:
+                    # 300-char runaway guard mirrors the Speechmatics MaxChars
+                    # dial — bounds caption latency when a preacher goes long
+                    # stretches without a 400ms pause.
+                    if commit_type not in ("FORCE-COMMIT", "SOFT-MAX") or held_chars >= 300:
                         self._flush_hold(utterance_id, commit_type)
                     else:
                         logger.info(
