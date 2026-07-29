@@ -30,6 +30,9 @@ const PATTERNS = [
   { kind: 'text',       re: /\.Text\s*=\s*"([^"]*[A-Za-z]{2}[^"]*)"/ },
   { kind: 'headertext', re: /\.HeaderText\s*=\s*"([^"]*[A-Za-z]{2}[^"]*)"/ },
   { kind: 'tooltip',    re: /(?:SetToolTip\([^,]+,\s*|\.ToolTipText\s*=\s*)"([^"]*[A-Za-z]{2}[^"]*)"/ },
+  // PipelineRunner progress: Report(step, "...") -> StatusMessage -> _lblStepStatus.Text
+  // (user-visible; found 2026-07-30 when the sink was pointed out mid-refactor).
+  { kind: 'reportstatus', re: /\bReport\([^"\r\n]+?,\s*"([^"]*[A-Za-z]{2}[^"]*)"/ },
 ];
 // Compliant / out-of-scope lines.
 const LINE_EXEMPT = /GetString\(|_getString\(|AppLogger\.|Throw New|Exception\(|LogEvents\.|Debug\./;

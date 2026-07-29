@@ -35,6 +35,12 @@ Namespace Pipeline
 
         Private _stepCount As Integer = 8
 
+        ''' <summary>Status strings shown in the Transcribe workspace step label — must be localized.</summary>
+        Private Shared Function S(key As String) As String
+            Return Services.Infrastructure.LanguagePackService.Instance.GetString(key)
+        End Function
+
+
         Private Sub Report(stepIndex As Integer, status As String, Optional chunkDone As Integer = 0, Optional chunkTotal As Integer = 0)
             _progress.Report(New PipelineProgress With {
                 .StepIndex = stepIndex,
@@ -49,7 +55,7 @@ Namespace Pipeline
                                         outputDir As String, Optional resumeMode As Boolean = False) As Task
             _stepCount = If(NeedsTranslation(), 9, 8) ' Steps 0-7 (or 0-8 with translation)
             ' Step 0: Validate
-            Report(0, "Validating inputs...")
+            Report(0, S("PipeStatus_Validating"))
             Log("=== Step 0: Validating inputs ===")
             If Not resumeMode Then
                 ValidateInputs(url, outputDir)
@@ -68,21 +74,21 @@ Namespace Pipeline
 
             ' Step 1: Download
             _ct.ThrowIfCancellationRequested()
-            Report(1, "Downloading video...")
+            Report(1, S("PipeStatus_Downloading"))
             Log("=== Step 1: Downloading video ===")
 
             Await DownloadStep(url, fullVideoPath, resumeMode, outputDir)
 
             ' Step 2: Trim video
             _ct.ThrowIfCancellationRequested()
-            Report(2, "Trimming video...")
+            Report(2, S("PipeStatus_Trimming"))
             Log("=== Step 2: Trimming video ===")
 
             Await TrimStep(fullVideoPath, previewPath, startTime, endTime, outputDir)
 
             ' Step 3: Extract audio
             _ct.ThrowIfCancellationRequested()
-            Report(3, "Extracting audio...")
+            Report(3, S("PipeStatus_ExtractingAudio"))
             Log("=== Step 3: Extracting audio ===")
 
             If File.Exists(audioPath) Then
@@ -100,7 +106,7 @@ Namespace Pipeline
 
             ' Step 4: Get duration
             _ct.ThrowIfCancellationRequested()
-            Report(4, "Getting duration...")
+            Report(4, S("PipeStatus_GettingDuration"))
             Log("=== Step 4: Getting duration ===")
 
             Dim durSec = Await GetDurationAsync(audioPath, outputDir)
@@ -111,7 +117,7 @@ Namespace Pipeline
 
             ' Step 5: Split into chunks
             _ct.ThrowIfCancellationRequested()
-            Report(5, "Splitting audio into chunks...")
+            Report(5, S("PipeStatus_Chunking"))
             Log("=== Step 5: Splitting into chunks ===")
 
             Dim chunkPaths As New List(Of String)
@@ -120,7 +126,7 @@ Namespace Pipeline
 
             ' Step 6: Transcribe chunks in parallel batches
             _ct.ThrowIfCancellationRequested()
-            Report(6, "Transcribing...")
+            Report(6, S("PipeStatus_Transcribing"))
             Log($"=== Step 6: Transcribing ({_config.ParallelJobs} parallel) ===")
 
             Dim startOffsetSec = TimeToSec(startTime)
@@ -134,7 +140,7 @@ Namespace Pipeline
 
             ' Step 7: Merge SRTs
             _ct.ThrowIfCancellationRequested()
-            Report(7, "Merging subtitles...")
+            Report(7, S("PipeStatus_Merging"))
             Log("=== Step 7: Merging subtitles ===")
 
             Dim mergedPath = Path.Combine(outputDir, "preview.srt")
@@ -144,7 +150,7 @@ Namespace Pipeline
             ' Step 8: Translate subtitles (if output language differs)
             If NeedsTranslation() Then
                 _ct.ThrowIfCancellationRequested()
-                Report(8, "Translating subtitles...")
+                Report(8, S("PipeStatus_Translating"))
                 Await TranslateSubtitlesAsync(mergedPath, "Step 8")
             End If
 
@@ -152,7 +158,7 @@ Namespace Pipeline
 
             CleanupPreviewIfConfigured(previewPath)
 
-            Report(If(NeedsTranslation(), 8, 7), "Done!")
+            Report(If(NeedsTranslation(), 8, 7), S("PipeStatus_Done"))
             Log("=================================================", LogLevel.Success)
             Log($"Done! {entryCount} subtitles saved to: {mergedPath}", LogLevel.Success)
             Log("Open preview.mp4 in VLC - subtitles load automatically", LogLevel.Success)
@@ -163,7 +169,7 @@ Namespace Pipeline
                                                     outputDir As String, Optional resumeMode As Boolean = False) As Task
             _stepCount = 3 ' Steps 0-2
             ' Step 0: Validate
-            Report(0, "Validating inputs...")
+            Report(0, S("PipeStatus_Validating"))
             Log("=== Step 0: Validating inputs (Download Only mode) ===")
             If Not resumeMode Then
                 ValidateDownloadInputs(url, outputDir)
@@ -181,19 +187,19 @@ Namespace Pipeline
 
             ' Step 1: Download
             _ct.ThrowIfCancellationRequested()
-            Report(1, "Downloading video...")
+            Report(1, S("PipeStatus_Downloading"))
             Log("=== Step 1: Downloading video ===")
 
             Await DownloadStep(url, fullVideoPath, resumeMode, outputDir)
 
             ' Step 2: Trim video
             _ct.ThrowIfCancellationRequested()
-            Report(2, "Trimming video...")
+            Report(2, S("PipeStatus_Trimming"))
             Log("=== Step 2: Trimming video ===")
 
             Await TrimStep(fullVideoPath, previewPath, startTime, endTime, outputDir)
 
-            Report(2, "Done!")
+            Report(2, S("PipeStatus_Done"))
             Log("=================================================", LogLevel.Success)
             Log($"Done! Video saved to: {previewPath}", LogLevel.Success)
             Log("=================================================", LogLevel.Success)
@@ -203,7 +209,7 @@ Namespace Pipeline
                                                     outputDir As String, Optional resumeMode As Boolean = False) As Task
             _stepCount = 4 ' Steps 0-3
             ' Step 0: Validate
-            Report(0, "Validating inputs...")
+            Report(0, S("PipeStatus_Validating"))
             Log("=== Step 0: Validating inputs (Extract Audio mode) ===")
             If Not resumeMode Then
                 ValidateDownloadInputs(url, outputDir)
@@ -222,21 +228,21 @@ Namespace Pipeline
 
             ' Step 1: Download
             _ct.ThrowIfCancellationRequested()
-            Report(1, "Downloading video...")
+            Report(1, S("PipeStatus_Downloading"))
             Log("=== Step 1: Downloading video ===")
 
             Await DownloadStep(url, fullVideoPath, resumeMode, outputDir)
 
             ' Step 2: Trim video
             _ct.ThrowIfCancellationRequested()
-            Report(2, "Trimming video...")
+            Report(2, S("PipeStatus_Trimming"))
             Log("=== Step 2: Trimming video ===")
 
             Await TrimStep(fullVideoPath, previewPath, startTime, endTime, outputDir)
 
             ' Step 3: Extract audio (full quality, no re-encoding)
             _ct.ThrowIfCancellationRequested()
-            Report(3, "Extracting audio...")
+            Report(3, S("PipeStatus_ExtractingAudio"))
             Log("=== Step 3: Extracting audio ===")
 
             If File.Exists(audioPath) Then
@@ -254,7 +260,7 @@ Namespace Pipeline
 
             CleanupPreviewIfConfigured(previewPath)
 
-            Report(3, "Done!")
+            Report(3, S("PipeStatus_Done"))
             Log("=================================================", LogLevel.Success)
             Log($"Done! Audio saved to: {audioPath}", LogLevel.Success)
             Log("=================================================", LogLevel.Success)
@@ -263,7 +269,7 @@ Namespace Pipeline
         Public Async Function RunAudioFileAsync(inputFile As String, outputDir As String) As Task
             _stepCount = If(NeedsTranslation(), 7, 6) ' Steps 0-5 (or 0-6 with translation)
             ' Step 0: Validate
-            Report(0, "Validating inputs...")
+            Report(0, S("PipeStatus_Validating"))
             Log("=== Step 0: Validating inputs (Audio File mode) ===")
 
             If String.IsNullOrWhiteSpace(inputFile) OrElse Not File.Exists(inputFile) Then
@@ -279,7 +285,7 @@ Namespace Pipeline
 
             ' Step 1: Convert to WAV
             _ct.ThrowIfCancellationRequested()
-            Report(1, "Converting to WAV...")
+            Report(1, S("PipeStatus_ConvertingWav"))
             Log("=== Step 1: Converting to WAV ===")
 
             If File.Exists(audioPath) Then
@@ -297,7 +303,7 @@ Namespace Pipeline
 
             ' Step 2: Get duration
             _ct.ThrowIfCancellationRequested()
-            Report(2, "Getting duration...")
+            Report(2, S("PipeStatus_GettingDuration"))
             Log("=== Step 2: Getting duration ===")
 
             Dim durSec = Await GetDurationAsync(audioPath, outputDir)
@@ -308,7 +314,7 @@ Namespace Pipeline
 
             ' Step 3: Split into chunks
             _ct.ThrowIfCancellationRequested()
-            Report(3, "Splitting audio into chunks...")
+            Report(3, S("PipeStatus_Chunking"))
             Log("=== Step 3: Splitting into chunks ===")
 
             Dim chunkPaths As New List(Of String)
@@ -317,7 +323,7 @@ Namespace Pipeline
 
             ' Step 4: Transcribe chunks
             _ct.ThrowIfCancellationRequested()
-            Report(4, "Transcribing...")
+            Report(4, S("PipeStatus_Transcribing"))
             Log($"=== Step 4: Transcribing ({_config.ParallelJobs} parallel) ===")
 
             Dim srtPaths As New List(Of String)
@@ -329,7 +335,7 @@ Namespace Pipeline
 
             ' Step 5: Merge SRTs
             _ct.ThrowIfCancellationRequested()
-            Report(5, "Merging subtitles...")
+            Report(5, S("PipeStatus_Merging"))
             Log("=== Step 5: Merging subtitles ===")
 
             Dim mergedPath = Path.Combine(outputDir, Path.GetFileNameWithoutExtension(inputFile) & ".srt")
@@ -339,13 +345,13 @@ Namespace Pipeline
             ' Step 6: Translate subtitles (if output language differs)
             If NeedsTranslation() Then
                 _ct.ThrowIfCancellationRequested()
-                Report(6, "Translating subtitles...")
+                Report(6, S("PipeStatus_Translating"))
                 Await TranslateSubtitlesAsync(mergedPath, "Step 6")
             End If
 
             CleanupChunksIfConfigured(chunkPaths, srtPaths)
 
-            Report(If(NeedsTranslation(), 6, 5), "Done!")
+            Report(If(NeedsTranslation(), 6, 5), S("PipeStatus_Done"))
             Log("=================================================", LogLevel.Success)
             Log($"Done! {entryCount} subtitles saved to: {mergedPath}", LogLevel.Success)
             Log("=================================================", LogLevel.Success)
