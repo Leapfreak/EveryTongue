@@ -23,6 +23,9 @@ const AUDITS = [
   { script: 'audit-code-bans.js',         tier: 'publish', desc: 'Debug.WriteLine / List(Of Object) bans' },
   { script: 'audit-language-lists.js',    tier: 'full',    desc: 'HEURISTIC: inline language-code lists (canonical = language-codes.json)' },
   { script: 'audit-pipe-drain.js',        tier: 'full',    desc: 'HEURISTIC: pipe redirect + WaitForExit without draining both pipes' },
+  { script: 'audit-dead-code.js',         tier: 'full',    desc: 'HEURISTIC: unreferenced Private members (partial-aware) + never-logged LogEvents IDs' },
+  { script: 'audit-clones.js',            tier: 'full',    desc: 'HEURISTIC: copy-paste blocks (extract-shared-rule candidates)' },
+  { script: 'audit-capability-matrix.js', tier: 'report',  desc: 'REPORT: engines x capabilities matrix — empty cells are questions' },
 ];
 
 const publishOnly = process.argv.includes('--publish');
@@ -32,7 +35,10 @@ let failed = 0;
 for (const a of toRun) {
   const r = spawnSync(process.execPath, [path.join(__dirname, a.script)], { encoding: 'utf8' });
   const out = (r.stdout + r.stderr).trim();
-  if (r.status === 0) {
+  if (a.tier === 'report') {
+    console.log(`INFO  ${a.script} — ${a.desc}`);
+    console.log(out.split('\n').map(l => '      ' + l).join('\n'));
+  } else if (r.status === 0) {
     console.log(`PASS  ${a.script}`);
   } else {
     failed++;
@@ -40,5 +46,6 @@ for (const a of toRun) {
     console.log(out.split('\n').map(l => '      ' + l).join('\n'));
   }
 }
-console.log(`\naudit-suite (${publishOnly ? 'publish tier' : 'full'}): ${toRun.length - failed}/${toRun.length} clean`);
+const scored = toRun.filter(a => a.tier !== 'report').length;
+console.log(`\naudit-suite (${publishOnly ? 'publish tier' : 'full'}): ${scored - failed}/${scored} clean`);
 process.exit(failed ? 1 : 0);
