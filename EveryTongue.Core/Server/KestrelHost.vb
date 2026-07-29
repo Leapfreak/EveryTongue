@@ -181,22 +181,9 @@ Namespace Server
                 End If
             End If
 
-            ' Wire conversation audio handler with live-server port, FFmpeg, and model config
-            Dim convAudioHandler = app.Services.GetService(Of ConversationAudioHandler)()
-            If convAudioHandler IsNot Nothing Then
-                convAudioHandler.LiveServerPort = options.LiveServerPort
-                convAudioHandler.FfmpegPath = options.FfmpegPath
-                convAudioHandler.WhisperModelPath = options.WhisperModelPath
-                convAudioHandler.WhisperComputeType = options.WhisperComputeType
-                convAudioHandler.WhisperUseCpu = options.WhisperUseCpu
-                convAudioHandler.WhisperServerPath = options.WhisperServerPath
-                convAudioHandler.WhisperServerPort = options.WhisperServerPort
-                convAudioHandler.SttBackend = options.SttBackend
-                convAudioHandler.SileroVadModelPath = options.SileroVadModelPath
-                convAudioHandler.BeamSize = options.BeamSize
-                convAudioHandler.BestOf = options.BestOf
-                convAudioHandler.SttApiKey = options.SttApiKey
-            End If
+            ' ConversationAudioHandler reads ServerOptions via DI (constructor
+            ' injection) — the ~12-line property hand-wiring that used to live
+            ' here is gone (CLONE-REPORT Group 3).
 
             ' (GoogleBackend self-configures its API key from IOptions(Of ServerOptions)
             ' in its DI constructor — no engine-specific wiring here.)

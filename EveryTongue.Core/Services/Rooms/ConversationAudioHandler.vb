@@ -39,41 +39,73 @@ Namespace Services.Rooms
         Private _serverEnsured As Boolean = False
         Private ReadOnly _ensureLock As New SemaphoreSlim(1, 1)
 
-        ''' <summary>Port the live-server listens on (default 5091).</summary>
-        Public Property LiveServerPort As Integer = 5091
+        ' Server/whisper settings come straight from the DI ServerOptions —
+        ' this class used to MIRROR ~12 of its properties (hand-wired in
+        ' KestrelHost), so every new option needed two declarations and a
+        ' wiring line (CLONE-REPORT Group 3). Same member names as before;
+        ' every internal reader is unchanged.
+        Private ReadOnly _serverOptions As Server.ServerOptions
 
-        ''' <summary>Path to FFmpeg executable.</summary>
-        Public Property FfmpegPath As String = ""
-
-        ''' <summary>Path to Whisper model (.bin).</summary>
-        Public Property WhisperModelPath As String = ""
-
-        ''' <summary>Compute type for Whisper model.</summary>
-        Public Property WhisperComputeType As String = "int8_float16"
-
-        ''' <summary>Whether to use CPU instead of CUDA.</summary>
-        Public Property WhisperUseCpu As Boolean = False
-
-        ''' <summary>Path to whisper-server.exe (for whisper-cpp backend).</summary>
-        Public Property WhisperServerPath As String = ""
-
-        ''' <summary>Port for whisper-server.exe HTTP API.</summary>
-        Public Property WhisperServerPort As Integer = 8178
-
-        ''' <summary>STT backend key (e.g. "whisper-cpp-vulkan", "whisper-cpp-cpu"). Set from AppConfig.</summary>
-        Public Property SttBackend As String = ""
-
-        ''' <summary>Path to Silero VAD GGML model for whisper-server built-in VAD.</summary>
-        Public Property SileroVadModelPath As String = ""
-
-        ''' <summary>Beam size for whisper transcription.</summary>
-        Public Property BeamSize As Integer = 5
-
-        ''' <summary>Number of independent decoding attempts (best_of) for whisper transcription.</summary>
-        Public Property BestOf As Integer = 1
-
-        ''' <summary>API key for online STT backends (Google Cloud STT, Speechmatics, …).</summary>
-        Public Property SttApiKey As String = ""
+        Private ReadOnly Property LiveServerPort As Integer
+            Get
+                Return _serverOptions.LiveServerPort
+            End Get
+        End Property
+        Private ReadOnly Property FfmpegPath As String
+            Get
+                Return _serverOptions.FfmpegPath
+            End Get
+        End Property
+        Private ReadOnly Property WhisperModelPath As String
+            Get
+                Return _serverOptions.WhisperModelPath
+            End Get
+        End Property
+        Private ReadOnly Property WhisperComputeType As String
+            Get
+                Return _serverOptions.WhisperComputeType
+            End Get
+        End Property
+        Private ReadOnly Property WhisperUseCpu As Boolean
+            Get
+                Return _serverOptions.WhisperUseCpu
+            End Get
+        End Property
+        Private ReadOnly Property WhisperServerPath As String
+            Get
+                Return _serverOptions.WhisperServerPath
+            End Get
+        End Property
+        Private ReadOnly Property WhisperServerPort As Integer
+            Get
+                Return _serverOptions.WhisperServerPort
+            End Get
+        End Property
+        Private ReadOnly Property SttBackend As String
+            Get
+                Return _serverOptions.SttBackend
+            End Get
+        End Property
+        Private ReadOnly Property SileroVadModelPath As String
+            Get
+                Return _serverOptions.SileroVadModelPath
+            End Get
+        End Property
+        Private ReadOnly Property BeamSize As Integer
+            Get
+                Return _serverOptions.BeamSize
+            End Get
+        End Property
+        Private ReadOnly Property BestOf As Integer
+            Get
+                Return _serverOptions.BestOf
+            End Get
+        End Property
+        Private ReadOnly Property SttApiKey As String
+            Get
+                Return _serverOptions.SttApiKey
+            End Get
+        End Property
 
         ''' <summary>
         ''' Callback invoked when conversation rooms need translation but no backend is available.
@@ -93,12 +125,14 @@ Namespace Services.Rooms
                        subtitleService As ISubtitleService,
                        translationService As ITranslationService,
                        readiness As RoomReadinessNotifier,
-                       logger As ILogger(Of ConversationAudioHandler))
+                       logger As ILogger(Of ConversationAudioHandler),
+                       serverOptions As Microsoft.Extensions.Options.IOptions(Of Server.ServerOptions))
             _roomManager = roomManager
             _subtitleService = TryCast(subtitleService, SubtitleService)
             _translationService = translationService
             _readiness = readiness
             _logger = logger
+            _serverOptions = serverOptions.Value
         End Sub
 
         ''' <summary>

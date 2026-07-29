@@ -693,9 +693,13 @@ Partial Class FormMain
                         Services.Translation.TranslationBackendRegistry.ConfigureCloudApiKeys(svc, _config)
                         ' Same pass for cloud TTS backends (azure-tts/google-tts/openai-tts)
                         Services.Tts.TtsBackendRegistry.ConfigureCloudTtsKeys(svc, _config)
-                        ' Update ConversationAudioHandler with the active backend's key
-                        Dim cah = TryCast(svc.GetService(GetType(Services.Rooms.ConversationAudioHandler)), Services.Rooms.ConversationAudioHandler)
-                        If cah IsNot Nothing Then cah.SttApiKey = _config.GetSttApiKey(If(_config.SttBackend, ""))
+                        ' Push the active backend's key into the LIVE ServerOptions instance
+                        ' (Options.Create wraps the same object) — ConversationAudioHandler and
+                        ' every other consumer read it through DI, so ONE write reaches all of
+                        ' them. The old per-copy push updated only CAH and left ServerOptions
+                        ' stale for everyone else.
+                        Dim srvOpts = TryCast(svc.GetService(GetType(Microsoft.Extensions.Options.IOptions(Of Server.ServerOptions))), Microsoft.Extensions.Options.IOptions(Of Server.ServerOptions))
+                        If srvOpts IsNot Nothing Then srvOpts.Value.SttApiKey = _config.GetSttApiKey(If(_config.SttBackend, ""))
                     End If
                 Catch ex As Exception
                     AppLogger.Log(LogEvents.CONFIG_SAVED, $"Failed to propagate API key: {ex.Message}")

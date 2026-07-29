@@ -1,6 +1,4 @@
-Imports System.Threading
 Imports EveryTongue.Models
-Imports EveryTongue.Pipeline
 Imports EveryTongue.Services.Infrastructure
 Imports EveryTongue.Services.Interfaces
 Imports EveryTongue.Services.Models
@@ -8,13 +6,13 @@ Imports EveryTongue.Services.Models
 Namespace Services.Stt
 
     ''' <summary>
-    ''' ISttBackend using whisper.cpp via whisper-server.exe (Vulkan or CPU).
-    ''' Thin adapter — delegates to LiveStreamRunner with backend="whisper-cpp".
+    ''' ISttBackend using whisper.cpp via whisper-server.exe (Vulkan, CUDA or CPU).
+    ''' Adapter boilerplate lives in RunnerBackedSttBackend; this class only
+    ''' resolves the server binary and assembles the whisper-cpp session config.
     ''' </summary>
     Friend Class WhisperCppBackend
-        Implements ISttBackend, ISegmentingSttBackend
+        Inherits RunnerBackedSttBackend
 
-        Private ReadOnly _runner As New LiveStreamRunner()
         Private ReadOnly _useGpu As Boolean
         ' When True, launch the CUDA whisper-server build (whisper-server-cuda.exe)
         ' instead of the default Vulkan binary. NVIDIA-only.
@@ -23,64 +21,21 @@ Namespace Services.Stt
         Public Sub New(useGpu As Boolean, Optional useCuda As Boolean = False)
             _useGpu = useGpu
             _useCuda = useCuda
-
-            AddHandler _runner.OutputLineUpdated, Sub(s, line)
-                                                      RaiseEvent OutputUpdated(Me, New SttOutputEventArgs(line))
-                                                  End Sub
-
-            AddHandler _runner.OutputLineCommitted, Sub(s, line)
-                                                        Dim text = line
-                                                        Dim lang = ""
-                                                        Dim tabIdx = line.IndexOf(vbTab)
-                                                        If tabIdx > 0 Then
-                                                            lang = line.Substring(0, tabIdx)
-                                                            text = line.Substring(tabIdx + 1)
-                                                        End If
-                                                        RaiseEvent OutputCommitted(Me, New SttOutputEventArgs(text, lang))
-                                                    End Sub
-
-            AddHandler _runner.ErrorReceived, Sub(s, line)
-                                                  RaiseEvent ErrorReceived(Me, line)
-                                              End Sub
         End Sub
 
-        Public ReadOnly Property Name As String Implements ISttBackend.Name
+        Public Overrides ReadOnly Property Name As String
             Get
                 Return If(_useGpu, "whisper.cpp (Vulkan)", "whisper.cpp (CPU)")
             End Get
         End Property
 
-        Public ReadOnly Property RequiresInternet As Boolean Implements ISttBackend.RequiresInternet
+        Public Overrides ReadOnly Property RequiresInternet As Boolean
             Get
                 Return False
             End Get
         End Property
 
-        Public ReadOnly Property IsAvailable As Boolean Implements ISttBackend.IsAvailable
-            Get
-                Return True
-            End Get
-        End Property
-
-        Public ReadOnly Property IsRunning As Boolean Implements ISttBackend.IsRunning
-            Get
-                Return _runner.IsRunning
-            End Get
-        End Property
-
-        Public ReadOnly Property Transcript As String Implements ISttBackend.Transcript
-            Get
-                Return _runner.Transcript
-            End Get
-        End Property
-
-        Public Event OutputUpdated As EventHandler(Of SttOutputEventArgs) Implements ISttBackend.OutputUpdated
-        Public Event OutputCommitted As EventHandler(Of SttOutputEventArgs) Implements ISttBackend.OutputCommitted
-        ' Offline engine — never raised; declared to satisfy the interface.
-        Public Event OutputCommittedTranslated As EventHandler(Of SttTranslatedCommitEventArgs) Implements ISttBackend.OutputCommittedTranslated
-        Public Event ErrorReceived As EventHandler(Of String) Implements ISttBackend.ErrorReceived
-
-        Public Sub Start(config As SttSessionConfig) Implements ISttBackend.Start
+        Public Overrides Sub Start(config As SttSessionConfig)
             Dim ec = If(config.Block(Of Configs.WhisperCppConfig)(), New Configs.WhisperCppConfig())
 
             ' Resolve the server binary. The CUDA engine key must launch the CUDA build
@@ -104,12 +59,12 @@ Namespace Services.Stt
             End If
 
             ' Configure the runner for whisper-cpp backend
-            _runner.Backend = backendKey
-            _runner.WhisperServerPath = serverPath
-            _runner.WhisperServerPort = ec.WhisperServerPort
-            _runner.SileroVadModelPath = ec.SileroVadModelPath
-            _runner.NoGpu = Not _useGpu
-            _runner.FiltersHallucinationsPath = config.HallucinationsPath
+            Runner.Backend = backendKey
+            Runner.WhisperServerPath = serverPath
+            Runner.WhisperServerPort = ec.WhisperServerPort
+            Runner.SileroVadModelPath = ec.SileroVadModelPath
+            Runner.NoGpu = Not _useGpu
+            Runner.FiltersHallucinationsPath = config.HallucinationsPath
 
             Dim appConfig As New AppConfig() With {
                 .LiveServerPort = config.ServerPort,
@@ -128,62 +83,14 @@ Namespace Services.Stt
             ' frames from /audio-in. The streaming backends always forwarded
             ' this; the whisper path silently captured a local device instead
             ' (field finding 2026-07-29).
-            _runner.AudioSource = If(String.IsNullOrEmpty(config.AudioSource), "local", config.AudioSource)
+            Runner.AudioSource = If(String.IsNullOrEmpty(config.AudioSource), "local", config.AudioSource)
             ' Clause treatment (measured 1.35x -> 0.96 fragmentation): the
             ' live-server glues chunks cut without a pause and SaT re-splits
             ' at genuine silences.
-            _runner.SatHold = ec.UseSatHold
-            _runner.EouAutoTune = ec.AutoTuneEou
-            _runner.Start(appConfig, config.DeviceIndex, config.Language, config.TranslateToEnglish)
+            Runner.SatHold = ec.UseSatHold
+            Runner.EouAutoTune = ec.AutoTuneEou
+            Runner.Start(appConfig, config.DeviceIndex, config.Language, config.TranslateToEnglish)
         End Sub
-
-        Public Sub [Stop]() Implements ISttBackend.Stop
-            _runner.Stop()
-        End Sub
-
-        ''' <summary>Split a held clause into sentences via live-server's SaT segmenter (clause coordinator flush).</summary>
-        Public Function Segment(text As String, thresholdPercent As Integer, model As String) As List(Of String) Implements ISegmentingSttBackend.Segment
-            Return _runner.Segment(text, thresholdPercent, model)
-        End Function
-
-        Public Function UpdateConfigAsync(params As Dictionary(Of String, Object)) As Task Implements ISttBackend.UpdateConfigAsync
-            Return _runner.UpdateConfigAsync(params)
-        End Function
-
-        Public Function EnumerateDevicesAsync(pythonExePath As String) As List(Of AudioDeviceInfo) Implements ISttBackend.EnumerateDevicesAsync
-            Dim rawDevices = _runner.EnumerateDevicesAsync(pythonExePath)
-            Dim result As New List(Of AudioDeviceInfo)
-            For Each raw In rawDevices
-                Dim colonIdx = raw.IndexOf(":"c)
-                If colonIdx > 0 Then
-                    Dim idStr = raw.Substring(0, colonIdx).Trim()
-                    Dim name = raw.Substring(colonIdx + 1).Trim()
-                    Dim id As Integer
-                    If Integer.TryParse(idStr, id) Then
-                        result.Add(New AudioDeviceInfo(id, name))
-                    Else
-                        result.Add(New AudioDeviceInfo(0, raw))
-                    End If
-                Else
-                    result.Add(New AudioDeviceInfo(0, raw))
-                End If
-            Next
-            Return result
-        End Function
-
-        Public Function CheckHealthAsync(ct As CancellationToken) As Task(Of Boolean) Implements ISttBackend.CheckHealthAsync
-            ' Deep check: healthy = actually CAPTURING (model loaded, pipeline alive),
-            ' not merely "HTTP is up" — the shallow check fired ready-chimes early.
-            Return _runner.CheckCapturingAsync(ct)
-        End Function
-
-        Public Function GetStatsAsync() As Task(Of String) Implements ISttBackend.GetStatsAsync
-            Return _runner.GetStatsAsync()
-        End Function
-
-        Public Function SaveTranscript(filePath As String) As Boolean Implements ISttBackend.SaveTranscript
-            Return _runner.SaveTranscript(filePath)
-        End Function
 
     End Class
 
