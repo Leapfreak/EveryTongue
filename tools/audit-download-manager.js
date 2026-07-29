@@ -94,5 +94,55 @@ for (const c of cases) {
   }
 }
 
+// 4. PYTHON PACKAGE COVERAGE: every third-party import in shipped sidecar .py
+// files must appear in some requirements*.txt, or the feature works on the dev
+// box (where someone pip-installed it once) and silently degrades on a fresh
+// install. Field case 2026-07-31: notes_names.py imported pypdf — present on
+// dev, in NO requirements file — so Jezer's PDF name extraction fell back to
+// a garbage path. Same failure class as an undeliverable exe.
+const PY_DIRS = ['live-server', 'translate-server', 'mms-tts-server', 'qe-server'];
+const STDLIB = new Set(('sys os io re json time math logging threading queue zipfile subprocess tempfile wave argparse asyncio urllib collections enum dataclasses typing pathlib functools itertools random struct socket ssl hashlib base64 shutil glob unicodedata contextlib traceback warnings inspect abc copy string textwrap datetime signal ctypes platform importlib http email zlib codecs encodings concurrent difflib sqlite3 gc uuid statistics numbers array bisect heapq pickle csv').split(' '));
+// Delivered outside requirements files (name -> reason).
+const ALLOW_PY = {
+  torch: 'delivered inside the whisper-stack / SaT components, not pip',
+  silero_vad: 'delivered with the whisper stack (silero-vad pip name differs from import name)',
+  transformers: 'delivered inside the NLLB / MMS model components',
+  wtpsplit: 'delivered inside the SaT component (sat-libs)',
+  google: 'google-cloud-speech distribution (import name differs)',
+  speechmatics: 'speechmatics-rt distribution (import name differs)',
+  azure: 'azure-cognitiveservices-speech distribution (import name differs)',
+  engines: 'local package', vad: 'local package', sat_segmenter: 'local module',
+  pace_tuner: 'local module', common: 'local module', server: 'local module',
+};
+const reqText = [];
+for (const d of PY_DIRS) {
+  for (const f of ['requirements.txt', 'requirements-lite.txt']) {
+    const p = path.join(ROOT, d, f);
+    if (fs.existsSync(p)) reqText.push(fs.readFileSync(p, 'utf8'));
+  }
+}
+const reqAll = reqText.join('\n').toLowerCase();
+const pyImports = new Map();   // module -> first ref
+for (const d of PY_DIRS) {
+  const full = path.join(ROOT, d);
+  if (!fs.existsSync(full)) continue;
+  for (const file of require('./audit-lib').walkFiles(full, ['.py'])) {
+    const relF = path.relative(ROOT, file).replace(/\\/g, '/');
+    for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+      const m = /^\s*(?:from\s+([A-Za-z_][\w]*)|import\s+([A-Za-z_][\w]*))/.exec(line);
+      if (!m) continue;
+      const mod = (m[1] || m[2]);
+      if (!pyImports.has(mod)) pyImports.set(mod, relF);
+    }
+  }
+}
+for (const [mod, where] of pyImports) {
+  if (STDLIB.has(mod) || ALLOW_PY[mod]) continue;
+  const norm = mod.toLowerCase().replace(/_/g, '-');
+  if (!reqAll.includes(mod.toLowerCase()) && !reqAll.includes(norm)) {
+    suspects.push(`python package "${mod}" (${where}) is in NO requirements*.txt — works on dev, undeliverable on a fresh install`);
+  }
+}
+
 finish('audit-download-manager', suspects,
-  'HEURISTIC — add a DM delivery/check for the tool, wire the installer into the UI, or allowlist with a reason');
+  'HEURISTIC — add a DM delivery/check for the tool, wire the installer into the UI, add the package to requirements, or allowlist with a reason');

@@ -22,7 +22,6 @@ import json
 import re
 import sys
 import zipfile
-import zlib
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
@@ -32,22 +31,17 @@ MAX_NAMES = 40
 def _pdf_text(path):
     try:
         from pypdf import PdfReader
-        reader = PdfReader(path)
-        return " ".join((page.extract_text() or "") for page in reader.pages)
     except ImportError:
-        # Raw fallback: inflate content streams and pull the (...) text ops.
-        raw = open(path, "rb").read()
-        chunks = []
-        for m in re.finditer(rb"stream\r?\n(.*?)endstream", raw, re.S):
-            try:
-                chunks.append(zlib.decompress(m.group(1)).decode("latin-1", "replace"))
-            except Exception:
-                # Undecodable PDF stream chunk — skip it, other chunks still mine names.
-                pass
-        blob = " ".join(chunks)
-        parts = re.findall(r"\((?:[^()\\]|\\.)*\)", blob)
-        joined = " ".join(p[1:-1] for p in parts)
-        return joined.replace("\\(", "(").replace("\\)", ")").replace("\\'", "'")
+        # FAIL LOUDLY. The old raw stream-mining fallback produced GARBAGE
+        # names on any PDF with subsetted font encodings (field finding
+        # 2026-07-31: a Mac-exported Catalan run sheet) — a wrong answer is
+        # far worse than a clear one here. pypdf ships via requirements.txt;
+        # the Download Manager's "Python Packages" install delivers it.
+        raise RuntimeError(
+            "pypdf is not installed — open the Download Manager and run "
+            "'Python Packages' (install/update), then import again")
+    reader = PdfReader(path)
+    return " ".join((page.extract_text() or "") for page in reader.pages)
 
 
 def _xml_zip_text(path, member_patterns):
