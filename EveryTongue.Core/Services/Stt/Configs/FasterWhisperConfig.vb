@@ -17,6 +17,8 @@ Namespace Services.Stt.Configs
         Public Property InitialPrompt As String = ""
         ''' <summary>Clause treatment: glue guillotined chunks, SaT re-split at real pauses (server-side). See AppConfig.WhisperUseSatHold (default ON).</summary>
         Public Property UseSatHold As Boolean = True
+        ''' <summary>EOU auto-tune: adapt soft/hard commit thresholds to the speaker's pace (whisper twin of Speechmatics' tuner). See AppConfig.WhisperAutoTuneEou (default ON).</summary>
+        Public Property AutoTuneEou As Boolean = True
 
         Public Sub ApplyMachineBaseline(cfg As AppConfig) Implements IEngineConfigBlock.ApplyMachineBaseline
             If String.IsNullOrEmpty(ModelPath) Then ModelPath = cfg.PathFasterWhisperModel
@@ -24,6 +26,7 @@ Namespace Services.Stt.Configs
             BestOf = cfg.BestOf
             InterimIntervalMs = cfg.LiveInterimIntervalMs
             UseSatHold = cfg.WhisperUseSatHold
+            AutoTuneEou = cfg.WhisperAutoTuneEou
         End Sub
     End Class
 
@@ -45,7 +48,8 @@ Namespace Services.Stt.Configs
             New EngineConfigField With {.Key = "MaxSegmentSec", .LabelKey = "EngineCfg_MaxSegmentSec", .FieldType = EngineConfigFieldType.Integer, .Min = 3, .Max = 60},
             New EngineConfigField With {.Key = "InterimIntervalMs", .LabelKey = "EngineCfg_InterimIntervalMs", .FieldType = EngineConfigFieldType.Integer, .Min = 200, .Max = 10000, .Advanced = True},
             New EngineConfigField With {.Key = "InitialPrompt", .LabelKey = "EngineCfg_InitialPrompt", .FieldType = EngineConfigFieldType.Text, .Advanced = True},
-            New EngineConfigField With {.Key = "UseSatHold", .LabelKey = "EngineCfg_WhisperSatHold", .FieldType = EngineConfigFieldType.Toggle, .Advanced = True}
+            New EngineConfigField With {.Key = "UseSatHold", .LabelKey = "EngineCfg_WhisperSatHold", .FieldType = EngineConfigFieldType.Toggle, .Advanced = True},
+            New EngineConfigField With {.Key = "AutoTuneEou", .LabelKey = "EngineCfg_WhisperAutoTuneEou", .FieldType = EngineConfigFieldType.Toggle, .Advanced = True}
         }
 
         Public Overrides ReadOnly Property Fields As IReadOnlyList(Of EngineConfigField)

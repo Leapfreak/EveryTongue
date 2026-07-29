@@ -4,6 +4,7 @@
   "Bible_Go": "Vés-hi",
   "Bm_Title": "Prova de motors",
   "EngineCfg_WhisperSatHold": "Fusiona fins a la pausa + divideix amb SaT (tractament de clàusules estil Speechmatics)",
+  "EngineCfg_WhisperAutoTuneEou": "Autoajusta els llindars de pausa al ritme de l'orador",
   "Bm_TabTranslation": "Traducció",
   "Bm_TabPipeline": "Pipeline",
   "Bm_TabConcurrency": "Concurrència",

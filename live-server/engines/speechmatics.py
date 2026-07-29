@@ -13,7 +13,6 @@ Requires: pip install speechmatics-rt
 Registered at import time via engines.common.register_engine("speechmatics").
 """
 import asyncio
-import collections
 import json
 import logging
 import os
@@ -25,6 +24,7 @@ import sounddevice as sd
 
 from . import common
 from .common import SAMPLE_RATE
+from pace_tuner import PaceTuner
 
 logger = logging.getLogger("live-server")
 
@@ -51,12 +51,18 @@ DEFAULT_MAX_DELAY_S = 2.0   # matches AppConfig.SpeechmaticsMaxDelayMs (2000)
 # a slow pauser wants a high EOU (so mid-thought pauses don't split); a fast reader
 # wants a low one (or they balloon). Buckets calibrated from a 3-speaker audio A/B
 # (fast p85≈30ms→0.7s; moderate ≈240ms→1.0s; slow ≈650ms→1.35s).
-PACE_WINDOW = 200            # rolling inter-word gaps kept (samples)
-PACE_MIN_SAMPLES = 40        # need at least this many before tuning
-PACE_CHECK_INTERVAL_S = 10   # recompute the target EOU this often
+# The tuning POLICY (rolling window → p85 → bucket, hysteresis, cooldown) lives
+# once in pace_tuner.PaceTuner, shared with the whisper VAD state machine; this
+# engine keeps only its ears (word timestamps) and hands (WS reconnect — hence
+# the long cooldown: every retune costs a reconnect).
 RETUNE_COOLDOWN_S = 45       # min seconds between EOU changes (each = a WS reconnect)
-EOU_HYST_UP = 0.10           # p85 must exceed the bucket boundary by 10% to go LONGER
-EOU_HYST_DOWN = 0.25         # ...and undercut it by 25% to go SHORTER (err long)
+
+# (p85 upper bound ms, EOU silence trigger s)
+EOU_BUCKETS = [
+    (100,  0.7),
+    (400,  1.0),
+    (None, 1.35),
+]
 
 # Auto-reconnect on an unexpected Speechmatics drop (network blip, server-side idle
 # close during a long silence). The audio queue keeps buffering during the gap so
@@ -105,25 +111,6 @@ def _normalize_lang(lang):
         return "en"
     return {"zh": "cmn"}.get(lang, lang)
 
-
-def _eou_for_pace(p85_ms):
-    """Map the speaker's 85th-percentile inter-word pause (ms) to an EOU trigger (s)."""
-    if p85_ms < 100:
-        return 0.7
-    if p85_ms < 400:
-        return 1.0
-    return 1.35
-
-
-def _percentile(values, p):
-    """Linear-interpolated p-th percentile of an iterable of numbers (0 if empty)."""
-    s = sorted(values)
-    if not s:
-        return 0.0
-    k = (len(s) - 1) * (p / 100.0)
-    f = int(k)
-    c = min(f + 1, len(s) - 1)
-    return s[f] + (s[c] - s[f]) * (k - f)
 
 # Sentence-terminating punctuation (Latin + CJK + Arabic) used as an early
 # commit trigger when a final segment already closes a sentence.
@@ -189,13 +176,13 @@ class SpeechmaticsStreamingPipeline:
         self._max_delay = (max_delay_s if max_delay_s and max_delay_s > 0
                            else DEFAULT_MAX_DELAY_S)
         # EOU auto-tune: self._eou_silence is the live value (starts at the config
-        # baseline, then the pace tracker nudges it). _pace_gaps persists across
+        # baseline, then the shared pace tuner nudges it). The tuner persists across
         # reconnects (same speaker); _last_word_end resets each session (timings restart).
         self._auto_tune = bool(auto_tune_eou)
-        self._pace_gaps = collections.deque(maxlen=PACE_WINDOW)
+        self._pace_tuner = PaceTuner(EOU_BUCKETS, cooldown_s=RETUNE_COOLDOWN_S)
+        self._pace_tuner.seed(self._eou_silence)
         self._last_word_end = None
-        self._last_retune = 0.0   # time.monotonic() of the last EOU change
-        # Phase 2 (diarization): a speaker change re-measures pace (clears _pace_gaps) but
+        # Phase 2 (diarization): a speaker change re-measures pace (resets the tuner) but
         # KEEPS the current EOU — only a genuine pace difference then moves it. EOU resets
         # to this baseline on a HOST PAUSE or LANGUAGE CHANGE (via reset_pace), not on a
         # speaker change. _current_speaker tracks the diarization voice.
@@ -286,13 +273,13 @@ class SpeechmaticsStreamingPipeline:
         # Reset trigger: host pause / deliberate context change. Lightweight — clear the
         # speaker's pace and drop EOU back to baseline via a WS reconnect (no full restart).
         if kwargs.get("reset_pace"):
-            self._pace_gaps.clear()
             self._last_word_end = None
             self._current_speaker = None
-            self._last_retune = 0.0
             if abs(self._eou_silence - self._eou_baseline) >= 0.05:
                 self._eou_silence = self._eou_baseline
                 self._reset_pending = True
+            self._pace_tuner.reset()
+            self._pace_tuner.seed(self._eou_baseline)
             logger.info("[SPEECHMATICS] pace reset (host pause / context change)")
             return
 
@@ -348,11 +335,11 @@ class SpeechmaticsStreamingPipeline:
         if restart:
             # Reset trigger: a manual language/target change is a deliberate context
             # switch — start the pace fresh at the baseline EOU, don't carry it over.
-            self._pace_gaps.clear()
             self._last_word_end = None
             self._current_speaker = None
-            self._last_retune = 0.0
             self._eou_silence = self._eou_baseline
+            self._pace_tuner.reset()
+            self._pace_tuner.seed(self._eou_baseline)
             # The new session gets the BOOK layer for the NEW language (the old
             # full restart kept the previous language's list — stale vocab bug).
             # The SERVICE layer (people names) persists unchanged: names are
@@ -513,16 +500,16 @@ class SpeechmaticsStreamingPipeline:
                         # diarization blip churned for nothing. If the new speaker's pace
                         # genuinely differs, _maybe_retune moves the EOU (one reconnect,
                         # only when needed); if it's the same pace, no reconnect at all.
-                        self._pace_gaps.clear()
+                        self._pace_tuner.reset()
+                        self._pace_tuner.seed(self._eou_silence)
                         self._last_word_end = None
-                        self._last_retune = 0.0
                     self._current_speaker = spk
                 if st is None or et is None:
                     continue
                 if self._last_word_end is not None:
                     gap = (float(st) - self._last_word_end) * 1000.0
                     if 0 <= gap <= 6000:
-                        self._pace_gaps.append(gap)
+                        self._pace_tuner.record(gap)
                 self._last_word_end = float(et)
 
         # Reconnect loop: the audio-capture thread keeps filling _audio_queue
@@ -662,7 +649,6 @@ class SpeechmaticsStreamingPipeline:
         a session reconnect was requested (EOU retune, pace reset, or a language/target
         config change — the caller rebuilds the session from current self._* values);
         False on normal stop / send failure."""
-        last_check = time.monotonic()
         while not self._stop_event.is_set():
             frame = await loop.run_in_executor(None, self._next_frame)
             if frame is not None:
@@ -681,48 +667,25 @@ class SpeechmaticsStreamingPipeline:
                 self._reset_pending = False
                 return True
             if self._auto_tune:
-                now = time.monotonic()
-                if (now - last_check) >= PACE_CHECK_INTERVAL_S:
-                    last_check = now
-                    if self._maybe_retune(now):
-                        return True
+                if self._maybe_retune(time.monotonic()):
+                    return True
         return False
 
     def _maybe_retune(self, now):
-        """Recompute the EOU target from the speaker's pace; if it crosses a bucket and
-        the cooldown has elapsed, update self._eou_silence and signal a reconnect.
-
-        BOUNDARY HYSTERESIS (2026-07-12): a speaker whose p85 sits ON a bucket
-        boundary (observed: 313-484ms straddling the 400ms line) ping-pongs between
-        buckets every window, and every flip is a full session reconnect. A bucket
-        change now requires p85 to CLEAR the crossed boundary by a margin — and the
-        margins are asymmetric (going shorter needs 25%, longer only 10%) so a
-        borderline speaker settles on the LONGER EOU, which is the safer side
-        (fewer mid-thought cuts; slightly later commits).
-        """
-        if len(self._pace_gaps) < PACE_MIN_SAMPLES:
+        """Ask the shared pace tuner for a bucket change (it owns the window, p85,
+        boundary hysteresis and cooldown — see pace_tuner.py); applying one here
+        means a WS reconnect with the new EOU."""
+        decision = self._pace_tuner.evaluate(now)
+        if decision is None:
             return False
-        p85 = _percentile(self._pace_gaps, 85)
-        target = _eou_for_pace(p85)
+        target, p85, n = decision
         if abs(target - self._eou_silence) < 0.05:
-            return False   # same bucket, nothing to do
-        if (now - self._last_retune) < RETUNE_COOLDOWN_S:
-            return False   # too soon since the last change
-        # Hysteresis: p85 must clear the boundary between the buckets by a margin.
-        if target > self._eou_silence:
-            boundary = 400.0 if target >= 1.35 else 100.0
-            if p85 <= boundary * (1 + EOU_HYST_UP):
-                return False   # not clearly past the line — stay put
-        else:
-            boundary = 100.0 if target <= 0.7 else 400.0
-            if p85 >= boundary * (1 - EOU_HYST_DOWN):
-                return False   # borderline — prefer staying on the longer EOU
+            return False   # custom baseline already inside this bucket — no reconnect
         old = self._eou_silence
         self._eou_silence = target
-        self._last_retune = now
         logger.info(
             f"[SPEECHMATICS] EOU auto-tune {old}s -> {target}s "
-            f"(p85 pause {int(p85)}ms over {len(self._pace_gaps)} words)")
+            f"(p85 pause {int(p85)}ms over {n} words)")
         return True
 
     def _next_frame(self):

@@ -4,6 +4,7 @@
   "Bible_Go": "Go",
   "Bm_Title": "Engine Benchmark",
   "EngineCfg_WhisperSatHold": "Merge to pause + split with SaT (Speechmatics-style clause treatment)",
+  "EngineCfg_WhisperAutoTuneEou": "Auto-tune pause thresholds to speaker pace",
   "Bm_TabTranslation": "Translation",
   "Bm_TabPipeline": "Pipeline",
   "Bm_TabConcurrency": "Concurrency",

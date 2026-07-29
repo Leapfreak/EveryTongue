@@ -166,6 +166,10 @@ Namespace Pipeline
         ''' (FORCE/SOFT commits = no real pause) and SaT re-splits at a genuine silence.
         ''' Also warms the SaT model at /start.</summary>
         Public Property SatHold As Boolean = False
+        ''' <summary>Whisper EOU auto-tune: the VAD state machine measures the speaker's
+        ''' resumed pauses and retunes the soft/hard commit thresholds in place
+        ''' (whisper twin of Speechmatics' pace tuner; shared policy in pace_tuner.py).</summary>
+        Public Property EouAutoTune As Boolean = False
 
         ''' <summary>
         ''' Engine-specific extra /start JSON fields as a leading-comma fragment,
@@ -313,6 +317,7 @@ Namespace Pipeline
                 ' Whisper clause treatment: hold guillotined chunks server-side,
                 ' SaT re-split at real pauses; warm SaT at session start.
                 If SatHold Then jsonBody &= ",""sat_hold"":true,""sat_segment"":true"
+                If EouAutoTune Then jsonBody &= ",""eou_auto_tune"":true"
 
                 ' Add API key for online backends (not logged in plaintext)
                 If IsOnlineBackend(backendKey) AndAlso Not String.IsNullOrEmpty(SttApiKey) Then

@@ -37,6 +37,10 @@ class VadConfig:
     # SaT re-splits the merged clause when a genuine silence commit arrives.
     # Measured 2026-07-29: fixes 1.35x over-fragmentation to 0.96 batch parity.
     sat_hold: bool = False
+    # EOU auto-tune (whisper twin of the Speechmatics pace tuner): the state
+    # machine measures the speaker's resumed pauses and retunes the soft/hard
+    # commit thresholds in place. Policy shared via pace_tuner.PaceTuner.
+    eou_auto_tune: bool = False
     # When True, the transcription worker accumulates audio across multiple
     # VAD commits and only transcribes when there's a long pause or enough
     # audio. Designed for cloud STT APIs that work best with longer audio.

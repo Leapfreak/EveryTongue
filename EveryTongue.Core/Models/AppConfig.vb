@@ -429,6 +429,9 @@ Namespace Models
         ''' <summary>Give WHISPER rooms the Speechmatics clause treatment: guillotined chunks (cut without a pause) are glued, then SaT re-splits into proper sentences at a real pause before translation. MEASURED 2026-07-29 (tools/whisper_sat_ab.py, real sermon): without it 1.35× over-fragmented vs batch (the 15s max-segment cut slices mid-sentence during continuous speech); with it 0.96 = batch parity. Default ON (user decision 2026-07-29); degrades gracefully to punctuation splitting when the SaT model isn't installed.</summary>
         Public Property WhisperUseSatHold As Boolean = True
 
+        ''' <summary>EOU auto-tune for WHISPER rooms: the VAD state machine measures the speaker's resumed pauses (silence runs that ended with speech coming back) and retunes the soft/hard commit thresholds in place — fast readers commit sooner, slow deliberate pausers don't get ripped mid-thought. Whisper twin of SpeechmaticsAutoTuneEou; the tuning policy (p85 → bucket, hysteresis, cooldown) is shared via live-server/pace_tuner.py. Default ON (user decision 2026-07-29: "vastly different styles of speakers").</summary>
+        Public Property WhisperAutoTuneEou As Boolean = True
+
         ''' <summary>Master switch for log-only second-opinion translations (TRANS_SHADOW 4012).</summary>
         Public Property ShadowTranslationsEnabled As Boolean = True
         ''' <summary>Comma-separated CLOUD translation engine keys (e.g. "google-translate,deepl") that give LOG-ONLY second/third-opinion translations of every conference commit, so engines can be compared on real service data post-session (TRANS_SHADOW 4012). Never broadcast; raw engine output (no glossary) for a fair comparison. Engines without a key are skipped silently. Cloud engines cost per character. NOTE: Speechmatics can't be a shadow — it has no standalone text-translation API, and its inline translations are per-fragment (not comparable to whole-clause output).</summary>

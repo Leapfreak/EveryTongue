@@ -141,6 +141,7 @@ class VadPipeline:
             max_soft_utterance_s=cfg.vad_max_soft_segment_s,
             interim_queue=self._interim_queue,
             interim_interval_s=cfg.interim_interval_s,
+            auto_tune=cfg.eou_auto_tune,
         )
         self._sm = sm
         logger.debug(
@@ -690,6 +691,7 @@ class VadPipeline:
             max_soft_utterance_s=cfg.vad_max_soft_segment_s,
             interim_queue=None,
             interim_interval_s=cfg.interim_interval_s,
+            auto_tune=cfg.eou_auto_tune,
         )
         self._sm = sm
 

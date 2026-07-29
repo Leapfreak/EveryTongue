@@ -907,6 +907,7 @@ async def start_capture_endpoint(request: Request):
                                     body.get("interim_interval_ms", 3000) / 1000.0),
         enable_sentence_split=body.get("enable_sentence_split", True),
         sat_hold=body.get("sat_hold", False),
+        eou_auto_tune=body.get("eou_auto_tune", False),
     )
 
     # Create session stats

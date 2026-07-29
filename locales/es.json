@@ -4,6 +4,7 @@
   "Bible_Go": "Ir",
   "Bm_Title": "Prueba de motores",
   "EngineCfg_WhisperSatHold": "Fusionar hasta la pausa + dividir con SaT (tratamiento de cláusulas estilo Speechmatics)",
+  "EngineCfg_WhisperAutoTuneEou": "Autoajustar los umbrales de pausa al ritmo del orador",
   "Bm_TabTranslation": "Traducción",
   "Bm_TabPipeline": "Pipeline",
   "Bm_TabConcurrency": "Concurrencia",

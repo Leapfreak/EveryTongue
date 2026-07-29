@@ -95,6 +95,7 @@ Namespace Services.Stt
             _runner.AudioSource = If(String.IsNullOrEmpty(config.AudioSource), "local", config.AudioSource)
             ' Clause treatment: server-side chunk glue + SaT at real pauses.
             _runner.SatHold = ec.UseSatHold
+            _runner.EouAutoTune = ec.AutoTuneEou
             _runner.Start(appConfig, config.DeviceIndex, config.Language, config.TranslateToEnglish)
         End Sub
 

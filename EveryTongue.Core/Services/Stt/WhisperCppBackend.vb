@@ -133,6 +133,7 @@ Namespace Services.Stt
             ' live-server glues chunks cut without a pause and SaT re-splits
             ' at genuine silences.
             _runner.SatHold = ec.UseSatHold
+            _runner.EouAutoTune = ec.AutoTuneEou
             _runner.Start(appConfig, config.DeviceIndex, config.Language, config.TranslateToEnglish)
         End Sub
 

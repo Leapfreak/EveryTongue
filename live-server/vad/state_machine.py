@@ -20,6 +20,27 @@ from .buffers import PrerollBuffer, UtteranceBuffer
 
 logger = logging.getLogger("live-server")
 
+# ── EOU auto-tune (whisper twin of the Speechmatics pace tuner) ──────────────
+# The tuning POLICY (rolling window → p85 → bucket, hysteresis, cooldown) lives
+# once in pace_tuner.PaceTuner, shared with engines/speechmatics.py. Only the
+# ears and hands are ours: pauses are measured from VAD silence runs that ended
+# with speech resuming, and bucket changes apply IN PLACE (the thresholds are
+# plain numbers this class reads per-frame — no reconnect, so a short cooldown).
+#
+# The signal differs from Speechmatics' word-timestamp gaps: Silero VAD only
+# resolves pauses down to ~2 frames (64ms) and smooths shorter dips, so the
+# bucket boundaries are calibrated for VAD-granularity pauses, not word gaps.
+PAUSE_FLOOR_S = 0.064        # ignore sub-2-frame dips (VAD jitter, plosives)
+IDLE_RESUME_CAP_S = 3.0      # IDLE→speech gaps above this are real utterance breaks
+RETUNE_COOLDOWN_S = 20       # in-place retunes are free; cooldown only stops flapping
+
+# (p85 upper bound ms, (soft_commit_ms, silence_commit_ms))
+PACE_BUCKETS = [
+    (200,  (300,  650)),   # fast reader: barely pauses — commit sooner
+    (450,  (400,  800)),   # moderate: the shipped defaults
+    (None, (650, 1200)),   # slow, deliberate pauser: don't rip mid-thought
+]
+
 
 class State(enum.Enum):
     IDLE = "idle"
@@ -40,7 +61,8 @@ class UtteranceStateMachine:
     def __init__(self, preroll, utterance, commit_callback,
                  soft_commit_ms=400, silence_commit_ms=750,
                  max_utterance_s=25, max_soft_utterance_s=8,
-                 interim_queue=None, interim_interval_s=3.0):
+                 interim_queue=None, interim_interval_s=3.0,
+                 auto_tune=False):
         self.state = State.IDLE
         self._preroll = preroll
         self._utterance = utterance
@@ -55,10 +77,41 @@ class UtteranceStateMachine:
         self._utterance_start_time = 0.0
         self._last_interim_time = 0.0
         self._has_speech_since_commit = False    # tracks speech after soft commit
+        # EOU auto-tune (see module constants above). Seeded with the configured
+        # dials so the tuner stays quiet until the pace genuinely differs.
+        self._tuner = None
+        if auto_tune:
+            from pace_tuner import PaceTuner
+            self._tuner = PaceTuner(PACE_BUCKETS, cooldown_s=RETUNE_COOLDOWN_S)
+            self._tuner.seed((soft_commit_ms, silence_commit_ms))
 
     def feed(self, prob, is_speech, frame):
         """Called from VAD thread for every audio frame."""
         now = time.time()
+
+        # EOU auto-tune: measure RESUMED pauses (silence runs that ended with
+        # speech coming back — the speaker's own rhythm), and apply a bucket
+        # change in place when the tuner calls one.
+        if self._tuner is not None:
+            if is_speech and self._last_speech_time > 0:
+                pause = now - self._last_speech_time
+                if self.state == State.SPEAKING:
+                    if pause >= PAUSE_FLOOR_S:
+                        self._tuner.record(pause * 1000.0)
+                elif pause <= IDLE_RESUME_CAP_S:
+                    # Short IDLE→speech gap: the hard commit fired but the speaker
+                    # was mid-thought — exactly the signal for a longer threshold.
+                    self._tuner.record(pause * 1000.0)
+            decision = self._tuner.evaluate(now)
+            if decision is not None:
+                (soft_ms, silence_ms), p85, n = decision
+                logger.info(
+                    f"[EOU-TUNE] {int(self._soft_commit_s * 1000)}/"
+                    f"{int(self._silence_commit_s * 1000)}ms -> "
+                    f"{soft_ms}/{silence_ms}ms (soft/commit; p85 pause "
+                    f"{int(p85)}ms over {n} resumed pauses)")
+                self._soft_commit_s = soft_ms / 1000.0
+                self._silence_commit_s = silence_ms / 1000.0
 
         if self.state == State.IDLE:
             if is_speech:
@@ -176,6 +229,13 @@ class UtteranceStateMachine:
             self._soft_commit_s = soft_commit_ms / 1000.0
         if silence_commit_ms is not None:
             self._silence_commit_s = silence_commit_ms / 1000.0
+        if self._tuner is not None and (soft_commit_ms is not None
+                                        or silence_commit_ms is not None):
+            # Operator override: re-learn from the new baseline instead of
+            # immediately retuning back over it.
+            self._tuner.reset()
+            self._tuner.seed((int(self._soft_commit_s * 1000),
+                              int(self._silence_commit_s * 1000)))
         if max_utterance_s is not None:
             self._max_utterance_s = max_utterance_s
         if max_soft_utterance_s is not None:
