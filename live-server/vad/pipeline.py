@@ -55,6 +55,9 @@ class VadPipeline:
         self.audio_source = getattr(config, "audio_source", "local")
         self._last_feed_monotonic = 0.0
         self._feed_remainder = np.zeros(0, dtype=np.float32)
+        # Service-vocab prompt biasing preserves the /start prompt as the base
+        # and appends the names list (see _apply_service_vocab).
+        self._base_initial_prompt = getattr(config, "initial_prompt", "") or ""
         # Clause treatment (sat_hold): texts glued across guillotined chunks,
         # flushed through SaT at a real pause. Owned by the transcribe worker.
         self._hold_texts = []
@@ -259,6 +262,36 @@ class VadPipeline:
                 self._vad._silence_thresh = kwargs["vad_silence_threshold"]
         if "language" in kwargs:
             self._config.language = kwargs["language"]
+        if "service_vocab" in kwargs:
+            self._apply_service_vocab(kwargs["service_vocab"])
+
+    def _apply_service_vocab(self, entries):
+        """Service-names vocab -> whisper prompt biasing. Speechmatics gets
+        these as additional_vocab; whisper's equivalent channel is the
+        initial_prompt (the worker reads self._config.initial_prompt per
+        utterance, so this applies live). The base prompt from /start is
+        preserved; names are appended, capped to stay inside whisper's
+        ~224-token prompt window. sounds_like variants are Speechmatics-
+        specific and skipped here — the canonical spelling is what biases."""
+        names = []
+        for e in entries or []:
+            c = (e.get("content") if isinstance(e, dict) else str(e)) or ""
+            c = c.strip()
+            if c and c not in names:
+                names.append(c)
+        base = getattr(self, "_base_initial_prompt", "") or ""
+        joined = ", ".join(names)
+        dropped = 0
+        while len(joined) > 600 and names:
+            names.pop()
+            dropped += 1
+            joined = ", ".join(names)
+        if joined:
+            self._config.initial_prompt = (base + " " if base else "") + joined + "."
+        else:
+            self._config.initial_prompt = base
+        logger.info(f"[VOCAB] service layer -> whisper prompt: {len(names)} names"
+                    + (f" ({dropped} dropped to fit the prompt window)" if dropped else ""))
 
     # ------------------------------------------------------------------
     # Web-mic ingest (called from the /audio-in websocket handler)

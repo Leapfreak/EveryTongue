@@ -233,6 +233,12 @@ class GoogleStreamingPipeline:
         self._stats = stats
         self._stop_event = threading.Event()
         self._audio_queue = queue.Queue(maxsize=1000)
+        # Who fills _audio_queue: "local" = sounddevice capture on this machine,
+        # "web" = frames pushed via feed() (browser mic relayed through /audio-in).
+        self.audio_source = getattr(config, "audio_source", "local")
+        if self.audio_source not in ("local", "web"):
+            self.audio_source = "local"
+        self._last_feed_monotonic = 0.0
         self._stream = None
         self._threads = []
         self._audio_callback_count = 0
@@ -247,19 +253,41 @@ class GoogleStreamingPipeline:
         logger.info(f"[GOOGLE-STREAM] Starting: device={cfg.device_index} lang={cfg.language}")
 
         chunk_samples = int(SAMPLE_RATE * 0.1)  # 1600 samples = 100ms
-        self._stream = sd.InputStream(
-            samplerate=SAMPLE_RATE, channels=1, dtype="int16",
-            blocksize=chunk_samples, device=cfg.device_index,
-            callback=self._audio_callback,
-        )
+        if self.audio_source == "local":
+            self._stream = sd.InputStream(
+                samplerate=SAMPLE_RATE, channels=1, dtype="int16",
+                blocksize=chunk_samples, device=cfg.device_index,
+                callback=self._audio_callback,
+            )
 
         stream_thread = threading.Thread(
             target=self._streaming_thread, name="google-stream", daemon=True)
         self._threads = [stream_thread]
         stream_thread.start()
 
-        self._stream.start()
-        logger.info("[GOOGLE-STREAM] Audio capture started")
+        if self._stream is not None:
+            self._stream.start()
+            logger.info("[GOOGLE-STREAM] Audio capture started")
+        else:
+            logger.info("[GOOGLE-STREAM] Waiting for web-mic frames via /audio-in")
+
+    def feed(self, frame_bytes):
+        """Web-mic path: push a 16kHz mono s16 PCM frame into the queue —
+        the exact hand-off the sounddevice callback does for the local mic,
+        so everything downstream is untouched. (Ported from the speechmatics
+        engine; not yet live-validated — no GOOGLE-STREAM API key on the dev box.)"""
+        try:
+            self._audio_queue.put_nowait(frame_bytes)
+        except queue.Full:
+            pass  # drop frame rather than block (matches local behaviour)
+        self._audio_callback_count += 1
+        self._last_feed_monotonic = time.monotonic()
+
+    def web_feed_recent(self, window_s=5.0):
+        """True when web-mic frames arrived within the window — the honest
+        'capturing' signal for /health when audio_source == 'web'."""
+        return (self._last_feed_monotonic > 0
+                and (time.monotonic() - self._last_feed_monotonic) < window_s)
 
     def stop(self):
         logger.info("[GOOGLE-STREAM] Stopping...")
