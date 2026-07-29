@@ -90,6 +90,8 @@
       <ChecksumFile Include="$(PublishDir)live-server\requirements.txt" />
       <ChecksumFile Include="$(PublishDir)mms-tts-server\**\*.py" />
       <ChecksumFile Include="$(PublishDir)mms-tts-server\requirements.txt" />
+      <ChecksumFile Include="$(PublishDir)qe-server\**\*.py" />
+      <ChecksumFile Include="$(PublishDir)qe-server\requirements.txt" />
       <!-- Locale JSON — only en.json ships; others downloaded on demand -->
       <ChecksumFile Include="$(PublishDir)locales\en.json" />
       <!-- Help files -->

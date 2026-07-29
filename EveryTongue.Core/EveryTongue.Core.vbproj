@@ -56,38 +56,24 @@
     </Content>
   </ItemGroup>
 
-  <!-- Python sidecars + shared data files (linked from repo root) -->
+  <!-- Python sidecars + shared data files (linked from repo root).
+       .py files are GLOBBED per sidecar: every .py in these repo folders ships
+       (verified 1:1 vs publish 2026-07-29), and hand-listing them is how the new
+       pace_tuner.py got silently left out of the publish — a synced field machine
+       crashed at import. Data files (json/txt) stay explicit: some folder content
+       is runtime-generated or dev-only, so those still need a deliberate decision. -->
   <ItemGroup>
-    <Content Include="..\translate-server\server.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>translate-server\server.py</Link></Content>
+    <Content Include="..\translate-server\**\*.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>translate-server\%(RecursiveDir)%(Filename)%(Extension)</Link></Content>
     <Content Include="..\translate-server\glossary.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>translate-server\glossary.json</Link></Content>
     <Content Include="..\translate-server\profanity.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>translate-server\profanity.json</Link></Content>
     <Content Include="..\translate-server\requirements.txt"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>translate-server\requirements.txt</Link></Content>
-    <Content Include="..\live-server\server.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\server.py</Link></Content>
-    <Content Include="..\live-server\sat_segmenter.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\sat_segmenter.py</Link></Content>
-    <Content Include="..\live-server\pace_tuner.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\pace_tuner.py</Link></Content>
-    <Content Include="..\live-server\vocab\build_vocab.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vocab\build_vocab.py</Link></Content>
-    <Content Include="..\live-server\vocab\notes_names.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vocab\notes_names.py</Link></Content>
+    <Content Include="..\live-server\**\*.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\%(RecursiveDir)%(Filename)%(Extension)</Link></Content>
     <Content Include="..\live-server\requirements.txt"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\requirements.txt</Link></Content>
     <Content Include="..\live-server\requirements-lite.txt"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\requirements-lite.txt</Link></Content>
     <Content Include="..\live-server\hallucinations.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\hallucinations.json</Link></Content>
-    <Content Include="..\live-server\vad\__init__.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vad\__init__.py</Link></Content>
-    <Content Include="..\live-server\vad\buffers.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vad\buffers.py</Link></Content>
-    <Content Include="..\live-server\vad\frame_vad.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vad\frame_vad.py</Link></Content>
-    <Content Include="..\live-server\vad\merger.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vad\merger.py</Link></Content>
-    <Content Include="..\live-server\vad\pipeline.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vad\pipeline.py</Link></Content>
-    <Content Include="..\live-server\vad\segment.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vad\segment.py</Link></Content>
-    <Content Include="..\live-server\vad\state_machine.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vad\state_machine.py</Link></Content>
-    <Content Include="..\live-server\vad\accumulating_pipeline.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\vad\accumulating_pipeline.py</Link></Content>
-    <Content Include="..\live-server\engines\__init__.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\engines\__init__.py</Link></Content>
-    <Content Include="..\live-server\engines\common.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\engines\common.py</Link></Content>
-    <Content Include="..\live-server\engines\azure_speech.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\engines\azure_speech.py</Link></Content>
-    <Content Include="..\live-server\engines\deepgram.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\engines\deepgram.py</Link></Content>
-    <Content Include="..\live-server\engines\gladia.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\engines\gladia.py</Link></Content>
-    <Content Include="..\live-server\engines\google.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\engines\google.py</Link></Content>
-    <Content Include="..\live-server\engines\speechmatics.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\engines\speechmatics.py</Link></Content>
-    <Content Include="..\mms-tts-server\server.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>mms-tts-server\server.py</Link></Content>
+    <Content Include="..\mms-tts-server\**\*.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>mms-tts-server\%(RecursiveDir)%(Filename)%(Extension)</Link></Content>
     <Content Include="..\mms-tts-server\requirements.txt"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>mms-tts-server\requirements.txt</Link></Content>
-    <Content Include="..\qe-server\server.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>qe-server\server.py</Link></Content>
+    <Content Include="..\qe-server\**\*.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>qe-server\%(RecursiveDir)%(Filename)%(Extension)</Link></Content>
     <Content Include="..\qe-server\requirements.txt"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>qe-server\requirements.txt</Link></Content>
   </ItemGroup>
 
