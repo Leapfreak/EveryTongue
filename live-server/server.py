@@ -853,11 +853,26 @@ async def start_capture_endpoint(request: Request):
     body = await request.json()
     current_config = body
 
-    # SaT sentence segmentation (downstream, engine-agnostic). Warm the model in
-    # a background thread so the first real /segment on a pause isn't slow.
+    # SaT sentence segmentation (downstream, engine-agnostic).
     if body.get("speechmatics_sat") or body.get("sat_segment"):
         sat_model = body.get("sat_model") or None
-        threading.Thread(target=sat_segmenter.load, args=(sat_model,), daemon=True).start()
+        if body.get("sat_hold"):
+            # Whisper clause treatment: load SaT BEFORE capture opens. The
+            # ~25s load pegs the CPU and starves the audio callback — despite
+            # latency="high" + the torch thread cap, Jezer still logged 3x
+            # "input overflow" during the load window and LOST the session's
+            # opening sentence (2026-07-29, twice). Loading synchronously here
+            # costs session-start time instead of the first phrase; rooms
+            # already gate "STT ready" on capture, so nothing user-facing
+            # happens earlier anyway.
+            logger.info("SaT: loading before capture starts (sat_hold — avoids the load-spike audio loss)")
+            # Executor, not inline: a blocking call here would freeze the event
+            # loop and stall the .NET health polls while loading.
+            await asyncio.get_event_loop().run_in_executor(None, sat_segmenter.load, sat_model)
+        else:
+            # Speechmatics path: SaT runs on the .NET /segment call, no local
+            # audio capture in this process — a background warm stays fine.
+            threading.Thread(target=sat_segmenter.load, args=(sat_model,), daemon=True).start()
 
     # Per-session hallucination filter set (empty = the default file).
     global _hallucinations_path_override
