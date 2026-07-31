@@ -73,6 +73,24 @@ Namespace Models
             ' Always normalise to Nothing (covers ""), so JsonIgnore(WhenWritingDefault) drops it on save.
             cfg.GoogleCloudSttApiKey = Nothing
 
+            ' One-time migration (2026-07-30): the live GGML model default was
+            ' large-v3-turbo (speed); the default is now full large-v3 (quality).
+            ' Upgrade configs still pointing at the turbo file — but only when the
+            ' large-v3 file actually exists beside it, so a turbo-only install keeps
+            ' running. The flag makes this once-only: a user who deliberately picks
+            ' turbo again afterwards must not be re-flipped on the next load.
+            If Not cfg.LiveGgmlTurboDefaultMigrated AndAlso
+               Not String.IsNullOrEmpty(cfg.PathWhisperCppModel) AndAlso
+               Path.GetFileName(cfg.PathWhisperCppModel).Equals("ggml-large-v3-turbo.bin", StringComparison.OrdinalIgnoreCase) Then
+                Dim resolvedDir = Path.GetDirectoryName(AppConfig.ResolvePath(cfg.PathWhisperCppModel))
+                If Not String.IsNullOrEmpty(resolvedDir) AndAlso File.Exists(Path.Combine(resolvedDir, "ggml-large-v3.bin")) Then
+                    Dim storedDir = Path.GetDirectoryName(cfg.PathWhisperCppModel)
+                    cfg.PathWhisperCppModel = If(String.IsNullOrEmpty(storedDir), "ggml-large-v3.bin", Path.Combine(storedDir, "ggml-large-v3.bin"))
+                    cfg.LiveGgmlTurboDefaultMigrated = True
+                    AppLogger.Log(LogEvents.CONFIG_MIGRATED, $"Live GGML model upgraded from turbo default to full large-v3: {cfg.PathWhisperCppModel}")
+                End If
+            End If
+
             ' Migrate conference templates' embedded engine knobs into the STT template library (idempotent)
             Services.Config.ConferenceTemplateMigration.Migrate(cfg)
         End Sub

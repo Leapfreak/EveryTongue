@@ -126,12 +126,23 @@ Namespace Services.Stt
 
         ''' <summary>Whether clause hold-and-lock applies to this room (pinned template value, else live master switch; Speechmatics only — the whisper family gets its clause treatment INSIDE live-server, where the audio-truth commit types live: this accumulator merges by commit-ARRIVAL gaps, which fits Speechmatics' 1-2s fragment cadence but can never merge whisper chunks arriving ~15s apart).</summary>
         Public Function IsHoldEnabled(roomId As String) As Boolean
+            Return WillHold(roomId, _roomBackendKey(roomId))
+        End Function
+
+        ''' <summary>
+        ''' Same hold decision with the STT backend key supplied by the caller —
+        ''' for room START, where the key is already resolved but not yet stored
+        ''' (so <see cref="IsHoldEnabled"/>'s lookup would read a stale/global
+        ''' value). Callers use this to detect the inline-translation conflict
+        ''' before configuring the session.
+        ''' </summary>
+        Public Function WillHold(roomId As String, sttBackendKey As String) As Boolean
             Dim pinned As Configs.SpeechmaticsConfig = Nothing
             ' SaT segmentation needs the buffering path, so enabling "Split with SaT"
             ' implies Hold & merge — the operator only has to tick one switch.
             If _pinnedClauseDials.TryGetValue(roomId, pinned) Then Return pinned.HoldClauses OrElse pinned.UseSat
             Return (_config.SpeechmaticsHoldClauses OrElse _config.SpeechmaticsUseSat) AndAlso
-                   _roomBackendKey(roomId).Equals(HoldEngineKey, StringComparison.OrdinalIgnoreCase)
+                   If(sttBackendKey, "").Equals(HoldEngineKey, StringComparison.OrdinalIgnoreCase)
         End Function
 
         ''' <summary>

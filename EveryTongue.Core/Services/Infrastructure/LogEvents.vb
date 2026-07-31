@@ -68,6 +68,7 @@ Namespace Services.Infrastructure
         Public Const TRANS_BUDGET_EXCEEDED As Integer = 4011
         Public Const TRANS_SHADOW As Integer = 4012
         Public Const TRANS_PIVOT As Integer = 4013
+        Public Const TRANS_INLINE_HOLD_CONFLICT As Integer = 4014
 
         ' ── TTS (4100–4199) ──
         Public Const TTS_SYNTHESISE As Integer = 4100
@@ -251,6 +252,7 @@ Namespace Services.Infrastructure
             R(TRANS_BUDGET_EXCEEDED, LogCategory.Translation, LogSeverity.Warning, "Cloud translation monthly character budget exceeded (translation continues)")
             R(TRANS_SHADOW, LogCategory.Translation, LogSeverity.Info, "Second/third-opinion translation from a non-primary engine — log-only, never broadcast; pairs with the TRANS_RESULT of the same source text for post-session engine comparison")
             R(TRANS_PIVOT, LogCategory.Translation, LogSeverity.Info, "English-pivot routing: which targets went source→English→target and why (English reused vs computed), plus the policy summary at startup")
+            R(TRANS_INLINE_HOLD_CONFLICT, LogCategory.Translation, LogSeverity.Warning, "Room's inline translation engine (Speechmatics) conflicts with Hold & merge / Split with SaT — the hold path discards inline translations, so the room fell back to the default translation engine. Turn off Hold & merge AND Split with SaT to use inline translation.")
 
             ' TTS
             R(TTS_SYNTHESISE, LogCategory.Tts, LogSeverity.Debug, "TTS synthesis requested")

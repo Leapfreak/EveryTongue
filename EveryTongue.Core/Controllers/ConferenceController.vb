@@ -385,9 +385,21 @@ Namespace Controllers
             ' Empty SttBackendKey = follow the server's default engine, mirroring
             ' how ResolveRoomTranslationEngine treats an empty TranslationBackendKey
             ' (the old If() only caught Nothing, so "" slipped through as a key).
-            Dim backendKey = If(engineTpl IsNot Nothing AndAlso Not String.IsNullOrEmpty(engineTpl.EngineKey),
-                                engineTpl.EngineKey,
-                                If(String.IsNullOrEmpty(template.SttBackendKey), _config.SttBackend, template.SttBackendKey))
+            ' The winning source is captured alongside the key so the room-start log
+            ' can name BOTH sides of any override — a template silently beating the
+            ' global config is invisible when only the result is logged.
+            Dim backendKey As String
+            Dim backendKeySource As String
+            If engineTpl IsNot Nothing AndAlso Not String.IsNullOrEmpty(engineTpl.EngineKey) Then
+                backendKey = engineTpl.EngineKey
+                backendKeySource = $"stt template '{engineTpl.Name}'"
+            ElseIf Not String.IsNullOrEmpty(template.SttBackendKey) Then
+                backendKey = template.SttBackendKey
+                backendKeySource = $"room template '{template.Name}'"
+            Else
+                backendKey = _config.SttBackend
+                backendKeySource = "global config"
+            End If
 
             ' Fail closed: never start an engine the room's mode makes ineligible.
             Dim roomForGate = _getRoomManager()?.GetRoom(roomId)
@@ -414,16 +426,20 @@ Namespace Controllers
                     backendKey, _config, template:=engineTpl, fieldOverrides:=tplOverrides, contextLabel:=$"[Conference:{roomId}]")
             }
 
+            ' Pin clause dials FIRST — the translation-engine resolution below asks
+            ' the coordinator whether this room will hold clauses (inline-conflict
+            ' trap), so the pins must be current before it runs.
+            _clauseCoordinator.StorePinnedClauseDials(roomId, engineTpl, sttConfig)
+
             ' Resolve + remember the room's OWN translation engine (template wins;
             ' else the global config default) BEFORE configuring inline translation,
             ' so the inline-vs-fallback decision can read the resolved engine. This
             ' overrides the global Options translation engine for this room's calls.
-            ResolveRoomTranslationEngine(roomId, template)
+            ResolveRoomTranslationEngine(roomId, template, backendKey)
 
             SpeechmaticsTranslation.ConfigureSession(sttConfig, sttConfig.Language,
                                                      _getSubtitleSvc()?.GetActiveTranslationLanguages(),
                                                      ResolveInlineEnabled(roomId, backendKey))
-            _clauseCoordinator.StorePinnedClauseDials(roomId, engineTpl, sttConfig)
             ResolveRoomFilters(roomId, template)
             Dim createFs As Models.Templates.FilterSet = Nothing
             If _roomFilters.TryGetValue(roomId, createFs) Then sttConfig.HallucinationsPath = createFs.HallucinationsPath
@@ -436,7 +452,14 @@ Namespace Controllers
             _sttBackends(roomId) = backend
             _roomTemplateIds(roomId) = templateId
 
-            AppLogger.Log(LogEvents.CONF_BACKEND_STARTED, $"room {roomId}: starting backend (template={template.Name}, port={port}, lang={sttConfig.Language}, backend={backendKey})")
+            ' THE authoritative room-start line: engine, where it came from, whether it
+            ' overrides the global config (naming the loser), and the model file — so
+            ' "what is this room actually running" is answerable from one log line.
+            Dim overrideNote = If(String.Equals(backendKey, _config.SttBackend, StringComparison.OrdinalIgnoreCase),
+                                  "= global config",
+                                  $"OVERRIDES global config '{_config.SttBackend}'")
+            AppLogger.Log(LogEvents.CONF_BACKEND_STARTED,
+                $"room {roomId}: STT engine={backendKey} from {backendKeySource} ({overrideNote}), model={DescribeModelFile(sttConfig.EngineConfig)}, template={template.Name}, port={port}, lang={sttConfig.Language}")
             backend.Start(sttConfig)
 
             If backend.IsRunning Then
@@ -458,6 +481,25 @@ Namespace Controllers
                 DropShadowBackendNames(roomId)
             End If
         End Sub
+
+        ''' <summary>
+        ''' Model filename for the room-start log. Local engines expose ModelPath on
+        ''' their config block (WhisperCppConfig, FasterWhisperConfig); cloud engines
+        ''' have no model file. Reflection keeps this engine-agnostic - the controller
+        ''' never learns concrete block types, matching how EngineConfigResolver works.
+        ''' </summary>
+        Private Shared Function DescribeModelFile(block As Services.Config.IEngineConfigBlock) As String
+            Try
+                Dim prop = block?.GetType().GetProperty("ModelPath")
+                Dim path = TryCast(prop?.GetValue(block), String)
+                If String.IsNullOrEmpty(path) Then Return "n/a (no local model)"
+                Return IO.Path.GetFileName(path)
+            Catch
+                ' Log-formatting nicety only — a reflection failure must never
+                ' break room start, and "unknown" in the log line IS the signal.
+                Return "unknown"
+            End Try
+        End Function
 
         ''' <summary>
         ''' Resolve the CURRENT PortAudio input-device index for a template at capture start.
@@ -642,14 +684,17 @@ Namespace Controllers
             _nextConferencePort += 1
             _nextWhisperServerPort += 1
 
+            ' Pin clause dials FIRST — the translation-engine resolution asks the
+            ' coordinator whether this room will hold clauses (inline-conflict trap).
+            _clauseCoordinator.StorePinnedClauseDials(roomId, engineTpl, sttConfig)
+
             ' Re-resolve the room's translation engine before configuring inline
             ' translation so the inline-vs-fallback decision is current.
-            ResolveRoomTranslationEngine(roomId, template)
+            ResolveRoomTranslationEngine(roomId, template, restartBackendKey)
 
             SpeechmaticsTranslation.ConfigureSession(sttConfig, cfgLang,
                                                      _getSubtitleSvc()?.GetActiveTranslationLanguages(),
                                                      ResolveInlineEnabled(roomId, restartBackendKey))
-            _clauseCoordinator.StorePinnedClauseDials(roomId, engineTpl, sttConfig)
             ResolveRoomFilters(roomId, template)
             Dim restartFs As Models.Templates.FilterSet = Nothing
             If _roomFilters.TryGetValue(roomId, restartFs) Then sttConfig.HallucinationsPath = restartFs.HallucinationsPath
@@ -999,6 +1044,26 @@ Namespace Controllers
                     AppLogger.Log(LogEvents.TRANS_ERROR,
                         $"room={roomId} backend=nllb-direct {sourceLang}→[{String.Join(",", targets)}] failed: {ex.Message}")
                 End Try
+            End If
+
+            ' NOTHING produced a translation → clients on these languages get NO
+            ' subtitle for this commit. This must never be silent (field 2026-07-30:
+            ' a whole service ran caption-less with zero log evidence). Say exactly
+            ' which stage was unavailable so the operator can fix it mid-service.
+            If translations.Count = 0 Then
+                Dim orchState As String
+                If orchestrator Is Nothing Then
+                    orchState = "orchestrator not running"
+                Else
+                    Dim avail = orchestrator.GetAllBackends().Where(Function(b) b.IsAvailable).Select(Function(b) b.Name).ToList()
+                    orchState = If(avail.Count = 0, "orchestrator has NO available backends",
+                                   $"orchestrator backends available: {String.Join(",", avail)}")
+                End If
+                Dim sidecarState = If(svc Is Nothing, "sidecar service missing",
+                                      If(Not svc.IsRunning, "sidecar not running",
+                                         If(Not svc.IsModelLoaded, "sidecar model not loaded", "sidecar ok")))
+                AppLogger.Log(LogEvents.TRANS_ERROR,
+                    $"room={roomId} NO translation produced for {sourceLang}→[{String.Join(",", targets)}] — {orchState}; {sidecarState}. Clients on these languages are getting NO subtitles. Check Options → Translation engine, or install the model via Download Manager.")
             End If
             Return translations
         End Function
@@ -1466,10 +1531,26 @@ Namespace Controllers
         ''' that key's model on demand; cloud engines are a no-op (configured at server
         ''' start). The global Options translation engine remains only the default.
         ''' </summary>
-        Private Sub ResolveRoomTranslationEngine(roomId As String, template As ConferenceTemplate)
+        Private Sub ResolveRoomTranslationEngine(roomId As String, template As ConferenceTemplate, sttBackendKey As String)
             Dim roomKey = If(String.IsNullOrWhiteSpace(template?.TranslationBackendKey),
                              If(_config.TranslationBackend, "nllb"),
                              template.TranslationBackendKey)
+
+            ' CONFLICT TRAP (field 2026-07-30: a whole service ran with no translated
+            ' subtitles and zero log lines): an INLINE engine translates inside the
+            ' STT stream, but Hold & merge / Split with SaT discards those
+            ' per-fragment translations and re-translates each locked clause — with
+            ' an inline engine selected there is nothing to re-translate WITH.
+            ' Fall back to the effective default engine (the acquisition below then
+            ' actually starts it) and tell the operator which switches conflict.
+            If TranslationBackendRegistry.IsInlineEngine(roomKey) AndAlso
+               _clauseCoordinator.WillHold(roomId, sttBackendKey) Then
+                Dim fallbackKey = TranslationBackendRegistry.ResolveEffectiveBackendKey(_config)
+                AppLogger.Log(LogEvents.TRANS_INLINE_HOLD_CONFLICT,
+                    $"[Conference:{roomId}] translation engine '{roomKey}' is inline-only, but 'Hold & merge'/'Split with SaT' is ON — held clauses are re-translated as a whole, so inline translations would be discarded and subtitles would never reach clients. Using '{fallbackKey}' for this room instead. To translate with '{roomKey}', turn OFF both Hold & merge and Split with SaT.")
+                roomKey = fallbackKey
+            End If
+
             _roomTranslationKey(roomId) = roomKey
 
             ' Resolve + ensure the room's translation backend. For offline engines this

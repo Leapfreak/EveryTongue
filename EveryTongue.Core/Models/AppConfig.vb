@@ -72,7 +72,14 @@ Namespace Models
         Public Property PathWhisperServer As String = ".\whisper-server.exe"
 
         ''' <summary>Path to GGML model file for whisper-cpp backends.</summary>
-        Public Property PathWhisperCppModel As String = ".\ggml-large-v3-turbo.bin"
+        Public Property PathWhisperCppModel As String = ".\ggml-large-v3.bin"
+
+        ''' <summary>One-time-flip marker: pre-2.11.2 configs defaulted the live GGML
+        ''' model to large-v3-turbo. ConfigManager.ApplyDefaults upgrades them to full
+        ''' large-v3 once (only when that file exists) and sets this flag so a user
+        ''' who deliberately picks turbo again afterwards is never re-flipped.</summary>
+        <JsonIgnore(Condition:=JsonIgnoreCondition.WhenWritingDefault)>
+        Public Property LiveGgmlTurboDefaultMigrated As Boolean = False
 
         ''' <summary>Path to CTranslate2 model directory for faster-whisper backend.</summary>
         Public Property PathFasterWhisperModel As String = ".\faster-whisper-large-v3"

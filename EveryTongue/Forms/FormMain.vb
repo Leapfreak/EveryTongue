@@ -1144,7 +1144,21 @@ del ""%~f0""
             Return
         End If
         Dim deps = Pipeline.TranslationService.CheckDependenciesInstalled()
-        If Not deps.pythonOk OrElse Not deps.depsOk OrElse Not deps.modelOk Then Return
+        If Not deps.pythonOk OrElse Not deps.depsOk OrElse Not deps.modelOk Then
+            ' A room needs the local translation engine but it can't start — never
+            ' fail silently (subtitles would just not appear). Log what's missing
+            ' and offer the Download Manager.
+            Dim missing As New List(Of String)
+            If Not deps.pythonOk Then missing.Add("Python runtime")
+            If Not deps.depsOk Then missing.Add("translation packages")
+            If Not deps.modelOk Then missing.Add("NLLB model")
+            AppLogger.Log(LogEvents.TRANS_ERROR,
+                $"Local translation engine required but cannot start — missing: {String.Join(", ", missing)}. Translated subtitles will NOT appear until installed.")
+            AppLogger.PromptDownloadManager(
+                GetString("Msg_TransDepsMissing") & vbCrLf & vbCrLf & GetString("Msg_OpenDownloadManager"),
+                GetString("Msg_DepsMissing"))
+            Return
+        End If
         Dim wasEnabled = _config.TranslationEnabled
         _config.TranslationEnabled = True
         StartTranslationService()

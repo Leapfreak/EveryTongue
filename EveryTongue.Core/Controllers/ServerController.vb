@@ -234,6 +234,7 @@ Namespace Controllers
                 ("Whisper", AppConfig.ResolvePath(_config.PathWhisper), False),
                 ("Whisper Model", AppConfig.ResolvePath(_config.PathModel), False),
                 ("Audio Model", AppConfig.ResolvePath(_config.PathModelAudio), False),
+                ("Live STT Model (GGML)", AppConfig.ResolvePath(_config.PathWhisperCppModel), False),
                 ("FFmpeg", AppConfig.ResolvePath(_config.PathFfmpeg), False),
                 ("FFprobe", AppConfig.ResolvePath(_config.PathFfprobe), False),
                 ("yt-dlp", AppConfig.ResolvePath(_config.PathYtdlp), False),

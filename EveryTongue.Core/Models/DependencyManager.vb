@@ -1339,7 +1339,7 @@ Namespace Models
         Public Function CheckGgmlModelAsync() As Task(Of ToolState)
             Dim state As New ToolState With {
                 .Name = "GGML Whisper Model",
-                .DownloadUrl = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin"
+                .DownloadUrl = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin"
             }
             If File.Exists(GgmlModelInstalledPath()) Then
                 state.Status = ToolStatus.UpToDate
@@ -1349,7 +1349,7 @@ Namespace Models
         End Function
 
         Public Async Function DownloadGgmlModelAsync(url As String, progress As IProgress(Of (downloaded As Long, total As Long))) As Task
-            Dim destPath = Path.Combine(_toolsDir, "ggml-large-v3-turbo.bin")
+            Dim destPath = Path.Combine(_toolsDir, "ggml-large-v3.bin")
             Await DownloadFileAsync(url, destPath, progress)
         End Function
 
