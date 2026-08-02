@@ -45,6 +45,11 @@ Namespace Services.Interfaces
         Function DetectReferencesInText(text As String
         ) As IReadOnlyList(Of DetectedReference)
 
+        ''' <summary>Detection with language-scoped number words and optional
+        ''' per-room reading context (bare "versículo N" resolution).</summary>
+        Function DetectReferencesInText(text As String, opts As RefDetectionOptions
+        ) As IReadOnlyList(Of DetectedReference)
+
         Sub RescanTranslations()
 
         ''' <summary>The resolved Bibles folder this service scans — the one true

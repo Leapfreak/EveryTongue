@@ -62,12 +62,12 @@ Namespace Services.Bible
             New Integer() {670, 680}, New Integer() {690, 700, 710}}
 
         Public Function TryOrdinalWord(word As String, ByRef n As Integer) As Boolean
-            Return _ordinalWords.TryGetValue(word, n)
+            Return _ordinalWords.TryGetValue(Fold(word), n)
         End Function
 
         Public Function OrdinalLookup(n As Integer, baseWord As String) As AliasInfo
             Dim num = 0
-            If _ordinalPairs.TryGetValue($"{n}|{baseWord.ToLowerInvariant()}", num) Then
+            If _ordinalPairs.TryGetValue($"{n}|{Fold(baseWord)}", num) Then
                 Return New AliasInfo With {.BookNumber = num, .Ambiguous = False}
             End If
             Return Nothing
@@ -87,7 +87,7 @@ Namespace Services.Bible
 
         Public Function Lookup(name As String) As AliasInfo
             Dim info As AliasInfo = Nothing
-            If _aliases.TryGetValue(NormName(name), info) Then Return info
+            If _aliases.TryGetValue(FoldName(name), info) Then Return info
             Return Nothing
         End Function
 
@@ -95,6 +95,27 @@ Namespace Services.Bible
         Public Shared Function NormName(s As String) As String
             Dim t = If(s, "").Trim().TrimEnd("."c)
             Return System.Text.RegularExpressions.Regex.Replace(t, "\s+", " ")
+        End Function
+
+        ''' <summary>
+        ''' Accent-and-case fold for spoken-text comparison: STT drops accents
+        ''' unpredictably ("versiculo", "Exodo"), so every dictionary in the
+        ''' spoken-detection layer keys and probes through this. Unicode
+        ''' decomposition + strip combining marks — no language knowledge.
+        ''' </summary>
+        Public Shared Function Fold(s As String) As String
+            If String.IsNullOrEmpty(s) Then Return ""
+            Dim d = s.Normalize(System.Text.NormalizationForm.FormD)
+            Dim sb As New System.Text.StringBuilder(d.Length)
+            For Each ch In d
+                If Globalization.CharUnicodeInfo.GetUnicodeCategory(ch) <> Globalization.UnicodeCategory.NonSpacingMark Then sb.Append(ch)
+            Next
+            Return sb.ToString().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant()
+        End Function
+
+        ''' <summary>Fold applied on top of NormName — the canonical key form for alias dictionaries.</summary>
+        Public Shared Function FoldName(s As String) As String
+            Return Fold(NormName(s))
         End Function
 
         ' ── cache plumbing ──────────────────────────────────────────────
@@ -108,6 +129,10 @@ Namespace Services.Bible
             Public Property AbbrevNames As List(Of String)
             ''' <summary>book_number → highest chapter in this Bible (impossible-reference guard).</summary>
             Public Property MaxChapters As Dictionary(Of Integer, Integer)
+            ''' <summary>Locale-supplied spoken book words (folded) whose verse-text
+            ''' frequency this scan counted — a cache entry missing any currently
+            ''' requested word is stale (also gates the accent-fold migration).</summary>
+            Public Property ExtraTargets As List(Of String)
         End Class
 
         Private Shared ReadOnly Property CachePath As String
@@ -134,6 +159,61 @@ Namespace Services.Bible
                 cache = New Dictionary(Of String, CacheEntry)(StringComparer.OrdinalIgnoreCase)
             End Try
 
+            Dim idx As New BookAliasIndex()
+
+            ' LOCALE-FILE words FIRST (the sanctioned per-language channel —
+            ' translated with each language pack, never hardcoded), because the
+            ' spoken book names feed the Bible scan below as frequency targets:
+            '   Bible_Ordinals        = "primera:1,segona:2,..." → ordinal words
+            '   Bible_SpokenBookNames = "salmo:230,..."          → spoken forms the
+            '     Bibles' own books tables don't teach (titles are plural "Salmos";
+            '     preachers say the singular). App locales + user overlay dir.
+            Dim localeBookWords As New Dictionary(Of String, Integer)(StringComparer.Ordinal)
+            Dim localeDirs As New List(Of String) From {
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "locales")}
+            Try
+                localeDirs.Add(Path.Combine(EveryTongue.Models.ConfigManager.ConfigDirectory, "locales"))
+            Catch
+                ' Config dir unavailable (unit-test host) — app locales still load.
+            End Try
+            For Each dirPath In localeDirs
+                Try
+                    If Not Directory.Exists(dirPath) Then Continue For
+                    For Each lf In Directory.GetFiles(dirPath, "*.json")
+                        Try
+                            Using doc = JsonDocument.Parse(File.ReadAllText(lf))
+                                Dim el As JsonElement = Nothing
+                                If doc.RootElement.TryGetProperty("Bible_Ordinals", el) AndAlso
+                                   el.ValueKind = JsonValueKind.String Then
+                                    For Each pair In el.GetString().Split(","c)
+                                        Dim bits = pair.Split(":"c)
+                                        Dim n = 0
+                                        If bits.Length = 2 AndAlso Integer.TryParse(bits(1).Trim(), n) Then
+                                            idx._ordinalWords(Fold(bits(0).Trim())) = n
+                                        End If
+                                    Next
+                                End If
+                                If doc.RootElement.TryGetProperty("Bible_SpokenBookNames", el) AndAlso
+                                   el.ValueKind = JsonValueKind.String Then
+                                    For Each pair In el.GetString().Split(","c)
+                                        Dim bits = pair.Split(":"c)
+                                        Dim n = 0
+                                        If bits.Length = 2 AndAlso Integer.TryParse(bits(1).Trim(), n) Then
+                                            Dim w = FoldName(bits(0))
+                                            If w.Length >= 3 Then localeBookWords(w) = n
+                                        End If
+                                    Next
+                                End If
+                            End Using
+                        Catch
+                            ' Per-file parse is best-effort — a bad entry skips, index still builds.
+                        End Try
+                    Next
+                Catch
+                    ' Locale dir walk is best-effort — the index works with what loaded.
+                End Try
+            Next
+
             Dim live As New Dictionary(Of String, CacheEntry)(StringComparer.OrdinalIgnoreCase)
             Dim cacheDirty = False
             For Each dbPath In dbPaths
@@ -142,10 +222,14 @@ Namespace Services.Bible
                     Dim entry As CacheEntry = Nothing
                     If cache.TryGetValue(dbPath, entry) AndAlso entry IsNot Nothing AndAlso
                        entry.Size = fi.Length AndAlso entry.MTimeTicks = fi.LastWriteTimeUtc.Ticks AndAlso
-                       entry.AbbrevNames IsNot Nothing AndAlso entry.MaxChapters IsNot Nothing Then ' pre-2026-07-31 cache: rescan once for the new fields
+                       entry.AbbrevNames IsNot Nothing AndAlso entry.MaxChapters IsNot Nothing AndAlso
+                       entry.ExtraTargets IsNot Nothing AndAlso
+                       localeBookWords.Keys.All(Function(w) entry.ExtraTargets.Contains(w, StringComparer.Ordinal)) Then
+                        ' ExtraTargets check doubles as the fold-migration gate: old caches
+                        ' (unfolded Freq keys, no locale-word counts) rescan exactly once.
                         live(dbPath) = entry
                     Else
-                        live(dbPath) = ScanBible(dbPath, fi)
+                        live(dbPath) = ScanBible(dbPath, fi, localeBookWords.Keys)
                         cacheDirty = True
                     End If
                 Catch ex As Exception
@@ -163,40 +247,6 @@ Namespace Services.Bible
                         $"BookAliasIndex: cache write failed: {ex.Message}")
                 End Try
             End If
-
-            Dim idx As New BookAliasIndex()
-
-            ' Ordinal words from the LOCALE FILES (the sanctioned per-language
-            ' channel — translated with each language pack, never hardcoded):
-            ' key "Bible_Ordinals" = "primera:1,segona:2,...". Union across all
-            ' locale files present; sibling-diff derivation below adds any the
-            ' Bibles themselves teach (e.g. English "First/Second").
-            Try
-                Dim localeDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "locales")
-                If Directory.Exists(localeDir) Then
-                    For Each lf In Directory.GetFiles(localeDir, "*.json")
-                        Try
-                            Using doc = JsonDocument.Parse(File.ReadAllText(lf))
-                                Dim el As JsonElement = Nothing
-                                If doc.RootElement.TryGetProperty("Bible_Ordinals", el) AndAlso
-                                   el.ValueKind = JsonValueKind.String Then
-                                    For Each pair In el.GetString().Split(","c)
-                                        Dim bits = pair.Split(":"c)
-                                        Dim n = 0
-                                        If bits.Length = 2 AndAlso Integer.TryParse(bits(1).Trim(), n) Then
-                                            idx._ordinalWords(bits(0).Trim()) = n
-                                        End If
-                                    Next
-                                End If
-                            End Using
-                        Catch
-                            ' Per-book alias derivation is best-effort — a bad entry skips, index still builds.
-                        End Try
-                    Next
-                End If
-            Catch
-                ' Per-Bible alias scan is best-effort — the index works with what loaded.
-            End Try
 
             ' Derive each language's ORDINAL WORDS by diffing sibling-book
             ' names within each Bible ("Primera carta de Joan" vs "Segona
@@ -227,7 +277,7 @@ Namespace Services.Bible
                                     If diffs = 1 Then
                                         Dim w = at(diffIdx)
                                         If w.Length >= 2 AndAlso Not Char.IsDigit(w(0)) Then
-                                            idx._ordinalWords(w) = i + 1
+                                            idx._ordinalWords(Fold(w)) = i + 1
                                         End If
                                     End If
                                 Next
@@ -243,9 +293,9 @@ Namespace Services.Bible
             For Each entry In live.Values
                 If entry?.Aliases Is Nothing Then Continue For
                 Dim entryAbbrevs As New HashSet(Of String)(
-                    If(entry.AbbrevNames, New List(Of String)), StringComparer.OrdinalIgnoreCase)
+                    If(entry.AbbrevNames, New List(Of String)).Select(AddressOf Fold), StringComparer.Ordinal)
                 For Each kvp In entry.Aliases
-                    Dim name = NormName(kvp.Key)
+                    Dim name = FoldName(kvp.Key)
                     If name.Length < 3 Then Continue For ' "Sl"/"Mt" abbreviations: high false-positive risk, never spoken
                     Dim isAbbrev = entryAbbrevs.Contains(name)
                     Dim singleWord = Not name.Contains(" "c)
@@ -253,7 +303,7 @@ Namespace Services.Bible
                     If singleWord AndAlso Not Char.IsDigit(name(0)) Then
                         For Each e2 In live.Values
                             Dim c = 0
-                            If e2?.Freq IsNot Nothing AndAlso e2.Freq.TryGetValue(name.ToLowerInvariant(), c) AndAlso c >= AmbigMinCount Then
+                            If e2?.Freq IsNot Nothing AndAlso e2.Freq.TryGetValue(name, c) AndAlso c >= AmbigMinCount Then
                                 ambiguous = True
                                 Exit For
                             End If
@@ -269,7 +319,7 @@ Namespace Services.Bible
                         ' ordN set by TryGetValue (derived ordinal word)
                     End If
                     If ordN >= 1 AndAlso ordN <= 3 Then
-                        Dim baseTok = toks.Last().ToLowerInvariant()
+                        Dim baseTok = toks.Last()
                         If baseTok.Length >= 3 Then idx._ordinalPairs($"{ordN}|{baseTok}") = kvp.Value
                     End If
 
@@ -295,6 +345,25 @@ Namespace Services.Bible
                     Next
                 End If
             Next
+
+            ' Inject the locale-file SPOKEN book names last. These are DELIBERATE
+            ' operator data (same trust level as Bible_Ordinals): the entry
+            ' asserts "this word, spoken, means this book" — so they are never
+            ' ambiguous, and they OVERRIDE a same-named Bible-title entry's
+            ' ambiguity (English "Psalm" exists as a title, but Wycliffe's verse
+            ' text is full of lowercase "psalm", which wrongly demoted the
+            ' announcement form "Psalm 23" to needs-more-evidence).
+            For Each lb In localeBookWords
+                Dim existing As AliasInfo = Nothing
+                If idx._aliases.TryGetValue(lb.Key, existing) Then
+                    If existing.BookNumber = lb.Value Then
+                        existing.Ambiguous = False
+                        existing.Abbreviation = False
+                    End If
+                    Continue For
+                End If
+                idx._aliases(lb.Key) = New AliasInfo With {.BookNumber = lb.Value, .Ambiguous = False, .Abbreviation = False}
+            Next
             Return idx
         End Function
 
@@ -307,12 +376,16 @@ Namespace Services.Bible
             Return n
         End Function
 
-        ''' <summary>One-time scan of a Bible: books table + verse-text word frequencies for its book-name words.</summary>
-        Private Shared Function ScanBible(dbPath As String, fi As FileInfo) As CacheEntry
+        ''' <summary>One-time scan of a Bible: books table + verse-text word frequencies
+        ''' for its book-name words plus the locale-supplied spoken book words.
+        ''' Freq keys are accent-folded (matching probe-side folding).</summary>
+        Private Shared Function ScanBible(dbPath As String, fi As FileInfo,
+                                          extraTargets As IEnumerable(Of String)) As CacheEntry
             Dim entry As New CacheEntry With {
                 .Size = fi.Length, .MTimeTicks = fi.LastWriteTimeUtc.Ticks,
                 .Aliases = New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase),
-                .Freq = New Dictionary(Of String, Integer)()
+                .Freq = New Dictionary(Of String, Integer)(),
+                .ExtraTargets = extraTargets.ToList()
             }
             Using conn As New SqliteConnection(New SqliteConnectionStringBuilder() With {
                 .DataSource = dbPath, .Mode = SqliteOpenMode.ReadOnly}.ToString())
@@ -349,11 +422,13 @@ Namespace Services.Bible
                     End Using
                 End Using
 
-                ' Frequency pass: count ONLY the words that are single-word book
-                ' names, as lowercase standalone words in the verse text.
+                ' Frequency pass: count the single-word book names PLUS the
+                ' locale-supplied spoken words, as lowercase standalone words in
+                ' the verse text. Folded keys so accent variants pool together.
                 Dim targets As New HashSet(Of String)(
                     entry.Aliases.Keys.Where(Function(n) Not n.Contains(" "c)).
-                        Select(Function(n) n.ToLowerInvariant()))
+                        Select(AddressOf Fold), StringComparer.Ordinal)
+                targets.UnionWith(entry.ExtraTargets.Where(Function(t) Not t.Contains(" "c)))
                 If targets.Count > 0 Then
                     Using cmd = conn.CreateCommand()
                         cmd.CommandText = "SELECT text FROM verses"
@@ -364,7 +439,7 @@ Namespace Services.Bible
                                 For Each w In reader.GetString(0).Split(sep, StringSplitOptions.RemoveEmptyEntries)
                                     ' lowercase occurrences only — capitalized uses ARE the book/person
                                     If w.Length >= 3 AndAlso Char.IsLower(w(0)) Then
-                                        Dim wl = w.ToLowerInvariant()
+                                        Dim wl = Fold(w)
                                         If targets.Contains(wl) Then
                                             Dim c = 0
                                             entry.Freq.TryGetValue(wl, c)
