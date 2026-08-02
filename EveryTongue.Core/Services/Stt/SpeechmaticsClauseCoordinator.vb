@@ -177,6 +177,9 @@ Namespace Services.Stt
 
         ''' <summary>Record the gap since the room's previous Speechmatics commit and recompute the adaptive grace.</summary>
         Private Sub TrackInterCommitGap(roomId As String)
+            ' Pinned template dials are never adapted (CurrentThresholds ignores the
+            ' adaptive value), so don't track gaps or log tunes that can't apply.
+            If _pinnedClauseDials.ContainsKey(roomId) Then Return
             Dim now = Environment.TickCount64
             Dim last As Long
             If _lastFeedTick.TryGetValue(roomId, last) Then
@@ -322,13 +325,14 @@ Namespace Services.Stt
                 Array.Sort(holds)
                 Dim n = chars.Length
                 Dim tiny = chars.TakeWhile(Function(c) c < 20).Count()
-                Dim grace As Integer = 0
-                _adaptiveGraceMs.TryGetValue(roomId, grace)
+                ' Effective grace (pinned/adaptive/config resolution), not the raw
+                ' adaptive value — which may never have applied (pinned rooms).
+                Dim grace = CurrentThresholds(roomId).GraceMs
                 line = $"room={roomId} locks={n} medianChars={Pct(chars, 50)} tiny(<20ch)={CInt(100 * tiny / n)}% " &
                        $"merged={CInt(100 * stats.Merged / n)}% satSplits={stats.SatSplits} " &
                        $"commits={stats.Commits} dupCommits={stats.DupCommits} " &
                        $"holdMs(p50/p95)={Pct(holds, 50)}/{Pct(holds, 95)} " &
-                       $"grace={If(grace > 0, grace, _config.SpeechmaticsClauseGraceMs)}ms"
+                       $"grace={grace}ms"
             End SyncLock
             AppLogger.Log(LogEvents.CONF_ROOM_STT_SUMMARY, line)
         End Sub
