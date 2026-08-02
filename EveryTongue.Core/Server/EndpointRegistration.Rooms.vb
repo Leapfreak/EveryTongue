@@ -358,8 +358,12 @@ Namespace Server
                                                         lang = System.Text.RegularExpressions.Regex.Replace(If(lang, ""), "[^\w-]", "")
                                                         If lang.Length > 20 Then lang = lang.Substring(0, 20)
                                                         Dim shortClient = If(clientId.Length > 8, clientId.Substring(0, 8), clientId)
+                                                        ' Device tag comes from the request's own User-Agent (no client
+                                                        ' payload, no spoofing surface) via the same parser that labels
+                                                        ' subtitle connections ("Android 10 / Chrome").
+                                                        Dim ua = SubtitleService.ParseUserAgent(context.Request.Headers.UserAgent.ToString())
                                                         AppLogger.Log(LogEvents.ROOM_FEEDBACK,
-                                                            $"room={id} name='{room.Name}' rating={rating}/5 lang={lang} client={shortClient} comment=""{comment}""")
+                                                            $"room={id} name='{room.Name}' rating={rating}/5 lang={lang} device='{ua}' client={shortClient} comment=""{comment}""")
                                                         Await context.Response.WriteAsJsonAsync(New With {.ok = True})
                                                     End Function)
 
