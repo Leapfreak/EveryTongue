@@ -363,6 +363,63 @@ function afterRoomGone(){
   showLangPicker();
 }
 
+/* ── Post-close feedback (conference rooms, guests only) ──
+   Shown on roomClosed instead of the 3s redirect. Submissions POST to
+   /api/rooms/{id}/feedback and land in the session log as event 5109.
+   Deliberately modal: the doc-click panel closer must NOT dismiss it, so it
+   is not in closeAllPanels(); the 90s timer catches a phone left on a pew. */
+var fbRating=0,fbTimer=null,fbDone=false;
+function armFbTimer(){if(fbTimer)clearTimeout(fbTimer);fbTimer=setTimeout(finishFeedback,90000)}
+function finishFeedback(){
+  if(fbDone)return;
+  fbDone=true;
+  if(fbTimer){clearTimeout(fbTimer);fbTimer=null}
+  var ov=document.getElementById('feedbackOverlay');
+  if(ov)ov.classList.remove('open');
+  afterRoomGone();
+}
+function showFeedback(){
+  closeAllPanels();
+  var ov=document.getElementById('feedbackOverlay');
+  if(!ov){setTimeout(afterRoomGone,3000);return}
+  document.getElementById('fbTitle').textContent=t('feedbackTitle');
+  document.getElementById('fbComment').placeholder=t('feedbackCommentPh');
+  document.getElementById('fbSubmit').textContent=t('feedbackSubmit');
+  document.getElementById('fbSkip').textContent=t('feedbackSkip');
+  document.getElementById('fbComment').oninput=armFbTimer;
+  ov.classList.add('open');
+  armFbTimer();
+}
+function setFbRating(n){
+  fbRating=n;
+  var btns=document.querySelectorAll('#fbStars .fb-star');
+  for(var i=0;i<btns.length;i++){btns[i].className=(i<n)?'fb-star sel':'fb-star'}
+  document.getElementById('fbSubmit').disabled=false;
+  armFbTimer();
+}
+function skipFeedback(){finishFeedback()}
+function submitFeedback(){
+  if(fbRating<1||fbDone)return;
+  var roomMatch=location.search.match(/[?&]room=([^&]+)/);
+  var rid=roomMatch?roomMatch[1]:'';
+  var comment=(document.getElementById('fbComment').value||'').slice(0,500);
+  document.getElementById('fbSubmit').disabled=true;
+  if(fbTimer){clearTimeout(fbTimer);fbTimer=null}
+  var done=function(){
+    var ti=document.getElementById('fbTitle');
+    if(ti)ti.textContent=t('feedbackThanks');
+    setTimeout(finishFeedback,1200);
+  };
+  try{
+    var xhr=new XMLHttpRequest();
+    xhr.open('POST','/api/rooms/'+encodeURIComponent(rid)+'/feedback',true);
+    xhr.setRequestHeader('Content-Type','application/json');
+    xhr.onload=done;
+    xhr.onerror=done;
+    xhr.send(JSON.stringify({clientId:myClientId,rating:fbRating,comment:comment,lang:myTransLang||''}));
+  }catch(e){done()}
+}
+
 /* ── Room QR sharing ── */
 var _roomQrVisible=false;
 function initRoomShareButton(){
@@ -971,7 +1028,7 @@ function connect(){
       else if(msg.type==='pong'){}
       else if(msg.type==='error'){showRoomError(msg.message||'Error')}
       else if(msg.type==='broadcastState'){handleBroadcastState(msg)}
-      else if(msg.type==='roomClosed'){stopBroadcast(false);showRoomError(t('roomEnded'));setTimeout(afterRoomGone,3000)}
+      else if(msg.type==='roomClosed'){stopBroadcast(false);if(pttRoomType==='conference'&&!isHost){showFeedback()}else{showRoomError(t('roomEnded'));setTimeout(afterRoomGone,3000)}}
       else if(msg.type==='kicked'){showRoomError(t('roomKicked'));setTimeout(afterRoomGone,3000)}
       else if(msg.type==='roomLocked'){LOG('Room locked: '+msg.locked)}
       else if(msg.type==='pttModeChanged'){pttMode=msg.mode||'hold';updatePttLabel()}

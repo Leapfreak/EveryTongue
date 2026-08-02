@@ -105,6 +105,7 @@ Namespace Services.Infrastructure
         Public Const ROOM_EXPIRED As Integer = 5106
         Public Const ROOM_TRANSLATION_ROUTING As Integer = 5107
         Public Const ROOM_READINESS As Integer = 5108
+        Public Const ROOM_FEEDBACK As Integer = 5109
 
         ' ── Subtitle (5200–5299) ──
         Public Const SUB_CLIENT_CONNECTED As Integer = 5201
@@ -290,6 +291,7 @@ Namespace Services.Infrastructure
             R(ROOM_EXPIRED, LogCategory.Rooms, LogSeverity.Info, "Room expired due to inactivity")
             R(ROOM_TRANSLATION_ROUTING, LogCategory.Rooms, LogSeverity.Info, "Conversation-room translation routing (recipients, languages, targets)")
             R(ROOM_READINESS, LogCategory.Rooms, LogSeverity.Info, "Room engine readiness (STT/translation preparing → ready) relayed to clients")
+            R(ROOM_FEEDBACK, LogCategory.Rooms, LogSeverity.Info, "Audience feedback submitted after a conference room closed (rating, language, comment)")
 
             ' Subtitle
             R(SUB_CLIENT_CONNECTED, LogCategory.Subtitle, LogSeverity.Info, "WebSocket client connected")

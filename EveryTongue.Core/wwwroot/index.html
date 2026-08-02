@@ -84,6 +84,21 @@
     </div>
   </div>
 </div>
+<div id="feedbackOverlay">
+  <div class="fb-inner">
+    <div class="fb-title" id="fbTitle">How was the subtitle service?</div>
+    <div class="fb-stars" id="fbStars">
+      <button type="button" class="fb-star" onclick="setFbRating(1)">&#9733;</button>
+      <button type="button" class="fb-star" onclick="setFbRating(2)">&#9733;</button>
+      <button type="button" class="fb-star" onclick="setFbRating(3)">&#9733;</button>
+      <button type="button" class="fb-star" onclick="setFbRating(4)">&#9733;</button>
+      <button type="button" class="fb-star" onclick="setFbRating(5)">&#9733;</button>
+    </div>
+    <textarea id="fbComment" rows="3" maxlength="500"></textarea>
+    <button type="button" id="fbSubmit" onclick="submitFeedback()" disabled>Send</button>
+    <div class="fb-skip" id="fbSkip" onclick="skipFeedback()">Skip</div>
+  </div>
+</div>
 <div id="biblePanel">
   <div id="bibleHeader">
     <select id="bibleTransSelect" onchange="onBibleTransChange(this.value)"></select>

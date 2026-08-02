@@ -70,6 +70,11 @@ Namespace Services.Rooms
         Public Property HostClientId As String
         Public Property Config As New RoomConfig()
 
+        ''' <summary>Clients who already submitted post-close feedback — one
+        ''' submission per client; lives exactly as long as the Room object
+        ''' (the ~1h post-close purge window in CleanupIdleRooms).</summary>
+        Public ReadOnly Property FeedbackClientIds As New Concurrent.ConcurrentDictionary(Of String, Byte)
+
         ''' <summary>Secret token for host reconnection (GUID generated at creation).</summary>
         Public Property HostToken As String = ""
 
