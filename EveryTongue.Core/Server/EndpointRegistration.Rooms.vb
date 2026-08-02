@@ -325,8 +325,10 @@ Namespace Server
                                                       context.Response.StatusCode = 403
                                                       Return context.Response.WriteAsJsonAsync(New With {.error = "Not authorized or room not found"})
                                                   End If
-                                                  ' Broadcast roomClosed to all room members
-                                                  hub.BroadcastToRoom(id, "{""type"":""roomClosed""}", "")
+                                                  ' Broadcast roomClosed to all room members — the reach count in
+                                                  ' the log is the field evidence for whether phones were told.
+                                                  Dim reached = hub.BroadcastToRoom(id, "{""type"":""roomClosed""}", "")
+                                                  AppLogger.Log(LogEvents.ROOM_CLOSED, $"roomClosed broadcast reached {reached} client(s) (id={id})")
                                                   ' Stop conference backend if any
                                                   RoomClosedHandler?.Invoke(id)
                                                   Return context.Response.WriteAsJsonAsync(New With {.ok = True})

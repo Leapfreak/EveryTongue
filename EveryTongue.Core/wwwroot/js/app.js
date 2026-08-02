@@ -380,6 +380,9 @@ var _hadWelcome=false;
 function onRoomClosed(){
   if(roomClosedHandled)return;
   roomClosedHandled=true;
+  /* Receipt into the SERVER log — pairs with the broadcast reach-count on
+     the close, so field logs prove delivery end-to-end. */
+  try{if(wsRef&&wsRef.readyState===1)wsRef.send(JSON.stringify({type:'clientLog',msg:'roomClosed handled: type='+pttRoomType+' isHost='+isHost}))}catch(e){}
   stopBroadcast(false);
   if(pttRoomType==='conference'&&!isHost){showFeedback()}
   else{showRoomError(t('roomEnded'));setTimeout(afterRoomGone,3000)}
@@ -407,6 +410,7 @@ function showFeedback(){
      fall back to the classic notice — never a silent redirect. */
   try{
     closeAllPanels();
+    hideLangPicker();
     var ov=document.getElementById('feedbackOverlay');
     if(!ov)throw new Error('no overlay');
     document.getElementById('fbTitle').textContent=t('feedbackTitle');

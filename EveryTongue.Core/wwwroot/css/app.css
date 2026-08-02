@@ -186,7 +186,9 @@ body {
     right: 0;
     bottom: 0;
     background: #111;
-    z-index: 30;
+    /* above the language picker (50) — a guest who never picked a language
+       must still see the feedback page, not the picker hiding it */
+    z-index: 60;
     align-items: center;
     justify-content: center;
 }
