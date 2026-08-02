@@ -369,6 +369,29 @@ function afterRoomGone(){
    Deliberately modal: the doc-click panel closer must NOT dismiss it, so it
    is not in closeAllPanels(); the 90s timer catches a phone left on a pew. */
 var fbRating=0,fbTimer=null,fbDone=false;
+/* Room closure is handled in ONE place, reachable two ways: the roomClosed
+   WS broadcast (only heard by sockets alive at that instant) and DISCOVERY —
+   a reconnecting client asking the server and getting 410 Gone. Phones drop
+   sockets constantly (screen lock, WiFi power-save); 2026-08-02 field logs
+   show a guest whose socket died 5s before the host pressed close, so the
+   one-shot broadcast reached nobody and the phone sat in a dead room. */
+var roomClosedHandled=false;
+var _hadWelcome=false;
+function onRoomClosed(){
+  if(roomClosedHandled)return;
+  roomClosedHandled=true;
+  stopBroadcast(false);
+  if(pttRoomType==='conference'&&!isHost){showFeedback()}
+  else{showRoomError(t('roomEnded'));setTimeout(afterRoomGone,3000)}
+}
+function checkRoomOpen(){
+  var roomMatch=location.search.match(/[?&]room=([^&]+)/);
+  if(!roomMatch||roomClosedHandled)return;
+  var xhr=new XMLHttpRequest();
+  xhr.open('GET','/api/rooms/'+encodeURIComponent(roomMatch[1]),true);
+  xhr.onload=function(){if(xhr.status===410){LOG('room closure discovered on reconnect');onRoomClosed()}};
+  xhr.send();
+}
 function armFbTimer(){if(fbTimer)clearTimeout(fbTimer);fbTimer=setTimeout(finishFeedback,90000)}
 function finishFeedback(){
   if(fbDone)return;
@@ -1033,11 +1056,11 @@ function connect(){
       else if(msg.type==='update')updateCurrent(msg.text);
       else if(msg.type==='clear'){LOG('WS clear');if(currentEl){currentEl.remove();currentEl=null}while(lines.children.length>1)lines.removeChild(lines.children[1]);lastCommitId=0;transcriptCache=[];clearTtsQueue();autoScroll()}
       else if(msg.type==='tts'){handleTtsMessage(msg)}
-      else if(msg.type==='welcome'){myClientId=msg.clientId||'';LOG('My client ID: '+myClientId);initPushToTalk();tryClaimHost()}
+      else if(msg.type==='welcome'){myClientId=msg.clientId||'';LOG('My client ID: '+myClientId);if(_hadWelcome){checkRoomOpen()}_hadWelcome=true;initPushToTalk();tryClaimHost()}
       else if(msg.type==='pong'){}
       else if(msg.type==='error'){showRoomError(msg.message||'Error')}
       else if(msg.type==='broadcastState'){handleBroadcastState(msg)}
-      else if(msg.type==='roomClosed'){stopBroadcast(false);if(pttRoomType==='conference'&&!isHost){showFeedback()}else{showRoomError(t('roomEnded'));setTimeout(afterRoomGone,3000)}}
+      else if(msg.type==='roomClosed'){onRoomClosed()}
       else if(msg.type==='kicked'){showRoomError(t('roomKicked'));setTimeout(afterRoomGone,3000)}
       else if(msg.type==='roomLocked'){LOG('Room locked: '+msg.locked)}
       else if(msg.type==='pttModeChanged'){pttMode=msg.mode||'hold';updatePttLabel()}
@@ -2059,6 +2082,12 @@ function initPushToTalk(){
   var xhr=new XMLHttpRequest();
   xhr.open('GET',url,true);
   xhr.onload=function(){
+    if(xhr.status===410){
+      /* Room existed and was closed — full closed-room flow (feedback page
+         for conference guests), not the silent lobby dump. */
+      onRoomClosed();
+      return;
+    }
     if(xhr.status===404){
       /* Room no longer exists — clean up localStorage and redirect to lobby */
       try{

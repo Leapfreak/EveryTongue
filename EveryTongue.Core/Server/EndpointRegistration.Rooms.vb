@@ -155,6 +155,24 @@ Namespace Server
                                                Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
                                                Dim room = mgr.GetRoom(id)
                                                If room Is Nothing Then
+                                                   ' Distinguish "recently closed" (Room lingers ~1h) from
+                                                   ' never-existed: the roomClosed WS broadcast is one-shot
+                                                   ' and phones drop sockets constantly (screen lock, WiFi
+                                                   ' power-save) — 2026-08-02 field logs show a guest whose
+                                                   ' socket died 5s BEFORE the host pressed close, so the
+                                                   ' broadcast reached nobody. 410 Gone lets a reconnecting
+                                                   ' client discover the closure (and show the feedback
+                                                   ' page); old cached clients ignore non-404 and behave no
+                                                   ' worse than before.
+                                                   Dim closedRoom = mgr.GetRoomIncludingClosed(id)
+                                                   If closedRoom IsNot Nothing Then
+                                                       context.Response.StatusCode = 410
+                                                       Return context.Response.WriteAsJsonAsync(New With {
+                                                           .closed = True,
+                                                           .id = closedRoom.Id,
+                                                           .name = closedRoom.Name,
+                                                           .type = closedRoom.Type.ToString().ToLower()})
+                                                   End If
                                                    context.Response.StatusCode = 404
                                                    Return context.Response.WriteAsJsonAsync(New With {.error = "Room not found"})
                                                End If
