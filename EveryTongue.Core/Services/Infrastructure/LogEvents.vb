@@ -118,6 +118,7 @@ Namespace Services.Infrastructure
         Public Const BIBLE_ERROR As Integer = 6002
         Public Const BIBLE_REF_DETECTED As Integer = 6003
         Public Const BIBLE_ALIAS_INDEX As Integer = 6004
+        Public Const BIBLE_REF_CONTEXT As Integer = 6005
 
         ' ── Download (6100–6199) ──
         Public Const DL_CHECK_RESULT As Integer = 6101
@@ -302,6 +303,7 @@ Namespace Services.Infrastructure
             R(BIBLE_ERROR, LogCategory.Bible, LogSeverity.[Error], "Bible operation failed")
             R(BIBLE_REF_DETECTED, LogCategory.Bible, LogSeverity.Info, "Scripture reference detected in live text (book/chapter/verse + matched words) — drives verse links and book-scoped STT vocab")
             R(BIBLE_ALIAS_INDEX, LogCategory.Bible, LogSeverity.Info, "Derived book-alias index built (names per installed Bible, ambiguous count)")
+            R(BIBLE_REF_CONTEXT, LogCategory.Bible, LogSeverity.Info, "Scripture reference resolved from reading context (bare verse word + number against the room's last-heard book/chapter)")
 
             ' Download
             R(DL_CHECK_RESULT, LogCategory.Download, LogSeverity.Info, "Dependency check result")
