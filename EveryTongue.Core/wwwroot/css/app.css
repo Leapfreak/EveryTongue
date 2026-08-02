@@ -214,6 +214,17 @@ body {
     font-size: 1em;
     font-family: inherit;
 }
+.fb-save {
+    width: 100%;
+    padding: 9px;
+    margin-bottom: 10px;
+    font-size: 1em;
+    border: 1px solid #555;
+    border-radius: 6px;
+    background: #222;
+    color: #ddd;
+    cursor: pointer;
+}
 #fbSubmit {
     width: 100%;
     padding: 10px;

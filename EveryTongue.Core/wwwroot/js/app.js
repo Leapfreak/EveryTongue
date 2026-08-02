@@ -413,6 +413,8 @@ function showFeedback(){
     document.getElementById('fbComment').placeholder=t('feedbackCommentPh');
     document.getElementById('fbSubmit').textContent=t('feedbackSubmit');
     document.getElementById('fbSkip').textContent=t('feedbackSkip');
+    var fbs=document.getElementById('fbSave');
+    if(fbs)fbs.innerHTML='&#128190; '+t('saveTranscript');
     document.getElementById('fbComment').oninput=armFbTimer;
     ov.classList.add('open');
     armFbTimer();
@@ -430,6 +432,7 @@ function setFbRating(n){
   armFbTimer();
 }
 function skipFeedback(){finishFeedback()}
+function fbSaveTranscript(){saveTranscript();armFbTimer()}
 function submitFeedback(){
   if(fbRating<1||fbDone)return;
   var roomMatch=location.search.match(/[?&]room=([^&]+)/);
@@ -2125,6 +2128,11 @@ function initPushToTalk(){
            host-gated) but the host UI doesn't — the editor IS the control
            surface, and its top bar is hidden anyway. */
         if(room.isHost){isHost=true;if(pttRoomType!=='dictation')showHostControls()}
+        /* Conference guests get Save Transcript on the FEEDBACK page (the
+           natural end-of-service moment) — the menu copy is hidden for them
+           so the option lives in one place. Hosts and other room types keep
+           the menu button (they never see the feedback page). */
+        if(pttRoomType==='conference'&&!isHost){var _bs=document.getElementById('btnSave');if(_bs)_bs.style.display='none'}
         if(pttRoomType==='dictation'){initDictationView()}
         /* Conversation: everyone gets PTT. Conference: no mic (audio from desktop). */
         else if(pttRoomType==='conversation'){
