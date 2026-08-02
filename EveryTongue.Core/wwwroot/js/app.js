@@ -379,16 +379,25 @@ function finishFeedback(){
   afterRoomGone();
 }
 function showFeedback(){
-  closeAllPanels();
-  var ov=document.getElementById('feedbackOverlay');
-  if(!ov){setTimeout(afterRoomGone,3000);return}
-  document.getElementById('fbTitle').textContent=t('feedbackTitle');
-  document.getElementById('fbComment').placeholder=t('feedbackCommentPh');
-  document.getElementById('fbSubmit').textContent=t('feedbackSubmit');
-  document.getElementById('fbSkip').textContent=t('feedbackSkip');
-  document.getElementById('fbComment').oninput=armFbTimer;
-  ov.classList.add('open');
-  armFbTimer();
+  /* The feedback page REPLACES the room-ended notice for conference guests.
+     If the overlay can't show (stale cached index.html on an old phone),
+     fall back to the classic notice — never a silent redirect. */
+  try{
+    closeAllPanels();
+    var ov=document.getElementById('feedbackOverlay');
+    if(!ov)throw new Error('no overlay');
+    document.getElementById('fbTitle').textContent=t('feedbackTitle');
+    document.getElementById('fbComment').placeholder=t('feedbackCommentPh');
+    document.getElementById('fbSubmit').textContent=t('feedbackSubmit');
+    document.getElementById('fbSkip').textContent=t('feedbackSkip');
+    document.getElementById('fbComment').oninput=armFbTimer;
+    ov.classList.add('open');
+    armFbTimer();
+  }catch(e){
+    try{if(wsRef)wsRef.send(JSON.stringify({type:'clientLog',msg:'feedback overlay unavailable: '+e}))}catch(e2){}
+    showRoomError(t('roomEnded'));
+    setTimeout(afterRoomGone,3000);
+  }
 }
 function setFbRating(n){
   fbRating=n;
