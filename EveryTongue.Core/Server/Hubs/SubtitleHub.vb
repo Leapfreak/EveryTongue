@@ -379,16 +379,21 @@ Namespace Server.Hubs
         End Sub
 
         ''' <summary>
-        ''' Send a JSON message to all clients in a room.
-        ''' Optionally exclude a client by ID.
+        ''' Send a JSON message to all clients in a room; returns the number of
+        ''' clients a send was attempted to. MUST look the room up INCLUDING
+        ''' closed ones: the close flow marks the room inactive BEFORE
+        ''' broadcasting roomClosed, and the active-only lookup here silently
+        ''' dropped every close notification ever sent (found 2026-08-02 —
+        ''' clients sat in dead rooms all along; nothing logged the miss).
         ''' </summary>
-        Public Sub BroadcastToRoom(roomId As String, json As String, excludeClientId As String)
-            Dim room = _roomManager.GetRoom(roomId)
-            If room Is Nothing Then Return
+        Public Function BroadcastToRoom(roomId As String, json As String, excludeClientId As String) As Integer
+            Dim room = _roomManager.GetRoomIncludingClosed(roomId)
+            If room Is Nothing Then Return 0
             Dim data = Encoding.UTF8.GetBytes(json)
             Dim svc = TryCast(_subtitleService, SubtitleService)
-            If svc Is Nothing Then Return
+            If svc Is Nothing Then Return 0
 
+            Dim sent = 0
             For Each cId In room.ClientIds.Keys
                 If cId = excludeClientId Then Continue For
                 Dim client = svc.GetClient(cId)
@@ -397,6 +402,7 @@ Namespace Server.Hubs
                 ' Use SendBusy to avoid concurrent WebSocket sends (SendAsync is not thread-safe)
                 If Interlocked.CompareExchange(client.SendBusy, 1, 0) <> 0 Then Continue For
                 Dim capturedClient = client
+                sent += 1
                 Task.Run(Async Function()
                              Try
                                  If capturedClient.WebSocket.State = WebSocketState.Open Then
@@ -411,7 +417,8 @@ Namespace Server.Hubs
                              End Try
                          End Function)
             Next
-        End Sub
+            Return sent
+        End Function
 
         ''' <summary>
         ''' Send a message to a specific client by ID.

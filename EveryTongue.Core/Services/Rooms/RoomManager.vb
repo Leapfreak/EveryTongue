@@ -73,6 +73,18 @@ Namespace Services.Rooms
         End Function
 
         ''' <summary>
+        ''' A room regardless of active state. Closed rooms linger until the
+        ''' purge in CleanupIdleRooms (~1h) — that window is what lets the
+        ''' post-close feedback endpoint validate the room id and name.
+        ''' </summary>
+        Public Function GetRoomIncludingClosed(roomId As String) As Room
+            If String.IsNullOrEmpty(roomId) Then Return Nothing
+            Dim room As Room = Nothing
+            _rooms.TryGetValue(roomId, room)
+            Return room
+        End Function
+
+        ''' <summary>
         ''' List all active public rooms (for the lobby).
         ''' </summary>
         Public Function GetPublicRooms() As List(Of Room)

@@ -282,15 +282,15 @@ Namespace Services.Subtitle
             _lastCommittedEntry = entry
             EnqueueWithCap(entry)
 
-            ' Detect Bible references in committed text
-            Dim refs = DetectRefs(text, entry)
+            ' Detect Bible references in committed text (room key scopes the
+            ' reading context, so it must resolve BEFORE detection).
+            Dim targetRoom = If(targetRoomId, TargetRoomId)
+            Dim refs = DetectRefs(text, entry, targetRoom, lang)
 
             Dim ts = entry.Timestamp.ToString("HH:mm:ss")
             Dim json = SerializeCommit(text, lang, ts, commitId, refs)
             Dim buffer = Encoding.UTF8.GetBytes(json)
             Dim deadKeys As New List(Of String)
-
-            Dim targetRoom = If(targetRoomId, TargetRoomId)
             For Each kvp In _clients
                 Try
                     ' Room scoping: if targetRoom is set, only send to that room's clients
@@ -339,13 +339,12 @@ Namespace Services.Subtitle
             ' fires the book-detected handler). Per-client refs are then resolved
             ' against the text THAT client receives — source offsets are wrong in
             ' translations.
-            DetectRefs(originalText, entry)
+            Dim targetRoom = If(targetRoomId, TargetRoomId)
+            DetectRefs(originalText, entry, targetRoom, sourceLang)
             Dim refsByText As New Dictionary(Of String, List(Of RefDto))(StringComparer.Ordinal)
 
             Dim ts = entry.Timestamp.ToString("HH:mm:ss")
             Dim deadKeys As New List(Of String)
-
-            Dim targetRoom = If(targetRoomId, TargetRoomId)
             For Each kvp In _clients
                 Try
                     ' Room scoping: if targetRoom is set, only send to that room's clients
@@ -385,7 +384,7 @@ Namespace Services.Subtitle
                     If langTag Is Nothing Then langTag = tag
                     Dim clientRefs As List(Of RefDto) = Nothing
                     If Not refsByText.TryGetValue(text, clientRefs) Then
-                        clientRefs = RefsForClientText(text, entry)
+                        clientRefs = RefsForClientText(text, entry, tag)
                         refsByText(text) = clientRefs
                     End If
                     Dim json = SerializeCommit(text, langTag, ts, entry.Id, clientRefs)
@@ -455,6 +454,9 @@ Namespace Services.Subtitle
                 Dim discard As CommittedEntry = Nothing
                 _committedLines.TryDequeue(discard)
             End While
+            ' Clearing subtitles is a "start fresh" action — the reading context
+            ' must not resolve a later "versículo N" against the cleared session.
+            _refContexts.Clear()
             ' Only send clear to non-room clients (room clients have their own transcript)
             Dim json = "{""type"":""clear""}"
             Dim buffer = Encoding.UTF8.GetBytes(json)
@@ -545,7 +547,7 @@ Namespace Services.Subtitle
                         Dim text = GetTextForClient(client, entry.OriginalText, entry.Translations)
                         Dim clientLang = GetLangForClient(client, entry.SourceLang, entry.Translations, entry.LangTags)
                         Dim ts = entry.Timestamp.ToString("HH:mm:ss")
-                        Dim refs = RefsForClientText(text, entry)
+                        Dim refs = RefsForClientText(text, entry, clientLang)
                         Dim json = SerializeCommit(text, clientLang, ts, entry.Id, refs)
                         Dim buf = Encoding.UTF8.GetBytes(json)
                         If client.WebSocket.State = WebSocketState.Open Then
@@ -637,19 +639,42 @@ Namespace Services.Subtitle
         Public Shared Property BookDetectedHandler As Action(Of String)
 
         ''' <summary>
-        ''' Detect Bible references in text and return them as wire DTOs (Nothing when none).
-        ''' Also stores refs on the CommittedEntry for replay.
+        ''' Per-room reading context ("" = the desktop feed) for bare-verse
+        ''' resolution ("versículo 18" = the room's last-heard book/chapter).
+        ''' Entries self-expire (BibleService's 30-min window); BroadcastClear
+        ''' drops them all — clearing subtitles is a "start fresh" action.
         ''' </summary>
-        Private Function DetectRefs(text As String, entry As CommittedEntry) As List(Of RefDto)
+        Private ReadOnly _refContexts As New Concurrent.ConcurrentDictionary(Of String, Models.RefContext)()
+
+        ''' <summary>
+        ''' Detect Bible references in text and return them as wire DTOs (Nothing when none).
+        ''' Also stores refs on the CommittedEntry for replay. roomKey scopes the
+        ''' reading context; lang scopes number-word substitution to the caption
+        ''' language (es "once"=11 must not fire in English text).
+        ''' </summary>
+        Private Function DetectRefs(text As String, entry As CommittedEntry,
+                                    roomKey As String, lang As String) As List(Of RefDto)
             If BibleService Is Nothing Then Return Nothing
             Try
-                Dim refs = BibleService.DetectReferencesInText(text)
+                Dim ctx = _refContexts.GetOrAdd(If(roomKey, ""), Function(k) New Models.RefContext())
+                Dim refs = BibleService.DetectReferencesInText(text, New Models.RefDetectionOptions With {
+                    .LangHint = lang, .Context = ctx, .UpdateContext = True})
                 If refs Is Nothing OrElse refs.Count = 0 Then Return Nothing
                 entry.BibleRefs = refs.ToList()
                 ' Field-verifiable record of every detection: the popup + the
-                ' book-scoped vocab both hang off this moment.
-                AppLogger.Log(LogEvents.BIBLE_REF_DETECTED,
-                    String.Join("; ", refs.Select(Function(r) $"{r.Reference.Book} {r.Reference.Chapter}:{r.Reference.VerseStart} (""{r.MatchedText}"")")))
+                ' book-scoped vocab both hang off this moment. Context-resolved
+                ' refs log under their own event so field logs can tell a spoken
+                ' "Salmo 22" from an inferred "versículo 18 → Ps 22:18".
+                Dim direct = refs.Where(Function(r) Not r.FromContext).ToList()
+                Dim inferred = refs.Where(Function(r) r.FromContext).ToList()
+                If direct.Count > 0 Then
+                    AppLogger.Log(LogEvents.BIBLE_REF_DETECTED,
+                        String.Join("; ", direct.Select(Function(r) $"{r.Reference.Book} {r.Reference.Chapter}:{r.Reference.VerseStart} (""{r.MatchedText}"")")))
+                End If
+                If inferred.Count > 0 Then
+                    AppLogger.Log(LogEvents.BIBLE_REF_CONTEXT,
+                        String.Join("; ", inferred.Select(Function(r) $"{r.Reference.Book} {r.Reference.Chapter}:{r.Reference.VerseStart} (""{r.MatchedText}"")")))
+                End If
                 Try
                     BookDetectedHandler?.Invoke(refs(0).Reference.Book)
                 Catch ex As Exception
@@ -690,13 +715,17 @@ Namespace Services.Subtitle
         ''' refs with start=-1 — the client renders those as a trailing 📖 chip
         ''' instead of underlining the wrong characters.
         ''' </summary>
-        Private Function RefsForClientText(clientText As String, entry As CommittedEntry) As List(Of RefDto)
+        Private Function RefsForClientText(clientText As String, entry As CommittedEntry,
+                                           clientLang As String) As List(Of RefDto)
             If entry.BibleRefs Is Nothing OrElse entry.BibleRefs.Count = 0 Then Return Nothing
             If String.Equals(clientText, entry.OriginalText, StringComparison.Ordinal) Then
                 Return BuildRefDtos(entry.BibleRefs)
             End If
             Try
-                Dim redetected = BibleService?.DetectReferencesInText(clientText)
+                ' No context here: translated texts re-detect per language and out
+                ' of order — context refs on them fall back to the chip path below.
+                Dim redetected = BibleService?.DetectReferencesInText(clientText,
+                    New Models.RefDetectionOptions With {.LangHint = clientLang, .Context = Nothing})
                 If redetected IsNot Nothing AndAlso redetected.Count > 0 Then
                     Return BuildRefDtos(redetected.ToList())
                 End If

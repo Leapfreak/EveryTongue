@@ -155,6 +155,24 @@ Namespace Server
                                                Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
                                                Dim room = mgr.GetRoom(id)
                                                If room Is Nothing Then
+                                                   ' Distinguish "recently closed" (Room lingers ~1h) from
+                                                   ' never-existed: the roomClosed WS broadcast is one-shot
+                                                   ' and phones drop sockets constantly (screen lock, WiFi
+                                                   ' power-save) — 2026-08-02 field logs show a guest whose
+                                                   ' socket died 5s BEFORE the host pressed close, so the
+                                                   ' broadcast reached nobody. 410 Gone lets a reconnecting
+                                                   ' client discover the closure (and show the feedback
+                                                   ' page); old cached clients ignore non-404 and behave no
+                                                   ' worse than before.
+                                                   Dim closedRoom = mgr.GetRoomIncludingClosed(id)
+                                                   If closedRoom IsNot Nothing Then
+                                                       context.Response.StatusCode = 410
+                                                       Return context.Response.WriteAsJsonAsync(New With {
+                                                           .closed = True,
+                                                           .id = closedRoom.Id,
+                                                           .name = closedRoom.Name,
+                                                           .type = closedRoom.Type.ToString().ToLower()})
+                                                   End If
                                                    context.Response.StatusCode = 404
                                                    Return context.Response.WriteAsJsonAsync(New With {.error = "Room not found"})
                                                End If
@@ -307,12 +325,67 @@ Namespace Server
                                                       context.Response.StatusCode = 403
                                                       Return context.Response.WriteAsJsonAsync(New With {.error = "Not authorized or room not found"})
                                                   End If
-                                                  ' Broadcast roomClosed to all room members
-                                                  hub.BroadcastToRoom(id, "{""type"":""roomClosed""}", "")
+                                                  ' Broadcast roomClosed to all room members — the reach count in
+                                                  ' the log is the field evidence for whether phones were told.
+                                                  Dim reached = hub.BroadcastToRoom(id, "{""type"":""roomClosed""}", "")
+                                                  AppLogger.Log(LogEvents.ROOM_CLOSED, $"roomClosed broadcast reached {reached} client(s) (id={id})")
                                                   ' Stop conference backend if any
                                                   RoomClosedHandler?.Invoke(id)
                                                   Return context.Response.WriteAsJsonAsync(New With {.ok = True})
                                               End Function)
+
+            ' Audience feedback after a CONFERENCE room closed. Arrives after the
+            ' close, so it validates against GetRoomIncludingClosed — the Room
+            ' object lingers ~1h before purge, which bounds the feedback window
+            ' and blocks junk POSTs to ids that never existed. One submission
+            ' per client (Room.FeedbackClientIds). The log line IS the product:
+            ' event 5109 in the session log, reviewed after each service.
+            app.MapPost("/api/rooms/{id}/feedback", Async Function(id As String, context As HttpContext) As Task
+                                                        Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                                        Dim room = mgr.GetRoomIncludingClosed(id)
+                                                        Dim rating = 0
+                                                        Dim comment = ""
+                                                        Dim lang = ""
+                                                        Dim clientId = ""
+                                                        Dim err As String = Nothing
+                                                        If room Is Nothing OrElse room.Type <> RoomType.Conference Then
+                                                            err = "Room not found"
+                                                        Else
+                                                            Try
+                                                                Using doc = Await JsonDocument.ParseAsync(context.Request.Body)
+                                                                    Dim root = doc.RootElement
+                                                                    Dim el As JsonElement = Nothing
+                                                                    If root.TryGetProperty("rating", el) AndAlso el.ValueKind = JsonValueKind.Number Then rating = el.GetInt32()
+                                                                    If root.TryGetProperty("comment", el) AndAlso el.ValueKind = JsonValueKind.String Then comment = If(el.GetString(), "")
+                                                                    If root.TryGetProperty("lang", el) AndAlso el.ValueKind = JsonValueKind.String Then lang = If(el.GetString(), "")
+                                                                    If root.TryGetProperty("clientId", el) AndAlso el.ValueKind = JsonValueKind.String Then clientId = If(el.GetString(), "")
+                                                                End Using
+                                                            Catch
+                                                                err = "Bad request"
+                                                            End Try
+                                                        End If
+                                                        If err Is Nothing AndAlso (rating < 1 OrElse rating > 5) Then err = "Bad rating"
+                                                        If err Is Nothing AndAlso String.IsNullOrEmpty(clientId) Then err = "Missing clientId"
+                                                        If err Is Nothing AndAlso Not room.FeedbackClientIds.TryAdd(clientId, 0) Then err = "Already submitted"
+                                                        If err IsNot Nothing Then
+                                                            context.Response.StatusCode = 400
+                                                            Await context.Response.WriteAsJsonAsync(New With {.ok = False, .error = err})
+                                                            Return
+                                                        End If
+                                                        ' One log line: collapse whitespace/newlines, cap lengths.
+                                                        comment = System.Text.RegularExpressions.Regex.Replace(comment.Trim(), "\s+", " ")
+                                                        If comment.Length > 500 Then comment = comment.Substring(0, 500)
+                                                        lang = System.Text.RegularExpressions.Regex.Replace(If(lang, ""), "[^\w-]", "")
+                                                        If lang.Length > 20 Then lang = lang.Substring(0, 20)
+                                                        Dim shortClient = If(clientId.Length > 8, clientId.Substring(0, 8), clientId)
+                                                        ' Device tag comes from the request's own User-Agent (no client
+                                                        ' payload, no spoofing surface) via the same parser that labels
+                                                        ' subtitle connections ("Android 10 / Chrome").
+                                                        Dim ua = SubtitleService.ParseUserAgent(context.Request.Headers.UserAgent.ToString())
+                                                        AppLogger.Log(LogEvents.ROOM_FEEDBACK,
+                                                            $"room={id} name='{room.Name}' rating={rating}/5 lang={lang} device='{ua}' client={shortClient} comment=""{comment}""")
+                                                        Await context.Response.WriteAsJsonAsync(New With {.ok = True})
+                                                    End Function)
 
             ' QR code PNG for a room join URL
             app.MapGet("/api/rooms/{id}/qr", Function(id As String, context As HttpContext) As IResult
