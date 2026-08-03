@@ -1,0 +1,5 @@
+<|im_start|>user
+Translate the following text from Catalan into English.
+Catalan: L'altre dia parlava amb una persona i parlàvem sobre la meva feina i com alguns ja sabeu, entre altres coses, acompanyo i faig reforç escolar a adolescents entre 12 i 16 anys. I aquesta persona em va preguntar què feu perquè us facin cas? I li vaig explicar. Que tenim un sistema molt elaborat, un sistema de gomets. Que quan treballen bé s'esforcen i tenen bona actitud, guanyen un gomet, però no qualsevol gomet. Un gomet daurat i brillant. El temible gomet vermell.
+English:<|im_end|>
+<|im_start|>assistant
