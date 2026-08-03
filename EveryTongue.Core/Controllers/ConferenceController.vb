@@ -69,6 +69,11 @@ Namespace Controllers
         ' once). Cloud engines have no such limit — multiple rooms can run different
         ' cloud translation engines concurrently.
         Private ReadOnly _roomTranslationKey As New Concurrent.ConcurrentDictionary(Of String, String)()
+        ' Per-room rolling window of recent committed source sentences (+ their
+        ' broadcast translations) for context-capable translation engines. Appended
+        ' synchronously at every commit; the same snapshot goes to the primary AND
+        ' the shadow engines so 4005/4012 log pairs compare apples to apples.
+        Private ReadOnly _roomContexts As New Concurrent.ConcurrentDictionary(Of String, Services.Models.RoomTranslationContext)()
         Private _nextConferencePort As Integer = 5101
         Private _nextWhisperServerPort As Integer = 8179  ' 8178 is used by ConversationAudioHandler
 
@@ -476,6 +481,7 @@ Namespace Controllers
                 DropKey(_sttBackends, roomId)
                 DropKey(_roomTemplateIds, roomId)
                 DropKey(_roomTranslationKey, roomId)
+                DropKey(_roomContexts, roomId)
                 _releaseTranslationBackend?.Invoke(roomId)
                 DropKey(_roomTranslationBackendName, roomId)
                 DropShadowBackendNames(roomId)
@@ -806,6 +812,7 @@ Namespace Controllers
             Services.Rooms.WebMicRouter.Instance.UnregisterRoom(roomId)
             DropKey(_roomFilters, roomId)
             DropKey(_roomTranslationKey, roomId)
+            DropKey(_roomContexts, roomId)
             ' Release this room's offline translation sidecar (refcounted; frees VRAM when last room leaves).
             _releaseTranslationBackend?.Invoke(roomId)
             DropKey(_roomTranslationBackendName, roomId)
@@ -978,10 +985,36 @@ Namespace Controllers
             Dim translations As New Dictionary(Of String, String)()
             If targets Is Nothing OrElse targets.Count = 0 Then Return translations
 
+            ' Rolling context: append this sentence to the room's window SYNCHRONOUSLY
+            ' (before any await) and snapshot the PRIOR window — overlapping commits
+            ' each see a consistent window that excludes their own sentence. The same
+            ' snapshot goes to the primary and every shadow, so paired 4005/4012 log
+            ' blocks compare identical inputs. Engines that can't use context never
+            ' see it (the orchestrator strips by registry SupportsContext).
+            Dim ctxSnapshot As Services.Models.TranslationContext = Nothing
+            Dim ctxEntry As Services.Models.ContextSentence = Nothing
+            Dim ctxHolder As Services.Models.RoomTranslationContext = Nothing
+            If _config.TranslationContextEnabled Then
+                ctxHolder = _roomContexts.GetOrAdd(roomId, Function(k) New Services.Models.RoomTranslationContext())
+                Dim win = ctxHolder.SnapshotAndAppend(text, sourceLang,
+                    _config.TranslationContextSentences, _config.TranslationContextMaxChars,
+                    TimeSpan.FromMinutes(Math.Max(1, _config.TranslationContextMaxAgeMinutes)))
+                ctxEntry = win.Entry
+                Dim terms As List(Of Services.Models.TerminologyEntry) = Nothing
+                If _config.TranslationTerminologyEnabled Then
+                    terms = TerminologyStore.SelectRelevant(text, AppConfig.ResolvePath(_config.TranslationTerminologyPath))
+                End If
+                Dim snap As New Services.Models.TranslationContext With {
+                    .Sentences = win.Snapshot,
+                    .Terminology = If(terms, DirectCast(Array.Empty(Of Services.Models.TerminologyEntry)(), IReadOnlyList(Of Services.Models.TerminologyEntry)))
+                }
+                If Not snap.IsEmpty Then ctxSnapshot = snap
+            End If
+
             ' Second/third-opinion shadow translations (log-only, never broadcast,
             ' lowest scheduler priority) — fire-and-forget so the live path is never
             ' delayed. Pairs with this commit's TRANS_RESULT by source text.
-            FireShadowTranslations(roomId, text, sourceLang, targets)
+            FireShadowTranslations(roomId, text, sourceLang, targets, ctxSnapshot)
 
             ' The room translates with ITS OWN engine (template's, else the global
             ' default), passed as a per-call override so it wins over the global
@@ -1009,7 +1042,8 @@ Namespace Controllers
                     Using cts As New Threading.CancellationTokenSource(TimeSpan.FromSeconds(10))
                         Dim result = Await orchestrator.TranslateAsync(
                             text, sourceLang, targets, cts.Token, Services.Scheduling.TranslationPriority.Room,
-                            filters:=RoomTranslationFilters(roomId), backendOverride:=backendName)
+                            filters:=RoomTranslationFilters(roomId), backendOverride:=backendName,
+                            context:=ctxSnapshot)
                         If result IsNot Nothing Then
                             For Each kvp In result : translations(kvp.Key) = kvp.Value : Next
                         End If
@@ -1019,8 +1053,10 @@ Namespace Controllers
                         $"room={roomId} engine={engineLabel} backend={actualBackend} {sourceLang}→[{String.Join(",", targets)}] failed: {ex.Message}")
                 End Try
                 If translations.Count > 0 Then
+                    ' Broadcast result → remember it for the window (future LLM prefix).
+                    ctxHolder?.AttachTranslations(ctxEntry, translations)
                     AppLogger.Log(LogEvents.TRANS_RESULT,
-                        $"room={roomId} engine={engineLabel} backend={actualBackend} {sourceLang}→[{String.Join(",", translations.Keys)}] ok={translations.Count}/{targets.Count} {sw.ElapsedMilliseconds}ms" &
+                        $"room={roomId} engine={engineLabel} backend={actualBackend} {sourceLang}→[{String.Join(",", translations.Keys)}] ok={translations.Count}/{targets.Count} {sw.ElapsedMilliseconds}ms{If(ctxSnapshot IsNot Nothing, " " & ctxSnapshot.Describe(), "")}" &
                         FormatTransBlock(sourceLang, text, translations))
                     Return translations
                 End If
@@ -1037,6 +1073,7 @@ Namespace Controllers
                     If result IsNot Nothing Then
                         For Each kvp In result : translations(kvp.Key) = kvp.Value : Next
                     End If
+                    If translations.Count > 0 Then ctxHolder?.AttachTranslations(ctxEntry, translations)
                     AppLogger.Log(LogEvents.TRANS_RESULT,
                         $"room={roomId} backend=nllb-direct {sourceLang}→[{String.Join(",", translations.Keys)}] ok={translations.Count}/{targets.Count} {sw.ElapsedMilliseconds}ms" &
                         FormatTransBlock(sourceLang, text, translations))
@@ -1075,7 +1112,8 @@ Namespace Controllers
         ''' no glossary/profanity filters — so the comparison is engine-vs-engine.
         ''' Runs at Benchmark (lowest) priority and never blocks the live path.
         ''' </summary>
-        Private Sub FireShadowTranslations(roomId As String, text As String, sourceLang As String, targets As List(Of String))
+        Private Sub FireShadowTranslations(roomId As String, text As String, sourceLang As String, targets As List(Of String),
+                                           Optional ctx As Services.Models.TranslationContext = Nothing)
             If Not _config.ShadowTranslationsEnabled Then Return
             Dim raw = _config.ShadowTranslationEngines
             If String.IsNullOrWhiteSpace(raw) Then Return
@@ -1110,13 +1148,17 @@ Namespace Controllers
                              Dim sw = Diagnostics.Stopwatch.StartNew()
                              Try
                                  Using cts As New Threading.CancellationTokenSource(TimeSpan.FromSeconds(15))
+                                     ' Same context snapshot as the primary — the orchestrator
+                                     ' strips it for context-blind shadow engines, so the ctx
+                                     ' marker below only means "a window existed", and the
+                                     ' engine's registry SupportsContext says who used it.
                                      Dim result = Await orchestrator.TranslateAsync(
                                          text, sourceLang, targetsCopy, cts.Token,
                                          Services.Scheduling.TranslationPriority.Benchmark,
-                                         filters:=Nothing, backendOverride:=bn)
+                                         filters:=Nothing, backendOverride:=bn, context:=ctx)
                                      If result IsNot Nothing AndAlso result.Count > 0 Then
                                          AppLogger.Log(LogEvents.TRANS_SHADOW,
-                                             $"room={roomId} opinion={key} {sourceLang}→[{String.Join(",", result.Keys)}] {sw.ElapsedMilliseconds}ms" &
+                                             $"room={roomId} opinion={key} {sourceLang}→[{String.Join(",", result.Keys)}] {sw.ElapsedMilliseconds}ms{If(ctx IsNot Nothing, " " & ctx.Describe(), "")}" &
                                              FormatTransBlock(sourceLang, text, result))
                                      Else
                                          AppLogger.Log(LogEvents.TRANS_SHADOW,
@@ -1242,6 +1284,16 @@ Namespace Controllers
             If remaining.Count > 0 Then
                 Dim nllb = Await TranslateTargetsAsync(roomId, args.Text, sourceLang, remaining)
                 For Each kvp In nllb : merged(kvp.Key) = kvp.Value : Next
+            ElseIf _config.TranslationContextEnabled Then
+                ' Inline translations covered every target — the sentence never reached
+                ' TranslateTargetsAsync (which normally appends), so append it here or
+                ' the NEXT sentence's context window would have a hole. The snapshot is
+                ' discarded (nothing left to translate on this path).
+                Dim holder = _roomContexts.GetOrAdd(roomId, Function(k) New Services.Models.RoomTranslationContext())
+                Dim win = holder.SnapshotAndAppend(args.Text, sourceLang,
+                    _config.TranslationContextSentences, _config.TranslationContextMaxChars,
+                    TimeSpan.FromMinutes(Math.Max(1, _config.TranslationContextMaxAgeMinutes)))
+                If merged.Count > 0 Then holder.AttachTranslations(win.Entry, merged)
             End If
 
             If merged.Count = 0 Then Return

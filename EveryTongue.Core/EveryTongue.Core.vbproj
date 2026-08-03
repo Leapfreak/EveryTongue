@@ -66,6 +66,7 @@
     <Content Include="..\translate-server\**\*.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>translate-server\%(RecursiveDir)%(Filename)%(Extension)</Link></Content>
     <Content Include="..\translate-server\glossary.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>translate-server\glossary.json</Link></Content>
     <Content Include="..\translate-server\profanity.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>translate-server\profanity.json</Link></Content>
+    <Content Include="..\translate-server\terminology.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>translate-server\terminology.json</Link></Content>
     <Content Include="..\translate-server\requirements.txt"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>translate-server\requirements.txt</Link></Content>
     <Content Include="..\live-server\**\*.py"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\%(RecursiveDir)%(Filename)%(Extension)</Link></Content>
     <Content Include="..\live-server\requirements.txt"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory><Link>live-server\requirements.txt</Link></Content>

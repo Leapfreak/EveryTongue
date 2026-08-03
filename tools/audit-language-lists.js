@@ -30,6 +30,8 @@ const ALLOW_LINES = [
     reason: 'Azure caps autodetect candidates (~10); a curated default choice, not derivable' },
   { re: /"(cyrillic|cjk|thai|georgian|armenian)"/,
     reason: 'script-family constants (linguistic facts, not vendor capabilities)' },
+  { re: /"de", "en", "es", "fr", "it", "ja", "ko", "zh"/,
+    reason: 'DeepL custom_instructions vendor constraint (_instructionTargets) — the API accepts instructions only for these target families; a vendor fact, not a language list' },
 ];
 
 const ISO = new Set(('en es ca fr de it pt nl ru zh ja ko ar he pl tr uk ro cs el hi sv no da fi hu id vi th bg sk hr sr lt lv et sl').split(' '));

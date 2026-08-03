@@ -78,5 +78,25 @@ table('VB STT BACKENDS × CAPABILITIES',
   })),
   VB_CAPS);
 
+// ── VB translation backends (registry-declared capability markers) ──────────
+// Probed per REGISTRY ENTRY, not per file: CloudTranslationBackend.vb holds
+// four backend classes, so per-file probing would collapse DeepL/Google/Azure
+// into one row. The registry Entry flags are the single source of truth the
+// orchestrator strips context by — so this table cannot drift from behaviour.
+const TR_REG = path.join(ROOT, 'EveryTongue.Core', 'Services', 'Translation', 'TranslationBackendRegistry.vb');
+const trSrc = fs.existsSync(TR_REG) ? fs.readFileSync(TR_REG, 'utf8') : '';
+const trEntries = (trSrc.match(/New Entry With \{[^}]*\}/g) || [])
+  .filter(e => /\.Key = "/.test(e)); // literal-Key entries only (skips the Register() template)
+const TR_CAPS = [
+  { name: 'Context',     re: /\.SupportsContext\s*=\s*True/ },
+  { name: 'Terminology', re: /\.SupportsTerminology\s*=\s*True/ },
+];
+table('VB TRANSLATION BACKENDS × CAPABILITIES (registry-declared)',
+  trEntries.map(e => ({
+    name: (/\.Key = "([^"]+)"/.exec(e) || [, '?'])[1],
+    cells: TR_CAPS.map(c => c.re.test(e)),
+  })),
+  TR_CAPS);
+
 console.log('\nEmpty cells are QUESTIONS: does the capability apply to that engine, and if yes, why is it missing?');
 process.exit(0);

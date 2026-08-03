@@ -89,7 +89,8 @@ Namespace Services.Translation
                                                      targetLangs As IReadOnlyList(Of String),
                                                      ct As CancellationToken,
                                                      Optional noCache As Boolean = False,
-                                                     Optional filters As TranslationFilterPaths = Nothing
+                                                     Optional filters As TranslationFilterPaths = Nothing,
+                                                     Optional context As TranslationContext = Nothing
         ) As Task(Of Dictionary(Of String, String)) Implements ITranslationBackend.TranslateAsync
 
         Public MustOverride Function GetSupportedLanguagesAsync(ct As CancellationToken
@@ -116,7 +117,8 @@ Namespace Services.Translation
                                                         targetLangs As IReadOnlyList(Of String),
                                                         ct As CancellationToken,
                                                         Optional noCache As Boolean = False,
-                                                     Optional filters As TranslationFilterPaths = Nothing
+                                                     Optional filters As TranslationFilterPaths = Nothing,
+                                                     Optional context As TranslationContext = Nothing
         ) As Task(Of Dictionary(Of String, String))
             If Not IsAvailable Then Return New Dictionary(Of String, String)()
 
@@ -144,36 +146,67 @@ Namespace Services.Translation
                                 $"DeepLBackend: no DeepL code for target '{targetLang}' — skipped")
                             Return
                         End If
-                        Dim form As New Dictionary(Of String, String) From {
-                            {"text", text},
-                            {"target_lang", dlTarget.ToUpper()}
+                        ' custom_instructions is a form ARRAY (repeated keys), which a
+                        ' Dictionary cannot express — the form is a KeyValuePair list.
+                        Dim form As New List(Of KeyValuePair(Of String, String)) From {
+                            New KeyValuePair(Of String, String)("text", text),
+                            New KeyValuePair(Of String, String)("target_lang", dlTarget.ToUpper())
                         }
                         ' Unmapped source → omit and let DeepL auto-detect.
                         Dim dlSource = Services.Infrastructure.LanguageCodeService.Instance.FloresToDeepL(sourceLang)
-                        If Not String.IsNullOrEmpty(dlSource) Then form("source_lang") = dlSource.ToUpper()
-                        ' DeepL dropped form-body auth_key ("legacy authentication") —
-                        ' the key must travel as an Authorization header.
-                        Dim response = Await SendWithRetryAsync(
-                            Function()
-                                Dim req As New HttpRequestMessage(HttpMethod.Post, "https://api-free.deepl.com/v2/translate")
-                                req.Headers.TryAddWithoutValidation("Authorization", $"DeepL-Auth-Key {ApiKey}")
-                                req.Content = New FormUrlEncodedContent(form)
-                                Return req
-                            End Function, ct)
-                        If response.IsSuccessStatusCode Then
-                            Dim body = Await response.Content.ReadAsStringAsync()
-                            Using doc = JsonDocument.Parse(body)
-                                translatedByIndex(idx) = doc.RootElement.
-                                    GetProperty("translations")(0).
-                                    GetProperty("text").GetString()
-                            End Using
-                        Else
-                            ' A rejected request must be VISIBLE — silence here masked
-                            ' the FLORES-code bug behind the orchestrator's fallback.
-                            Dim errBody = Await response.Content.ReadAsStringAsync()
-                            Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR,
-                                $"DeepLBackend: HTTP {CInt(response.StatusCode)} for {If(dlSource, "auto")}→{dlTarget}: {If(errBody, "").Substring(0, Math.Min(120, If(errBody, "").Length))}")
+                        If Not String.IsNullOrEmpty(dlSource) Then form.Add(New KeyValuePair(Of String, String)("source_lang", dlSource.ToUpper()))
+
+                        ' Rolling window of prior source sentences → DeepL's context
+                        ' parameter ("surrounding document content, not commands" —
+                        ' not translated, not billed). Excludes the current sentence.
+                        Dim ctxChars = 0
+                        If context?.Sentences IsNot Nothing AndAlso context.Sentences.Count > 0 Then
+                            Dim ctxText = String.Join(" ", context.Sentences.Select(Function(s) s.SourceText))
+                            If ctxText.Length > 0 Then
+                                form.Add(New KeyValuePair(Of String, String)("context", ctxText))
+                                ctxChars = ctxText.Length
+                            End If
                         End If
+
+                        ' Terminology → custom_instructions ("Translate 'X' as 'Y'").
+                        ' Vendor constraint: instructions are only accepted for these
+                        ' target-language families (variants like EN-GB qualify).
+                        Dim instructions As New List(Of String)()
+                        Dim baseTarget = dlTarget.Split("-"c)(0).ToLowerInvariant()
+                        If context?.Terminology IsNot Nothing AndAlso context.Terminology.Count > 0 AndAlso
+                           _instructionTargets.Contains(baseTarget) Then
+                            For Each term In context.Terminology
+                                Dim rendering As String = Nothing
+                                If Not term.Translations.TryGetValue(targetLang, rendering) Then
+                                    term.Translations.TryGetValue(baseTarget, rendering)
+                                End If
+                                If String.IsNullOrWhiteSpace(rendering) Then Continue For
+                                ' "instrText", not "instr" — InStr is a VB built-in and wins name resolution.
+                                Dim instrText = $"Translate '{term.Term}' as '{rendering}'"
+                                If instrText.Length <= 300 Then instructions.Add(instrText)
+                                If instructions.Count >= 10 Then Exit For
+                            Next
+                            For Each instrText In instructions
+                                form.Add(New KeyValuePair(Of String, String)("custom_instructions", instrText))
+                            Next
+                        End If
+
+                        If ctxChars > 0 OrElse instructions.Count > 0 Then
+                            Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_CLOUD_REQUEST,
+                                $"DeepL →{dlTarget}: context={ctxChars}ch instructions={instructions.Count}")
+                        End If
+
+                        Dim res = Await SendDeepLRequestAsync(form, dlSource, dlTarget, ct)
+                        If res.TranslatedText Is Nothing AndAlso res.Status = 400 AndAlso instructions.Count > 0 Then
+                            ' Fail-safe: custom_instructions rejected (unsupported pair /
+                            ' tier / wire format) — retry once without them. context is a
+                            ' GA parameter and stays. Never costs the caption.
+                            Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_CONTEXT,
+                                $"DeepLBackend: HTTP 400 with custom_instructions for →{dlTarget} — retrying without instructions")
+                            Dim retryForm = form.Where(Function(kv) kv.Key <> "custom_instructions").ToList()
+                            res = Await SendDeepLRequestAsync(retryForm, dlSource, dlTarget, ct)
+                        End If
+                        If res.TranslatedText IsNot Nothing Then translatedByIndex(idx) = res.TranslatedText
                     Catch ex As OperationCanceledException
                         ' Cancelled — normal; the Exception branch below logs real failures.
                     Catch ex As Exception
@@ -194,6 +227,48 @@ Namespace Services.Translation
                 End If
             Next
             Return results
+        End Function
+
+        ''' <summary>
+        ''' DeepL custom_instructions vendor constraint: the API accepts instructions
+        ''' only for these target-language families (docs 2026-08). A vendor fact,
+        ''' not a language list — allowlisted in audit-language-lists with this reason.
+        ''' </summary>
+        Private Shared ReadOnly _instructionTargets As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {
+            "de", "en", "es", "fr", "it", "ja", "ko", "zh"
+        }
+
+        ''' <summary>
+        ''' One DeepL /v2/translate POST + parse, shared by the normal path and the
+        ''' retry-without-instructions path. Returns (HTTP status, translated text or
+        ''' Nothing). Failures are logged here — a rejected request must be VISIBLE
+        ''' (silence once masked the FLORES-code bug behind the orchestrator fallback).
+        ''' </summary>
+        Private Async Function SendDeepLRequestAsync(form As List(Of KeyValuePair(Of String, String)),
+                                                     dlSource As String, dlTarget As String,
+                                                     ct As CancellationToken
+        ) As Task(Of (Status As Integer, TranslatedText As String))
+            ' DeepL dropped form-body auth_key ("legacy authentication") —
+            ' the key must travel as an Authorization header.
+            Dim response = Await SendWithRetryAsync(
+                Function()
+                    Dim req As New HttpRequestMessage(HttpMethod.Post, "https://api-free.deepl.com/v2/translate")
+                    req.Headers.TryAddWithoutValidation("Authorization", $"DeepL-Auth-Key {ApiKey}")
+                    req.Content = New FormUrlEncodedContent(form)
+                    Return req
+                End Function, ct)
+            If response.IsSuccessStatusCode Then
+                Dim body = Await response.Content.ReadAsStringAsync()
+                Using doc = JsonDocument.Parse(body)
+                    Return (CInt(response.StatusCode), doc.RootElement.
+                        GetProperty("translations")(0).
+                        GetProperty("text").GetString())
+                End Using
+            End If
+            Dim errBody = Await response.Content.ReadAsStringAsync()
+            Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_ERROR,
+                $"DeepLBackend: HTTP {CInt(response.StatusCode)} for {If(dlSource, "auto")}→{dlTarget}: {If(errBody, "").Substring(0, Math.Min(120, If(errBody, "").Length))}")
+            Return (CInt(response.StatusCode), Nothing)
         End Function
 
         Public Overrides Function GetSupportedLanguagesAsync(ct As CancellationToken
@@ -246,7 +321,8 @@ Namespace Services.Translation
                                                         targetLangs As IReadOnlyList(Of String),
                                                         ct As CancellationToken,
                                                         Optional noCache As Boolean = False,
-                                                     Optional filters As TranslationFilterPaths = Nothing
+                                                     Optional filters As TranslationFilterPaths = Nothing,
+                                                     Optional context As TranslationContext = Nothing
         ) As Task(Of Dictionary(Of String, String))
             If Not IsAvailable Then Return New Dictionary(Of String, String)()
 
@@ -330,7 +406,8 @@ Namespace Services.Translation
                                                         targetLangs As IReadOnlyList(Of String),
                                                         ct As CancellationToken,
                                                         Optional noCache As Boolean = False,
-                                                     Optional filters As TranslationFilterPaths = Nothing
+                                                     Optional filters As TranslationFilterPaths = Nothing,
+                                                     Optional context As TranslationContext = Nothing
         ) As Task(Of Dictionary(Of String, String))
             If Not IsAvailable Then Return New Dictionary(Of String, String)()
 
