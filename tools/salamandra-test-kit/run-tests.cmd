@@ -14,12 +14,12 @@ set COMMON=-n 200 --temp 0 -c 4096 -no-cnv --no-display-prompt --simple-io
 
 echo === SalamandraTA-7B gomets test - probing GPU (Vulkan) first...
 echo     (each step loads the 5 GB model - first load is the slowest)
-set BIN=bin-vulkan\llama-cli.exe
+set BIN=bin-vulkan\llama-completion.exe
 set NGL=99
 "%BIN%" -m %MODEL% -f prompts\S1-bare.txt -n 4 --temp 0 -c 4096 -no-cnv --no-display-prompt -ngl %NGL% >nul 2>&1
 if errorlevel 1 (
   echo     Vulkan failed or no usable GPU - falling back to CPU build.
-  set BIN=bin-cpu\llama-cli.exe
+  set BIN=bin-cpu\llama-completion.exe
   set NGL=0
 ) else (
   echo     Vulkan OK.

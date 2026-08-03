@@ -17,7 +17,7 @@ if exist model\salamandraTA_7B_inst_q4.gguf (
   move /y model\salamandraTA_7B_inst_q4.gguf.part model\salamandraTA_7B_inst_q4.gguf >nul
 )
 
-if exist bin-vulkan\llama-cli.exe (
+if exist bin-vulkan\llama-completion.exe (
   echo llama.cpp Vulkan build already present, skipping.
 ) else (
   echo Downloading llama.cpp Vulkan build - 34 MB...
@@ -27,7 +27,7 @@ if exist bin-vulkan\llama-cli.exe (
   del llama-vulkan.zip
 )
 
-if exist bin-cpu\llama-cli.exe (
+if exist bin-cpu\llama-completion.exe (
   echo llama.cpp CPU build already present, skipping.
 ) else (
   echo Downloading llama.cpp CPU build - 18 MB fallback...
