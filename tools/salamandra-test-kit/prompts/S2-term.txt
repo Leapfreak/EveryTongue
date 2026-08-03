@@ -1,0 +1,10 @@
+<|im_start|>user
+Please translate the following Catalan text to English while respecting the glossary entries.
+
+Required Terminology:
+- gomet -> sticker
+- gomets -> stickers
+
+Source Text:
+Que quan treballen bé s'esforcen i tenen bona actitud, guanyen un gomet, però no qualsevol gomet.<|im_end|>
+<|im_start|>assistant

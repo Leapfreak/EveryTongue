@@ -1,0 +1,10 @@
+<|im_start|>user
+Please translate the following Catalan text to Spanish while respecting the glossary entries.
+
+Required Terminology:
+- gomet -> pegatina
+- gomets -> pegatinas
+
+Source Text:
+Un gomet daurat i brillant.<|im_end|>
+<|im_start|>assistant

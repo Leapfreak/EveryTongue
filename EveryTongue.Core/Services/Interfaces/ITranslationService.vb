@@ -20,6 +20,14 @@ Namespace Services.Interfaces
         ''' Used by the benchmark's direct-vs-pivot A/B (a clean baseline needs a
         ''' path the policy can't reroute). Production callers leave this False.
         ''' </param>
+        ''' <param name="context">
+        ''' Rolling window of recent source sentences + terminology matched to the
+        ''' current sentence (built per room by ConferenceController). Forwarded
+        ''' only to backends whose registry entry declares SupportsContext; stripped
+        ''' for everyone else, so backends stay dumb. Pivot second hops never
+        ''' receive it (a source-language window is wrong surrounding content for
+        ''' English input). Nothing = bare translation, identical to before.
+        ''' </param>
         Function TranslateAsync(text As String,
                                 sourceLang As String,
                                 targetLangs As IReadOnlyList(Of String),
@@ -28,7 +36,8 @@ Namespace Services.Interfaces
                                 Optional noCache As Boolean = False,
                                 Optional filters As TranslationFilterPaths = Nothing,
                                 Optional backendOverride As String = Nothing,
-                                Optional noPivot As Boolean = False
+                                Optional noPivot As Boolean = False,
+                                Optional context As TranslationContext = Nothing
         ) As Task(Of Dictionary(Of String, String))
 
         ReadOnly Property ActiveBackend As String

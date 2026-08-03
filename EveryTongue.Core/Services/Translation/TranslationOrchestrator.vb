@@ -150,7 +150,8 @@ Namespace Services.Translation
                                              Optional noCache As Boolean = False,
                                              Optional filters As TranslationFilterPaths = Nothing,
                                              Optional backendOverride As String = Nothing,
-                                             Optional noPivot As Boolean = False
+                                             Optional noPivot As Boolean = False,
+                                             Optional context As TranslationContext = Nothing
         ) As Task(Of Dictionary(Of String, String)) Implements ITranslationService.TranslateAsync
 
             If targetLangs.Count = 0 Then Return New Dictionary(Of String, String)()
@@ -158,11 +159,12 @@ Namespace Services.Translation
             Dim skipCache = noCache
             Dim ovr = backendOverride
             Dim skipPivot = noPivot
+            Dim ctx = context
             ' Route through the priority queue — the queue gates concurrency
             ' so the translation backend isn't overwhelmed under multi-room load.
             Return Await _queue.EnqueueAsync(
                 Async Function(ct2)
-                    Return Await TranslateInternal(text, sourceLang, targetLangs, ct2, skipCache, filters, ovr, skipPivot)
+                    Return Await TranslateInternal(text, sourceLang, targetLangs, ct2, skipCache, filters, ovr, skipPivot, ctx)
                 End Function,
                 CInt(priority),
                 ct)
@@ -179,7 +181,8 @@ Namespace Services.Translation
                                                   noCache As Boolean,
                                                   filters As TranslationFilterPaths,
                                                   Optional backendOverride As String = Nothing,
-                                                  Optional noPivot As Boolean = False
+                                                  Optional noPivot As Boolean = False,
+                                                  Optional context As TranslationContext = Nothing
         ) As Task(Of Dictionary(Of String, String))
 
             Dim results As New Dictionary(Of String, String)()
@@ -236,7 +239,7 @@ Namespace Services.Translation
                 Dim translated As Dictionary(Of String, String)
                 If firstHop.Count > 0 Then
                     translated = Await TryTranslateWithFallback(
-                        text, sourceLang, firstHop, backendName, ct, noCache, filters)
+                        text, sourceLang, firstHop, backendName, ct, noCache, filters, context)
                 Else
                     translated = New Dictionary(Of String, String)()
                 End If
@@ -249,8 +252,10 @@ Namespace Services.Translation
                         Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_PIVOT,
                             $"backend={backendName} {sourceLang}→[{String.Join(",", pivotLangs)}] via {pivotVia} " &
                             $"({If(englishRequested, "reused requested English", "computed English hop")})")
+                        ' No context on the second hop: the window is source-language
+                        ' text — wrong "surrounding content" for the English input.
                         Dim secondHop = Await TryTranslateWithFallback(
-                            englishText, pivotVia, pivotLangs, backendName, ct, noCache, filters)
+                            englishText, pivotVia, pivotLangs, backendName, ct, noCache, filters, Nothing)
                         For Each kvp In secondHop
                             translated(kvp.Key) = kvp.Value
                         Next
@@ -260,7 +265,7 @@ Namespace Services.Translation
                         Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_PIVOT,
                             $"backend={backendName} {sourceLang}: English hop empty — falling back to DIRECT for [{String.Join(",", pivotLangs)}]")
                         Dim directFallback = Await TryTranslateWithFallback(
-                            text, sourceLang, pivotLangs, backendName, ct, noCache, filters)
+                            text, sourceLang, pivotLangs, backendName, ct, noCache, filters, context)
                         For Each kvp In directFallback
                             translated(kvp.Key) = kvp.Value
                         Next
@@ -314,7 +319,8 @@ Namespace Services.Translation
             primaryBackend As String,
             ct As CancellationToken,
             noCache As Boolean,
-            filters As TranslationFilterPaths
+            filters As TranslationFilterPaths,
+            Optional context As TranslationContext = Nothing
         ) As Task(Of Dictionary(Of String, String))
 
             Dim fb = ResolveFallbackName()
@@ -322,7 +328,7 @@ Namespace Services.Translation
             Dim backend As ITranslationBackend = Nothing
             If _backends.TryGetValue(primaryBackend, backend) AndAlso backend.IsAvailable Then
                 Try
-                    Dim result = Await InvokeBackendAsync(backend, text, sourceLang, targetLangs, ct, noCache, filters)
+                    Dim result = Await InvokeBackendAsync(backend, text, sourceLang, targetLangs, ct, noCache, filters, context)
                     If result.Count > 0 Then Return ApplyLocalFilters(backend, text, sourceLang, result, filters)
                 Catch ex As OperationCanceledException
                     Throw
@@ -339,7 +345,7 @@ Namespace Services.Translation
             If Not primaryBackend.Equals(fb, StringComparison.OrdinalIgnoreCase) Then
                 If _backends.TryGetValue(fb, backend) AndAlso backend.IsAvailable Then
                     Try
-                        Dim fallbackResult = Await InvokeBackendAsync(backend, text, sourceLang, targetLangs, ct, noCache, filters)
+                        Dim fallbackResult = Await InvokeBackendAsync(backend, text, sourceLang, targetLangs, ct, noCache, filters, context)
                         Return ApplyLocalFilters(backend, text, sourceLang, fallbackResult, filters)
                     Catch ex As OperationCanceledException
                         Throw
@@ -366,20 +372,28 @@ Namespace Services.Translation
                                                   targetLangs As IReadOnlyList(Of String),
                                                   ct As CancellationToken,
                                                   noCache As Boolean,
-                                                  filters As TranslationFilterPaths
+                                                  filters As TranslationFilterPaths,
+                                                  Optional context As TranslationContext = Nothing
         ) As Task(Of Dictionary(Of String, String))
+            ' Context is forwarded ONLY to backends whose registry entry declares
+            ' SupportsContext — everyone else gets Nothing, so backends stay dumb.
+            ' Per-model sidecars ("Local#<sig>") have no registry entry → stripped.
+            Dim entry = TranslationBackendRegistry.FindByBackendName(backend.Name)
+            Dim effectiveContext = If(entry IsNot Nothing AndAlso entry.SupportsContext, context, Nothing)
+
             If Not backend.RequiresInternet Then
-                Return Await backend.TranslateAsync(text, sourceLang, targetLangs, ct, noCache, filters)
+                Return Await backend.TranslateAsync(text, sourceLang, targetLangs, ct, noCache, filters, effectiveContext)
             End If
 
             ' Map the orchestrator backend name to the registry engine key
             ' (registry metadata — no engine-key literals here).
-            Dim usageKey = If(TranslationBackendRegistry.FindByBackendName(backend.Name)?.Key, backend.Name)
+            Dim usageKey = If(entry?.Key, backend.Name)
+            ' DeepL does not bill context characters, so usage counts text only.
             TranslationUsageTracker.RecordUsage(usageKey, CLng(If(text, "").Length) * targetLangs.Count)
 
             Dim sw = Diagnostics.Stopwatch.StartNew()
             Try
-                Return Await backend.TranslateAsync(text, sourceLang, targetLangs, ct, noCache, filters)
+                Return Await backend.TranslateAsync(text, sourceLang, targetLangs, ct, noCache, filters, effectiveContext)
             Finally
                 sw.Stop()
                 TranslationUsageTracker.RecordLatency(usageKey, sw.ElapsedMilliseconds)

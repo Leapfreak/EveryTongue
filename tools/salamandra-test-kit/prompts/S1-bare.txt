@@ -1,0 +1,5 @@
+<|im_start|>user
+Translate the following text from Catalan into English.
+Catalan: Que tenim un sistema molt elaborat, un sistema de gomets.
+English:<|im_end|>
+<|im_start|>assistant

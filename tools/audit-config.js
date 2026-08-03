@@ -22,6 +22,15 @@ const { ROOT, vbFiles, rel, finish } = require('./audit-lib');
 const ALLOW_NO_UI = {
   GoogleCloudSttApiKey: 'legacy migration shim — ConfigManager moves it into SttApiKeys and nulls it; must never get UI',
   DictationDeviceIndex: 'deliberate file-only fallback — the UI stores the device by NAME (DictationDeviceName); index is the power-user override (DictationService resolution order)',
+  // Translation context system v1 (branch translation-context, 2026-08-04):
+  // deliberately file-only until the context dividend is proven on a live
+  // service — FormOptions UI + locale keys are the deferred follow-up (PLAN.md).
+  TranslationContextEnabled: 'context system v1 — UI deferred until live validation (PLAN.md)',
+  TranslationContextSentences: 'context system v1 — UI deferred until live validation (PLAN.md)',
+  TranslationContextMaxChars: 'context system v1 — UI deferred until live validation (PLAN.md)',
+  TranslationContextMaxAgeMinutes: 'context system v1 — UI deferred until live validation (PLAN.md)',
+  TranslationTerminologyEnabled: 'context system v1 — UI deferred until live validation (PLAN.md)',
+  TranslationTerminologyPath: 'context system v1 — UI deferred until live validation (PLAN.md)',
 };
 
 const cfgPath = path.join(ROOT, 'EveryTongue.Core', 'Models', 'AppConfig.vb');

@@ -1,0 +1,10 @@
+S1-bare
+S2-bare
+S3-bare
+S3-bare-es
+S4-bare
+S3-ctx1
+PARA-en
+PARA-es
+S2-term
+S3-term-es

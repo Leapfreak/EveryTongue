@@ -1,0 +1,4 @@
+{
+  "_format": "entries: [{ term, matchMode: WholeWord|Substring, translations: { <FLORES target>: rendering } }] — matched case-insensitively against each committed source sentence; only matching entries are sent to the engine (max 10).",
+  "entries": []
+}

@@ -62,7 +62,8 @@ Namespace Services.Translation
                                              targetLangs As IReadOnlyList(Of String),
                                              ct As CancellationToken,
                                              Optional noCache As Boolean = False,
-                                             Optional filters As TranslationFilterPaths = Nothing
+                                             Optional filters As TranslationFilterPaths = Nothing,
+                                             Optional context As TranslationContext = Nothing
         ) As Task(Of Dictionary(Of String, String)) Implements ITranslationBackend.TranslateAsync
             If Not IsAvailable Then Return New Dictionary(Of String, String)()
 

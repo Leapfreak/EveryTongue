@@ -448,6 +448,30 @@ Namespace Models
 
         Public Property TranslationConcurrency As Integer = 3
 
+        ''' <summary>Master switch: per-room rolling window of recent committed source
+        ''' sentences, passed to context-capable engines (registry SupportsContext —
+        ''' DeepL today, LLM engines later; NLLB/Google can't use it and never see it).
+        ''' Log marker "ctx=Ns/Mch" on TRANS_RESULT/TRANS_SHADOW lines.</summary>
+        Public Property TranslationContextEnabled As Boolean = True
+
+        ''' <summary>Max recent sentences kept in a room's context window.</summary>
+        Public Property TranslationContextSentences As Integer = 4
+
+        ''' <summary>Max total characters of context sent per request (oldest sentences dropped first).</summary>
+        Public Property TranslationContextMaxChars As Integer = 700
+
+        ''' <summary>Sentences older than this leave the context window (a long silence
+        ''' means the old context is probably a different topic).</summary>
+        Public Property TranslationContextMaxAgeMinutes As Integer = 5
+
+        ''' <summary>Terminology channel: entries from TranslationTerminologyPath that
+        ''' match the current sentence are enforced by capable engines (DeepL
+        ''' custom_instructions — may engage DeepL's slower quality model; disable if
+        ''' live latency rises).</summary>
+        Public Property TranslationTerminologyEnabled As Boolean = True
+
+        Public Property TranslationTerminologyPath As String = ".\translate-server\terminology.json"
+
         ''' <summary>Port for the CometKiwi quality-estimation sidecar (benchmark only).</summary>
         Public Property QeServerPort As Integer = 5096
 

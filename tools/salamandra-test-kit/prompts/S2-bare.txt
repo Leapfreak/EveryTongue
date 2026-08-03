@@ -1,0 +1,5 @@
+<|im_start|>user
+Translate the following text from Catalan into English.
+Catalan: Que quan treballen bé s'esforcen i tenen bona actitud, guanyen un gomet, però no qualsevol gomet.
+English:<|im_end|>
+<|im_start|>assistant

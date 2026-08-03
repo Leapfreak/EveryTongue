@@ -1,0 +1,5 @@
+<|im_start|>user
+Translate the following text from Catalan into Spanish.
+Catalan: Un gomet daurat i brillant.
+Spanish:<|im_end|>
+<|im_start|>assistant

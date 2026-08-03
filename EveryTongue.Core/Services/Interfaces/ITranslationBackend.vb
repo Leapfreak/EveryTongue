@@ -19,12 +19,18 @@ Namespace Services.Interfaces
         ''' </summary>
         ReadOnly Property AppliesFiltersInternally As Boolean
 
+        ''' <param name="context">
+        ''' Prior-sentence window + matched terminology. The orchestrator already
+        ''' strips this for backends whose registry entry lacks SupportsContext, so
+        ''' most implementations simply ignore the parameter.
+        ''' </param>
         Function TranslateAsync(text As String,
                                 sourceLang As String,
                                 targetLangs As IReadOnlyList(Of String),
                                 ct As CancellationToken,
                                 Optional noCache As Boolean = False,
-                                Optional filters As TranslationFilterPaths = Nothing
+                                Optional filters As TranslationFilterPaths = Nothing,
+                                Optional context As TranslationContext = Nothing
         ) As Task(Of Dictionary(Of String, String))
 
         Function GetSupportedLanguagesAsync(ct As CancellationToken
