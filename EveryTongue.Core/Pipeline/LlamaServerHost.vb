@@ -100,9 +100,18 @@ Namespace Pipeline
                 ProcessHelper.KillProcessOnPort(Port)
                 Await Task.Delay(500)
 
+                ' FACTS ONLY about the device (owner's rule 2026-08-04: no guessing in
+                ' logs — say what the system reported, or say nothing): ask llama-server
+                ' itself to enumerate devices and log its answer verbatim. Only a
+                ' positive "no Vulkan device" answer earns a warning.
+                Await LogReportedDevicesAsync()
+
+                ' -lv 4: at the default verbosity llama-server prints neither the
+                ' device nor the layer-offload lines (field 2026-08-04) — raise it
+                ' so the offload FACT is emitted and can be logged verbatim.
                 Dim psi As New ProcessStartInfo() With {
                     .FileName = ExePath,
-                    .Arguments = $"-m ""{ModelPath}"" --port {Port} --host 127.0.0.1 -ngl {GpuLayers} -c {ContextTokens} --parallel 1",
+                    .Arguments = $"-m ""{ModelPath}"" --port {Port} --host 127.0.0.1 -ngl {GpuLayers} -c {ContextTokens} --parallel 1 -lv 4",
                     .WorkingDirectory = Path.GetDirectoryName(ExePath),
                     .UseShellExecute = False,
                     .CreateNoWindow = True,
@@ -179,26 +188,54 @@ Namespace Pipeline
                     _modelReady = True
                     _restartCount = 0
                 End SyncLock
-                AppLogger.Log(LogEvents.TRANS_LLAMA, $"Salamandra ready — warm-up short={swShort.ElapsedMilliseconds}ms, context-length={swLong.ElapsedMilliseconds}ms (large-prompt shader compile paid at load)")
-
-                ' GPU verdict by PHYSICS, not log text — llama-server b10242 does not
-                ' print the ggml_vulkan device lines at default verbosity (field
-                ' 2026-08-04: two false CPU warnings while translating at GPU speed).
-                ' The short warm-up is the discriminator: GPU ≈ 70-600ms, CPU ≈ 1.8s+
-                ' (measured both ways on Jezer). The long warm-up is excluded — its
-                ' first-ever run legitimately pays ~5-6s of Vulkan shader compile.
-                If _vulkanDeviceSeen OrElse swShort.ElapsedMilliseconds < 1200 Then
-                    AppLogger.Log(LogEvents.TRANS_LLAMA, $"GPU active (short warm-up {swShort.ElapsedMilliseconds}ms{If(_vulkanDeviceSeen, ", device line seen", "")})")
-                ElseIf swShort.ElapsedMilliseconds >= 2500 Then
-                    AppLogger.Log(LogEvents.TRANS_LLAMA_PROBLEM,
-                        $"llama-server appears to be running on CPU (short warm-up {swShort.ElapsedMilliseconds}ms; GPU is <1s) — translations will be ~10x slower. A restart of the app (or re-selecting the engine) usually recovers the GPU.")
-                Else
-                    AppLogger.Log(LogEvents.TRANS_LLAMA, $"device unconfirmed (short warm-up {swShort.ElapsedMilliseconds}ms — between the GPU and CPU bands); watch live latency")
-                End If
+                AppLogger.Log(LogEvents.TRANS_LLAMA, $"Salamandra ready — warm-up short={swShort.ElapsedMilliseconds}ms, context-length={swLong.ElapsedMilliseconds}ms")
                 Return True
             Catch ex As Exception
                 AppLogger.Log(LogEvents.TRANS_LLAMA_PROBLEM, $"llama-server start failed: {ex.Message}")
                 Return False
+            End Try
+        End Function
+
+        ''' <summary>Ask llama-server itself what devices it sees (--list-devices, the
+        ''' authoritative answer) and log the output VERBATIM. Warns only on the
+        ''' positive fact "no Vulkan device listed"; reports nothing otherwise.</summary>
+        Private Async Function LogReportedDevicesAsync() As Task
+            Try
+                Dim psi As New ProcessStartInfo() With {
+                    .FileName = ExePath,
+                    .Arguments = "--list-devices",
+                    .WorkingDirectory = Path.GetDirectoryName(ExePath),
+                    .UseShellExecute = False,
+                    .CreateNoWindow = True,
+                    .RedirectStandardOutput = True,
+                    .RedirectStandardError = True
+                }
+                Using proc = Process.Start(psi)
+                    Dim stderrTask = proc.StandardError.ReadToEndAsync()
+                    Dim stdout = Await proc.StandardOutput.ReadToEndAsync()
+                    Dim stderr = Await stderrTask
+                    proc.WaitForExit(10000)
+                    Dim combined = (stdout & vbLf & stderr)
+                    Dim sawAny = False
+                    For Each line In combined.Split(ControlChars.Lf)
+                        Dim t = line.Trim()
+                        If t.Length = 0 OrElse t.StartsWith("Available devices", StringComparison.OrdinalIgnoreCase) Then Continue For
+                        If t.IndexOf("Vulkan", StringComparison.OrdinalIgnoreCase) >= 0 OrElse
+                           t.IndexOf("device", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                            AppLogger.Log(LogEvents.TRANS_LLAMA, $"llama-server --list-devices: {t}")
+                            If t.IndexOf("Vulkan", StringComparison.OrdinalIgnoreCase) >= 0 Then sawAny = True
+                        End If
+                    Next
+                    If Not sawAny AndAlso combined.IndexOf("Available devices", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                        ' Positive answer, zero Vulkan devices — that IS the fact.
+                        AppLogger.Log(LogEvents.TRANS_LLAMA_PROBLEM,
+                            "llama-server --list-devices reported no Vulkan device — this run will use the CPU (~10x slower translations)")
+                    End If
+                End Using
+            Catch ex As Exception
+                ' Enumeration probe failed — we have no device information; per the
+                ' facts-only rule, log the probe failure and claim nothing.
+                AppLogger.Log(LogEvents.TRANS_LLAMA, $"--list-devices probe failed ({ex.Message}) — no device information available")
             End Try
         End Function
 
