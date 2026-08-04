@@ -318,7 +318,12 @@ Namespace Pipeline
                 Case Else
                     ' No level letter (early ggml/loader banner) or "I": load-time
                     ' lines are Info; per-request slot chatter goes to Debug.
+                    ' At -lv 4 the server also dumps its sampler settings per request
+                    ' ("repeat_last_n = …", "top_k = …") — chatter, Debug bucket.
                     If trimmed.StartsWith("slot ") OrElse trimmed.StartsWith("srv ") OrElse
+                       trimmed.StartsWith("repeat_last_n") OrElse trimmed.StartsWith("top_k") OrElse
+                       trimmed.StartsWith("dry_multiplier") OrElse trimmed.StartsWith("mirostat") OrElse
+                       trimmed.StartsWith("sampler") OrElse
                        trimmed.IndexOf("processing task", StringComparison.OrdinalIgnoreCase) >= 0 Then
                         AppLogger.Log(LogEvents.LLAMA_SERVER_LOG_DEBUG, trimmed)
                     ElseIf trimmed.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0 Then
