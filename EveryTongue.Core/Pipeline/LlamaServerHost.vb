@@ -153,13 +153,6 @@ Namespace Pipeline
                     Return False
                 End If
 
-                ' Field lesson 2026-08-04: Vulkan enumeration occasionally fails cold
-                ' and llama silently runs on CPU. Correct output, ~10x slower — say so.
-                If Not _vulkanDeviceSeen Then
-                    AppLogger.Log(LogEvents.TRANS_LLAMA_PROBLEM,
-                        "no Vulkan device reported — llama-server is likely running on CPU (~10x slower translations). A restart of the app (or re-selecting the engine) usually recovers the GPU.")
-                End If
-
                 ' Warm-up, BOTH pipeline shapes: a short generation compiles the
                 ' small-batch path; a context-length one compiles the large-batch
                 ' path (the ~5s one-time shader compile observed on PARA-en).
@@ -187,6 +180,21 @@ Namespace Pipeline
                     _restartCount = 0
                 End SyncLock
                 AppLogger.Log(LogEvents.TRANS_LLAMA, $"Salamandra ready — warm-up short={swShort.ElapsedMilliseconds}ms, context-length={swLong.ElapsedMilliseconds}ms (large-prompt shader compile paid at load)")
+
+                ' GPU verdict by PHYSICS, not log text — llama-server b10242 does not
+                ' print the ggml_vulkan device lines at default verbosity (field
+                ' 2026-08-04: two false CPU warnings while translating at GPU speed).
+                ' The short warm-up is the discriminator: GPU ≈ 70-600ms, CPU ≈ 1.8s+
+                ' (measured both ways on Jezer). The long warm-up is excluded — its
+                ' first-ever run legitimately pays ~5-6s of Vulkan shader compile.
+                If _vulkanDeviceSeen OrElse swShort.ElapsedMilliseconds < 1200 Then
+                    AppLogger.Log(LogEvents.TRANS_LLAMA, $"GPU active (short warm-up {swShort.ElapsedMilliseconds}ms{If(_vulkanDeviceSeen, ", device line seen", "")})")
+                ElseIf swShort.ElapsedMilliseconds >= 2500 Then
+                    AppLogger.Log(LogEvents.TRANS_LLAMA_PROBLEM,
+                        $"llama-server appears to be running on CPU (short warm-up {swShort.ElapsedMilliseconds}ms; GPU is <1s) — translations will be ~10x slower. A restart of the app (or re-selecting the engine) usually recovers the GPU.")
+                Else
+                    AppLogger.Log(LogEvents.TRANS_LLAMA, $"device unconfirmed (short warm-up {swShort.ElapsedMilliseconds}ms — between the GPU and CPU bands); watch live latency")
+                End If
                 Return True
             Catch ex As Exception
                 AppLogger.Log(LogEvents.TRANS_LLAMA_PROBLEM, $"llama-server start failed: {ex.Message}")
