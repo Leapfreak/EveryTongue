@@ -103,6 +103,8 @@ Source: "{#AppPublishDir}\qe-server\*"; DestDir: "{app}\qe-server"; Excludes: "*
 ;   - cublas*/cudart*/cudnn* DLLs (CUDA runtime for faster-whisper — see Excludes above)
 ;   - nllb-model/             (NLLB 1.3B from HuggingFace)
 ;   - nllb-3.3b-model/        (NLLB 3.3B from HuggingFace)
+;   - salamandra-model/       (SalamandraTA 7B GGUF from HuggingFace, 5.07 GB)
+;   - llama-bin/              (llama.cpp server, Vulkan build from GitHub releases)
 ;   - tts-models/piper/       (Piper TTS + voice models)
 ;   - Bibles/                  (downloaded from eBible.org)
 

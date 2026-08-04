@@ -310,7 +310,7 @@ Namespace Server
                                                            Select(Function(e) New With {
                                                                .key = e.Key,
                                                                .name = e.DisplayName,
-                                                               .offline = Not String.IsNullOrEmpty(e.ModelType)
+                                                               .offline = Services.Translation.TranslationBackendRegistry.IsOfflineEngine(e.Key)
                                                            }).ToList()
                                                        Return context.Response.WriteAsJsonAsync(engines)
                                                    End Function)

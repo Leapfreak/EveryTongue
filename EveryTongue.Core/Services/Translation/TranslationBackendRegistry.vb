@@ -71,6 +71,13 @@ Namespace Services.Translation
             ''' custom_instructions; future LLM backends via a prompt glossary).
             ''' </summary>
             Public Property SupportsTerminology As Boolean = False
+            ''' <summary>
+            ''' Non-empty when this OFFLINE engine is served by a self-hosted native
+            ''' server process rather than the Python sidecar pool ("llama" =
+            ''' llama-server.exe). Deliberately distinct from ModelType, which is the
+            ''' switch that routes an engine into the NLLB python-sidecar pool.
+            ''' </summary>
+            Public Property LocalServerKind As String = ""
         End Class
 
         Private Shared ReadOnly _backends As New List(Of Entry) From {
@@ -78,6 +85,7 @@ Namespace Services.Translation
             New Entry With {.Key = "nllb-int8", .DisplayName = "NLLB 1.3B int8 (offline, ~1.5 GB VRAM)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-model", .BackendName = "Local", .ComputeType = "int8_float16", .EnglishCentric = False, .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb-int8")},
             New Entry With {.Key = "nllb-3.3b", .DisplayName = "NLLB 3.3B (offline, ~8 GB VRAM)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-3.3b-model", .BackendName = "Local", .EnglishCentric = False, .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb-3.3b")},
             New Entry With {.Key = "nllb-3.3b-int8", .DisplayName = "NLLB 3.3B int8 (offline, ~4 GB VRAM)", .RequiresInternet = False, .RequiresApiKey = False, .ModelType = "nllb", .DefaultModelPath = ".\nllb-3.3b-model", .BackendName = "Local", .ComputeType = "int8_float16", .EnglishCentric = False, .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("nllb-3.3b-int8")},
+            New Entry With {.Key = "salamandra", .DisplayName = "SalamandraTA 7B (offline, ~6 GB VRAM)", .RequiresInternet = False, .RequiresApiKey = False, .BackendName = "Salamandra", .EnglishCentric = False, .SupportsContext = True, .SupportsTerminology = False, .LocalServerKind = "llama", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("salamandra")},
             New Entry With {.Key = "google-translate", .DisplayName = "Google Translate (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "Google", .EnglishCentric = False, .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("google-translate")},
             New Entry With {.Key = "deepl", .DisplayName = "DeepL (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "DeepL", .EnglishCentric = False, .SupportsContext = True, .SupportsTerminology = True, .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("deepl")},
             New Entry With {.Key = "azure-translator", .DisplayName = "Azure Translator (online)", .RequiresInternet = True, .RequiresApiKey = True, .BackendName = "Azure", .ConfigDescriptor = New Config.BasicEngineConfigDescriptor("azure-translator")},
@@ -120,6 +128,19 @@ Namespace Services.Translation
         ''' </summary>
         Public Shared Function IsInlineEngine(key As String) As Boolean
             Return Not String.IsNullOrEmpty(Find(key)?.InlineWithStt)
+        End Function
+
+        ''' <summary>
+        ''' True when the engine key is a standalone OFFLINE orchestrator engine —
+        ''' the NLLB sidecar family or a LocalServerKind native server (Salamandra).
+        ''' Semantic replacement for the old "ModelType non-empty" offline test at
+        ''' call sites that mean "local engine: needs warm-up, works without
+        ''' internet" — NOT "runs in the python sidecar pool" (that is ModelType's
+        ''' job and stays ModelType-keyed).
+        ''' </summary>
+        Public Shared Function IsOfflineEngine(key As String) As Boolean
+            Dim e = Find(key)
+            Return e IsNot Nothing AndAlso Not e.RequiresInternet AndAlso String.IsNullOrEmpty(e.InlineWithStt)
         End Function
 
         ''' <summary>
@@ -197,20 +218,22 @@ Namespace Services.Translation
         End Function
 
         ''' <summary>
-        ''' When the effective configured engine is a CLOUD backend that is
-        ''' registered and available (has an API key) on the orchestrator, make it
-        ''' the orchestrator's active backend (syncs config → orchestrator, which
-        ''' covers cloud-only machines where the NLLB sidecar never starts) and
-        ''' return True — the caller should route through the orchestrator.
-        ''' Returns False when the effective engine is the local sidecar, the
-        ''' orchestrator is unavailable (server down), or the cloud backend has no
-        ''' key — the caller keeps its existing local/NLLB path.
+        ''' When the effective configured engine routes through the ORCHESTRATOR —
+        ''' a cloud backend with its key, or a native-server offline engine like
+        ''' Salamandra — make it the orchestrator's active backend and return True:
+        ''' the caller should use the orchestrator. Returns False only for the
+        ''' python-sidecar family (ModelType set: NLLB — the caller keeps its
+        ''' direct-sidecar path), an unavailable orchestrator, or an engine whose
+        ''' backend is not available yet (no key / llama-server not warm) — in
+        ''' which case the caller's NLLB path is the honest fallback and the
+        ''' orchestrator logs make the reason visible.
         ''' </summary>
-        Friend Shared Function TryActivateConfiguredCloudBackend(svc As Interfaces.ITranslationService,
-                                                                 cfg As EveryTongue.Models.AppConfig) As Boolean
+        Friend Shared Function TryActivateConfiguredBackend(svc As Interfaces.ITranslationService,
+                                                            cfg As EveryTongue.Models.AppConfig) As Boolean
             If svc Is Nothing OrElse cfg Is Nothing Then Return False
             Dim entry = Find(ResolveEffectiveBackendKey(cfg))
-            If entry Is Nothing OrElse Not entry.RequiresInternet Then Return False
+            ' ModelType set = python-sidecar family (NLLB) — direct path, not ours.
+            If entry Is Nothing OrElse Not String.IsNullOrEmpty(entry.ModelType) Then Return False
             Dim info = svc.GetAllBackends().FirstOrDefault(
                 Function(b) If(b.Name, "").Equals(If(entry.BackendName, ""), StringComparison.OrdinalIgnoreCase))
             If info Is Nothing OrElse Not info.IsAvailable Then Return False

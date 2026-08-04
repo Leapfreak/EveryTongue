@@ -738,8 +738,9 @@ Namespace Controllers
         Private Function BuildConferenceTranslationProbe(roomId As String) As Func(Of Threading.CancellationToken, Task(Of Boolean))
             Dim roomKey = RoomTranslationKey(roomId)
             If TranslationBackendRegistry.IsInlineEngine(roomKey) Then Return Nothing
-            Dim entry = TranslationBackendRegistry.Find(roomKey)
-            Dim isOffline = entry IsNot Nothing AndAlso Not String.IsNullOrEmpty(entry.ModelType)
+            ' IsOfflineEngine (not ModelType) so Salamandra rooms also hold
+            ' "preparing" until the llama-server is warm — first commit must be fast.
+            Dim isOffline = TranslationBackendRegistry.IsOfflineEngine(roomKey)
             If Not isOffline Then Return Nothing  ' cloud — instant
             Dim nm As String = Nothing
             _roomTranslationBackendName.TryGetValue(roomId, nm)
@@ -928,6 +929,9 @@ Namespace Controllers
             ' Buffer-vs-immediate is a property of THIS room's engine, not the global
             ' active backend: offline (NLLB, ModelType set) buffers into sentences;
             ' cloud + inline engines translate each commit immediately.
+            ' DELIBERATELY ModelType-keyed (not IsOfflineEngine): Salamandra is
+            ' offline but takes the IMMEDIATE path — 0.3-0.8s/commit measured;
+            ' sentence buffering is an NLLB-throughput artifact, not an offline trait.
             Dim roomTransEntry = TranslationBackendRegistry.Find(RoomTranslationKey(roomId))
             Dim isCloud = roomTransEntry Is Nothing OrElse String.IsNullOrEmpty(roomTransEntry.ModelType)
 

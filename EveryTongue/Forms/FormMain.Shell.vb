@@ -705,6 +705,16 @@ Partial Class FormMain
                     AppLogger.Log(LogEvents.CONFIG_SAVED, $"Failed to propagate API key: {ex.Message}")
                 End Try
 
+                ' Selecting SalamandraTA in Options starts its llama-server right
+                ' away (idempotent) — "user sets it and uses it", no app restart.
+                Try
+                    Dim effEntry = Services.Translation.TranslationBackendRegistry.Find(
+                        Services.Translation.TranslationBackendRegistry.ResolveEffectiveBackendKey(_config))
+                    If effEntry?.LocalServerKind = "llama" Then _serverController?.EnsureSalamandraRunning()
+                Catch ex As Exception
+                    AppLogger.Log(LogEvents.TRANS_LLAMA_PROBLEM, $"Salamandra ensure-on-save failed: {ex.Message}")
+                End Try
+
                 ' If translation backend/model/device changed, restart the sidecar
                 Dim newModelType = If(_config.TranslationModelType, "nllb")
                 Dim newModelPath = If(_config.TranslationModelPath, "")
@@ -970,9 +980,21 @@ Partial Class FormMain
         Dim livePort = If(_config?.LiveServerPort, 0)
 
         Using frm As New FormTranslationBenchmark(translationSvc, ttsSvc, livePort, _config, ttsBackends,
-                                                 AddressOf EnsureDefaultTranslationRunning)
+                                                 AddressOf EnsureLocalEngineForBenchmark)
             frm.ShowDialog(Me)
         End Using
+    End Sub
+
+    ''' <summary>Engine-aware local-engine starter for the benchmark: llama-served
+    ''' engines (Salamandra) start their own server; everything else means the
+    ''' default NLLB sidecar. Without this the benchmark's offline auto-start
+    ''' would wait forever on the wrong process.</summary>
+    Private Sub EnsureLocalEngineForBenchmark(backendName As String)
+        If Services.Translation.TranslationBackendRegistry.FindByBackendName(backendName)?.LocalServerKind = "llama" Then
+            _serverController?.EnsureSalamandraRunning()
+        Else
+            EnsureDefaultTranslationRunning()
+        End If
     End Sub
 
     Private Sub SetThemeFromMenu(theme As Models.ThemeMode)

@@ -661,7 +661,7 @@ Namespace Pipeline
             ' usage counting come from there). The local NLLB engine keeps the
             ' existing direct sidecar HTTP path, byte-identical to before.
             Dim useOrchestrator = Services.Translation.TranslationBackendRegistry.
-                TryActivateConfiguredCloudBackend(_translator, _config)
+                TryActivateConfiguredBackend(_translator, _config)
 
             If useOrchestrator Then
                 Log($"=== {stepLabel}: Translating subtitles via {_translator.ActiveBackend} ({srcLang} -> {tgtLang}) ===")

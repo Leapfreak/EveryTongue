@@ -237,7 +237,7 @@ Namespace Controllers
             ' is also the fallback when the server is down (orchestrator Nothing).
             Dim orchestrator = _getTranslationOrchestrator?.Invoke()
             Dim useOrchestrator = Services.Translation.TranslationBackendRegistry.
-                TryActivateConfiguredCloudBackend(orchestrator, _config)
+                TryActivateConfiguredBackend(orchestrator, _config)
             If useOrchestrator Then
                 Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_REQUEST,
                     $"Translate workspace routing via orchestrator backend={orchestrator.ActiveBackend} {sourceLang}→{targetLang}")

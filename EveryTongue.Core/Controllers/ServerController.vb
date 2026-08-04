@@ -122,6 +122,17 @@ Namespace Controllers
                     Services.Tts.TtsBackendRegistry.ConfigureCloudTtsKeys(_kestrelHost.Services, _config)
                 End If
 
+                ' Salamandra (offline llama-server LLM engine): register the backend
+                ' ONCE, always — it reports IsAvailable=False until its host is warm,
+                ' which makes the benchmark row, capability matrix and fallback
+                ' eligibility all work with zero extra wiring. The process itself
+                ' starts lazily (EnsureSalamandraRunning) or right now when it is the
+                ' configured engine.
+                RegisterSalamandraBackend()
+                Dim effectiveEntry = Services.Translation.TranslationBackendRegistry.Find(
+                    Services.Translation.TranslationBackendRegistry.ResolveEffectiveBackendKey(_config))
+                If effectiveEntry?.LocalServerKind = "llama" Then EnsureSalamandraRunning()
+
                 ' Cloud usage tracker reads budgets live from config so Options
                 ' changes apply without a server restart.
                 Services.Translation.TranslationUsageTracker.BudgetProvider =
@@ -173,12 +184,69 @@ Namespace Controllers
 
         Public Sub StopServer()
             EndpointRegistration.RemoteCommandHandler = Nothing
+            Try : StopSalamandra() : Catch : End Try
             Try : _kestrelHost?.Dispose() : Catch : End Try
             _kestrelHost = Nothing
             _serverPort = 0
             _log("[Server] Server stopped.")
             _updateShellStatus()
         End Sub
+
+#Region "Salamandra (offline llama-server LLM engine)"
+        Private _salamandraHost As Pipeline.LlamaServerHost
+
+        ''' <summary>Shared path so the Download Manager and this controller can
+        ''' never drift: the llama.cpp Vulkan build is delivered into llama-bin\.</summary>
+        Public Shared Function LlamaServerExePath() As String
+            Return IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "llama-bin", "llama-server.exe")
+        End Function
+
+        Private Sub RegisterSalamandraBackend()
+            Dim orch = TryCast(GetTranslationOrchestrator(), Services.Translation.TranslationOrchestrator)
+            If orch Is Nothing Then Return
+            _salamandraHost = New Pipeline.LlamaServerHost() With {
+                .ExePath = LlamaServerExePath(),
+                .ModelPath = Models.AppConfig.ResolvePath(_config.SalamandraModelPath),
+                .Port = _config.SalamandraPort,
+                .GpuLayers = _config.SalamandraGpuLayers,
+                .ContextTokens = _config.SalamandraContextTokens
+            }
+            orch.RegisterBackend(New Services.Translation.SalamandraTranslationBackend(_salamandraHost))
+        End Sub
+
+        ''' <summary>
+        ''' Idempotent, non-blocking: room start / Options save / benchmark all call
+        ''' this freely; concurrent callers share one launch. Missing binaries →
+        ''' loud log + Download Manager prompt (never a silent dead-end).
+        ''' </summary>
+        Public Sub EnsureSalamandraRunning()
+            If _salamandraHost Is Nothing Then Return
+            Dim gguf = Models.AppConfig.ResolvePath(_config.SalamandraModelPath)
+            If Not IO.File.Exists(gguf) OrElse Not IO.File.Exists(LlamaServerExePath()) Then
+                Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_LLAMA_PROBLEM,
+                    "SalamandraTA selected but its files are missing (model and/or llama-server.exe)")
+                Services.Infrastructure.AppLogger.PromptDownloadManager(
+                    "SalamandraTA needs two downloads: 'Salamandra Translation Model' (5.1 GB) and 'llama.cpp Server (Vulkan)'. Open the Download Manager now?",
+                    "SalamandraTA components missing")
+                Return
+            End If
+            Dim t = _salamandraHost.EnsureStartedAsync()
+            t.ContinueWith(Sub(x) Services.Infrastructure.AppLogger.Log(
+                               Services.Infrastructure.LogEvents.TRANS_LLAMA_PROBLEM,
+                               $"Salamandra start failed: {x.Exception?.GetBaseException().Message}"),
+                           TaskContinuationOptions.OnlyOnFaulted)
+        End Sub
+
+        Public Sub StopSalamandra()
+            _salamandraHost?.Stop()
+        End Sub
+
+        Public ReadOnly Property SalamandraAvailable As Boolean
+            Get
+                Return _salamandraHost IsNot Nothing AndAlso _salamandraHost.IsRunning AndAlso _salamandraHost.IsModelLoaded
+            End Get
+        End Property
+#End Region
 
         Public Function GetSubtitleService() As Services.Interfaces.ISubtitleService
             Return TryCast(_kestrelHost?.Services?.GetService(

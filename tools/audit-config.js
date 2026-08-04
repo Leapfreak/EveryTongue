@@ -31,6 +31,13 @@ const ALLOW_NO_UI = {
   TranslationContextMaxAgeMinutes: 'context system v1 — UI deferred until live validation (PLAN.md)',
   TranslationTerminologyEnabled: 'context system v1 — UI deferred until live validation (PLAN.md)',
   TranslationTerminologyPath: 'context system v1 — UI deferred until live validation (PLAN.md)',
+  // Salamandra offline LLM engine v1 (branch salamandra-engine, 2026-08-04):
+  // deliberately file-only — defaults are correct for the supported install
+  // layout; FormOptions knobs are the deferred follow-up (PLAN.md).
+  SalamandraModelPath: 'Salamandra engine v1 — UI deferred (PLAN.md)',
+  SalamandraPort: 'Salamandra engine v1 — UI deferred (PLAN.md)',
+  SalamandraGpuLayers: 'Salamandra engine v1 — UI deferred (PLAN.md)',
+  SalamandraContextTokens: 'Salamandra engine v1 — UI deferred (PLAN.md)',
 };
 
 const cfgPath = path.join(ROOT, 'EveryTongue.Core', 'Models', 'AppConfig.vb');
