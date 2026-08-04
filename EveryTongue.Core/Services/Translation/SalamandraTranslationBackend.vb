@@ -178,8 +178,10 @@ Namespace Services.Translation
                 Key .repeat_penalty = 1.0,
                 Key .stop = New String() {"<|im_end|>"},
                 Key .cache_prompt = True})
-            Dim resp = Await _httpClient.PostAsync($"http://127.0.0.1:{_host.Port}/completion",
-                New StringContent(payload, System.Text.Encoding.UTF8, "application/json"), ct)
+            Dim req As New HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{_host.Port}/completion")
+            req.Headers.Authorization = New System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _host.ApiKey)
+            req.Content = New StringContent(payload, System.Text.Encoding.UTF8, "application/json")
+            Dim resp = Await _httpClient.SendAsync(req, ct)
             If Not resp.IsSuccessStatusCode Then
                 Dim errBody = Await resp.Content.ReadAsStringAsync()
                 AppLogger.Log(LogEvents.TRANS_ERROR,
@@ -286,7 +288,9 @@ Namespace Services.Translation
         Public Async Function CheckHealthAsync(ct As CancellationToken) As Task(Of Boolean) Implements ITranslationBackend.CheckHealthAsync
             If Not IsAvailable Then Return False
             Try
-                Dim resp = Await _httpClient.GetAsync($"http://127.0.0.1:{_host.Port}/health", ct)
+                Dim req As New HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{_host.Port}/health")
+                req.Headers.Authorization = New System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _host.ApiKey)
+                Dim resp = Await _httpClient.SendAsync(req, ct)
                 Return resp.IsSuccessStatusCode
             Catch
                 ' Health probe — unreachable simply means unhealthy; the host's own

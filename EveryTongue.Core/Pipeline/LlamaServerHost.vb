@@ -40,6 +40,18 @@ Namespace Pipeline
         Public Property GpuLayers As Integer = 99
         Public Property ContextTokens As Integer = 4096
 
+        ''' <summary>Random per-launch API key passed to llama-server (--api-key) and
+        ''' required on every request — closes the CORS-any-origin/no-key warning at
+        ''' its root: a malicious page in a local browser can no longer script the
+        ''' endpoint. Command-line visibility is same-user-only, which the browser
+        ''' threat model cannot reach. Regenerated on every (re)start.</summary>
+        Public ReadOnly Property ApiKey As String
+            Get
+                Return _apiKey
+            End Get
+        End Property
+        Private _apiKey As String = ""
+
         Private ReadOnly _lock As New Object()
         Private _process As Process
         Private _startTask As Task(Of Boolean)
@@ -109,9 +121,11 @@ Namespace Pipeline
                 ' -lv 4: at the default verbosity llama-server prints neither the
                 ' device nor the layer-offload lines (field 2026-08-04) — raise it
                 ' so the offload FACT is emitted and can be logged verbatim.
+                _apiKey = Convert.ToHexString(Security.Cryptography.RandomNumberGenerator.GetBytes(16))
+
                 Dim psi As New ProcessStartInfo() With {
                     .FileName = ExePath,
-                    .Arguments = $"-m ""{ModelPath}"" --port {Port} --host 127.0.0.1 -ngl {GpuLayers} -c {ContextTokens} --parallel 1 -lv 4",
+                    .Arguments = $"-m ""{ModelPath}"" --port {Port} --host 127.0.0.1 -ngl {GpuLayers} -c {ContextTokens} --parallel 1 -lv 4 --api-key {_apiKey}",
                     .WorkingDirectory = Path.GetDirectoryName(ExePath),
                     .UseShellExecute = False,
                     .CreateNoWindow = True,
@@ -245,8 +259,10 @@ Namespace Pipeline
                     Key .prompt = prompt, Key .n_predict = nPredict, Key .temperature = 0,
                     Key .stop = New String() {"<|im_end|>"}, Key .cache_prompt = False})
                 Using cts As New CancellationTokenSource(TimeSpan.FromSeconds(60))
-                    Dim resp = Await _httpClient.PostAsync($"http://127.0.0.1:{Port}/completion",
-                        New StringContent(payload, Text.Encoding.UTF8, "application/json"), cts.Token)
+                    Dim req As New HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{Port}/completion")
+                    req.Headers.Authorization = New Net.Http.Headers.AuthenticationHeaderValue("Bearer", _apiKey)
+                    req.Content = New StringContent(payload, Text.Encoding.UTF8, "application/json")
+                    Dim resp = Await _httpClient.SendAsync(req, cts.Token)
                     Return resp.IsSuccessStatusCode
                 End Using
             Catch ex As Exception
