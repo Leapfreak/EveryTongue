@@ -162,7 +162,11 @@ Namespace Pipeline
                     End If
                     Try
                         Using cts As New CancellationTokenSource(TimeSpan.FromSeconds(3))
-                            Dim resp = Await _httpClient.GetAsync($"http://127.0.0.1:{Port}/health", cts.Token)
+                            ' Send the key here too — some builds exempt /health from
+                            ' --api-key auth, some don't; the header is correct either way.
+                            Dim hreq As New HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{Port}/health")
+                            hreq.Headers.Authorization = New Net.Http.Headers.AuthenticationHeaderValue("Bearer", _apiKey)
+                            Dim resp = Await _httpClient.SendAsync(hreq, cts.Token)
                             If resp.IsSuccessStatusCode Then healthy = True : Exit While
                         End Using
                     Catch
