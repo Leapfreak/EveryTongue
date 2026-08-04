@@ -69,10 +69,19 @@ Namespace Services.Translation
             Return If(String.IsNullOrEmpty(friendly), code, friendly)
         End Function
 
+        ''' <summary>Scrub for Latin-script targets only: a Greek/Cyrillic run wedged
+        ''' INSIDE a Latin word is always token corruption ("don'льt"), never
+        ''' legitimate output — standalone foreign words are left alone.</summary>
+        Private Shared ReadOnly _midWordNonLatin As New System.Text.RegularExpressions.Regex(
+            "(?<=[A-Za-zÀ-ÿ'’])[Ͱ-ϿЀ-ӿ]+(?=[A-Za-zÀ-ÿ])",
+            System.Text.RegularExpressions.RegexOptions.Compiled)
+
         ''' <summary>Quote/whitespace strip (LLM habit), plus a leading "{TargetName}:"
-        ''' echo strip and a defensive trailing partial-ChatML-tag strip.</summary>
-        Private Shared Function CleanReply(reply As String, targetName As String) As String
+        ''' echo strip, a defensive trailing partial-ChatML-tag strip, and the
+        ''' mid-word non-Latin scrub for *_Latn targets.</summary>
+        Private Shared Function CleanReply(reply As String, targetName As String, Optional latinTarget As Boolean = False) As String
             Dim s = If(reply, "").Trim()
+            If latinTarget Then s = _midWordNonLatin.Replace(s, "")
             Dim tagIdx = s.IndexOf("<|im", StringComparison.Ordinal)
             If tagIdx >= 0 Then s = s.Substring(0, tagIdx).Trim()
             If s.StartsWith(targetName & ":", StringComparison.OrdinalIgnoreCase) Then
@@ -156,10 +165,17 @@ Namespace Services.Translation
         Private Async Function RequestCompletionAsync(prompt As String, nPredict As Integer,
                                                       targetName As String, sourceLang As String, targetLang As String,
                                                       ct As CancellationToken) As Task(Of String)
+            ' repeat_penalty MUST be explicit 1.0: llama-server's default penalizes
+            ' tokens already present in the prompt — with prior translations in the
+            ' context window, common words ("don't") get their correct token
+            ' suppressed and a quantization-noise runner-up wins (field 2026-08-04:
+            ' the "don'льt" Cyrillic artifact, triggered only on repeated words).
+            ' Deterministic MT wants greedy decoding with no penalties at all.
             Dim payload = JsonSerializer.Serialize(New With {
                 Key .prompt = prompt,
                 Key .n_predict = nPredict,
                 Key .temperature = 0,
+                Key .repeat_penalty = 1.0,
                 Key .stop = New String() {"<|im_end|>"},
                 Key .cache_prompt = True})
             Dim resp = Await _httpClient.PostAsync($"http://127.0.0.1:{_host.Port}/completion",
@@ -174,7 +190,8 @@ Namespace Services.Translation
             Using doc = JsonDocument.Parse(body)
                 Dim contentEl As JsonElement = Nothing
                 If doc.RootElement.TryGetProperty("content", contentEl) Then
-                    Return CleanReply(contentEl.GetString(), targetName)
+                    Return CleanReply(contentEl.GetString(), targetName,
+                                      latinTarget:=targetLang.EndsWith("_Latn", StringComparison.OrdinalIgnoreCase))
                 End If
             End Using
             Return ""
