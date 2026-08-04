@@ -547,9 +547,9 @@ Namespace Forms
                     Return lp.GetString("DM_CategoryTool")
                 Case "Whisper Model (ggml-large-v3)", "GGML Whisper Model", "faster-whisper Model", "Silero VAD Model"
                     Return lp.GetString("DM_CategoryAiModel")
-                Case "NLLB Translation Model", "NLLB 3.3B Translation Model"
+                Case "NLLB Translation Model", "NLLB 3.3B Translation Model", "Salamandra Translation Model"
                     Return lp.GetString("DM_CategoryAiModel")
-                Case "whisper-server (Vulkan)", "whisper-server (CUDA)"
+                Case "whisper-server (Vulkan)", "whisper-server (CUDA)", "llama.cpp Server (Vulkan)"
                     Return lp.GetString("DM_CategoryTool")
                 Case "AWS SDK (Amazon Translate)"
                     Return lp.GetString("DM_CategoryTool")

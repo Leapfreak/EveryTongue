@@ -31,6 +31,8 @@ Namespace Services.Infrastructure
             Public Property Azure As String
             Public Property Name As String
             Public Property Native As String
+            ''' <summary>Presence column: True when SalamandraTA covers this language.</summary>
+            Public Property Salamandra As Boolean
         End Class
 
         Private Sub New(jsonPath As String)
@@ -55,6 +57,7 @@ Namespace Services.Infrastructure
                         If el.TryGetProperty("azure", Nothing) Then entry.Azure = el.GetProperty("azure").GetString()
                         If el.TryGetProperty("name", Nothing) Then entry.Name = el.GetProperty("name").GetString()
                         If el.TryGetProperty("native", Nothing) Then entry.Native = el.GetProperty("native").GetString()
+                        If el.TryGetProperty("salamandra", Nothing) Then entry.Salamandra = el.GetProperty("salamandra").GetBoolean()
 
                         _byFlores(entry.Flores) = entry
                         If Not String.IsNullOrEmpty(entry.Iso1) Then _byIso1(entry.Iso1) = entry
@@ -138,6 +141,15 @@ Namespace Services.Infrastructure
             If _byFlores.TryGetValue(floresCode, entry) Then Return entry.Iso3
             ' Fallback: split prefix
             Return floresCode.Split("_"c)(0)
+        End Function
+
+        ''' <summary>True when SalamandraTA covers this FLORES language (the
+        ''' "salamandra" presence column in language-codes.json — the canonical home
+        ''' for the engine's 40-language coverage; never an inline list in VB).</summary>
+        Public Function SupportsSalamandra(floresCode As String) As Boolean
+            If String.IsNullOrEmpty(floresCode) Then Return False
+            Dim entry As LangEntry = Nothing
+            Return _byFlores.TryGetValue(floresCode, entry) AndAlso entry.Salamandra
         End Function
 
         ''' <summary>FLORES code -> DeepL code (e.g. "ES")</summary>

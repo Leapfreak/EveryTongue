@@ -34,14 +34,16 @@ Public Class FormTranslationBenchmark
     ''' engine itself when the user selects it, instead of requiring a warm-up
     ''' detour through the Translate workspace.
     ''' </summary>
-    Private ReadOnly _startLocalEngine As Action
+    ''' <summary>Engine-aware: receives the backend NAME so the head can start the
+    ''' right local process (NLLB sidecar vs Salamandra llama-server).</summary>
+    Private ReadOnly _startLocalEngine As Action(Of String)
 
     Public Sub New(translationService As ITranslationService,
                    Optional ttsService As ITtsService = Nothing,
                    Optional liveServerPort As Integer = 0,
                    Optional config As AppConfig = Nothing,
                    Optional ttsBackends As IEnumerable(Of ITtsBackend) = Nothing,
-                   Optional startLocalEngine As Action = Nothing)
+                   Optional startLocalEngine As Action(Of String) = Nothing)
         InitializeComponent()
         _translationService = translationService
         _ttsService = ttsService
@@ -2018,7 +2020,7 @@ Public Class FormTranslationBenchmark
         _abCts = New Threading.CancellationTokenSource()
         Try
             lblAbProgress.Text = $"Starting '{engineName}' — launching the translation engine..."
-            _startLocalEngine()
+            _startLocalEngine(engineName)
             Dim sw = Diagnostics.Stopwatch.StartNew()
             While sw.Elapsed < TimeSpan.FromMinutes(3)
                 If _abCts.IsCancellationRequested Then

@@ -1,6 +1,9 @@
 # Stage the updater app zip for a release — mirrors setup.iss [Files] exactly
 # (same inclusions, same Excludes), zip root = {app} layout (the in-app updater
 # Expand-Archive's it straight over the install dir).
+# Download-Manager-delivered content (python-embed, models, whisper-server*,
+# salamandra-model/, llama-bin/, tts-models/piper, Bibles) is excluded by
+# construction — only the enumerated items below are copied.
 #   powershell -NoProfile -File tools\stage-app-zip.ps1 -Version 2.7.19
 param([Parameter(Mandatory = $true)][string]$Version)
 

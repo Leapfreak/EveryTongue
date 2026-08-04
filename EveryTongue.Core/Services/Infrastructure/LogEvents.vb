@@ -70,6 +70,8 @@ Namespace Services.Infrastructure
         Public Const TRANS_PIVOT As Integer = 4013
         Public Const TRANS_INLINE_HOLD_CONFLICT As Integer = 4014
         Public Const TRANS_CONTEXT As Integer = 4015
+        Public Const TRANS_LLAMA As Integer = 4016
+        Public Const TRANS_LLAMA_PROBLEM As Integer = 4017
 
         ' ── TTS (4100–4199) ──
         Public Const TTS_SYNTHESISE As Integer = 4100
@@ -185,6 +187,12 @@ Namespace Services.Infrastructure
         Public Const PYLOG_QE_DEBUG As Integer = 9301
         Public Const PYLOG_QE_WARN As Integer = 9302
         Public Const PYLOG_QE_ERROR As Integer = 9303
+        ' llama-server (Salamandra) is a NATIVE exe, not python — same base+offset
+        ' log-line family because PythonLog is the "child-process log line" category.
+        Public Const LLAMA_SERVER_LOG As Integer = 9400
+        Public Const LLAMA_SERVER_LOG_DEBUG As Integer = 9401
+        Public Const LLAMA_SERVER_LOG_WARN As Integer = 9402
+        Public Const LLAMA_SERVER_LOG_ERROR As Integer = 9403
 
         ''' <summary>
         ''' Register all events. Called by LogEventRegistry.Sub New() since
@@ -257,6 +265,8 @@ Namespace Services.Infrastructure
             R(TRANS_PIVOT, LogCategory.Translation, LogSeverity.Info, "English-pivot routing: which targets went source→English→target and why (English reused vs computed), plus the policy summary at startup")
             R(TRANS_INLINE_HOLD_CONFLICT, LogCategory.Translation, LogSeverity.Warning, "Room's inline translation engine (Speechmatics) conflicts with Hold & merge / Split with SaT — the hold path discards inline translations, so the room fell back to the default translation engine. Turn off Hold & merge AND Split with SaT to use inline translation.")
             R(TRANS_CONTEXT, LogCategory.Translation, LogSeverity.Warning, "Translation context/terminology problem — terminology.json failed to load or parse (logged once per file edit), or DeepL rejected custom_instructions and the request was retried once without them")
+            R(TRANS_LLAMA, LogCategory.Translation, LogSeverity.Info, "Salamandra llama-server lifecycle — starting, Vulkan device detected, layers offloaded, model ready, warm-up timings, stopped")
+            R(TRANS_LLAMA_PROBLEM, LogCategory.Translation, LogSeverity.Warning, "Salamandra llama-server problem — no Vulkan device (running on CPU, ~10x slower), unexpected exit, restart attempt, or giving up (orchestrator falls back to the local NLLB engine)")
 
             ' TTS
             R(TTS_SYNTHESISE, LogCategory.Tts, LogSeverity.Debug, "TTS synthesis requested")
@@ -370,6 +380,10 @@ Namespace Services.Infrastructure
             R(PYLOG_QE_DEBUG, LogCategory.PythonLog, LogSeverity.Debug, "QE server debug")
             R(PYLOG_QE_WARN, LogCategory.PythonLog, LogSeverity.Warning, "QE server warning")
             R(PYLOG_QE_ERROR, LogCategory.PythonLog, LogSeverity.[Error], "QE server error")
+            R(LLAMA_SERVER_LOG, LogCategory.PythonLog, LogSeverity.Info, "llama-server (Salamandra) log line — native exe, routed via the child-process log family")
+            R(LLAMA_SERVER_LOG_DEBUG, LogCategory.PythonLog, LogSeverity.Debug, "llama-server debug/per-request chatter")
+            R(LLAMA_SERVER_LOG_WARN, LogCategory.PythonLog, LogSeverity.Warning, "llama-server warning")
+            R(LLAMA_SERVER_LOG_ERROR, LogCategory.PythonLog, LogSeverity.[Error], "llama-server error")
         End Sub
 
     End Module

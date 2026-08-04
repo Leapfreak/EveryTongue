@@ -472,6 +472,21 @@ Namespace Models
 
         Public Property TranslationTerminologyPath As String = ".\translate-server\terminology.json"
 
+        ''' <summary>GGUF model FILE (not directory) for the SalamandraTA offline LLM
+        ''' engine (llama-server). Delivered by the Download Manager.</summary>
+        Public Property SalamandraModelPath As String = ".\salamandra-model\salamandraTA_7B_inst_q4.gguf"
+
+        ''' <summary>Loopback port for the llama-server process backing SalamandraTA.</summary>
+        Public Property SalamandraPort As Integer = 5097
+
+        ''' <summary>Layers offloaded to GPU (llama-server -ngl). 99 = all (llama clamps
+        ''' to the model's depth). 0 forces CPU.</summary>
+        Public Property SalamandraGpuLayers As Integer = 99
+
+        ''' <summary>llama-server context window in tokens (-c). 4096 comfortably holds
+        ''' the rolling context window + prompt scaffolding.</summary>
+        Public Property SalamandraContextTokens As Integer = 4096
+
         ''' <summary>Port for the CometKiwi quality-estimation sidecar (benchmark only).</summary>
         Public Property QeServerPort As Integer = 5096
 

@@ -171,6 +171,8 @@ Namespace Models
                 CheckSileroVadModelAsync(),
                 CheckNllbModelAsync(),
                 CheckNllb33bModelAsync(),
+                CheckSalamandraModelAsync(),
+                CheckLlamaServerAsync(),
                 CheckPiperAsync(),
                 CheckAwsSdkAsync(),
                 CheckWhisperCliAsync(),
@@ -754,6 +756,123 @@ Namespace Models
             Next
         End Function
 
+        ''' <summary>
+        ''' A release zip may or may not wrap its payload in one top-level folder.
+        ''' When <paramref name="sentinelFile"/> is not at <paramref name="destDir"/>'s
+        ''' root, find the subfolder that holds it and move its contents up.
+        ''' Shared by the Piper and llama.cpp installers (extract-shared rule).
+        ''' </summary>
+        Private Shared Sub HoistNestedDirectory(destDir As String, sentinelFile As String)
+            If File.Exists(Path.Combine(destDir, sentinelFile)) Then Return
+            For Each subDir As String In Directory.GetDirectories(destDir)
+                If File.Exists(Path.Combine(subDir, sentinelFile)) Then
+                    For Each f As String In Directory.GetFiles(subDir)
+                        File.Move(f, Path.Combine(destDir, Path.GetFileName(f)), True)
+                    Next
+                    For Each d As String In Directory.GetDirectories(subDir)
+                        Dim destSubDir = Path.Combine(destDir, Path.GetFileName(d))
+                        If Directory.Exists(destSubDir) Then Directory.Delete(destSubDir, True)
+                        Directory.Move(d, destSubDir)
+                    Next
+                    Directory.Delete(subDir, True)
+                    Exit For
+                End If
+            Next
+        End Sub
+
+        ' ──────────────────────────────────────────
+        '  SalamandraTA (offline LLM translation): GGUF model + llama.cpp server
+        ' ──────────────────────────────────────────
+
+        ' Pinned release (Piper precedent): the llama-server stderr parsing and the
+        ' validated prompt format are pinned to this build — bump deliberately.
+        Private Shared ReadOnly LlamaServerReleaseUrl As String =
+            "https://github.com/ggml-org/llama.cpp/releases/download/b10242/llama-b10242-bin-win-vulkan-x64.zip"
+        Private Shared ReadOnly SalamandraModelUrl As String =
+            "https://huggingface.co/BSC-LT/salamandraTA-7B-instruct-GGUF/resolve/main/salamandraTA_7B_inst_q4.gguf"
+
+        Private Function SalamandraModelFile() As String
+            Return AppConfig.ResolvePath(If(_config?.SalamandraModelPath, ".\salamandra-model\salamandraTA_7B_inst_q4.gguf"))
+        End Function
+
+        Public Function CheckSalamandraModelAsync() As Task(Of ToolState)
+            Dim state As New ToolState With {
+                .Name = "Salamandra Translation Model",
+                .DownloadUrl = SalamandraModelUrl
+            }
+            If File.Exists(SalamandraModelFile()) Then
+                state.Status = ToolStatus.UpToDate
+                state.InstalledVersion = "installed"
+            End If
+            Return Task.FromResult(state)
+        End Function
+
+        ''' <summary>
+        ''' 5.07 GB single-file GGUF. Preferred path: the embedded python +
+        ''' huggingface_hub (hf_hub_download resumes partial downloads with
+        ''' integrity checks — DownloadFileAsync has no Range-resume and a 30-min
+        ''' client timeout, which a 5 GB file on a slow link will blow through).
+        ''' Falls back to the direct stream when python/huggingface_hub is missing.
+        ''' The model is ungated — no HF token needed.
+        ''' </summary>
+        Public Async Function DownloadSalamandraModelAsync(progress As IProgress(Of (downloaded As Long, total As Long))) As Task
+            Dim dest = SalamandraModelFile()
+            Dim destDir = Path.GetDirectoryName(dest)
+            If Not Directory.Exists(destDir) Then Directory.CreateDirectory(destDir)
+
+            Dim python = PythonExePath()
+            If File.Exists(python) Then
+                Try
+                    AppLogger.Log(LogEvents.DL_DOWNLOAD_START, "Salamandra model via huggingface_hub (resumable; ~5.1 GB, progress shown at completion)")
+                    Await RunProcessAsync(python,
+                        "-c ""from huggingface_hub import hf_hub_download; hf_hub_download(repo_id='BSC-LT/salamandraTA-7B-instruct-GGUF', filename='salamandraTA_7B_inst_q4.gguf', local_dir=r'" & destDir & "')""",
+                        _toolsDir, timeoutMs:=7200000)
+                Catch ex As Exception
+                    AppLogger.Log(LogEvents.DL_DOWNLOAD_ERROR, $"huggingface_hub path failed ({ex.Message}) — falling back to direct download")
+                End Try
+            End If
+
+            If Not File.Exists(dest) Then
+                ' Direct stream fallback (no resume — needs a link fast enough to
+                ' finish 5.07 GB inside the client timeout).
+                Await DownloadFileAsync(SalamandraModelUrl, dest, progress)
+            End If
+        End Function
+
+        Public Function CheckLlamaServerAsync() As Task(Of ToolState)
+            Dim state As New ToolState With {
+                .Name = "llama.cpp Server (Vulkan)",
+                .DownloadUrl = LlamaServerReleaseUrl
+            }
+            ' Shared path helper (Controllers.ServerController) so the installer and
+            ' the process host can never disagree about where llama-server.exe lives.
+            If File.Exists(Controllers.ServerController.LlamaServerExePath()) Then
+                state.Status = ToolStatus.UpToDate
+                state.InstalledVersion = "b10242"
+            End If
+            Return Task.FromResult(state)
+        End Function
+
+        Public Async Function DownloadLlamaServerAsync(progress As IProgress(Of (downloaded As Long, total As Long))) As Task
+            Dim destDir = Path.GetDirectoryName(Controllers.ServerController.LlamaServerExePath())
+            Dim zipPath = Path.Combine(_toolsDir, "llama-server-temp.zip")
+            Try
+                Await DownloadFileAsync(LlamaServerReleaseUrl, zipPath, progress)
+                ' Own subdir (Piper pattern) — the zip carries ~30 DLLs that must not
+                ' litter the app root.
+                If Not Directory.Exists(destDir) Then Directory.CreateDirectory(destDir)
+                ZipFile.ExtractToDirectory(zipPath, destDir, True)
+
+                ' Hoist a nested top-level folder if the release layout ever changes
+                ' (b10242 extracts flat; Piper precedent).
+                HoistNestedDirectory(destDir, "llama-server.exe")
+
+                SaveVersion("llama.cpp Server (Vulkan)", "b10242")
+            Finally
+                If File.Exists(zipPath) Then File.Delete(zipPath)
+            End Try
+        End Function
+
         ' ──────────────────────────────────────────
         '  Piper TTS (offline speech synthesis)
         ' ──────────────────────────────────────────
@@ -799,22 +918,7 @@ Namespace Models
                 ZipFile.ExtractToDirectory(zipPath, destDir, True)
 
                 ' If the zip had a subdirectory containing piper.exe, move contents up
-                If Not File.Exists(Path.Combine(destDir, "piper.exe")) Then
-                    For Each subDir As String In Directory.GetDirectories(destDir)
-                        If File.Exists(Path.Combine(subDir, "piper.exe")) Then
-                            For Each f As String In Directory.GetFiles(subDir)
-                                File.Move(f, Path.Combine(destDir, Path.GetFileName(f)), True)
-                            Next
-                            For Each d As String In Directory.GetDirectories(subDir)
-                                Dim destSubDir = Path.Combine(destDir, Path.GetFileName(d))
-                                If Directory.Exists(destSubDir) Then Directory.Delete(destSubDir, True)
-                                Directory.Move(d, destSubDir)
-                            Next
-                            Directory.Delete(subDir, True)
-                            Exit For
-                        End If
-                    Next
-                End If
+                HoistNestedDirectory(destDir, "piper.exe")
 
                 ' Create voices directory
                 Dim vDir As String = PiperVoicesDir()
@@ -1452,6 +1556,10 @@ Namespace Models
                         Await DownloadNllbModelAsync(progress)
                     Case "NLLB 3.3B Translation Model"
                         Await DownloadNllb33bModelAsync(progress)
+                    Case "Salamandra Translation Model"
+                        Await DownloadSalamandraModelAsync(progress)
+                    Case "llama.cpp Server (Vulkan)"
+                        Await DownloadLlamaServerAsync(progress)
                     Case "Piper TTS"
                         Await DownloadPiperAsync(progress)
                     Case "whisper-server (Vulkan)"

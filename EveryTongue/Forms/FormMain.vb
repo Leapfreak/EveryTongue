@@ -1100,6 +1100,13 @@ del ""%~f0""
     Private Function AcquireRoomTranslationBackend(roomId As String, engineKey As String) As String
         Dim entry = Services.Translation.TranslationBackendRegistry.Find(engineKey)
         If entry Is Nothing OrElse Not String.IsNullOrEmpty(entry.InlineWithStt) Then Return ""
+        If entry.LocalServerKind = "llama" Then
+            ' Salamandra: single resident llama-server, no per-room pool. Idempotent
+            ' fire — the room readiness probe holds "preparing" until it is warm.
+            ' Release is naturally a no-op (server stays resident; 16GB VRAM is fine).
+            _serverController?.EnsureSalamandraRunning()
+            Return entry.BackendName
+        End If
         If String.IsNullOrEmpty(entry.ModelType) Then Return entry.BackendName   ' cloud — configured at server start
 
         Dim compute = Services.Translation.TranslationBackendRegistry.ComputeTypeForKey(engineKey)
@@ -1345,7 +1352,12 @@ del ""%~f0""
                                     String.IsNullOrEmpty(effectiveEntry.ModelType)
 
         If usingCloudTranslation AndAlso Not overrideIsLocal Then
-            AppLogger.Log(LogEvents.TRANS_SERVER_READY, "Skipping NLLB sidecar — using cloud translation backend")
+            If effectiveEntry.LocalServerKind = "llama" Then
+                AppLogger.Log(LogEvents.TRANS_SERVER_READY, "Skipping NLLB sidecar — using SalamandraTA (llama-server)")
+                _serverController?.EnsureSalamandraRunning()
+            Else
+                AppLogger.Log(LogEvents.TRANS_SERVER_READY, "Skipping NLLB sidecar — using cloud translation backend")
+            End If
             _translationStarting = False
         Else
             ' When a room override is set, use ITS model/modelType (registry metadata);
@@ -1441,10 +1453,12 @@ del ""%~f0""
         Dim pythonDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "python-embed").ToLowerInvariant()
 
         ' (process name, required path prefix) — name has no .exe per GetProcessesByName
+        Dim llamaDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "llama-bin").ToLowerInvariant()
         Dim targets = New(Name As String, PathPrefix As String)() {
             ("python", pythonDir),
             ("whisper-server", baseDir),
-            ("whisper-server-cuda", baseDir)
+            ("whisper-server-cuda", baseDir),
+            ("llama-server", llamaDir)
         }
 
         For Each target In targets
@@ -1501,6 +1515,10 @@ del ""%~f0""
         ' otherwise a kill can race the per-host cancel and schedule a pointless
         ' restart of a dying app's sidecar.
         Pipeline.PythonSidecarHost.GlobalShutdown = True
+
+        ' Explicit llama-server stop (holds ~5GB VRAM + a Vulkan context); the
+        ' KillOrphanedSidecars sweep below is the safety net.
+        Try : _serverController?.StopSalamandra() : Catch : End Try
 
         ' Hide tray icon immediately so it looks closed
         Try : trayIcon.Visible = False : Catch : End Try

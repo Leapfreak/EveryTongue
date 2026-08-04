@@ -52,6 +52,7 @@
     "google": "ar",
     "azure": "ar",
     "name": "Arabic",
+    "salamandra": true,
     "native": "العربية",
     "googleStt": "ar-SA",
     "azureStt": "ar-SA"
@@ -70,6 +71,7 @@
   "ast_Latn": {
     "iso3": "ast",
     "name": "Asturian",
+    "salamandra": true,
     "native": "Asturianu"
   },
   "awa_Deva": {
@@ -201,6 +203,7 @@
     "google": "bg",
     "azure": "bg",
     "name": "Bulgarian",
+    "salamandra": true,
     "native": "Български",
     "googleStt": "bg-BG"
   },
@@ -212,6 +215,7 @@
     "google": "ca",
     "azure": "ca",
     "name": "Catalan",
+    "salamandra": true,
     "native": "Català",
     "googleStt": "ca-ES",
     "azureStt": "ca-ES"
@@ -229,6 +233,7 @@
     "google": "cs",
     "azure": "cs",
     "name": "Czech",
+    "salamandra": true,
     "native": "Čeština",
     "googleStt": "cs-CZ",
     "azureStt": "cs-CZ"
@@ -246,6 +251,7 @@
     "google": "cy",
     "azure": "cy",
     "name": "Welsh",
+    "salamandra": true,
     "native": "Cymraeg",
     "azureStt": "cy-GB"
   },
@@ -257,6 +263,7 @@
     "google": "da",
     "azure": "da",
     "name": "Danish",
+    "salamandra": true,
     "native": "Dansk",
     "googleStt": "da-DK",
     "azureStt": "da-DK"
@@ -269,6 +276,7 @@
     "google": "de",
     "azure": "de",
     "name": "German",
+    "salamandra": true,
     "native": "Deutsch",
     "googleStt": "de-DE"
   },
@@ -300,6 +308,7 @@
     "google": "el",
     "azure": "el",
     "name": "Greek",
+    "salamandra": true,
     "native": "Ελληνικά",
     "googleStt": "el-GR",
     "azureStt": "el-GR"
@@ -312,6 +321,7 @@
     "google": "en",
     "azure": "en",
     "name": "English",
+    "salamandra": true,
     "native": "English",
     "googleStt": "en-US",
     "azureStt": "en-US"
@@ -334,6 +344,7 @@
     "google": "et",
     "azure": "et",
     "name": "Estonian",
+    "salamandra": true,
     "native": "Eesti",
     "azureStt": "et-EE"
   },
@@ -345,6 +356,7 @@
     "google": "eu",
     "azure": "eu",
     "name": "Basque",
+    "salamandra": true,
     "native": "Euskara",
     "azureStt": "eu-ES"
   },
@@ -386,6 +398,7 @@
     "google": "fi",
     "azure": "fi",
     "name": "Finnish",
+    "salamandra": true,
     "native": "Suomi",
     "googleStt": "fi-FI"
   },
@@ -402,6 +415,7 @@
     "google": "fr",
     "azure": "fr",
     "name": "French",
+    "salamandra": true,
     "native": "Français",
     "googleStt": "fr-FR"
   },
@@ -433,6 +447,7 @@
     "google": "ga",
     "azure": "ga",
     "name": "Irish",
+    "salamandra": true,
     "native": "Gaeilge",
     "azureStt": "ga-IE"
   },
@@ -444,6 +459,7 @@
     "google": "gl",
     "azure": "gl",
     "name": "Galician",
+    "salamandra": true,
     "native": "Galego",
     "azureStt": "gl-ES"
   },
@@ -507,6 +523,7 @@
     "google": "hi",
     "azure": "hi",
     "name": "Hindi",
+    "salamandra": true,
     "native": "हिन्दी",
     "googleStt": "hi-IN",
     "azureStt": "hi-IN"
@@ -519,6 +536,7 @@
     "google": "hr",
     "azure": "hr",
     "name": "Croatian",
+    "salamandra": true,
     "native": "Hrvatski",
     "googleStt": "hr-HR"
   },
@@ -530,6 +548,7 @@
     "google": "hu",
     "azure": "hu",
     "name": "Hungarian",
+    "salamandra": true,
     "native": "Magyar",
     "googleStt": "hu-HU"
   },
@@ -583,6 +602,7 @@
     "google": "it",
     "azure": "it",
     "name": "Italian",
+    "salamandra": true,
     "native": "Italiano",
     "googleStt": "it-IT"
   },
@@ -605,6 +625,7 @@
     "google": "ja",
     "azure": "ja",
     "name": "Japanese",
+    "salamandra": true,
     "native": "日本語",
     "googleStt": "ja-JP",
     "azureStt": "ja-JP"
@@ -738,6 +759,7 @@
     "google": "ko",
     "azure": "ko",
     "name": "Korean",
+    "salamandra": true,
     "native": "한국어",
     "googleStt": "ko-KR",
     "azureStt": "ko-KR"
@@ -795,6 +817,7 @@
     "google": "lt",
     "azure": "lt",
     "name": "Lithuanian",
+    "salamandra": true,
     "native": "Lietuvių"
   },
   "ltz_Latn": {
@@ -830,6 +853,7 @@
     "google": "lv",
     "azure": "lv",
     "name": "Latvian",
+    "salamandra": true,
     "native": "Latviešu"
   },
   "mag_Deva": {
@@ -889,6 +913,7 @@
     "google": "mt",
     "azure": "mt",
     "name": "Maltese",
+    "salamandra": true,
     "native": "Malti"
   },
   "mni_Beng": {
@@ -931,6 +956,7 @@
     "google": "nl",
     "azure": "nl",
     "name": "Dutch",
+    "salamandra": true,
     "native": "Nederlands",
     "googleStt": "nl-NL"
   },
@@ -942,6 +968,7 @@
     "google": "nn",
     "azure": "nn",
     "name": "Norwegian Nynorsk",
+    "salamandra": true,
     "native": "Nynorsk",
     "azureStt": "nb-NO",
     "googleStt": "nb-NO"
@@ -954,6 +981,7 @@
     "google": "nb",
     "azure": "nb",
     "name": "Norwegian",
+    "salamandra": true,
     "native": "Norsk",
     "azureStt": "nb-NO",
     "googleStt": "nb-NO"
@@ -993,6 +1021,7 @@
     "google": "oc",
     "azure": "oc",
     "name": "Occitan",
+    "salamandra": true,
     "native": "Occitan"
   },
   "ory_Orya": {
@@ -1060,6 +1089,7 @@
     "google": "pl",
     "azure": "pl",
     "name": "Polish",
+    "salamandra": true,
     "native": "Polski",
     "googleStt": "pl-PL"
   },
@@ -1071,6 +1101,7 @@
     "google": "pt",
     "azure": "pt",
     "name": "Portuguese",
+    "salamandra": true,
     "native": "Português",
     "googleStt": "pt-BR",
     "azureStt": "pt-PT"
@@ -1093,6 +1124,7 @@
     "google": "ro",
     "azure": "ro",
     "name": "Romanian",
+    "salamandra": true,
     "native": "Română",
     "googleStt": "ro-RO"
   },
@@ -1114,6 +1146,7 @@
     "google": "ru",
     "azure": "ru",
     "name": "Russian",
+    "salamandra": true,
     "native": "Русский",
     "googleStt": "ru-RU"
   },
@@ -1170,6 +1203,7 @@
     "google": "sk",
     "azure": "sk",
     "name": "Slovak",
+    "salamandra": true,
     "native": "Slovenčina",
     "googleStt": "sk-SK"
   },
@@ -1181,6 +1215,7 @@
     "google": "sl",
     "azure": "sl",
     "name": "Slovene",
+    "salamandra": true,
     "native": "Slovenščina",
     "googleStt": "sl-SI",
     "azureStt": "sl-SI"
@@ -1233,6 +1268,7 @@
     "google": "es",
     "azure": "es",
     "name": "Spanish",
+    "salamandra": true,
     "native": "Español",
     "googleStt": "es-ES",
     "azureStt": "es-ES"
@@ -1255,6 +1291,7 @@
     "google": "sr",
     "azure": "sr",
     "name": "Serbian",
+    "salamandra": true,
     "native": "Српски",
     "googleStt": "sr-RS",
     "azureStt": "sr-RS"
@@ -1288,6 +1325,7 @@
     "google": "sv",
     "azure": "sv",
     "name": "Swedish",
+    "salamandra": true,
     "native": "Svenska",
     "googleStt": "sv-SE",
     "azureStt": "sv-SE"
@@ -1450,6 +1488,7 @@
     "google": "uk",
     "azure": "uk",
     "name": "Ukrainian",
+    "salamandra": true,
     "native": "Українська",
     "googleStt": "uk-UA",
     "azureStt": "uk-UA"
@@ -1556,6 +1595,7 @@
     "google": "zh",
     "azure": "zh",
     "name": "Chinese (Simplified)",
+    "salamandra": true,
     "native": "简体中文",
     "googleStt": "zh",
     "azureStt": "zh-CN"
