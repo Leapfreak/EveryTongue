@@ -402,7 +402,11 @@ Namespace Services.Bible
                                         ' Use ISO code from DB, normalized to 3-letter (e.g. "ca" -> "cat")
                                         If Not String.IsNullOrEmpty(val) Then lang = NormalizeLangCode(val)
                                     Case "copyright", "detailed_info"
-                                        If copyright Is Nothing AndAlso Not String.IsNullOrEmpty(val) Then copyright = val
+                                        ' MyBible modules may carry HTML here (<br/> etc.) —
+                                        ' both viewers render the string as plain text, so
+                                        ' sanitize once at ingestion (e.g. the BEC's
+                                        ' YouVersion-derived attribution block).
+                                        If copyright Is Nothing AndAlso Not String.IsNullOrEmpty(val) Then copyright = CleanCopyrightMarkup(val)
                                 End Select
                             End While
                         End Using
@@ -1244,6 +1248,24 @@ Namespace Services.Bible
         ''' </summary>
         Private Shared Function NormalizeLangCode(code As String) As String
             Return Services.Infrastructure.LanguageCodeService.Instance.NormalizeToIso3(code)
+        End Function
+
+        ''' <summary>
+        ''' Flatten the HTML that MyBible modules may carry in copyright/detailed_info
+        ''' into display-safe plain text: &lt;br&gt; variants become line separators,
+        ''' remaining tags are stripped, entities decoded, and the lines joined with
+        ''' " · " so both viewers (WinForms Label + web textContent) render one clean
+        ''' attribution line regardless of layout.
+        ''' </summary>
+        Private Shared Function CleanCopyrightMarkup(val As String) As String
+            Dim s = Text.RegularExpressions.Regex.Replace(val, "<br\s*/?>", vbLf,
+                Text.RegularExpressions.RegexOptions.IgnoreCase)
+            s = Text.RegularExpressions.Regex.Replace(s, "<[^>]+>", "")
+            s = Net.WebUtility.HtmlDecode(s)
+            Dim lines = s.Split(New Char() {ChrW(10), ChrW(13)}, StringSplitOptions.RemoveEmptyEntries).
+                Select(Function(l) l.Trim()).
+                Where(Function(l) l.Length > 0)
+            Return String.Join(" · ", lines)
         End Function
     End Class
 End Namespace
