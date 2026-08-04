@@ -222,15 +222,29 @@ Namespace Pipeline
             End Try
         End Sub
 
+        ' b10242 llama-SERVER prefixes every line "0.04.632.054 I content" (elapsed +
+        ' level letter) — unlike llama-completion. Field lesson 2026-08-04: this
+        ' prefix broke the original StartsWith-based routing AND hid the device line.
+        Private Shared ReadOnly _serverLinePrefix As New Text.RegularExpressions.Regex(
+            "^\d+[\.\d]*\s+([IWED])\s+", Text.RegularExpressions.RegexOptions.Compiled)
+
         ''' <summary>Severity-route a llama-server output line, and watch for the
         ''' Vulkan device + layer-offload lines (never silent about the device).</summary>
         Private Sub RouteServerLine(line As String)
             If String.IsNullOrWhiteSpace(line) Then Return
             Dim trimmed = line.Trim()
+            Dim level As Char = " "c
+            Dim m = _serverLinePrefix.Match(trimmed)
+            If m.Success Then
+                level = m.Groups(1).Value(0)
+                trimmed = trimmed.Substring(m.Length).Trim()
+            End If
 
-            ' Device / offload detection (b10242 wording; pinned release).
-            If trimmed.IndexOf("Vulkan", StringComparison.OrdinalIgnoreCase) >= 0 AndAlso
-               (trimmed.IndexOf("device", StringComparison.OrdinalIgnoreCase) >= 0 OrElse trimmed.Contains("Vulkan0")) Then
+            ' Device detection: "ggml_vulkan: Found N Vulkan devices" /
+            ' "ggml_vulkan: 0 = NVIDIA GeForce ..." — accept any credible shape.
+            If trimmed.IndexOf("vulkan", StringComparison.OrdinalIgnoreCase) >= 0 AndAlso
+               (trimmed.IndexOf("device", StringComparison.OrdinalIgnoreCase) >= 0 OrElse
+                Text.RegularExpressions.Regex.IsMatch(trimmed, "(NVIDIA|GeForce|Radeon|AMD|Intel|Arc)", Text.RegularExpressions.RegexOptions.IgnoreCase)) Then
                 _vulkanDeviceSeen = True
                 AppLogger.Log(LogEvents.TRANS_LLAMA, $"device: {trimmed}")
                 Return
@@ -241,23 +255,33 @@ Namespace Pipeline
                 If Text.RegularExpressions.Regex.IsMatch(trimmed, "offloaded\s+0\s*/") Then
                     AppLogger.Log(LogEvents.TRANS_LLAMA_PROBLEM, $"0 layers offloaded to GPU — running on CPU: {trimmed}")
                 Else
+                    ' A successful offload proves the GPU even if the enumeration
+                    ' line slipped past — never warn falsely.
+                    _vulkanDeviceSeen = True
                     AppLogger.Log(LogEvents.TRANS_LLAMA, $"{trimmed}")
                 End If
                 Return
             End If
 
-            If trimmed.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0 Then
-                AppLogger.Log(LogEvents.LLAMA_SERVER_LOG_ERROR, trimmed)
-            ElseIf trimmed.IndexOf("warn", StringComparison.OrdinalIgnoreCase) >= 0 Then
-                AppLogger.Log(LogEvents.LLAMA_SERVER_LOG_WARN, trimmed)
-            ElseIf trimmed.StartsWith("llama_") OrElse trimmed.StartsWith("ggml_") OrElse
-                   trimmed.StartsWith("main:") OrElse trimmed.StartsWith("build") OrElse
-                   trimmed.StartsWith("model") OrElse trimmed.StartsWith("srv ") Then
-                AppLogger.Log(LogEvents.LLAMA_SERVER_LOG, trimmed)
-            Else
-                ' Per-request / per-slot chatter — Debug bucket keeps Normal preset quiet.
-                AppLogger.Log(LogEvents.LLAMA_SERVER_LOG_DEBUG, trimmed)
-            End If
+            Select Case level
+                Case "E"c
+                    AppLogger.Log(LogEvents.LLAMA_SERVER_LOG_ERROR, trimmed)
+                Case "W"c
+                    AppLogger.Log(LogEvents.LLAMA_SERVER_LOG_WARN, trimmed)
+                Case "D"c
+                    AppLogger.Log(LogEvents.LLAMA_SERVER_LOG_DEBUG, trimmed)
+                Case Else
+                    ' No level letter (early ggml/loader banner) or "I": load-time
+                    ' lines are Info; per-request slot chatter goes to Debug.
+                    If trimmed.StartsWith("slot ") OrElse trimmed.StartsWith("srv ") OrElse
+                       trimmed.IndexOf("processing task", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                        AppLogger.Log(LogEvents.LLAMA_SERVER_LOG_DEBUG, trimmed)
+                    ElseIf trimmed.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0 Then
+                        AppLogger.Log(LogEvents.LLAMA_SERVER_LOG_ERROR, trimmed)
+                    Else
+                        AppLogger.Log(LogEvents.LLAMA_SERVER_LOG, trimmed)
+                    End If
+            End Select
         End Sub
 
         Private Sub OnProcessExited(sender As Object, e As EventArgs)

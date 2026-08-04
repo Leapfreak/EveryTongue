@@ -110,7 +110,7 @@ Namespace Services.Translation
         ''' 1200-char hard ceiling (the upstream window already caps at ~4s/700ch).
         ''' </summary>
         Private Shared Function BuildPrompt(text As String, sourceLang As String, targetLang As String,
-                                            context As TranslationContext) As (Prompt As String, ContextSentences As Integer)
+                                            context As TranslationContext) As (Prompt As String, PriorTranslations As List(Of String))
             Dim srcName = LanguageName(sourceLang)
             Dim tgtName = LanguageName(targetLang)
 
@@ -137,15 +137,47 @@ Namespace Services.Translation
                         $"Translate the following text from {srcName} into {tgtName}." & vbLf &
                         $"{srcName}: {text}" & vbLf &
                         $"{tgtName}:<|im_end|>" & vbLf &
-                        "<|im_start|>assistant" & vbLf, 0)
+                        "<|im_start|>assistant" & vbLf, New List(Of String)())
             End If
 
+            ' NO trailing space after the prefill — models expect the next token to
+            ' start with its own leading space; a dangling space causes degenerate
+            ' continuations (field 2026-08-04: mid-word Cyrillic artifacts and
+            ' whole-window echo repeats both traced to this).
             Return ("<|im_start|>user" & vbLf &
                     $"Translate the following text from {srcName} into {tgtName}." & vbLf &
                     $"{srcName}: {String.Join(" ", priorSrc)} {text}" & vbLf &
                     $"{tgtName}:<|im_end|>" & vbLf &
                     "<|im_start|>assistant" & vbLf &
-                    String.Join(" ", priorTrans) & " ", priorSrc.Count)
+                    String.Join(" ", priorTrans), priorTrans)
+        End Function
+
+        ''' <summary>One /completion round trip → cleaned reply ("" on error/empty).</summary>
+        Private Async Function RequestCompletionAsync(prompt As String, nPredict As Integer,
+                                                      targetName As String, sourceLang As String, targetLang As String,
+                                                      ct As CancellationToken) As Task(Of String)
+            Dim payload = JsonSerializer.Serialize(New With {
+                Key .prompt = prompt,
+                Key .n_predict = nPredict,
+                Key .temperature = 0,
+                Key .stop = New String() {"<|im_end|>"},
+                Key .cache_prompt = True})
+            Dim resp = Await _httpClient.PostAsync($"http://127.0.0.1:{_host.Port}/completion",
+                New StringContent(payload, System.Text.Encoding.UTF8, "application/json"), ct)
+            If Not resp.IsSuccessStatusCode Then
+                Dim errBody = Await resp.Content.ReadAsStringAsync()
+                AppLogger.Log(LogEvents.TRANS_ERROR,
+                    $"SalamandraBackend: HTTP {CInt(resp.StatusCode)} for {sourceLang}→{targetLang}: {If(errBody, "").Substring(0, Math.Min(160, If(errBody, "").Length))}")
+                Return ""
+            End If
+            Dim body = Await resp.Content.ReadAsStringAsync()
+            Using doc = JsonDocument.Parse(body)
+                Dim contentEl As JsonElement = Nothing
+                If doc.RootElement.TryGetProperty("content", contentEl) Then
+                    Return CleanReply(contentEl.GetString(), targetName)
+                End If
+            End Using
+            Return ""
         End Function
 
         Public Async Function TranslateAsync(text As String,
@@ -176,34 +208,39 @@ Namespace Services.Translation
                 Await _gate.WaitAsync(ct)
                 Try
                     Dim built = BuildPrompt(text, sourceLang, targetLang, context)
+                    Dim tgtName = LanguageName(targetLang)
                     ' n_predict: output is ONLY the current sentence's translation.
                     ' chars/3 ≈ tokens for Latin scripts, so chars-as-budget is ~3x
                     ' headroom; the stop token ends normal runs early; 1024 bounds a
                     ' pathological loop at ~8s.
                     Dim nPredict = Math.Max(96, Math.Min(1024, text.Length))
-                    Dim payload = JsonSerializer.Serialize(New With {
-                        Key .prompt = built.Prompt,
-                        Key .n_predict = nPredict,
-                        Key .temperature = 0,
-                        Key .stop = New String() {"<|im_end|>"},
-                        Key .cache_prompt = True})
+                    Dim cleaned = Await RequestCompletionAsync(built.Prompt, nPredict, tgtName, sourceLang, targetLang, ct)
 
-                    Dim resp = Await _httpClient.PostAsync($"http://127.0.0.1:{_host.Port}/completion",
-                        New StringContent(payload, System.Text.Encoding.UTF8, "application/json"), ct)
-                    If resp.IsSuccessStatusCode Then
-                        Dim body = Await resp.Content.ReadAsStringAsync()
-                        Using doc = JsonDocument.Parse(body)
-                            Dim contentEl As JsonElement = Nothing
-                            If doc.RootElement.TryGetProperty("content", contentEl) Then
-                                Dim cleaned = CleanReply(contentEl.GetString(), LanguageName(targetLang))
-                                If cleaned.Length > 0 Then results(targetLang) = cleaned
-                            End If
-                        End Using
-                    Else
-                        Dim errBody = Await resp.Content.ReadAsStringAsync()
-                        AppLogger.Log(LogEvents.TRANS_ERROR,
-                            $"SalamandraBackend: HTTP {CInt(resp.StatusCode)} for {sourceLang}→{targetLang}: {If(errBody, "").Substring(0, Math.Min(160, If(errBody, "").Length))}")
+                    If built.PriorTranslations.Count > 0 Then
+                        ' Salvage: the model occasionally restarts the whole window —
+                        ' strip a verbatim re-emitted prefill first.
+                        Dim prefill = String.Join(" ", built.PriorTranslations)
+                        If cleaned.StartsWith(prefill, StringComparison.Ordinal) Then
+                            cleaned = cleaned.Substring(prefill.Length).Trim()
+                        End If
+                        ' Degenerate continuation (field 2026-08-04: echoed prior
+                        ' translations / runaway repeats / empty on short sentences):
+                        ' detect and retry ONCE with the bare no-context prompt —
+                        ' a slightly less contextual translation always beats a
+                        ' repeated or missing caption.
+                        Dim lastPrior = built.PriorTranslations(built.PriorTranslations.Count - 1)
+                        Dim degenerate = cleaned.Length = 0 OrElse
+                                         cleaned.Length > Math.Max(60, 4 * text.Length) OrElse
+                                         (lastPrior.Length > 12 AndAlso cleaned.IndexOf(lastPrior, StringComparison.Ordinal) >= 0)
+                        If degenerate Then
+                            AppLogger.Log(LogEvents.TRANS_LLAMA_PROBLEM,
+                                $"context echo/empty for {sourceLang}→{targetLang} (""{text.Substring(0, Math.Min(40, text.Length))}"") — retrying without context")
+                            Dim bare = BuildPrompt(text, sourceLang, targetLang, Nothing)
+                            cleaned = Await RequestCompletionAsync(bare.Prompt, nPredict, tgtName, sourceLang, targetLang, ct)
+                        End If
                     End If
+
+                    If cleaned.Length > 0 Then results(targetLang) = cleaned
                 Catch ex As OperationCanceledException
                     Throw
                 Catch ex As Exception
