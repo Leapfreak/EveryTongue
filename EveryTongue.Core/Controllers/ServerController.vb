@@ -220,7 +220,15 @@ Namespace Controllers
         ''' loud log + Download Manager prompt (never a silent dead-end).
         ''' </summary>
         Public Sub EnsureSalamandraRunning()
-            If _salamandraHost Is Nothing Then Return
+            EnsureSalamandraRunning(ownerId:="")
+        End Sub
+
+        ''' <summary>ownerId "" = warm-spare load (no lease); a room id leases the
+        ''' resident so the arbiter never evicts it mid-service. Returns the
+        ''' arbiter's decision (Denied = not started; caller may re-route), or
+        ''' Nothing when the host/files are missing.</summary>
+        Public Function EnsureSalamandraRunning(ownerId As String) As Services.Infrastructure.LoadDecision
+            If _salamandraHost Is Nothing Then Return Nothing
             Dim gguf = Models.AppConfig.ResolvePath(_config.SalamandraModelPath)
             If Not IO.File.Exists(gguf) OrElse Not IO.File.Exists(LlamaServerExePath()) Then
                 Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.TRANS_LLAMA_PROBLEM,
@@ -228,22 +236,56 @@ Namespace Controllers
                 Services.Infrastructure.AppLogger.PromptDownloadManager(
                     "SalamandraTA needs two downloads: 'Salamandra Translation Model' (5.1 GB) and 'llama.cpp Server (Vulkan)'. Open the Download Manager now?",
                     "SalamandraTA components missing")
-                Return
+                Return Nothing
             End If
+
+            ' Residency arbitration (ENGINE_CONCURRENCY_PLAN): llama-server is a
+            ' local translation model like any other — it asks for the slot, may
+            ' evict an NLLB warm spare, and is itself evictable while lease-0.
+            Dim arbiter = Services.Infrastructure.EngineResidencyArbiter.Instance
+            Dim decision = arbiter.RequestLoad(Services.Infrastructure.EngineCategory.Translation,
+                                               "salamandra", "Salamandra", "Salamandra", ownerId)
+            If decision.Kind = Services.Infrastructure.LoadDecisionKind.Denied Then
+                Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.ENGINE_RESIDENCY_CONFLICT,
+                    $"Salamandra not started — MaxConcurrentTranslationEngines reached with all engines in use ({String.Join(", ", decision.ResidentDisplays)})")
+                Return decision
+            End If
+            If decision.Kind = Services.Infrastructure.LoadDecisionKind.Granted Then
+                arbiter.RegisterResident(Services.Infrastructure.EngineCategory.Translation,
+                                         "salamandra", "Salamandra", "Salamandra",
+                                         evict:=AddressOf EvictSalamandra, ownerId:=ownerId)
+            End If
+
             Dim t = _salamandraHost.EnsureStartedAsync()
             t.ContinueWith(Sub(x) Services.Infrastructure.AppLogger.Log(
                                Services.Infrastructure.LogEvents.TRANS_LLAMA_PROBLEM,
                                $"Salamandra start failed: {x.Exception?.GetBaseException().Message}"),
                            TaskContinuationOptions.OnlyOnFaulted)
+            Return decision
+        End Function
+
+        ''' <summary>Arbiter evict action: stop the process (registration already removed).</summary>
+        Private Sub EvictSalamandra()
+            _salamandraHost?.Stop()
         End Sub
 
         Public Sub StopSalamandra()
+            Services.Infrastructure.EngineResidencyArbiter.Instance.DropResident(
+                Services.Infrastructure.EngineCategory.Translation, "salamandra")
             _salamandraHost?.Stop()
         End Sub
 
         Public ReadOnly Property SalamandraAvailable As Boolean
             Get
                 Return _salamandraHost IsNot Nothing AndAlso _salamandraHost.IsRunning AndAlso _salamandraHost.IsModelLoaded
+            End Get
+        End Property
+
+        ''' <summary>True while llama-server is starting/loading but not yet warm —
+        ''' the app-start warm queue sequences the next heavy load behind this.</summary>
+        Public ReadOnly Property SalamandraWarming As Boolean
+            Get
+                Return _salamandraHost IsNot Nothing AndAlso _salamandraHost.IsRunning AndAlso Not _salamandraHost.IsModelLoaded
             End Get
         End Property
 #End Region

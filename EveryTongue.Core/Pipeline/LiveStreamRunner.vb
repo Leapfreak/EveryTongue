@@ -30,7 +30,8 @@ Namespace Pipeline
             .Label = "Live server",
             .AddWhisperToPath = True,
             .GracefulShutdownPath = "/shutdown",
-            .LogFileName = "live-server.log",
+            .LogFileName = "live-server.log",   ' per-port name set at spawn
+            .PassLogNameArg = True,
             .BaseEventId = Services.Infrastructure.LogEvents.PYLOG_LIVE
         }
 
@@ -194,9 +195,11 @@ Namespace Pipeline
             Dim serverAlive = False
             If _host.IsProcessRunning Then
                 Try
-                    Dim resp = _httpClient.GetAsync($"http://127.0.0.1:{_host.Port}/health").Result
-                    serverAlive = resp.IsSuccessStatusCode
-                    If serverAlive Then _serverReady = True
+                    Using probeCts As New CancellationTokenSource(2000)
+                        Dim resp = _httpClient.GetAsync($"http://127.0.0.1:{_host.Port}/health", probeCts.Token).Result
+                        serverAlive = resp.IsSuccessStatusCode
+                        If serverAlive Then _serverReady = True
+                    End Using
                 Catch ex As Exception
                     AppLogger.Log(LogEvents.STT_HEALTH_CHECK, $"Start health-check failed (will restart): {ex.Message}")
                 End Try
@@ -206,35 +209,7 @@ Namespace Pipeline
                 ' Stop any existing server and start fresh
                 _host.Stop()
                 _serverReady = False
-
-                Dim serverScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "live-server", "server.py")
-
-                ' Build extra args for backend selection. The registry's
-                ' SidecarMode metadata decides the hosting mode — no per-engine
-                ' key matching in this shared runner.
-                Dim extraArgs = ""
-                Dim backendKey = If(Backend, "whisper-cpp-vulkan")
-                Select Case SidecarModeFor(backendKey)
-                    Case "online"
-                        ' Online engine — pass the backend key straight through; the
-                        ' sidecar looks it up in its engine registry. No local model.
-                        extraArgs = $"--backend {backendKey}"
-                    Case "faster-whisper"
-                        extraArgs = "--backend faster-whisper"
-                    Case Else ' "whisper-cpp" (safe default for unknown keys)
-                        Dim wsPath = AppConfig.ResolvePath(If(WhisperServerPath, ""))
-                        extraArgs = $"--backend whisper-cpp --whisper-server-path ""{wsPath}"" --whisper-server-port {WhisperServerPort}"
-                        Dim vadPath = AppConfig.ResolvePath(If(SileroVadModelPath, ""))
-                        If Not String.IsNullOrEmpty(vadPath) AndAlso IO.File.Exists(vadPath) Then
-                            extraArgs &= $" --vad-model-path ""{vadPath}"""
-                        End If
-                        If NoGpu Then extraArgs &= " --no-gpu"
-                End Select
-
-                Dim logLevel = Models.ConfigManager.Load().LogLevel.ToString().ToLowerInvariant()
-                extraArgs &= $" --log-level {logLevel}"
-
-                _host.Start(serverScript, extraArgs)
+                SpawnServerProcess()
             End If
 
             ' Wait for server ready, then start capture
@@ -254,25 +229,145 @@ Namespace Pipeline
                      End Sub)
         End Sub
 
-        Private Function WaitForReady(ct As CancellationToken) As Boolean
-            Dim deadline = DateTime.UtcNow.AddSeconds(30)
-            While DateTime.UtcNow < deadline AndAlso Not ct.IsCancellationRequested
-                Try
-                    Thread.Sleep(500)
-                    Dim response = _httpClient.GetAsync($"http://127.0.0.1:{_host.Port}/health", ct).Result
-                    If response.IsSuccessStatusCode Then
-                        _serverReady = True
-                        Return True
+        ''' <summary>Launch the live-server process for the configured backend
+        ''' (shared by Start and WarmServerOnly).</summary>
+        Private Sub SpawnServerProcess()
+            ' Per-port log file (ENGINE_CONCURRENCY_PLAN hygiene): concurrent
+            ' live-servers used to share ONE live-server.log — every room's tail
+            ' re-reported every line and rooms' lines interleaved (confused the
+            ' 2026-09-02 diagnosis).
+            _host.LogFileName = $"live-server-{_host.Port}.log"
+            Dim serverScript = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "live-server", "server.py")
+
+            ' Build extra args for backend selection. The registry's
+            ' SidecarMode metadata decides the hosting mode — no per-engine
+            ' key matching in this shared runner.
+            Dim extraArgs = ""
+            Dim backendKey = If(Backend, "whisper-cpp-vulkan")
+            Select Case SidecarModeFor(backendKey)
+                Case "online"
+                    ' Online engine — pass the backend key straight through; the
+                    ' sidecar looks it up in its engine registry. No local model.
+                    extraArgs = $"--backend {backendKey}"
+                Case "faster-whisper"
+                    extraArgs = "--backend faster-whisper"
+                Case Else ' "whisper-cpp" (safe default for unknown keys)
+                    Dim wsPath = AppConfig.ResolvePath(If(WhisperServerPath, ""))
+                    extraArgs = $"--backend whisper-cpp --whisper-server-path ""{wsPath}"" --whisper-server-port {WhisperServerPort}"
+                    Dim vadPath = AppConfig.ResolvePath(If(SileroVadModelPath, ""))
+                    If Not String.IsNullOrEmpty(vadPath) AndAlso IO.File.Exists(vadPath) Then
+                        extraArgs &= $" --vad-model-path ""{vadPath}"""
                     End If
-                Catch ex As Exception
-                    AppLogger.Log(LogEvents.STT_HEALTH_CHECK, $"WaitForReady health poll failed: {ex.Message}")
-                End Try
-            End While
-            If Not ct.IsCancellationRequested Then
-                RaiseEvent ErrorReceived(Me, "Live server: startup timeout (30s)")
+                    If NoGpu Then extraArgs &= " --no-gpu"
+            End Select
+
+            Dim logLevel = Models.ConfigManager.Load().LogLevel.ToString().ToLowerInvariant()
+            extraArgs &= $" --log-level {logLevel}"
+
+            _host.Start(serverScript, extraArgs)
+        End Sub
+
+        ''' <summary>
+        ''' Warm spare (ENGINE_CONCURRENCY_PLAN): start the live-server process and
+        ''' pre-load SaT via /warm WITHOUT starting capture — the first room's
+        ''' /start then skips the boot + SaT load. Safe to call repeatedly; no-op
+        ''' while capturing.
+        ''' </summary>
+        Public Sub WarmServerOnly(port As Integer, satModel As String)
+            If _isCapturing Then Return
+            _host.Port = port
+            _cts = New CancellationTokenSource()
+            If Not _host.IsProcessRunning Then
+                _serverReady = False
+                SpawnServerProcess()
+            End If
+            Dim ct = _cts.Token
+            Task.Run(Sub()
+                         Try
+                             If Not WaitForReady(ct) Then Return
+                             ' Empty satModel = the STT config doesn't use SaT — warm
+                             ' the process only (boot cost saved, no model load).
+                             Dim loadSat = Not String.IsNullOrEmpty(satModel)
+                             Dim body = $"{{""sat_model"":""{EscapeJsonUnquoted(If(satModel, ""))}"",""load_sat"":{If(loadSat, "true", "false")}}}"
+                             Dim content As New StringContent(body, Encoding.UTF8, "application/json")
+                             Dim resp = _httpClient.PostAsync($"http://127.0.0.1:{_host.Port}/warm", content).Result
+                             AppLogger.Log(LogEvents.STT_CAPTURE_LIFECYCLE,
+                                 $"Live server warm spare ready (port {_host.Port}, /warm → HTTP {CInt(resp.StatusCode)})")
+                         Catch ex As Exception When ct.IsCancellationRequested
+                             ' Shutdown during warm — fine.
+                         Catch ex As Exception
+                             AppLogger.Log(LogEvents.STT_WHISPER_SERVER_ERROR, $"Warm spare failed: {ex.Message}")
+                         End Try
+                     End Sub)
+        End Sub
+
+        ''' <summary>
+        ''' Park the session (ENGINE_CONCURRENCY_PLAN): stop CAPTURE via /stop but
+        ''' keep the live-server process (and its loaded SaT) resident, so the next
+        ''' room reuses it via Start()'s healthy-server path. Contrast Stop(),
+        ''' which kills the process.
+        ''' </summary>
+        Public Sub StopCaptureOnly()
+            _isCapturing = False
+            _cts?.Cancel()          ' ends the SSE read loop; server stays up
+            Try
+                Using client As New HttpClient() With {.Timeout = TimeSpan.FromSeconds(5)}
+                    client.PostAsync($"http://127.0.0.1:{_host.Port}/stop",
+                                     New StringContent("{}", Encoding.UTF8, "application/json")).Wait(5000)
+                End Using
+                AppLogger.Log(LogEvents.STT_CAPTURE_LIFECYCLE,
+                    $"Live server parked (port {_host.Port}) — capture stopped, process + SaT stay warm")
+            Catch ex As Exception
+                AppLogger.Log(LogEvents.STT_WHISPER_SERVER_ERROR, $"Park (/stop) failed — falling back to full stop: {ex.Message}")
+                DoShutdown(3000)
+            End Try
+        End Sub
+
+        ''' <summary>The port this runner's live-server is (or will be) on.</summary>
+        Public ReadOnly Property ServerPort As Integer
+            Get
+                Return _host.Port
+            End Get
+        End Property
+
+        ''' <summary>Progress-aware readiness (ENGINE_CONCURRENCY_PLAN): waits while
+        ''' the live-server shows progress (process alive + log advancing / HTTP
+        ''' reachable); gives up only after EngineLoadIdleTimeoutSeconds of silence
+        ''' or on process death. No wall-clock deadline. All outcomes logged by the
+        ''' shared helper.</summary>
+        Private Function WaitForReady(ct As CancellationToken) As Boolean
+            Dim result = SidecarReadiness.WaitAsync(
+                $"Live server (port {_host.Port})",
+                Async Function(probeCt)
+                    Dim response = Await _httpClient.GetAsync($"http://127.0.0.1:{_host.Port}/health", probeCt).ConfigureAwait(False)
+                    Return response.IsSuccessStatusCode
+                End Function,
+                Function() _host.IsProcessRunning,
+                Function() _host.MillisecondsSinceLastActivity,
+                ct).GetAwaiter().GetResult()
+            If result.Outcome = ReadinessOutcome.Ready Then
+                _serverReady = True
+                Return True
+            End If
+            If result.Outcome = ReadinessOutcome.NoProgress OrElse result.Outcome = ReadinessOutcome.ProcessExited Then
+                RaiseEvent ErrorReceived(Me, $"Live server: failed to become ready ({result.Outcome})")
             End If
             Return False
         End Function
+
+        ''' <summary>Server process alive (for readiness progress signals).</summary>
+        Public ReadOnly Property IsServerProcessRunning As Boolean
+            Get
+                Return _host.IsProcessRunning
+            End Get
+        End Property
+
+        ''' <summary>Ms since the live-server last showed activity (log tail / start).</summary>
+        Public ReadOnly Property MillisecondsSinceLastActivity As Long
+            Get
+                Return _host.MillisecondsSinceLastActivity
+            End Get
+        End Property
 
         Private Sub StartCapture(config As AppConfig, deviceIndex As Integer, inputLanguage As String, translateToEnglish As Boolean)
             Try
@@ -333,13 +428,24 @@ Namespace Pipeline
                 jsonBody &= "}"
 
                 Dim content As New StringContent(jsonBody, Encoding.UTF8, "application/json")
+                AppLogger.Log(LogEvents.STT_CAPTURE_LIFECYCLE,
+                    $"POST /start → port {_host.Port} (engine={backendKey}, source={AudioSource}, lang={inputLanguage}, body {jsonBody.Length} chars)")
                 Dim response = _httpClient.PostAsync($"http://127.0.0.1:{_host.Port}/start", content).Result
 
-                If Not response.IsSuccessStatusCode Then
+                If response.IsSuccessStatusCode Then
+                    AppLogger.Log(LogEvents.STT_CAPTURE_LIFECYCLE, $"POST /start → HTTP {CInt(response.StatusCode)} (port {_host.Port})")
+                Else
                     Dim body = response.Content.ReadAsStringAsync().Result
+                    ' Direct Error log as well as the event: the ErrorReceived path is
+                    ' subject to per-consumer filtering, and a failed /start must
+                    ' never be invisible in the file log.
+                    AppLogger.Log(LogEvents.STT_WHISPER_SERVER_ERROR,
+                        $"POST /start → HTTP {CInt(response.StatusCode)} (port {_host.Port}): {body}")
                     RaiseEvent ErrorReceived(Me, $"Failed to start capture: {body}")
                 End If
             Catch ex As Exception
+                AppLogger.Log(LogEvents.STT_WHISPER_SERVER_ERROR,
+                    $"POST /start threw (port {_host.Port}): {If(ex.InnerException?.Message, ex.Message)}")
                 RaiseEvent ErrorReceived(Me, $"Failed to start capture: {ex.Message}")
             End Try
         End Sub
@@ -418,6 +524,20 @@ Namespace Pipeline
         Public Async Function CheckCapturingAsync(ct As Threading.CancellationToken) As Task(Of Boolean)
             If Not _serverReady Then Return False
             Try
+                ' Callers poll in loops (some pass CancellationToken.None) — cap each
+                ' probe at 3s so one hung request can't stall a whole readiness loop.
+                Using probeCts = Threading.CancellationTokenSource.CreateLinkedTokenSource(ct)
+                    probeCts.CancelAfter(3000)
+                    Return Await CheckCapturingCoreAsync(probeCts.Token)
+                End Using
+            Catch
+                ' Health probe — any failure means "down"; the caller acts on False.
+                Return False
+            End Try
+        End Function
+
+        Private Async Function CheckCapturingCoreAsync(ct As Threading.CancellationToken) As Task(Of Boolean)
+            Try
                 Dim response = Await _httpClient.GetAsync($"http://127.0.0.1:{_host.Port}/health", ct)
                 If Not response.IsSuccessStatusCode Then Return False
                 Dim body = Await response.Content.ReadAsStringAsync()
@@ -438,7 +558,13 @@ Namespace Pipeline
         End Function
 
         Public Async Function UpdateConfigAsync(config As Dictionary(Of String, Object)) As Task
-            If Not _serverReady Then Return
+            If Not _serverReady Then
+                ' Visible no-op: callers log "pushed X" AFTER awaiting this, so a
+                ' silent return here makes their success line a lie.
+                AppLogger.Log(LogEvents.STT_CAPTURE_LIFECYCLE,
+                    $"UpdateConfigAsync skipped — live server not ready (port {_host.Port}, keys: {String.Join(",", config.Keys)})")
+                Return
+            End If
             Try
                 Dim json = Text.Json.JsonSerializer.Serialize(config)
                 Dim content As New StringContent(json, Encoding.UTF8, "application/json")

@@ -48,12 +48,15 @@ Namespace Services.Infrastructure
         Public Const PIPELINE_SIDECAR_ERROR As Integer = 2005
         Public Const PIPELINE_PROCESS_KILL As Integer = 2006
         Public Const PIPELINE_LOG_TAIL_ERROR As Integer = 2007
+        Public Const ENGINE_RESIDENCY As Integer = 2008
+        Public Const ENGINE_RESIDENCY_CONFLICT As Integer = 2009
 
         ' ── STT (3000–3099) ──
         Public Const STT_WHISPER_SERVER_START As Integer = 3006
         Public Const STT_WHISPER_SERVER_ERROR As Integer = 3008
         Public Const STT_HEALTH_CHECK As Integer = 3009
         Public Const STT_SERVICE_VOCAB As Integer = 3010
+        Public Const STT_CAPTURE_LIFECYCLE As Integer = 3011
 
         ' ── Translation (4000–4099) ──
         Public Const TRANS_SERVER_STARTING As Integer = 4000
@@ -97,6 +100,7 @@ Namespace Services.Infrastructure
         Public Const CONF_ROOM_STT_SUMMARY As Integer = 5015
         Public Const CONF_WEBMIC As Integer = 5016
         Public Const CONF_WEBMIC_ERROR As Integer = 5017
+        Public Const CONF_ROOM_READY As Integer = 5018
 
         ' ── Rooms (5100–5199) ──
         Public Const ROOM_CREATED As Integer = 5100
@@ -109,6 +113,7 @@ Namespace Services.Infrastructure
         Public Const ROOM_TRANSLATION_ROUTING As Integer = 5107
         Public Const ROOM_READINESS As Integer = 5108
         Public Const ROOM_FEEDBACK As Integer = 5109
+        Public Const ROOM_READINESS_TIMEOUT As Integer = 5110
 
         ' ── Subtitle (5200–5299) ──
         Public Const SUB_CLIENT_CONNECTED As Integer = 5201
@@ -249,6 +254,9 @@ Namespace Services.Infrastructure
             R(STT_WHISPER_SERVER_ERROR, LogCategory.Stt, LogSeverity.[Error], "whisper-server error")
             R(STT_HEALTH_CHECK, LogCategory.Stt, LogSeverity.Debug, "STT health check")
             R(STT_SERVICE_VOCAB, LogCategory.Stt, LogSeverity.Info, "Service people-names vocab (session-lifetime layer) pushed to STT engines")
+            R(STT_CAPTURE_LIFECYCLE, LogCategory.Stt, LogSeverity.Info, "Live-server capture start lifecycle: server-ready wait outcome, /start request and its HTTP result")
+            R(ENGINE_RESIDENCY, LogCategory.Pipeline, LogSeverity.Info, "Engine residency arbiter: loads, leases, warm spares, evictions, resident inventory")
+            R(ENGINE_RESIDENCY_CONFLICT, LogCategory.Pipeline, LogSeverity.Warning, "Engine residency conflict: at-limit denial (translation re-routed / STT room refused) or eviction failure")
 
             ' Translation
             R(TRANS_SERVER_STARTING, LogCategory.Translation, LogSeverity.Info, "Translation server starting")
@@ -291,6 +299,7 @@ Namespace Services.Infrastructure
             R(CONF_ROOM_STT_SUMMARY, LogCategory.Conference, LogSeverity.Info, "Room STT quality scoreboard at close: clause sizes, tiny-fragment %, merge rate, SaT splits, duplicate commits, hold latency — the A/B line for tuning changes")
             R(CONF_WEBMIC, LogCategory.Conference, LogSeverity.Info, "Web-mic broadcast lifecycle: route registered/removed, broadcaster start/stop/takeover, forwarder connected")
             R(CONF_WEBMIC_ERROR, LogCategory.Conference, LogSeverity.Warning, "Web-mic frame forwarding to the live-server failed (rate-limited; forwarder reconnects on next frame)")
+            R(CONF_ROOM_READY, LogCategory.Conference, LogSeverity.Info, "Room-start timing summary: total ms to ready, STT/translation breakdown, warm-spare hit/miss")
             R(CONF_SPEAKER_SWITCHED, LogCategory.Conference, LogSeverity.Info, "Conference active speaker or connectivity mode changed")
 
             ' Rooms
@@ -303,6 +312,7 @@ Namespace Services.Infrastructure
             R(ROOM_EXPIRED, LogCategory.Rooms, LogSeverity.Info, "Room expired due to inactivity")
             R(ROOM_TRANSLATION_ROUTING, LogCategory.Rooms, LogSeverity.Info, "Conversation-room translation routing (recipients, languages, targets)")
             R(ROOM_READINESS, LogCategory.Rooms, LogSeverity.Info, "Room engine readiness (STT/translation preparing → ready) relayed to clients")
+            R(ROOM_READINESS_TIMEOUT, LogCategory.Rooms, LogSeverity.Warning, "Room engine readiness poll timed out — 'ready' was broadcast fail-open but the engine never reported ready")
             R(ROOM_FEEDBACK, LogCategory.Rooms, LogSeverity.Info, "Audience feedback submitted after a conference room closed (rating, language, comment)")
 
             ' Subtitle

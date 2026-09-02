@@ -105,11 +105,14 @@ _active_handler.setLevel(logging.INFO)
 _active_handler.setFormatter(logging.Formatter("[LIVE] %(message)s"))
 
 
-def _setup_file_logging(log_dir: str):
-    """Switch from stderr fallback to RotatingFileHandler."""
+def _setup_file_logging(log_dir: str, log_name: str = "live-server.log"):
+    """Switch from stderr fallback to RotatingFileHandler. log_name is per-port
+    (live-server-<port>.log) when .NET passes --log-name, so concurrent
+    live-servers stop writing to ONE shared file (which duplicated every tailed
+    line per running room and mixed rooms' lines — 2026-09-02 diagnosis)."""
     global _file_handler, _active_handler
     os.makedirs(log_dir, exist_ok=True)
-    log_path = os.path.join(log_dir, "live-server.log")
+    log_path = os.path.join(log_dir, log_name)
     _file_handler = logging.handlers.RotatingFileHandler(
         log_path, maxBytes=2 * 1024 * 1024, backupCount=2, encoding="utf-8")
     _file_handler.setLevel(logging.DEBUG)
@@ -848,10 +851,13 @@ async def start_capture_endpoint(request: Request):
     global capturing, _vad_pipeline, current_config, current_stats, model_path_global
 
     if capturing:
+        logger.warning("/start rejected: already capturing (409)")
         return JSONResponse({"status": "already_capturing"}, status_code=409)
 
     body = await request.json()
     current_config = body
+    logger.info(f"/start received (backend={_backend_mode}, source={body.get('audio_source', 'local')}, "
+                f"lang={body.get('language', 'auto')}, device={body.get('device_index', 0)})")
 
     # SaT sentence segmentation (downstream, engine-agnostic): load BEFORE
     # capture opens. The ~25s model load pegs the CPU and starves the audio
@@ -891,6 +897,7 @@ async def start_capture_endpoint(request: Request):
         # Online engine — no local model. Registered engines that need a key
         # require one to be present (set above or from a previous /start).
         if engines.is_registered(_backend_mode) and not engines.get_api_key(_backend_mode):
+            logger.error(f"/start rejected: {_backend_mode}: API key not provided (400)")
             return JSONResponse({"status": "error", "detail": f"{_backend_mode}: API key not provided"}, status_code=400)
         logger.info(f"{_backend_mode} backend configured (online, no local model)")
     else:
@@ -1024,8 +1031,31 @@ async def stop_capture_endpoint():
         _vad_pipeline = None
 
     capturing = False
-    logger.debug("Capture stopped via /stop")
+    logger.info("Capture stopped via /stop (process stays warm for reuse)")
     return {"status": "stopped"}
+
+
+@app.post("/warm")
+async def warm_endpoint(request: Request):
+    """Capture-less pre-warm (ENGINE_CONCURRENCY_PLAN warm spare): load the SaT
+    segmenter now so a later /start skips its load entirely. Body may carry
+    {"sat_model": "..."}; omitted = default model. Idempotent."""
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    sat_model = body.get("sat_model") or None
+    load_sat = bool(body.get("load_sat", True))
+    if load_sat:
+        logger.info("Warm requested: pre-loading SaT before any capture")
+        # Executor, not inline — a blocking load here would freeze the event loop
+        # and stall the .NET health polls (same rule as the /start SaT load).
+        await asyncio.get_event_loop().run_in_executor(None, sat_segmenter.load, sat_model)
+        logger.info("Warm complete: SaT resident, /start will be fast")
+    else:
+        logger.info("Warm requested without SaT (STT config doesn't use it) — process warm only")
+    return {"status": "warm"}
 
 
 @app.post("/config")
@@ -1489,10 +1519,12 @@ if __name__ == "__main__":
                         help="(ignored, kept for backward compatibility)")
     parser.add_argument("--log-dir", type=str, default="",
                         help="Directory for log files (RotatingFileHandler)")
+    parser.add_argument("--log-name", type=str, default="live-server.log",
+                        help="Log file name (per-port so concurrent servers don't share a file)")
     args = parser.parse_args()
 
     if args.log_dir:
-        _setup_file_logging(args.log_dir)
+        _setup_file_logging(args.log_dir, args.log_name)
 
     _backend_mode = args.backend
     _valid_backends = set(engines.registered_keys())

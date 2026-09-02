@@ -39,6 +39,10 @@ Namespace Pipeline
         Public Property AddWhisperToPath As Boolean = False
         Public Property GracefulShutdownPath As String = Nothing
         Public Property LogFileName As String = Nothing
+        ''' <summary>Opt-in: pass LogFileName to the server as --log-name so the
+        ''' PYTHON side writes the same per-port file this host tails. Only for
+        ''' servers whose argparse accepts it (live-server, translate-server).</summary>
+        Public Property PassLogNameArg As Boolean = False
         Public Property BaseEventId As Integer = LogEvents.PYLOG_LIVE
 
         ' ── Regex for parsing Python log lines: "2024-01-01 12:00:00,123 INFO message"
@@ -63,6 +67,19 @@ Namespace Pipeline
         Public ReadOnly Property IsProcessRunning As Boolean
             Get
                 Return _isRunning
+            End Get
+        End Property
+
+        ' Tick of the most recent sign of life: process start, or a line arriving in
+        ' the tailed log. SidecarReadiness uses this as the progress signal — a
+        ' sidecar that is still WRITING is still loading, however slow the machine.
+        Private _lastActivityTick As Long = Environment.TickCount64
+
+        ''' <summary>Milliseconds since the sidecar last showed activity (process
+        ''' start or a tailed log line). Long.MaxValue when never started.</summary>
+        Public ReadOnly Property MillisecondsSinceLastActivity As Long
+            Get
+                Return Environment.TickCount64 - Threading.Volatile.Read(_lastActivityTick)
             End Get
         End Property
 
@@ -108,6 +125,9 @@ Namespace Pipeline
 
                 Dim logDir = Services.Infrastructure.AppLogger.GetSessionDir()
                 Dim args = $"""{scriptPath}"" --port {Port} --log-dir ""{logDir}"""
+                If PassLogNameArg AndAlso Not String.IsNullOrEmpty(LogFileName) Then
+                    args &= $" --log-name ""{LogFileName}"""
+                End If
                 If Not String.IsNullOrEmpty(extraArgs) Then
                     args &= " " & extraArgs
                 End If
@@ -257,6 +277,7 @@ Namespace Pipeline
                     End If
 
                     _isRunning = True
+                    Threading.Volatile.Write(_lastActivityTick, Environment.TickCount64)
                     _restartCount = If(_restartCount > 0, _restartCount, 0)
                     RaiseEvent StatusMessage(Me, $"{Label} starting on port {Port}")
 
@@ -306,6 +327,7 @@ Namespace Pipeline
                                     While line IsNot Nothing
                                         line = line.Trim()
                                         If line.Length > 0 Then
+                                            Threading.Volatile.Write(_lastActivityTick, Environment.TickCount64)
                                             ' Parse Python log line and route to structured logging
                                             ParseAndLogPythonLine(line)
                                             RaiseEvent StderrLine(Me, line)

@@ -53,7 +53,10 @@ Namespace Services.Rooms
                          sttProbe As Func(Of CancellationToken, Task(Of Boolean)),
                          translationProbe As Func(Of CancellationToken, Task(Of Boolean)),
                          Optional sttAlreadyReady As Boolean = False,
-                         Optional timeoutSeconds As Integer = 60)
+                         Optional timeoutSeconds As Integer = 60,
+                         Optional sttProcessAlive As Func(Of Boolean) = Nothing,
+                         Optional sttActivityMs As Func(Of Long) = Nothing,
+                         Optional onSummary As Action(Of Boolean, Long, Boolean, Long) = Nothing)
             If String.IsNullOrEmpty(roomId) OrElse sttProbe Is Nothing Then Return
             Dim st = _states.GetOrAdd(roomId, Function(k) New RoomState())
             SyncLock st
@@ -75,28 +78,69 @@ Namespace Services.Rooms
             BroadcastPreparing(roomId, st)
 
             Task.Run(Async Function()
+                         Dim watchStart = Environment.TickCount64
+                         Dim sttOkForSummary = st.SttReady
+                         Dim sttMs As Long = 0
+                         Dim txOkForSummary = st.TranslationReady
+                         Dim txMs As Long = -1   ' -1 = no translation wait applied
                          Try
                              If Not st.SttReady Then
-                                 Await PollUntil(sttProbe, timeoutSeconds, 400).ConfigureAwait(False)
+                                 ' Progress-aware when the caller supplies process/activity
+                                 ' signals (ENGINE_CONCURRENCY_PLAN): a loading engine keeps
+                                 ' its "preparing" state as long as it shows life; fail-open
+                                 ' fires only on real silence or process death. Without
+                                 ' signals, the legacy fixed-timeout poll applies.
+                                 Dim sttOk As Boolean
+                                 If sttProcessAlive IsNot Nothing AndAlso sttActivityMs IsNot Nothing Then
+                                     Dim r = Await Pipeline.SidecarReadiness.WaitAsync(
+                                         $"room={roomId} STT readiness",
+                                         sttProbe, sttProcessAlive, sttActivityMs,
+                                         CancellationToken.None, pollIntervalMs:=400).ConfigureAwait(False)
+                                     sttOk = (r.Outcome = Pipeline.ReadinessOutcome.Ready)
+                                 Else
+                                     sttOk = Await PollUntil(sttProbe, timeoutSeconds, 400).ConfigureAwait(False)
+                                 End If
                                  st.SttReady = True
+                                 sttOkForSummary = sttOk
+                                 sttMs = Environment.TickCount64 - watchStart
                                  Send(roomId, "stt", "ready")
-                                 AppLogger.Log(LogEvents.ROOM_READINESS, $"room={roomId} STT ready")
+                                 If sttOk Then
+                                     AppLogger.Log(LogEvents.ROOM_READINESS, $"room={roomId} STT ready")
+                                 Else
+                                     AppLogger.Log(LogEvents.ROOM_READINESS_TIMEOUT,
+                                         $"room={roomId} STT readiness gave up (no progress or engine died) — 'ready' sent fail-open, but the engine never reported capturing")
+                                 End If
                              End If
                              If st.TranslationApplies AndAlso Not st.TranslationReady AndAlso translationProbe IsNot Nothing Then
-                                 Await PollUntil(translationProbe, timeoutSeconds, 500).ConfigureAwait(False)
+                                 Dim txStart = Environment.TickCount64
+                                 Dim txOk = Await PollUntil(translationProbe, timeoutSeconds, 500).ConfigureAwait(False)
                                  st.TranslationReady = True
+                                 txOkForSummary = txOk
+                                 txMs = Environment.TickCount64 - txStart
                                  Send(roomId, "translation", "ready")
-                                 AppLogger.Log(LogEvents.ROOM_READINESS, $"room={roomId} translation ready")
+                                 If txOk Then
+                                     AppLogger.Log(LogEvents.ROOM_READINESS, $"room={roomId} translation ready")
+                                 Else
+                                     AppLogger.Log(LogEvents.ROOM_READINESS_TIMEOUT,
+                                         $"room={roomId} translation readiness poll timed out after {timeoutSeconds}s — 'ready' sent fail-open, but the backend never reported available")
+                                 End If
                              End If
                          Catch
                              ' One-shot readiness push is best-effort — the room UI also polls /status.
                          End Try
+                         Try
+                             onSummary?.Invoke(sttOkForSummary, sttMs, txOkForSummary, txMs)
+                         Catch
+                             ' Summary is log-only — never disturb the readiness push.
+                         End Try
                      End Function)
         End Sub
 
-        ''' <summary>Poll the probe every intervalMs until it returns True or the timeout elapses (fail-open).</summary>
+        ''' <summary>Poll the probe every intervalMs until it returns True or the timeout elapses (fail-open).
+        ''' Returns True when the probe reported ready, False on timeout — so the caller can log
+        ''' the fail-open honestly instead of claiming "ready".</summary>
         Private Shared Async Function PollUntil(probe As Func(Of CancellationToken, Task(Of Boolean)),
-                                                timeoutSeconds As Integer, intervalMs As Integer) As Task
+                                                timeoutSeconds As Integer, intervalMs As Integer) As Task(Of Boolean)
             Dim startTick = Environment.TickCount64
             Dim limit As Long = CLng(timeoutSeconds) * 1000
             While Environment.TickCount64 - startTick < limit
@@ -107,10 +151,11 @@ Namespace Services.Rooms
                     ' Probe failure = not ready — retried on the next tick.
                     ok = False
                 End Try
-                If ok Then Return
+                If ok Then Return True
                 Await Task.Delay(intervalMs).ConfigureAwait(False)
             End While
             ' Timed out — caller treats the engine as ready so the mic is never trapped.
+            Return False
         End Function
 
         ''' <summary>

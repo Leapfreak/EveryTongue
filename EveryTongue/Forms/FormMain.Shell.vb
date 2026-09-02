@@ -17,6 +17,9 @@ Partial Class FormMain
     ' ── Runtime state (not controls) ──────────────────────────────────
     Private _activeNavButton As ToolStripButton
     Private _formQr As FormQrCode
+    ''' <summary>2s poll refreshing the status-bar engine warming/ready chip —
+    ''' engine loads complete on background threads with no UI event to hook.</summary>
+    Private _engineStateTimer As System.Windows.Forms.Timer
     Private _logPanelVisible As Boolean = False
     Private ReadOnly _unifiedLogBuffer As New System.Collections.Concurrent.ConcurrentQueue(Of Services.Infrastructure.LogEntry)
     Private ReadOnly _unifiedLogEntries As New List(Of Services.Infrastructure.LogEntry)
@@ -173,6 +176,14 @@ Partial Class FormMain
         tslClients.LinkColor = tslClients.ForeColor
         AddHandler tslClients.Click, Sub(s, e) ShowConnectedClients()
         AddHandler tslLogToggle.Click, Sub(s, e) ToggleLogPanel()
+
+        ' Engine warming/ready indicator (ENGINE_CONCURRENCY_PLAN, approved
+        ' 2026-09-03): silence is what makes loading feel like a hang. A 2s poll
+        ' timer refreshes the state text — engine loads finish on background
+        ' threads, so no event exists to hook without polling.
+        _engineStateTimer = New System.Windows.Forms.Timer() With {.Interval = 2000}
+        AddHandler _engineStateTimer.Tick, Sub(s, e) UpdateShellStatus()
+        _engineStateTimer.Start()
 
         ' ── Wire log panel handlers ──────────────────────────────
         ' Populate category filter from enum. Index 0 is ALWAYS the "everything"
@@ -1039,7 +1050,50 @@ Partial Class FormMain
         Dim svc = SubtitleSvc
         Dim clients = If(svc?.ConnectedClients, 0)
         tslClients.Text = String.Format(GetString("Shell_Clients"), clients)
+
+        ' Engine warming/ready chip: translation + STT spare states at a glance.
+        If tslEngineState IsNot Nothing Then
+            Dim txt = String.Format(GetString("Shell_EngineState"),
+                                    TranslationEngineStateText(), SttEngineStateText())
+            If tslEngineState.Text <> txt Then tslEngineState.Text = txt
+        End If
     End Sub
+
+    ''' <summary>Localized state word for the TRANSLATION engine (warming/ready/cold).</summary>
+    Private Function TranslationEngineStateText() As String
+        Try
+            Dim key = Services.Translation.TranslationBackendRegistry.ResolveEffectiveBackendKey(_config)
+            Dim entry = Services.Translation.TranslationBackendRegistry.Find(key)
+            If entry Is Nothing Then Return GetString("Shell_EngineCold")
+            If entry.LocalServerKind = "llama" Then
+                If _serverController IsNot Nothing AndAlso _serverController.SalamandraAvailable Then Return GetString("Shell_EngineReady")
+                If _serverController IsNot Nothing AndAlso _serverController.SalamandraWarming Then Return GetString("Shell_EngineWarming")
+                Return GetString("Shell_EngineCold")
+            End If
+            If String.IsNullOrEmpty(entry.ModelType) Then Return GetString("Shell_EngineReady")   ' cloud — no load
+            If _translationService IsNot Nothing AndAlso _translationService.IsRunning Then
+                Return If(_translationService.IsModelLoaded, GetString("Shell_EngineReady"), GetString("Shell_EngineWarming"))
+            End If
+            Return GetString("Shell_EngineCold")
+        Catch
+            Return GetString("Shell_EngineCold")
+        End Try
+    End Function
+
+    ''' <summary>Localized state word for the STT side (rooms in use / spare warm).</summary>
+    Private Function SttEngineStateText() As String
+        Try
+            If _conferenceController Is Nothing Then Return GetString("Shell_EngineCold")
+            If _conferenceController.HasActiveSttRooms Then Return GetString("Shell_EngineInUse")
+            Select Case _conferenceController.SttSpareState()
+                Case "warm" : Return GetString("Shell_EngineReady")
+                Case "warming" : Return GetString("Shell_EngineWarming")
+                Case Else : Return GetString("Shell_EngineCold")
+            End Select
+        Catch
+            Return GetString("Shell_EngineCold")
+        End Try
+    End Function
 
     ''' <summary>
     ''' Applies shell-specific theming to the nav rail and status bar.

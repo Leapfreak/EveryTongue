@@ -34,7 +34,8 @@ Namespace Services.Rooms
         Private ReadOnly _sidecar As New PythonSidecarHost() With {
             .Label = "Live server (conversation)",
             .AddWhisperToPath = True,
-            .GracefulShutdownPath = "/shutdown"
+            .GracefulShutdownPath = "/shutdown",
+            .PassLogNameArg = True
         }
         Private _serverEnsured As Boolean = False
         Private ReadOnly _ensureLock As New SemaphoreSlim(1, 1)
@@ -408,17 +409,18 @@ Namespace Services.Rooms
 
                 _sidecar.Start(serverScript, sidecarArgs)
 
-                ' Wait for server HTTP to be reachable (up to 15s)
-                Dim deadline = DateTime.UtcNow.AddSeconds(15)
-                Dim serverUp = False
-                While DateTime.UtcNow < deadline AndAlso Not ct.IsCancellationRequested
-                    Await Task.Delay(500, ct).ConfigureAwait(False)
-                    serverUp = Await CheckServerUpAsync(ct).ConfigureAwait(False)
-                    If serverUp Then Exit While
-                End While
+                ' Progress-aware readiness (ENGINE_CONCURRENCY_PLAN): no wall-clock
+                ' deadline — wait while the sidecar shows progress, give up only
+                ' after EngineLoadIdleTimeoutSeconds of silence or process death.
+                Dim readiness = Await Pipeline.SidecarReadiness.WaitAsync(
+                    "Conversation live-server",
+                    Function(probeCt) CheckServerUpAsync(probeCt),
+                    Function() _sidecar.IsProcessRunning,
+                    Function() _sidecar.MillisecondsSinceLastActivity,
+                    ct).ConfigureAwait(False)
 
-                If Not serverUp Then
-                    _logger.LogWarning("Live server failed to start within 15s")
+                If readiness.Outcome <> Pipeline.ReadinessOutcome.Ready Then
+                    _logger.LogWarning("Live server failed to become ready ({Outcome})", readiness.Outcome)
                     Return False
                 End If
 

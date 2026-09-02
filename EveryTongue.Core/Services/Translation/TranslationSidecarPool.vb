@@ -57,13 +57,33 @@ Namespace Services.Translation
         Public Function Acquire(ownerId As String, engineKey As String, modelPath As String, modelType As String, computeType As String) As String
             Dim sig = Signature(modelPath, computeType)
             Dim name = "Local:" & sig
+            Dim arbiter = EngineResidencyArbiter.Instance
+
+            ' Arbitration happens OUTSIDE the pool lock (an eviction may re-enter
+            ' this pool via EvictSidecar). The decision also records the lease.
+            Dim decision As LoadDecision
             SyncLock _lock
-                ' Idempotent per owner: if this owner already holds this exact sidecar, no-op.
-                ' (Lets callers acquire on every commit without inflating the refcount.)
                 Dim priorSig As String = Nothing
-                If _byOwner.TryGetValue(ownerId, priorSig) Then
-                    If priorSig.Equals(sig, StringComparison.OrdinalIgnoreCase) Then Return name
-                    ReleaseInternal(ownerId)   ' owner switched models — drop the old one
+                If _byOwner.TryGetValue(ownerId, priorSig) AndAlso
+                   priorSig.Equals(sig, StringComparison.OrdinalIgnoreCase) Then Return name
+            End SyncLock
+            decision = arbiter.RequestLoad(EngineCategory.Translation, sig, name, engineKey, ownerId)
+
+            If decision.Kind = LoadDecisionKind.Denied Then
+                ' At limit, every resident leased (ENGINE_CONCURRENCY_PLAN row 4):
+                ' translation RE-ROUTES to a leased resident — the room keeps
+                ' translating, the operator is told which engine substituted.
+                Dim reroute = If(decision.ResidentBackendNames.FirstOrDefault(), "Local")
+                AppLogger.Log(LogEvents.ENGINE_RESIDENCY_CONFLICT,
+                    $"Translation at MaxConcurrentTranslationEngines with all engines in use — room '{ownerId}' wanted '{engineKey}' but is re-routed to '{reroute}' ({String.Join(", ", decision.ResidentDisplays)}). Raise the limit in Options → Advanced to run more local models at once.")
+                Return reroute
+            End If
+
+            SyncLock _lock
+                Dim priorSig As String = Nothing
+                If _byOwner.TryGetValue(ownerId, priorSig) AndAlso
+                   Not priorSig.Equals(sig, StringComparison.OrdinalIgnoreCase) Then
+                    ReleaseInternal(ownerId)   ' owner switched models — drop the old lease
                 End If
 
                 Dim e As PooledSidecar = Nothing
@@ -77,6 +97,9 @@ Namespace Services.Translation
                     _orchestrator.RegisterBackend(New SidecarTranslationBackend(svc, name, engineKey))
                     e = New PooledSidecar With {.Sig = sig, .Name = name, .Svc = svc, .Refs = 0}
                     _bySig(sig) = e
+                    Dim capturedSig = sig
+                    arbiter.RegisterResident(EngineCategory.Translation, sig, name, engineKey,
+                                             evict:=Sub() EvictSidecar(capturedSig), ownerId:=ownerId)
                     AppLogger.Log(LogEvents.TRANS_SERVER_STARTING,
                         $"Translation pool: started '{engineKey}' on port {port} as backend '{name}'")
                 End If
@@ -86,11 +109,14 @@ Namespace Services.Translation
             End SyncLock
         End Function
 
-        ''' <summary>Release the sidecar held by ownerId; stop it when no owners remain.</summary>
+        ''' <summary>Release the owner's lease. The sidecar STAYS resident as a warm
+        ''' spare (ENGINE_CONCURRENCY_PLAN: instant reuse; the arbiter evicts it only
+        ''' when a different engine needs the slot).</summary>
         Public Sub Release(ownerId As String)
             SyncLock _lock
                 ReleaseInternal(ownerId)
             End SyncLock
+            EngineResidencyArbiter.Instance.ReleaseOwner(EngineCategory.Translation, ownerId)
         End Sub
 
         Private Sub ReleaseInternal(ownerId As String)   ' caller holds _lock
@@ -101,14 +127,42 @@ Namespace Services.Translation
             If Not _bySig.TryGetValue(sig, e) Then Return
             e.Refs -= 1
             If e.Refs > 0 Then Return
-            _bySig.Remove(sig)
-            Dim svc = e.Svc
-            Dim nm = e.Name
+            ' Refs 0 = warm spare: process and orchestrator registration stay —
+            ' the next room on this model starts instantly instead of repaying
+            ' the ~30s load. The arbiter owns eviction from here.
+            AppLogger.Log(LogEvents.ENGINE_RESIDENCY,
+                $"Translation pool: '{e.Name}' now a warm spare (no rooms using it — stays loaded, evictable)")
+        End Sub
+
+        ''' <summary>Arbiter evict action: actually stop a spare sidecar and free VRAM.</summary>
+        Private Sub EvictSidecar(sig As String)
+            Dim svc As TranslationService = Nothing
+            Dim nm As String = Nothing
+            SyncLock _lock
+                Dim e As PooledSidecar = Nothing
+                If Not _bySig.TryGetValue(sig, e) Then Return
+                _bySig.Remove(sig)
+                svc = e.Svc
+                nm = e.Name
+            End SyncLock
             _orchestrator.UnregisterBackend(nm)
-            Task.Run(Sub()
-                         Try : svc.Stop() : Catch : End Try
-                     End Sub)
-            AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, $"Translation pool: stopped backend '{nm}' (no rooms using it)")
+            Try : svc.Stop() : Catch : End Try
+            AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, $"Translation pool: stopped backend '{nm}' (evicted by residency arbiter)")
+        End Sub
+
+        ''' <summary>Stop every pooled sidecar (app shutdown).</summary>
+        Public Sub StopAll()
+            Dim entries As List(Of PooledSidecar)
+            SyncLock _lock
+                entries = _bySig.Values.ToList()
+                _bySig.Clear()
+                _byOwner.Clear()
+            End SyncLock
+            For Each e In entries
+                EngineResidencyArbiter.Instance.DropResident(EngineCategory.Translation, e.Sig)
+                _orchestrator.UnregisterBackend(e.Name)
+                Try : e.Svc.Stop() : Catch : End Try
+            Next
         End Sub
 
         Private Shared Function FreePort() As Integer

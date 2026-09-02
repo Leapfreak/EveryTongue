@@ -66,6 +66,17 @@ Namespace Services.Stt
             End Get
         End Property
 
+        ''' <summary>
+        ''' Warm spare (ENGINE_CONCURRENCY_PLAN): boot the live-server for this
+        ''' engine and pre-load SaT — no capture, no Speechmatics session. The
+        ''' backend is then parked; a room claims it and calls Start() as normal,
+        ''' which reuses the healthy warm process.
+        ''' </summary>
+        Public Sub WarmOnly(port As Integer, satModel As String)
+            Runner.Backend = _backendKey
+            Runner.WarmServerOnly(port, satModel)
+        End Sub
+
         ' ── IRetargetableSttBackend — inline-translation retargeting ──
         ' This backend hosts the engine config block, so the knowledge of WHICH
         ' block type supports inline translation lives here, not in controllers.

@@ -19,6 +19,7 @@ Namespace Pipeline
             .MaxRestarts = 3,
             .AddWhisperToPath = True,
             .LogFileName = "translate-server.log",
+            .PassLogNameArg = True,
             .BaseEventId = Services.Infrastructure.LogEvents.PYLOG_TRANSLATE
         }
 
@@ -160,39 +161,33 @@ Namespace Pipeline
             Task.Run(Sub() WaitForReady(ct))
         End Sub
 
+        ''' <summary>Progress-aware readiness (ENGINE_CONCURRENCY_PLAN): no wall-clock
+        ''' deadline — waits while the sidecar shows progress, gives up only after
+        ''' EngineLoadIdleTimeoutSeconds of silence or on process death.</summary>
         Private Sub WaitForReady(ct As CancellationToken)
-            Dim deadline = DateTime.UtcNow.AddSeconds(30)
-            While DateTime.UtcNow < deadline AndAlso Not ct.IsCancellationRequested
+            Dim result = SidecarReadiness.WaitAsync(
+                $"Translation server (port {_port})",
+                Async Function(probeCt)
+                    Dim response = Await _httpClient.GetAsync($"http://127.0.0.1:{_port}/health", probeCt).ConfigureAwait(False)
+                    Return response.IsSuccessStatusCode
+                End Function,
+                Function() _host.IsProcessRunning,
+                Function() _host.MillisecondsSinceLastActivity,
+                ct).GetAwaiter().GetResult()
+
+            If result.Outcome = ReadinessOutcome.Ready Then
+                If ct.IsCancellationRequested Then Return
+                RaiseEvent StatusChanged(Me, "Translation server ready, loading model...")
                 Try
-                    Threading.Thread.Sleep(1000)
-                    If ct.IsCancellationRequested Then Return
-                    Using cts = CancellationTokenSource.CreateLinkedTokenSource(ct)
-                        cts.CancelAfter(5000)
-                        Dim response = _httpClient.GetAsync($"http://127.0.0.1:{_port}/health", cts.Token).Result
-                        If response.IsSuccessStatusCode Then
-                            If ct.IsCancellationRequested Then Return
-                            RaiseEvent StatusChanged(Me, "Translation server ready, loading model...")
-                            Try
-                                LoadModelAsync().Wait()
-                                If _modelLoaded Then
-                                    WarmUpModel()
-                                End If
-                            Catch ex As Exception
-                                AppLogger.Log(LogEvents.TRANS_ERROR, $"WaitForReady: LoadModelAsync failed — {ex.Message}")
-                            End Try
-                            Return
-                        End If
-                    End Using
-                Catch ex As OperationCanceledException
-                    ' Cancellation = normal stop of the reader loop.
-                    Return
+                    LoadModelAsync().Wait()
+                    If _modelLoaded Then
+                        WarmUpModel()
+                    End If
                 Catch ex As Exception
-                    ' Cancellation race — treated as a normal stop; real faults keep the loop alive.
-                    If ct.IsCancellationRequested Then Return
+                    AppLogger.Log(LogEvents.TRANS_ERROR, $"WaitForReady: LoadModelAsync failed — {ex.Message}")
                 End Try
-            End While
-            If Not ct.IsCancellationRequested Then
-                RaiseEvent StatusChanged(Me, "Translation server: startup timeout")
+            ElseIf result.Outcome = ReadinessOutcome.NoProgress OrElse result.Outcome = ReadinessOutcome.ProcessExited Then
+                RaiseEvent StatusChanged(Me, $"Translation server: failed to become ready ({result.Outcome})")
             End If
         End Sub
 

@@ -11,6 +11,9 @@ Namespace Services.Testing
     ''' </summary>
     Public Class TranslationConcurrencyRunner
 
+        ''' <summary>How long a benchmark waits for a translation backend's available flag.</summary>
+        Private Const BENCHMARK_BACKEND_WAIT_SECONDS As Integer = 60
+
         Public Event ProgressChanged As EventHandler(Of String)
 
         Private _cts As CancellationTokenSource
@@ -52,7 +55,9 @@ Namespace Services.Testing
             RaiseProgress("Waiting for translation backend...")
             Dim backends = translationService.GetAllBackends()
             If Not backends.Any(Function(b) b.IsAvailable) Then
-                Dim deadline = DateTime.UtcNow.AddSeconds(60)
+                ' Named constant, not progress-aware (ENGINE_CONCURRENCY_PLAN Class A,
+                ' benchmark tier): polls the orchestrator's in-process flag only.
+                Dim deadline = DateTime.UtcNow.AddSeconds(BENCHMARK_BACKEND_WAIT_SECONDS)
                 While DateTime.UtcNow < deadline AndAlso Not token.IsCancellationRequested
                     Await Task.Delay(1000, token)
                     backends = translationService.GetAllBackends()

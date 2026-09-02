@@ -60,11 +60,14 @@ _active_handler.setLevel(logging.INFO)
 _active_handler.setFormatter(logging.Formatter("[TRANSLATE] %(message)s"))
 
 
-def _setup_file_logging(log_dir: str):
-    """Switch from stderr fallback to RotatingFileHandler."""
+def _setup_file_logging(log_dir: str, log_name: str = "translate-server.log"):
+    """Switch from stderr fallback to RotatingFileHandler. log_name is per-port
+    when .NET passes --log-name (the pool tails translate-server-<port>.log —
+    before this arg existed the fixed name meant pooled sidecars' tails never
+    matched the actual file)."""
     global _file_handler, _active_handler
     os.makedirs(log_dir, exist_ok=True)
-    log_path = os.path.join(log_dir, "translate-server.log")
+    log_path = os.path.join(log_dir, log_name)
     _file_handler = logging.handlers.RotatingFileHandler(
         log_path, maxBytes=2 * 1024 * 1024, backupCount=2, encoding="utf-8")
     _file_handler.setLevel(logging.DEBUG)
@@ -629,10 +632,12 @@ if __name__ == "__main__":
                         help="Path to glossary.json for post-translation fixes")
     parser.add_argument("--log-dir", type=str, default="",
                         help="Directory for log files (RotatingFileHandler)")
+    parser.add_argument("--log-name", type=str, default="translate-server.log",
+                        help="Log file name (per-port so concurrent sidecars don't share a file)")
     args = parser.parse_args()
 
     if args.log_dir:
-        _setup_file_logging(args.log_dir)
+        _setup_file_logging(args.log_dir, args.log_name)
 
     model_path_global = args.model_path
     compute_type_global = args.compute_type

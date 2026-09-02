@@ -35,6 +35,9 @@ Public Class FormMain
     ''' by compute_type — a model-path-only check can't detect a precision switch.
     ''' </summary>
     Private _loadedTranslationComputeType As String = "auto"
+    ''' <summary>Arbiter residency key of the global "Local" sidecar's loaded model
+    ''' (pool signature), "" when none — used to DropResident on deliberate stops.</summary>
+    Private _localResidentSig As String = ""
     Private _isInitializing As Boolean = True
     Private _isSyncingUi As Boolean = False
     Private _exitForReal As Boolean = False
@@ -349,6 +352,11 @@ Public Class FormMain
 
                                   _serverController.StartServer()
 
+                                  ' Idle re-warm: when the last room releases its translation
+                                  ' engine, swap the warm slot back to the global Options engine.
+                                  AddHandler Services.Infrastructure.EngineResidencyArbiter.Instance.CategoryIdle,
+                                      AddressOf OnEngineCategoryIdle
+
                                   ' Create and wire conference controller for template-based rooms
                                   _conferenceController = New Controllers.ConferenceController(
                                       _config,
@@ -393,6 +401,27 @@ Public Class FormMain
                                   ' Speechmatics-only session must NOT auto-start whisper-cpp at launch,
                                   ' which wastes VRAM and can crash on small GPUs.
                                   AppLogger.Log(LogEvents.STARTUP_APP_STARTED, "Conversation-rooms STT and translation will start on first use (no eager warm-up)")
+
+                                  ' Warm queue (ENGINE_CONCURRENCY_PLAN): one heavy load at a time,
+                                  ' background, NORMAL process priority (decided 2026-09-03 — the
+                                  ' sequential queue is the only throttle). The translation warm was
+                                  ' triggered above (StartServer/StartTranslationService); once it
+                                  ' settles, pre-warm the STT live-server spare (+SaT when the STT
+                                  ' config uses it) so the FIRST room starts fast. Reads config at
+                                  ' execution time — an Options engine change re-points the NEXT
+                                  ' warm, never triggers an immediate swap.
+                                  Task.Run(Async Function()
+                                               Try
+                                                   While Not Pipeline.PythonSidecarHost.GlobalShutdown AndAlso TranslationWarmInProgress()
+                                                       Await Task.Delay(2000)
+                                                   End While
+                                                   If Pipeline.PythonSidecarHost.GlobalShutdown Then Return
+                                                   _conferenceController?.WarmSttSpare()
+                                               Catch ex As Exception
+                                                   AppLogger.Log(LogEvents.ENGINE_RESIDENCY, $"Warm queue ended early: {ex.Message}")
+                                               End Try
+                                           End Function)
+
                                   trayIcon.Text = GetString("Tray_Ready")
 
                                   InitBibleTab()
@@ -1101,10 +1130,16 @@ del ""%~f0""
         Dim entry = Services.Translation.TranslationBackendRegistry.Find(engineKey)
         If entry Is Nothing OrElse Not String.IsNullOrEmpty(entry.InlineWithStt) Then Return ""
         If entry.LocalServerKind = "llama" Then
-            ' Salamandra: single resident llama-server, no per-room pool. Idempotent
-            ' fire — the room readiness probe holds "preparing" until it is warm.
-            ' Release is naturally a no-op (server stays resident; 16GB VRAM is fine).
-            _serverController?.EnsureSalamandraRunning()
+            ' Salamandra: arbitrated resident llama-server (ENGINE_CONCURRENCY_PLAN).
+            ' The room LEASES it so a lease-0 eviction can never hit mid-service;
+            ' Denied (limit reached, all engines in use) re-routes the room.
+            Dim salDecision = _serverController?.EnsureSalamandraRunning(roomId)
+            If salDecision IsNot Nothing AndAlso salDecision.Kind = Services.Infrastructure.LoadDecisionKind.Denied Then
+                Dim reroute = If(salDecision.ResidentBackendNames.FirstOrDefault(), "Local")
+                AppLogger.Log(LogEvents.ENGINE_RESIDENCY_CONFLICT,
+                    $"Room '{roomId}' wanted Salamandra but MaxConcurrentTranslationEngines is reached with all engines in use — re-routed to '{reroute}'")
+                Return reroute
+            End If
             Return entry.BackendName
         End If
         If String.IsNullOrEmpty(entry.ModelType) Then Return entry.BackendName   ' cloud — configured at server start
@@ -1120,7 +1155,20 @@ del ""%~f0""
             Dim defCompute = Services.Translation.TranslationBackendRegistry.ComputeTypeForKey(defKey)
             If Services.Translation.TranslationSidecarPool.Signature(modelPath, compute).Equals(
                    Services.Translation.TranslationSidecarPool.Signature(defModel, defCompute), StringComparison.OrdinalIgnoreCase) Then
+                Dim localSig = Services.Translation.TranslationSidecarPool.Signature(defModel, defCompute)
+                Dim localDecision = Services.Infrastructure.EngineResidencyArbiter.Instance.RequestLoad(
+                    Services.Infrastructure.EngineCategory.Translation, localSig, "Local", defKey, roomId)
+                If localDecision.Kind = Services.Infrastructure.LoadDecisionKind.Denied Then
+                    Dim reroute = If(localDecision.ResidentBackendNames.FirstOrDefault(), entry.BackendName)
+                    AppLogger.Log(LogEvents.ENGINE_RESIDENCY_CONFLICT,
+                        $"Room '{roomId}' wanted '{engineKey}' but MaxConcurrentTranslationEngines is reached with all engines in use — re-routed to '{reroute}'")
+                    Return reroute
+                End If
                 EnsureDefaultTranslationRunning()
+                ' The room's lease (RequestLoad records it only on ShareExisting —
+                ' a Granted resident registers later with no owner).
+                Services.Infrastructure.EngineResidencyArbiter.Instance.Lease(
+                    Services.Infrastructure.EngineCategory.Translation, localSig, roomId)
                 Return "Local"
             End If
         End If
@@ -1142,6 +1190,57 @@ del ""%~f0""
 
     Private Sub ReleaseRoomTranslationBackend(roomId As String)
         _translationPool?.Release(roomId)
+        ' Release any direct leases too (Salamandra / shared "Local") — the engine
+        ' stays resident as a warm spare; the arbiter raises CategoryIdle on the
+        ' last lease and the idle handler re-warms the GLOBAL engine.
+        Services.Infrastructure.EngineResidencyArbiter.Instance.ReleaseOwner(
+            Services.Infrastructure.EngineCategory.Translation, roomId)
+    End Sub
+
+    ''' <summary>True while a translation engine warm-up is in flight — the warm
+    ''' queue waits on this before starting the next heavy load.</summary>
+    Private Function TranslationWarmInProgress() As Boolean
+        Try
+            If _serverController IsNot Nothing AndAlso _serverController.SalamandraWarming Then Return True
+            If _translationService IsNot Nothing AndAlso _translationService.IsRunning AndAlso
+               Not _translationService.IsModelLoaded Then Return True
+        Catch
+        End Try
+        Return False
+    End Function
+
+    ''' <summary>Idle re-warm (decided 2026-09-03): after the LAST room closes, swap
+    ''' the warm slot back to the Options engine so the desktop workspaces always
+    ''' find their engine warm and the app returns to a predictable state.</summary>
+    Private Sub OnEngineCategoryIdle(category As Services.Infrastructure.EngineCategory)
+        If category <> Services.Infrastructure.EngineCategory.Translation Then Return
+        Task.Run(Sub()
+                     Try
+                         Dim key = Services.Translation.TranslationBackendRegistry.ResolveEffectiveBackendKey(_config)
+                         Dim entry = Services.Translation.TranslationBackendRegistry.Find(key)
+                         If entry Is Nothing Then Return
+                         Dim arb = Services.Infrastructure.EngineResidencyArbiter.Instance
+                         If entry.LocalServerKind = "llama" Then
+                             If arb.IsResident(Services.Infrastructure.EngineCategory.Translation, "salamandra") Then Return
+                             AppLogger.Log(LogEvents.ENGINE_RESIDENCY,
+                                 "Translation idle — re-warming the global engine (Salamandra) in the background")
+                             _serverController?.EnsureSalamandraRunning()
+                         ElseIf Not String.IsNullOrEmpty(entry.ModelType) Then
+                             Dim model = If(String.IsNullOrEmpty(_config.TranslationModelPath), entry.DefaultModelPath, _config.TranslationModelPath)
+                             Dim sig = Services.Translation.TranslationSidecarPool.Signature(
+                                 model, Services.Translation.TranslationBackendRegistry.ComputeTypeForKey(key))
+                             If arb.IsResident(Services.Infrastructure.EngineCategory.Translation, sig) Then Return
+                             AppLogger.Log(LogEvents.ENGINE_RESIDENCY,
+                                 $"Translation idle — re-warming the global engine ('{key}') in the background")
+                             If IsHandleCreated Then
+                                 BeginInvoke(Sub() EnsureDefaultTranslationRunning())
+                             End If
+                         End If
+                         ' Cloud global engine: nothing to warm.
+                     Catch ex As Exception
+                         AppLogger.Log(LogEvents.TRANS_ERROR, $"Idle re-warm failed: {ex.Message}")
+                     End Try
+                 End Sub)
     End Sub
 
     ''' <summary>Start the global-default ("Local") translation sidecar if it isn't already running.</summary>
@@ -1212,6 +1311,11 @@ del ""%~f0""
                     ' serves non-conference paths until the global engine changes.
                     AppLogger.Log(LogEvents.TRANS_SERVER_STARTING,
                         $"Reloading NLLB sidecar to room engine '{engineKey}' (model {entry.DefaultModelPath}, compute {requestedCompute}; was model '{_config.TranslationModelPath}', compute '{_loadedTranslationComputeType}')")
+                    If Not String.IsNullOrEmpty(_localResidentSig) Then
+                        Services.Infrastructure.EngineResidencyArbiter.Instance.DropResident(
+                            Services.Infrastructure.EngineCategory.Translation, _localResidentSig)
+                        _localResidentSig = ""
+                    End If
                     _translationService.Stop()
                     _translationService = Nothing
                     Dim wasEnabledR = _config.TranslationEnabled
@@ -1293,6 +1397,11 @@ del ""%~f0""
 
         If _translationService IsNot Nothing Then
             AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, "StartTranslationService: stopping existing service before creating new one")
+            If Not String.IsNullOrEmpty(_localResidentSig) Then
+                Services.Infrastructure.EngineResidencyArbiter.Instance.DropResident(
+                    Services.Infrastructure.EngineCategory.Translation, _localResidentSig)
+                _localResidentSig = ""
+            End If
             _translationService.Stop()
             _translationService = Nothing
         End If
@@ -1379,6 +1488,31 @@ del ""%~f0""
             ' actually-loaded model and precision.
             If overrideIsLocal Then _config.TranslationModelPath = modelPath
             _loadedTranslationComputeType = computeType
+
+            ' Residency arbitration (ENGINE_CONCURRENCY_PLAN): the global "Local"
+            ' sidecar is a resident local model like the pool's — it asks for the
+            ' slot (evicting a warm spare if the limit demands) and registers as an
+            ' evictable resident. Loaded with no owner = warm spare until leased.
+            Dim residencySig = Services.Translation.TranslationSidecarPool.Signature(modelPath, computeType)
+            Dim arb = Services.Infrastructure.EngineResidencyArbiter.Instance
+            If Not String.IsNullOrEmpty(_localResidentSig) AndAlso
+               Not _localResidentSig.Equals(residencySig, StringComparison.OrdinalIgnoreCase) Then
+                arb.DropResident(Services.Infrastructure.EngineCategory.Translation, _localResidentSig)
+            End If
+            Dim residencyDecision = arb.RequestLoad(Services.Infrastructure.EngineCategory.Translation,
+                residencySig, "Local", If(overrideIsLocal, keyOverride, effectiveKey), "")
+            If residencyDecision.Kind = Services.Infrastructure.LoadDecisionKind.Denied Then
+                AppLogger.Log(LogEvents.ENGINE_RESIDENCY_CONFLICT,
+                    "Global NLLB sidecar not started — MaxConcurrentTranslationEngines reached with all engines in use")
+                _translationStarting = False
+                Return
+            End If
+            _localResidentSig = residencySig
+            arb.RegisterResident(Services.Infrastructure.EngineCategory.Translation,
+                residencySig, "Local", If(overrideIsLocal, keyOverride, effectiveKey),
+                evict:=Sub()
+                           Try : _translationService?.Stop() : Catch : End Try
+                       End Sub)
 
             AppLogger.Log(LogEvents.TRANS_SERVER_STARTING, $"StartTranslationService: port={port}, device={device}, modelPath={modelPath}, modelType={modelType}, computeType={computeType}{If(overrideIsLocal, $" (room engine '{keyOverride}')", "")}")
             _translationService.Start(port, modelPath, device, glossaryPath, modelType, computeType)

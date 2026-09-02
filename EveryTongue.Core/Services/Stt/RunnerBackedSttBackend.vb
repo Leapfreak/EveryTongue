@@ -84,6 +84,26 @@ Namespace Services.Stt
             Runner.Stop()
         End Sub
 
+        ''' <summary>Park (warm spare): stop capture, keep the live-server process +
+        ''' loaded SaT resident for the next room (ENGINE_CONCURRENCY_PLAN).</summary>
+        Public Sub StopCaptureOnly()
+            Runner.StopCaptureOnly()
+        End Sub
+
+        ''' <summary>The parked/live server port (for spare reuse).</summary>
+        Public ReadOnly Property ServerPort As Integer
+            Get
+                Return Runner.ServerPort
+            End Get
+        End Property
+
+        ''' <summary>Live-server HTTP answered at least once (spare warm indicator).</summary>
+        Public ReadOnly Property ServerReady As Boolean
+            Get
+                Return Runner.IsServerReady
+            End Get
+        End Property
+
         ''' <summary>Split a held clause into sentences via live-server's SaT segmenter (clause coordinator flush).</summary>
         Public Function Segment(text As String, thresholdPercent As Integer, model As String) As List(Of String) Implements ISegmentingSttBackend.Segment
             Return Runner.Segment(text, thresholdPercent, model)
@@ -120,6 +140,20 @@ Namespace Services.Stt
         Public Overridable Function CheckHealthAsync(ct As CancellationToken) As Task(Of Boolean) Implements ISttBackend.CheckHealthAsync
             Return Runner.CheckCapturingAsync(ct)
         End Function
+
+        ''' <summary>Live-server process alive — progress signal for SidecarReadiness.</summary>
+        Public ReadOnly Property ServerProcessRunning As Boolean
+            Get
+                Return Runner.IsServerProcessRunning
+            End Get
+        End Property
+
+        ''' <summary>Ms since the live-server last showed activity (log tail / start).</summary>
+        Public ReadOnly Property ServerMillisecondsSinceLastActivity As Long
+            Get
+                Return Runner.MillisecondsSinceLastActivity
+            End Get
+        End Property
 
         Public Function GetStatsAsync() As Task(Of String) Implements ISttBackend.GetStatsAsync
             Return Runner.GetStatsAsync()

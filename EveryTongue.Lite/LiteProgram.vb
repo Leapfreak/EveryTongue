@@ -102,6 +102,12 @@ Public Module LiteProgram
             Sub(work) work())
         _conferenceController.WireEndpointHandlers()
 
+        ' Warm queue parity (ENGINE_CONCURRENCY_PLAN): Lite has no local
+        ' translation engines (cloud/online only), so the queue reduces to the
+        ' STT live-server spare — pre-boot it + SaT so the first room is fast.
+        ' Background Task, no UI thread exists here.
+        Task.Run(Sub() _conferenceController.WarmSttSpare())
+
         ' Browser settings (/api/settings): the ONLY config surface in Lite.
         Server.EndpointRegistration.SettingsConfigProvider = Function() config
         Server.EndpointRegistration.SettingsSaveHandler = Sub() ConfigManager.Save(config)

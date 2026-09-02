@@ -152,30 +152,31 @@ Namespace Pipeline
                 Dim drainOut = Task.Run(Sub() DrainPipe(Function() proc.StandardOutput.ReadLine()))
                 Dim drainErr = Task.Run(Sub() DrainPipe(Function() proc.StandardError.ReadLine()))
 
-                ' Readiness: poll /health, abort early if the process died.
-                Dim healthy = False
-                Dim deadline = DateTime.UtcNow.AddSeconds(120)
-                While DateTime.UtcNow < deadline
-                    If proc.HasExited Then
-                        AppLogger.Log(LogEvents.TRANS_LLAMA_PROBLEM, $"llama-server exited during startup (code {proc.ExitCode}) — see 94xx log lines")
-                        Return False
-                    End If
-                    Try
-                        Using cts As New CancellationTokenSource(TimeSpan.FromSeconds(3))
-                            ' Send the key here too — some builds exempt /health from
-                            ' --api-key auth, some don't; the header is correct either way.
-                            Dim hreq As New HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{Port}/health")
-                            hreq.Headers.Authorization = New Net.Http.Headers.AuthenticationHeaderValue("Bearer", _apiKey)
-                            Dim resp = Await _httpClient.SendAsync(hreq, cts.Token)
-                            If resp.IsSuccessStatusCode Then healthy = True : Exit While
-                        End Using
-                    Catch
-                        ' not up yet
-                    End Try
-                    Await Task.Delay(500)
-                End While
-                If Not healthy Then
-                    AppLogger.Log(LogEvents.TRANS_LLAMA_PROBLEM, "llama-server did not become healthy within 120s — stopping it")
+                ' Progress-aware readiness (ENGINE_CONCURRENCY_PLAN): no wall-clock
+                ' deadline — the model load keeps printing load_tensors lines, so a
+                ' slow machine keeps its slot; a dead process fails immediately.
+                Threading.Volatile.Write(_lastActivityTick, Environment.TickCount64)
+                Dim readiness = Await SidecarReadiness.WaitAsync(
+                    $"llama-server (port {Port})",
+                    Async Function(probeCt)
+                        ' Send the key here too — some builds exempt /health from
+                        ' --api-key auth, some don't; the header is correct either way.
+                        Dim hreq As New HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{Port}/health")
+                        hreq.Headers.Authorization = New Net.Http.Headers.AuthenticationHeaderValue("Bearer", _apiKey)
+                        Dim resp = Await _httpClient.SendAsync(hreq, probeCt).ConfigureAwait(False)
+                        Return resp.IsSuccessStatusCode
+                    End Function,
+                    Function() Not proc.HasExited,
+                    Function() MillisecondsSinceLastActivity,
+                    Threading.CancellationToken.None).ConfigureAwait(False)
+                If readiness.Outcome = ReadinessOutcome.ProcessExited Then
+                    Dim exitCode = -1
+                    Try : exitCode = proc.ExitCode : Catch : End Try
+                    AppLogger.Log(LogEvents.TRANS_LLAMA_PROBLEM, $"llama-server exited during startup (code {exitCode}) — see 94xx log lines")
+                    Return False
+                End If
+                If readiness.Outcome <> ReadinessOutcome.Ready Then
+                    AppLogger.Log(LogEvents.TRANS_LLAMA_PROBLEM, $"llama-server did not become healthy ({readiness.Outcome}) — stopping it")
                     [Stop]()
                     Return False
                 End If
@@ -275,11 +276,23 @@ Namespace Pipeline
             End Try
         End Function
 
+        ' Tick of the most recent output line — the readiness progress signal
+        ' (a llama-server still printing load_tensors lines is still loading).
+        Private _lastActivityTick As Long = Environment.TickCount64
+
+        ''' <summary>Ms since llama-server last wrote a line to either pipe.</summary>
+        Public ReadOnly Property MillisecondsSinceLastActivity As Long
+            Get
+                Return Environment.TickCount64 - Threading.Volatile.Read(_lastActivityTick)
+            End Get
+        End Property
+
         Private Sub DrainPipe(readLine As Func(Of String))
             Try
                 Do
                     Dim line = readLine()
                     If line Is Nothing Then Exit Do
+                    Threading.Volatile.Write(_lastActivityTick, Environment.TickCount64)
                     RouteServerLine(line)
                 Loop
             Catch

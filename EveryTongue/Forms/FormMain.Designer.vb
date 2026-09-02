@@ -73,6 +73,7 @@ Partial Class FormMain
         statusMain = New StatusStrip()
         tslServerStatus = New ToolStripStatusLabel()
         tslClients = New ToolStripStatusLabel()
+        tslEngineState = New ToolStripStatusLabel()
         tslSpring = New ToolStripStatusLabel()
         tslLogToggle = New ToolStripStatusLabel()
         pnlContent = New Panel()
@@ -602,7 +603,7 @@ Partial Class FormMain
         ' 
         ' statusMain
         ' 
-        statusMain.Items.AddRange(New ToolStripItem() {tslServerStatus, tslClients, tslSpring, tslLogToggle})
+        statusMain.Items.AddRange(New ToolStripItem() {tslServerStatus, tslClients, tslEngineState, tslSpring, tslLogToggle})
         statusMain.Location = New Point(0, 626)
         statusMain.Name = "statusMain"
         statusMain.Size = New Size(880, 24)
@@ -621,9 +622,16 @@ Partial Class FormMain
         tslClients.Name = "tslClients"
         tslClients.Size = New Size(59, 19)
         tslClients.Text = "Clients: 0"
-        ' 
+        '
+        ' tslEngineState
+        '
+        tslEngineState.BorderSides = ToolStripStatusLabelBorderSides.Right
+        tslEngineState.Name = "tslEngineState"
+        tslEngineState.Size = New Size(90, 19)
+        tslEngineState.Text = ""
+        '
         ' tslSpring
-        ' 
+        '
         tslSpring.Name = "tslSpring"
         tslSpring.Size = New Size(639, 19)
         tslSpring.Spring = True
@@ -1956,6 +1964,7 @@ Partial Class FormMain
     Friend WithEvents statusMain As StatusStrip
     Friend WithEvents tslServerStatus As ToolStripStatusLabel
     Friend WithEvents tslClients As ToolStripStatusLabel
+    Friend WithEvents tslEngineState As ToolStripStatusLabel
     Friend WithEvents tslSpring As ToolStripStatusLabel
     Friend WithEvents tslLogToggle As ToolStripStatusLabel
 

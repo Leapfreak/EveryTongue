@@ -54,6 +54,28 @@ Namespace Models
             If String.IsNullOrEmpty(cfg.SubtitleBgColor) OrElse Not cfg.SubtitleBgColor.StartsWith("#") Then cfg.SubtitleBgColor = "#000000"
             If String.IsNullOrEmpty(cfg.SubtitleFgColor) OrElse Not cfg.SubtitleFgColor.StartsWith("#") Then cfg.SubtitleFgColor = "#FFFFFF"
 
+            ' Engine-concurrency floors (a hand-edited 0 must not mean "no engines").
+            If cfg.MaxConcurrentSttEngines < 1 Then cfg.MaxConcurrentSttEngines = 1
+            If cfg.MaxConcurrentTranslationEngines < 1 Then cfg.MaxConcurrentTranslationEngines = 1
+            If cfg.MaxConcurrentTtsEngines < 1 Then cfg.MaxConcurrentTtsEngines = 1
+            ' Refresh the ambient idle-timeout every load so all readiness waits —
+            ' desktop, Lite, sidecars started from any path — follow the config
+            ' without per-caller plumbing (the property itself floors at 5s).
+            Pipeline.SidecarReadiness.DefaultIdleTimeoutSeconds = cfg.EngineLoadIdleTimeoutSeconds
+            ' Same trick for the residency limits: every config load re-points the
+            ' arbiter at the freshest values (covers desktop, Lite, options saves).
+            Services.Infrastructure.EngineResidencyArbiter.Instance.LimitProvider =
+                Function(cat As Services.Infrastructure.EngineCategory) As Integer
+                    Select Case cat
+                        Case Services.Infrastructure.EngineCategory.Stt
+                            Return cfg.MaxConcurrentSttEngines
+                        Case Services.Infrastructure.EngineCategory.Translation
+                            Return cfg.MaxConcurrentTranslationEngines
+                        Case Else
+                            Return cfg.MaxConcurrentTtsEngines
+                    End Select
+                End Function
+
             ' Migrate old whisper\ subdirectory path to flat (Download Manager puts whisper-cli.exe at root)
             If cfg.PathWhisper IsNot Nothing AndAlso cfg.PathWhisper.EndsWith("\whisper\whisper-cli.exe") Then
                 cfg.PathWhisper = cfg.PathWhisper.Replace("\whisper\whisper-cli.exe", "\whisper-cli.exe")

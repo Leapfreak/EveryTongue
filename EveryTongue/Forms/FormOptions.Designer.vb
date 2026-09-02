@@ -235,6 +235,16 @@ Partial Class FormOptions
         Me.nudTranslationConcurrency = New System.Windows.Forms.NumericUpDown()
         Me.lblTtsConcurrency = New System.Windows.Forms.Label()
         Me.nudTtsConcurrency = New System.Windows.Forms.NumericUpDown()
+        Me.lblAdvEnginesHeader = New System.Windows.Forms.Label()
+        Me.lblAdvEnginesSep = New System.Windows.Forms.Label()
+        Me.lblMaxSttEngines = New System.Windows.Forms.Label()
+        Me.nudMaxSttEngines = New System.Windows.Forms.NumericUpDown()
+        Me.lblMaxTranslationEngines = New System.Windows.Forms.Label()
+        Me.nudMaxTranslationEngines = New System.Windows.Forms.NumericUpDown()
+        Me.lblMaxTtsEngines = New System.Windows.Forms.Label()
+        Me.nudMaxTtsEngines = New System.Windows.Forms.NumericUpDown()
+        Me.lblEngineIdleTimeout = New System.Windows.Forms.Label()
+        Me.nudEngineIdleTimeout = New System.Windows.Forms.NumericUpDown()
         Me.lblAdvOutputHeader = New System.Windows.Forms.Label()
         Me.lblAdvOutputSep = New System.Windows.Forms.Label()
         Me.chkOutSrt = New System.Windows.Forms.CheckBox()
@@ -319,6 +329,10 @@ Partial Class FormOptions
         CType(Me.nudChunkTimeout, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudTranslationConcurrency, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudTtsConcurrency, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudMaxSttEngines, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudMaxTranslationEngines, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudMaxTtsEngines, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.nudEngineIdleTimeout, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudThreads, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudProcessors, System.ComponentModel.ISupportInitialize).BeginInit()
         CType(Me.nudBeamSize, System.ComponentModel.ISupportInitialize).BeginInit()
@@ -2591,6 +2605,16 @@ Partial Class FormOptions
         Me.pnlAdvanced.Controls.Add(Me.lblAdvBibleHeader)
         Me.pnlAdvanced.Controls.Add(Me.lblAdvBibleSep)
         Me.pnlAdvanced.Controls.Add(Me.chkShowBibleCopyright)
+        Me.pnlAdvanced.Controls.Add(Me.lblAdvEnginesHeader)
+        Me.pnlAdvanced.Controls.Add(Me.lblAdvEnginesSep)
+        Me.pnlAdvanced.Controls.Add(Me.lblMaxSttEngines)
+        Me.pnlAdvanced.Controls.Add(Me.nudMaxSttEngines)
+        Me.pnlAdvanced.Controls.Add(Me.lblMaxTranslationEngines)
+        Me.pnlAdvanced.Controls.Add(Me.nudMaxTranslationEngines)
+        Me.pnlAdvanced.Controls.Add(Me.lblMaxTtsEngines)
+        Me.pnlAdvanced.Controls.Add(Me.nudMaxTtsEngines)
+        Me.pnlAdvanced.Controls.Add(Me.lblEngineIdleTimeout)
+        Me.pnlAdvanced.Controls.Add(Me.nudEngineIdleTimeout)
         Me.pnlAdvanced.Dock = System.Windows.Forms.DockStyle.Fill
         Me.pnlAdvanced.Location = New System.Drawing.Point(0, 0)
         Me.pnlAdvanced.Name = "pnlAdvanced"
@@ -2777,6 +2801,104 @@ Partial Class FormOptions
         Me.nudTtsConcurrency.Size = New System.Drawing.Size(60, 23)
         Me.nudTtsConcurrency.TabIndex = 18
         Me.nudTtsConcurrency.Value = New Decimal(New Integer() {3, 0, 0, 0})
+        '
+        ' ── Engine residency (ENGINE_CONCURRENCY_PLAN) ──
+        '
+        ' lblAdvEnginesHeader
+        '
+        Me.lblAdvEnginesHeader.AutoSize = True
+        Me.lblAdvEnginesHeader.Font = New System.Drawing.Font("Segoe UI", 11.0!, System.Drawing.FontStyle.Bold)
+        Me.lblAdvEnginesHeader.Location = New System.Drawing.Point(8, 825)
+        Me.lblAdvEnginesHeader.Name = "lblAdvEnginesHeader"
+        Me.lblAdvEnginesHeader.Size = New System.Drawing.Size(130, 20)
+        Me.lblAdvEnginesHeader.TabIndex = 90
+        Me.lblAdvEnginesHeader.Text = "Engine residency"
+        '
+        ' lblAdvEnginesSep
+        '
+        Me.lblAdvEnginesSep.Anchor = CType(((System.Windows.Forms.AnchorStyles.Top Or System.Windows.Forms.AnchorStyles.Left) _
+            Or System.Windows.Forms.AnchorStyles.Right), System.Windows.Forms.AnchorStyles)
+        Me.lblAdvEnginesSep.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D
+        Me.lblAdvEnginesSep.Location = New System.Drawing.Point(8, 847)
+        Me.lblAdvEnginesSep.Name = "lblAdvEnginesSep"
+        Me.lblAdvEnginesSep.Size = New System.Drawing.Size(520, 1)
+        Me.lblAdvEnginesSep.TabIndex = 91
+        '
+        ' lblMaxSttEngines
+        '
+        Me.lblMaxSttEngines.AutoSize = True
+        Me.lblMaxSttEngines.Location = New System.Drawing.Point(12, 859)
+        Me.lblMaxSttEngines.Name = "lblMaxSttEngines"
+        Me.lblMaxSttEngines.Size = New System.Drawing.Size(150, 15)
+        Me.lblMaxSttEngines.TabIndex = 92
+        Me.lblMaxSttEngines.Text = "Max STT engines loaded:"
+        '
+        ' nudMaxSttEngines
+        '
+        Me.nudMaxSttEngines.Location = New System.Drawing.Point(210, 857)
+        Me.nudMaxSttEngines.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
+        Me.nudMaxSttEngines.Maximum = New Decimal(New Integer() {8, 0, 0, 0})
+        Me.nudMaxSttEngines.Name = "nudMaxSttEngines"
+        Me.nudMaxSttEngines.Size = New System.Drawing.Size(60, 23)
+        Me.nudMaxSttEngines.TabIndex = 93
+        Me.nudMaxSttEngines.Value = New Decimal(New Integer() {1, 0, 0, 0})
+        '
+        ' lblMaxTranslationEngines
+        '
+        Me.lblMaxTranslationEngines.AutoSize = True
+        Me.lblMaxTranslationEngines.Location = New System.Drawing.Point(290, 859)
+        Me.lblMaxTranslationEngines.Name = "lblMaxTranslationEngines"
+        Me.lblMaxTranslationEngines.Size = New System.Drawing.Size(180, 15)
+        Me.lblMaxTranslationEngines.TabIndex = 94
+        Me.lblMaxTranslationEngines.Text = "Max translation engines loaded:"
+        '
+        ' nudMaxTranslationEngines
+        '
+        Me.nudMaxTranslationEngines.Location = New System.Drawing.Point(480, 857)
+        Me.nudMaxTranslationEngines.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
+        Me.nudMaxTranslationEngines.Maximum = New Decimal(New Integer() {8, 0, 0, 0})
+        Me.nudMaxTranslationEngines.Name = "nudMaxTranslationEngines"
+        Me.nudMaxTranslationEngines.Size = New System.Drawing.Size(60, 23)
+        Me.nudMaxTranslationEngines.TabIndex = 95
+        Me.nudMaxTranslationEngines.Value = New Decimal(New Integer() {1, 0, 0, 0})
+        '
+        ' lblMaxTtsEngines
+        '
+        Me.lblMaxTtsEngines.AutoSize = True
+        Me.lblMaxTtsEngines.Location = New System.Drawing.Point(12, 889)
+        Me.lblMaxTtsEngines.Name = "lblMaxTtsEngines"
+        Me.lblMaxTtsEngines.Size = New System.Drawing.Size(150, 15)
+        Me.lblMaxTtsEngines.TabIndex = 96
+        Me.lblMaxTtsEngines.Text = "Max TTS engines loaded:"
+        '
+        ' nudMaxTtsEngines
+        '
+        Me.nudMaxTtsEngines.Location = New System.Drawing.Point(210, 887)
+        Me.nudMaxTtsEngines.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
+        Me.nudMaxTtsEngines.Maximum = New Decimal(New Integer() {8, 0, 0, 0})
+        Me.nudMaxTtsEngines.Name = "nudMaxTtsEngines"
+        Me.nudMaxTtsEngines.Size = New System.Drawing.Size(60, 23)
+        Me.nudMaxTtsEngines.TabIndex = 97
+        Me.nudMaxTtsEngines.Value = New Decimal(New Integer() {1, 0, 0, 0})
+        '
+        ' lblEngineIdleTimeout
+        '
+        Me.lblEngineIdleTimeout.AutoSize = True
+        Me.lblEngineIdleTimeout.Location = New System.Drawing.Point(290, 889)
+        Me.lblEngineIdleTimeout.Name = "lblEngineIdleTimeout"
+        Me.lblEngineIdleTimeout.Size = New System.Drawing.Size(170, 15)
+        Me.lblEngineIdleTimeout.TabIndex = 98
+        Me.lblEngineIdleTimeout.Text = "Engine load idle timeout (s):"
+        '
+        ' nudEngineIdleTimeout
+        '
+        Me.nudEngineIdleTimeout.Location = New System.Drawing.Point(480, 887)
+        Me.nudEngineIdleTimeout.Minimum = New Decimal(New Integer() {5, 0, 0, 0})
+        Me.nudEngineIdleTimeout.Maximum = New Decimal(New Integer() {120, 0, 0, 0})
+        Me.nudEngineIdleTimeout.Name = "nudEngineIdleTimeout"
+        Me.nudEngineIdleTimeout.Size = New System.Drawing.Size(60, 23)
+        Me.nudEngineIdleTimeout.TabIndex = 99
+        Me.nudEngineIdleTimeout.Value = New Decimal(New Integer() {15, 0, 0, 0})
         '
         ' ── Section 3: Output Formats ──
         '
@@ -3521,6 +3643,10 @@ Partial Class FormOptions
         CType(Me.nudSttEouSilence, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudTranslationConcurrency, System.ComponentModel.ISupportInitialize).EndInit()
         CType(Me.nudTtsConcurrency, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudMaxSttEngines, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudMaxTranslationEngines, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudMaxTtsEngines, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.nudEngineIdleTimeout, System.ComponentModel.ISupportInitialize).EndInit()
         Me.ResumeLayout(False)
 
     End Sub
@@ -3835,5 +3961,15 @@ Partial Class FormOptions
     Friend WithEvents nudTranslationConcurrency As System.Windows.Forms.NumericUpDown
     Friend WithEvents lblTtsConcurrency As System.Windows.Forms.Label
     Friend WithEvents nudTtsConcurrency As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblAdvEnginesHeader As System.Windows.Forms.Label
+    Friend WithEvents lblAdvEnginesSep As System.Windows.Forms.Label
+    Friend WithEvents lblMaxSttEngines As System.Windows.Forms.Label
+    Friend WithEvents nudMaxSttEngines As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblMaxTranslationEngines As System.Windows.Forms.Label
+    Friend WithEvents nudMaxTranslationEngines As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblMaxTtsEngines As System.Windows.Forms.Label
+    Friend WithEvents nudMaxTtsEngines As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblEngineIdleTimeout As System.Windows.Forms.Label
+    Friend WithEvents nudEngineIdleTimeout As System.Windows.Forms.NumericUpDown
 
 End Class

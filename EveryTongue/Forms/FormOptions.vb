@@ -287,6 +287,11 @@ Public Class FormOptions
         lblAdvLivePipelineHeader.Text = langPack.GetString("Opt_AdvLivePipelineHeader")
         lblTranslationConcurrency.Text = langPack.GetString("Opt_TranslationConcurrency")
         lblTtsConcurrency.Text = langPack.GetString("Opt_TtsConcurrency")
+        lblAdvEnginesHeader.Text = langPack.GetString("Opt_AdvEnginesHeader")
+        lblMaxSttEngines.Text = langPack.GetString("Opt_MaxSttEngines")
+        lblMaxTranslationEngines.Text = langPack.GetString("Opt_MaxTranslationEngines")
+        lblMaxTtsEngines.Text = langPack.GetString("Opt_MaxTtsEngines")
+        lblEngineIdleTimeout.Text = langPack.GetString("Opt_EngineIdleTimeout")
     End Sub
 
     ' ═══════════════════════════════════════════════════════════════
@@ -555,6 +560,12 @@ Public Class FormOptions
         nudTranslationConcurrency.Value = Math.Max(1, Math.Min(10, _config.TranslationConcurrency))
         nudTtsConcurrency.Value = Math.Max(1, Math.Min(10, _config.TtsConcurrency))
 
+        ' Advanced — Engine residency (ENGINE_CONCURRENCY_PLAN)
+        nudMaxSttEngines.Value = Math.Max(1, Math.Min(8, _config.MaxConcurrentSttEngines))
+        nudMaxTranslationEngines.Value = Math.Max(1, Math.Min(8, _config.MaxConcurrentTranslationEngines))
+        nudMaxTtsEngines.Value = Math.Max(1, Math.Min(8, _config.MaxConcurrentTtsEngines))
+        nudEngineIdleTimeout.Value = Math.Max(5, Math.Min(120, _config.EngineLoadIdleTimeoutSeconds))
+
         ' Dictation
         chkDictEnabled.Checked = _config.DictationEnabled
         txtDictToggle.Text = _config.DictationToggleHotkey
@@ -735,6 +746,15 @@ Public Class FormOptions
         ' Advanced — Live Pipeline concurrency
         _config.TranslationConcurrency = CInt(nudTranslationConcurrency.Value)
         _config.TtsConcurrency = CInt(nudTtsConcurrency.Value)
+
+        ' Advanced — Engine residency (limits/idle-timeout are read live by the
+        ' arbiter and SidecarReadiness via ConfigManager's refresh on load; the
+        ' ambient values also update on the next config load after save)
+        _config.MaxConcurrentSttEngines = CInt(nudMaxSttEngines.Value)
+        _config.MaxConcurrentTranslationEngines = CInt(nudMaxTranslationEngines.Value)
+        _config.MaxConcurrentTtsEngines = CInt(nudMaxTtsEngines.Value)
+        _config.EngineLoadIdleTimeoutSeconds = CInt(nudEngineIdleTimeout.Value)
+        Pipeline.SidecarReadiness.DefaultIdleTimeoutSeconds = _config.EngineLoadIdleTimeoutSeconds
 
         ' Dictation
         _config.DictationEnabled = chkDictEnabled.Checked

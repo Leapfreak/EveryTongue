@@ -487,6 +487,26 @@ Namespace Models
         ''' the rolling context window + prompt scaffolding.</summary>
         Public Property SalamandraContextTokens As Integer = 4096
 
+        ''' <summary>How many LOCAL STT model processes may be resident at once
+        ''' (registry-flagged local engines only; cloud engines bypass). Two rooms
+        ''' sharing one model count as 1. Raise on GPUs with headroom.</summary>
+        Public Property MaxConcurrentSttEngines As Integer = 1
+
+        ''' <summary>How many LOCAL translation model processes may be resident at
+        ''' once (NLLB sidecars, llama-server). Cloud/inline engines bypass.</summary>
+        Public Property MaxConcurrentTranslationEngines As Integer = 1
+
+        ''' <summary>How many LOCAL TTS model processes may be resident at once.
+        ''' Reserved — binds when a heavy local TTS engine lands.</summary>
+        Public Property MaxConcurrentTtsEngines As Integer = 1
+
+        ''' <summary>The ONLY give-up rule for engine/sidecar loads: seconds of NO
+        ''' progress (process alive but its log silent and the health probe failing)
+        ''' before the load is declared failed. There is deliberately no absolute
+        ''' cap — an engine that is visibly still loading keeps its slot however
+        ''' slow the machine is; a dead process fails immediately.</summary>
+        Public Property EngineLoadIdleTimeoutSeconds As Integer = 15
+
         ''' <summary>Port for the CometKiwi quality-estimation sidecar (benchmark only).</summary>
         Public Property QeServerPort As Integer = 5096
 

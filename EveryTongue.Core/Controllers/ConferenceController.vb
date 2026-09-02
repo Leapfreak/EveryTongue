@@ -77,6 +77,34 @@ Namespace Controllers
         Private _nextConferencePort As Integer = 5101
         Private _nextWhisperServerPort As Integer = 8179  ' 8178 is used by ConversationAudioHandler
 
+        ' ── Live-server warm spare (ENGINE_CONCURRENCY_PLAN) ──
+        ' Backend event handlers bind to a MUTABLE room reference so a parked
+        ' backend can be re-claimed by the next room without re-wiring (lambdas
+        ' can't be RemoveHandler'd). RoomId "" = parked; events are dropped.
+        Private Class RoomRef
+            Public Property RoomId As String = ""
+        End Class
+
+        ''' <summary>One parked, still-running live-server backend (capture stopped,
+        ''' SaT loaded). The next room with the same engine claims it and pays only
+        ''' the session connect (~0.5s) instead of boot + SaT (~20s).</summary>
+        Private Class ParkedSpare
+            Public Backend As ISttBackend
+            Public EngineKey As String
+            Public RoomRef As RoomRef
+            Public Port As Integer
+        End Class
+
+        Private _sttSpare As ParkedSpare
+        Private ReadOnly _spareLock As New Object()
+        ' Per-room bookkeeping for parking + STT residency arbitration.
+        Private ReadOnly _roomRefs As New Concurrent.ConcurrentDictionary(Of String, RoomRef)()
+        Private ReadOnly _roomSttEngineKeys As New Concurrent.ConcurrentDictionary(Of String, String)()
+        Private ReadOnly _roomSttResidencyKeys As New Concurrent.ConcurrentDictionary(Of String, String)()
+        ' Room-start stopwatches for the timing summary line (CONF_ROOM_READY).
+        Private ReadOnly _roomStartTicks As New Concurrent.ConcurrentDictionary(Of String, Long)()
+        Private ReadOnly _roomSpareHits As New Concurrent.ConcurrentDictionary(Of String, Boolean)()
+
         Public Sub New(config As AppConfig,
                        getSubtitleSvc As Func(Of ISubtitleService),
                        getTranslationService As Func(Of TranslationService),
@@ -157,16 +185,19 @@ Namespace Controllers
             If payload.Count = 0 Then Return
             Task.Run(Async Function()
                          Try
-                             For attempt = 1 To 30
-                                 Try
-                                     Using cts As New Threading.CancellationTokenSource(3000)
-                                         If Await backend.CheckHealthAsync(cts.Token) Then Exit For
-                                     End Using
-                                 Catch
-                                     ' Health poll — failure just means "not up yet", retried after the delay.
-                                 End Try
-                                 Await Task.Delay(2000)
-                             Next
+                             ' Progress-aware wait (ENGINE_CONCURRENCY_PLAN): no fixed
+                             ' 60s budget — wait while the live-server shows progress.
+                             Dim rb = TryCast(backend, Services.Stt.RunnerBackedSttBackend)
+                             Dim readiness = Await Pipeline.SidecarReadiness.WaitAsync(
+                                 $"room {roomId} STT (service-vocab gate)",
+                                 Function(pct) backend.CheckHealthAsync(pct),
+                                 Function() If(rb IsNot Nothing, rb.ServerProcessRunning, backend.IsRunning),
+                                 Function() If(rb IsNot Nothing, rb.ServerMillisecondsSinceLastActivity, 0L),
+                                 Threading.CancellationToken.None)
+                             If readiness.Outcome <> Pipeline.ReadinessOutcome.Ready Then
+                                 AppLogger.Log(LogEvents.ROOM_READINESS_TIMEOUT,
+                                     $"room={roomId}: STT never reported capturing ({readiness.Outcome}) — pushing service vocab anyway")
+                             End If
                              Await backend.UpdateConfigAsync(New Dictionary(Of String, Object) From {{"service_vocab", payload}})
                              AppLogger.Log(LogEvents.STT_SERVICE_VOCAB,
                                  $"room={roomId}: {payload.Count} people names → service vocab layer")
@@ -450,9 +481,33 @@ Namespace Controllers
             If _roomFilters.TryGetValue(roomId, createFs) Then sttConfig.HallucinationsPath = createFs.HallucinationsPath
             EnsureActiveLanguagesSubscription()
 
-            Dim backend = SttBackendRegistry.CreateBackend(backendKey)
+            ' Timing summary t0 — CONF_ROOM_READY logs the breakdown at readiness.
+            _roomStartTicks(roomId) = Environment.TickCount64
 
-            WireBackendLogging(roomId, backend, backendKey)
+            ' STT residency (local models only): may REFUSE the room (fail-closed).
+            If Not TryAcquireSttResidency(roomId, backendKey, sttConfig.EngineConfig) Then Return
+
+            ' Warm-spare claim (ENGINE_CONCURRENCY_PLAN): a parked live-server with
+            ' SaT loaded turns room start into just the session connect.
+            Dim spare = TryClaimSpare(backendKey)
+            Dim spareHit = spare IsNot Nothing
+            Dim backend As ISttBackend
+            Dim roomRef As RoomRef
+            If spareHit Then
+                backend = spare.Backend
+                roomRef = spare.RoomRef
+                roomRef.RoomId = roomId
+                sttConfig.ServerPort = spare.Port
+                AppLogger.Log(LogEvents.ENGINE_RESIDENCY,
+                    $"room={roomId}: claiming warm STT spare (engine {backendKey}, port {spare.Port}) — live-server boot + SaT load skipped")
+            Else
+                backend = SttBackendRegistry.CreateBackend(backendKey)
+                roomRef = New RoomRef With {.RoomId = roomId}
+                WireBackendLogging(roomRef, backend, backendKey)
+            End If
+            _roomRefs(roomId) = roomRef
+            _roomSttEngineKeys(roomId) = backendKey
+            _roomSpareHits(roomId) = spareHit
 
             _sttBackends(roomId) = backend
             _roomTemplateIds(roomId) = templateId
@@ -464,7 +519,7 @@ Namespace Controllers
                                   "= global config",
                                   $"OVERRIDES global config '{_config.SttBackend}'")
             AppLogger.Log(LogEvents.CONF_BACKEND_STARTED,
-                $"room {roomId}: STT engine={backendKey} from {backendKeySource} ({overrideNote}), model={DescribeModelFile(sttConfig.EngineConfig)}, template={template.Name}, port={port}, lang={sttConfig.Language}")
+                $"room {roomId}: STT engine={backendKey} from {backendKeySource} ({overrideNote}), model={DescribeModelFile(sttConfig.EngineConfig)}, template={template.Name}, port={sttConfig.ServerPort}, lang={sttConfig.Language}{If(spareHit, ", warm-spare", "")}")
             backend.Start(sttConfig)
 
             If backend.IsRunning Then
@@ -472,7 +527,7 @@ Namespace Controllers
                 ' Web-mic rooms: open the hub→live-server frame route so the host's
                 ' Broadcast button has somewhere to send audio.
                 If String.Equals(sttConfig.AudioSource, "web", StringComparison.OrdinalIgnoreCase) Then
-                    Services.Rooms.WebMicRouter.Instance.RegisterRoom(roomId, port)
+                    Services.Rooms.WebMicRouter.Instance.RegisterRoom(roomId, sttConfig.ServerPort)
                 End If
                 StartReadinessWatch(roomId, backend)
                 PushServiceVocabWhenReady(roomId, backend)
@@ -485,6 +540,25 @@ Namespace Controllers
                 _releaseTranslationBackend?.Invoke(roomId)
                 DropKey(_roomTranslationBackendName, roomId)
                 DropShadowBackendNames(roomId)
+                ReleaseRoomBookkeeping(roomId)
+            End If
+        End Sub
+
+        ''' <summary>Drop the warm-spare/residency/timing bookkeeping for a room and
+        ''' release its STT residency (lease + resident entry).</summary>
+        Private Sub ReleaseRoomBookkeeping(roomId As String)
+            DropKey(_roomRefs, roomId)
+            DropKey(_roomSttEngineKeys, roomId)
+            DropKey(_roomStartTicks, roomId)
+            DropKey(_roomSpareHits, roomId)
+            Dim sttSig As String = Nothing
+            If _roomSttResidencyKeys.TryRemove(roomId, sttSig) Then
+                Dim arb = Services.Infrastructure.EngineResidencyArbiter.Instance
+                arb.ReleaseOwner(Services.Infrastructure.EngineCategory.Stt, roomId)
+                ' Local STT backends stop with their room (no parking) — the model is
+                ' gone, so the resident entry must go too or it would count as a
+                ' phantom toward MaxConcurrentSttEngines.
+                arb.DropResident(Services.Infrastructure.EngineCategory.Stt, sttSig)
             End If
         End Sub
 
@@ -710,7 +784,10 @@ Namespace Controllers
             ' STT template uses a different engine (e.g. speechmatics) builds the wrong backend
             ' type (whisper-cpp) and the speechmatics session config is silently ignored.
             Dim newBackend = SttBackendRegistry.CreateBackend(restartBackendKey)
-            WireBackendLogging(roomId, newBackend, restartBackendKey)
+            Dim restartRoomRef As New RoomRef With {.RoomId = roomId}
+            WireBackendLogging(restartRoomRef, newBackend, restartBackendKey)
+            _roomRefs(roomId) = restartRoomRef
+            _roomSttEngineKeys(roomId) = restartBackendKey
 
             _sttBackends(roomId) = newBackend
             AppLogger.Log(LogEvents.CONF_PIPELINE_RESTART, $"room {roomId}: restarting backend (port={sttConfig.ServerPort})")
@@ -731,7 +808,31 @@ Namespace Controllers
             Dim capturedBackend = backend
             Dim sttProbe As Func(Of Threading.CancellationToken, Task(Of Boolean)) =
                 Function(ct) capturedBackend.CheckHealthAsync(ct)
-            _readiness.Watch(roomId, sttProbe, BuildConferenceTranslationProbe(roomId))
+            ' Progress signals let the notifier hold "preparing" while the engine is
+            ' visibly loading instead of fail-opening on a fixed 60s clock.
+            Dim rb = TryCast(backend, Services.Stt.RunnerBackedSttBackend)
+            Dim alive As Func(Of Boolean) = If(rb Is Nothing, Nothing,
+                                              Function() rb.ServerProcessRunning)
+            Dim activity As Func(Of Long) = If(rb Is Nothing, Nothing,
+                                               Function() rb.ServerMillisecondsSinceLastActivity)
+            _readiness.Watch(roomId, sttProbe, BuildConferenceTranslationProbe(roomId),
+                             sttProcessAlive:=alive, sttActivityMs:=activity,
+                             onSummary:=Sub(sttOk, sttMs, txOk, txMs) LogRoomReadySummary(roomId, sttOk, sttMs, txOk, txMs))
+        End Sub
+
+        ''' <summary>The one-line room-start explanation (approved 2026-09-03): total
+        ''' time to ready, per-engine breakdown, warm-spare hit/miss — so a field log
+        ''' answers "why was this room fast/slow" without reconstruction.</summary>
+        Private Sub LogRoomReadySummary(roomId As String, sttOk As Boolean, sttMs As Long, txOk As Boolean, txMs As Long)
+            Dim totalMs As Long = 0
+            Dim t0 As Long = 0
+            If _roomStartTicks.TryGetValue(roomId, t0) Then totalMs = Environment.TickCount64 - t0
+            Dim spareHit = False
+            _roomSpareHits.TryGetValue(roomId, spareHit)
+            Dim txPart = If(txMs < 0, "translation=instant(cloud/inline)",
+                            $"translation={txMs}ms{If(txOk, "", " (FAIL-OPEN)")}")
+            AppLogger.Log(LogEvents.CONF_ROOM_READY,
+                $"room={roomId} ready in {totalMs}ms — stt={sttMs}ms{If(sttOk, "", " (FAIL-OPEN)")} sttSpare={If(spareHit, "hit", "miss")} {txPart}")
         End Sub
 
         ''' <summary>Translation-readiness probe for a conference room, or Nothing when no note is needed.</summary>
@@ -831,17 +932,129 @@ Namespace Controllers
 
             Dim backend As ISttBackend = Nothing
             If _sttBackends.TryGetValue(roomId, backend) Then
-                AppLogger.Log(LogEvents.CONF_BACKEND_STOPPED, $"room {roomId}: stopping backend")
                 DropKey(_sttBackends, roomId)
                 DropKey(_roomTemplateIds, roomId)
-                ' Stop on background thread to avoid freezing the UI
-                Task.Run(Sub()
-                             Try
-                                 If backend.IsRunning Then backend.Stop()
-                             Catch ex As Exception
-                                 _log($"[Conference] Error stopping backend for room {roomId}: {ex.Message}")
-                             End Try
-                         End Sub)
+
+                ' Park instead of kill (ENGINE_CONCURRENCY_PLAN): an ONLINE streaming
+                ' backend's live-server (+ loaded SaT) becomes the warm spare — the
+                ' next room pays only the session connect. Local-model backends stop
+                ' fully (their model is the STT slot; no parking in Phase 2 scope).
+                Dim parked = False
+                Dim engineKey As String = Nothing
+                Dim roomRef As RoomRef = Nothing
+                If _roomSttEngineKeys.TryGetValue(roomId, engineKey) AndAlso
+                   _roomRefs.TryGetValue(roomId, roomRef) Then
+                    Dim entry = SttBackendRegistry.Find(engineKey)
+                    Dim rb = TryCast(backend, Services.Stt.RunnerBackedSttBackend)
+                    If entry IsNot Nothing AndAlso rb IsNot Nothing AndAlso
+                       String.Equals(entry.SidecarMode, "online", StringComparison.OrdinalIgnoreCase) AndAlso
+                       rb.ServerProcessRunning Then
+                        SyncLock _spareLock
+                            If _sttSpare Is Nothing Then
+                                roomRef.RoomId = ""   ' handlers now drop events
+                                _sttSpare = New ParkedSpare With {
+                                    .Backend = backend, .EngineKey = engineKey,
+                                    .RoomRef = roomRef, .Port = rb.ServerPort}
+                                parked = True
+                            End If
+                        End SyncLock
+                    End If
+                End If
+
+                If parked Then
+                    AppLogger.Log(LogEvents.CONF_BACKEND_STOPPED,
+                        $"room {roomId}: backend parked as warm spare (engine {engineKey}) — capture stopped, live-server stays resident")
+                    Dim rb = DirectCast(backend, Services.Stt.RunnerBackedSttBackend)
+                    Task.Run(Sub()
+                                 Try
+                                     rb.StopCaptureOnly()
+                                 Catch ex As Exception
+                                     _log($"[Conference] Error parking backend for room {roomId}: {ex.Message}")
+                                 End Try
+                             End Sub)
+                Else
+                    AppLogger.Log(LogEvents.CONF_BACKEND_STOPPED, $"room {roomId}: stopping backend")
+                    ' Stop on background thread to avoid freezing the UI
+                    Task.Run(Sub()
+                                 Try
+                                     If backend.IsRunning Then backend.Stop()
+                                 Catch ex As Exception
+                                     _log($"[Conference] Error stopping backend for room {roomId}: {ex.Message}")
+                                 End Try
+                             End Sub)
+                End If
+            End If
+            ReleaseRoomBookkeeping(roomId)
+        End Sub
+
+        ''' <summary>
+        ''' App-start warm (called by the warm queue AFTER the translation engine is
+        ''' warm): pre-boot a live-server for the global STT engine and pre-load SaT
+        ''' when the STT config uses it — the FIRST room then claims this spare.
+        ''' Online/streaming engines only; local-model engines load at room start
+        ''' under the STT slot rules. No-op when a spare already exists.
+        ''' </summary>
+        Public Sub WarmSttSpare()
+            Try
+                ' Churn rule: shutdown aborts warms instantly.
+                If Pipeline.PythonSidecarHost.GlobalShutdown Then Return
+                Dim key = If(_config.SttBackend, "")
+                Dim entry = SttBackendRegistry.Find(key)
+                If entry Is Nothing OrElse Not String.Equals(entry.SidecarMode, "online", StringComparison.OrdinalIgnoreCase) Then Return
+                SyncLock _spareLock
+                    If _sttSpare IsNot Nothing Then Return
+                    Dim backend = SttBackendRegistry.CreateBackend(key)
+                    Dim cloud = TryCast(backend, Services.Stt.CloudStreamingSttBackend)
+                    If cloud Is Nothing Then Return
+                    Dim roomRef As New RoomRef()   ' parked from birth
+                    WireBackendLogging(roomRef, backend, key)
+                    Dim port = _nextConferencePort
+                    _nextConferencePort += 1
+                    ' SaT gate (decided 2026-09-03): the STT configuration decides —
+                    ' Speechmatics "Split with SaT" or whisper sat_hold; NOT the
+                    ' translation engine. Empty model = warm the process only.
+                    Dim satModel = ""
+                    If _config.SpeechmaticsUseSat OrElse _config.WhisperUseSatHold Then
+                        satModel = If(String.IsNullOrEmpty(_config.SpeechmaticsSatModel), "sat-3l-sm", _config.SpeechmaticsSatModel)
+                    End If
+                    AppLogger.Log(LogEvents.ENGINE_RESIDENCY,
+                        $"Warming STT spare: engine {key}, port {port}{If(satModel = "", " (no SaT — not enabled in STT config)", $", SaT model {satModel}")}")
+                    cloud.WarmOnly(port, satModel)
+                    _sttSpare = New ParkedSpare With {
+                        .Backend = backend, .EngineKey = key, .RoomRef = roomRef, .Port = port}
+                End SyncLock
+            Catch ex As Exception
+                AppLogger.Log(LogEvents.CONF_BACKEND_ERROR, $"WarmSttSpare failed: {ex.Message}")
+            End Try
+        End Sub
+
+        ''' <summary>True while any conference/dictation room has an STT backend.</summary>
+        Public ReadOnly Property HasActiveSttRooms As Boolean
+            Get
+                Return Not _sttBackends.IsEmpty
+            End Get
+        End Property
+
+        ''' <summary>Status-bar state of the STT warm spare: "none" | "warming" | "warm".</summary>
+        Public Function SttSpareState() As String
+            SyncLock _spareLock
+                Dim s = _sttSpare
+                If s Is Nothing Then Return "none"
+                Dim rb = TryCast(s.Backend, Services.Stt.RunnerBackedSttBackend)
+                If rb IsNot Nothing AndAlso rb.ServerReady Then Return "warm"
+                Return "warming"
+            End SyncLock
+        End Function
+
+        ''' <summary>Stop and forget the parked spare (app shutdown / engine change).</summary>
+        Public Sub StopSttSpare()
+            Dim spare As ParkedSpare = Nothing
+            SyncLock _spareLock
+                spare = _sttSpare
+                _sttSpare = Nothing
+            End SyncLock
+            If spare IsNot Nothing Then
+                Try : spare.Backend.Stop() : Catch : End Try
             End If
         End Sub
 
@@ -882,6 +1095,10 @@ Namespace Controllers
                 _releaseTranslationBackend?.Invoke(rid)
             Next
             _roomTranslationBackendName.Clear()
+            For Each rid In _roomRefs.Keys.ToList()
+                ReleaseRoomBookkeeping(rid)
+            Next
+            StopSttSpare()
             Task.WaitAll(stopTasks.ToArray(), 10000)
         End Sub
 
@@ -1517,9 +1734,14 @@ Namespace Controllers
         ''' protocol chatter and tailed Python log lines are dropped (the tail
         ''' already structured-logs them under PythonLog).
         ''' </summary>
-        Private Sub WireBackendLogging(roomId As String, backend As ISttBackend, engineKey As String)
+        ''' <summary>Handlers bind through roomRef (mutable) so a parked backend can be
+        ''' claimed by the next room without re-wiring. RoomId "" = parked: commits
+        ''' are dropped, errors log under "spare".</summary>
+        Private Sub WireBackendLogging(roomRef As RoomRef, backend As ISttBackend, engineKey As String)
             AddHandler backend.OutputCommitted,
                 Sub(s, e)
+                    Dim roomId = roomRef.RoomId
+                    If String.IsNullOrEmpty(roomId) Then Return   ' parked spare
                     AppLogger.Log(LogEvents.CONF_COMMIT,
                         $"room={roomId} engine={engineKey} lang={e.DetectedLanguage} chars={If(e.Text, "").Length} text=""{Truncate(e.Text, 160)}""")
                     TranslateAndBroadcastForRoomAsync(roomId, e)
@@ -1527,6 +1749,8 @@ Namespace Controllers
 
             AddHandler backend.OutputCommittedTranslated,
                 Sub(s, e)
+                    Dim roomId = roomRef.RoomId
+                    If String.IsNullOrEmpty(roomId) Then Return   ' parked spare
                     AppLogger.Log(LogEvents.CONF_COMMIT,
                         $"room={roomId} engine={engineKey} lang={e.DetectedLanguage} inlineTx={e.Translations.Count} text=""{Truncate(e.Text, 160)}""")
                     HandleTranslatedCommitAsync(roomId, e)
@@ -1534,6 +1758,7 @@ Namespace Controllers
 
             AddHandler backend.ErrorReceived,
                 Sub(s, line)
+                    Dim roomId = If(String.IsNullOrEmpty(roomRef.RoomId), "spare", roomRef.RoomId)
                     If line.StartsWith(">>>") OrElse
                        line.Contains("ASGI callable returned without completing response") OrElse
                        _pythonLogLinePattern.IsMatch(line) Then Return
@@ -1553,6 +1778,60 @@ Namespace Controllers
                     End If
                 End Sub
         End Sub
+
+        ''' <summary>Claim the parked spare when it matches the engine. A mismatched
+        ''' spare is stopped in the background (frees the slot for a fresh warm).</summary>
+        Private Function TryClaimSpare(backendKey As String) As ParkedSpare
+            SyncLock _spareLock
+                Dim spare = _sttSpare
+                If spare Is Nothing Then Return Nothing
+                _sttSpare = Nothing
+                If spare.EngineKey.Equals(backendKey, StringComparison.OrdinalIgnoreCase) Then Return spare
+                ' Wrong engine — the spare is useless for this room; retire it.
+                AppLogger.Log(LogEvents.ENGINE_RESIDENCY,
+                    $"STT warm spare is '{spare.EngineKey}' but the room needs '{backendKey}' — stopping the spare")
+                Task.Run(Sub()
+                             Try : spare.Backend.Stop() : Catch : End Try
+                         End Sub)
+                Return Nothing
+            End SyncLock
+        End Function
+
+        ''' <summary>
+        ''' STT residency arbitration for LOCAL model engines (whisper family).
+        ''' Streaming/online engines hold no local model and bypass. Returns False
+        ''' when the room must be REFUSED (decided 2026-09-03: a wrong-language
+        ''' fine-tune transcribing a service is worse than no room).
+        ''' </summary>
+        Private Function TryAcquireSttResidency(roomId As String, backendKey As String,
+                                                engineConfig As Services.Config.IEngineConfigBlock) As Boolean
+            Dim entry = SttBackendRegistry.Find(backendKey)
+            If entry Is Nothing OrElse String.Equals(entry.SidecarMode, "online", StringComparison.OrdinalIgnoreCase) Then
+                Return True   ' no local model — not arbitrated
+            End If
+            Dim modelPath = ""
+            Try
+                modelPath = TryCast(engineConfig?.GetType().GetProperty("ModelPath")?.GetValue(engineConfig), String)
+            Catch
+                ' Reflection nicety only (same rationale as DescribeModelFile) — a
+                ' missing ModelPath just widens the residency key to the engine.
+            End Try
+            Dim sig = $"stt|{backendKey}|{If(modelPath, "")}"
+            Dim arb = Services.Infrastructure.EngineResidencyArbiter.Instance
+            Dim d = arb.RequestLoad(Services.Infrastructure.EngineCategory.Stt, sig, "", backendKey, roomId)
+            If d.Kind = Services.Infrastructure.LoadDecisionKind.Denied Then
+                AppLogger.Log(LogEvents.ENGINE_RESIDENCY_CONFLICT,
+                    $"room={roomId}: STT room REFUSED — MaxConcurrentSttEngines reached and the loaded model(s) ({String.Join(", ", d.ResidentDisplays)}) differ from '{backendKey}' ({IO.Path.GetFileName(If(modelPath, ""))}). Close the other room or raise the limit in Options → Advanced.")
+                _log($"[Conference] Room {roomId} NOT started: STT engine limit reached (loaded: {String.Join(", ", d.ResidentDisplays)})")
+                Return False
+            End If
+            If d.Kind = Services.Infrastructure.LoadDecisionKind.Granted Then
+                arb.RegisterResident(Services.Infrastructure.EngineCategory.Stt, sig, "", backendKey,
+                                     evict:=Nothing, ownerId:=roomId)
+            End If
+            _roomSttResidencyKeys(roomId) = sig
+            Return True
+        End Function
 
         ''' <summary>True if the line belongs to the engine's end-of-session SESSION STATS block (vad/segment.py summary()) — informational, not an error.</summary>
         Private Shared Function IsEngineStatsLine(line As String) As Boolean
