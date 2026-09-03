@@ -15,6 +15,7 @@ import re
 import threading
 import time
 from collections import OrderedDict
+from contextlib import contextmanager
 from threading import Lock
 
 import ctranslate2
@@ -105,6 +106,26 @@ def _apply_log_level(level_name: str):
         _file_handler.setLevel(level)
     else:
         _active_handler.setLevel(level)
+
+
+@contextmanager
+def _load_heartbeat(label):
+    """Log every 5s while a blocking model load runs. The .NET readiness
+    monitor (SidecarReadiness) counts log output as the ONLY sign of life —
+    a load that stays silent past EngineLoadIdleTimeoutSeconds (default 15s)
+    reads as a dead engine (Jezer 2026-09-03, live-server SaT incident)."""
+    stop = threading.Event()
+    start = time.monotonic()
+
+    def _beat():
+        while not stop.wait(5):
+            logger.info("%s: still loading (%ds so far)", label, int(time.monotonic() - start))
+
+    threading.Thread(target=_beat, daemon=True, name="load-heartbeat").start()
+    try:
+        yield
+    finally:
+        stop.set()
 
 
 app = FastAPI()
@@ -531,21 +552,22 @@ async def load_model(req: LoadRequest):
             # Try CUDA, fall back to CPU. compute_type_global lets the .NET side
             # request int8/int8_float16 quantization at load (halves VRAM) by
             # quantizing a float16 model on the fly; "auto" keeps native precision.
-            try:
-                translator = ctranslate2.Translator(
-                    model_path_global, device=device, compute_type=compute_type_global
-                )
-                device_in_use = device
-            except Exception as cuda_err:
-                if device != "cpu":
-                    logger.warning("CUDA failed during model load: [%s] %s", type(cuda_err).__name__, cuda_err, exc_info=True)
-                    logger.warning("Falling back to CPU...")
+            with _load_heartbeat("Translation model"):
+                try:
                     translator = ctranslate2.Translator(
-                        model_path_global, device="cpu", compute_type="auto"
+                        model_path_global, device=device, compute_type=compute_type_global
                     )
-                    device_in_use = "cpu"
-                else:
-                    raise
+                    device_in_use = device
+                except Exception as cuda_err:
+                    if device != "cpu":
+                        logger.warning("CUDA failed during model load: [%s] %s", type(cuda_err).__name__, cuda_err, exc_info=True)
+                        logger.warning("Falling back to CPU...")
+                        translator = ctranslate2.Translator(
+                            model_path_global, device="cpu", compute_type="auto"
+                        )
+                        device_in_use = "cpu"
+                    else:
+                        raise
 
             # Load SentencePiece model
             model_dir = model_path_global.rstrip("/\\")

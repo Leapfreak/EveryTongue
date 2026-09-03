@@ -26,6 +26,7 @@ if _script_dir not in sys.path:
 
 import numpy as np
 import sounddevice as sd
+from contextlib import contextmanager
 from difflib import SequenceMatcher
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
@@ -149,6 +150,27 @@ def _apply_log_level(level_name: str):
         _file_handler.setLevel(level_map.get(level_name.lower(), logging.DEBUG))
     else:
         _active_handler.setLevel(level_map.get(level_name.lower(), logging.INFO))
+
+@contextmanager
+def _load_heartbeat(label):
+    """Log every 5s while a blocking model load runs. The .NET readiness
+    monitor (SidecarReadiness) counts log output as the ONLY sign of life —
+    a load that stays silent past EngineLoadIdleTimeoutSeconds (default 15s)
+    reads as a dead engine and the room fails open (Jezer 2026-09-03: the
+    ~21s cold SaT load)."""
+    stop = threading.Event()
+    start = time.monotonic()
+
+    def _beat():
+        while not stop.wait(5):
+            logger.info(f"{label}: still loading ({int(time.monotonic() - start)}s so far)")
+
+    threading.Thread(target=_beat, daemon=True, name="load-heartbeat").start()
+    try:
+        yield
+    finally:
+        stop.set()
+
 
 # Suppress noisy loggers
 logging.basicConfig(level=logging.WARNING)
@@ -450,9 +472,10 @@ def _load_faster_whisper_model(model_path, device="cuda", compute_type="int8_flo
             return _faster_whisper_model
         from faster_whisper import WhisperModel
         logger.info(f"Loading faster-whisper model from {model_path} on {device} ({compute_type})")
-        _faster_whisper_model = WhisperModel(
-            model_path, device=device, compute_type=compute_type
-        )
+        with _load_heartbeat("faster-whisper model"):
+            _faster_whisper_model = WhisperModel(
+                model_path, device=device, compute_type=compute_type
+            )
         logger.info(f"faster-whisper model loaded on {device}")
         return _faster_whisper_model
 
@@ -874,7 +897,8 @@ async def start_capture_endpoint(request: Request):
         logger.info("SaT: loading before capture starts (avoids the load-spike audio loss)")
         # Executor, not inline: a blocking call here would freeze the event
         # loop and stall the .NET health polls while loading.
-        await asyncio.get_event_loop().run_in_executor(None, sat_segmenter.load, sat_model)
+        with _load_heartbeat("SaT"):
+            await asyncio.get_event_loop().run_in_executor(None, sat_segmenter.load, sat_model)
 
     # Per-session hallucination filter set (empty = the default file).
     global _hallucinations_path_override
@@ -1051,7 +1075,8 @@ async def warm_endpoint(request: Request):
         logger.info("Warm requested: pre-loading SaT before any capture")
         # Executor, not inline — a blocking load here would freeze the event loop
         # and stall the .NET health polls (same rule as the /start SaT load).
-        await asyncio.get_event_loop().run_in_executor(None, sat_segmenter.load, sat_model)
+        with _load_heartbeat("SaT"):
+            await asyncio.get_event_loop().run_in_executor(None, sat_segmenter.load, sat_model)
         logger.info("Warm complete: SaT resident, /start will be fast")
     else:
         logger.info("Warm requested without SaT (STT config doesn't use it) — process warm only")

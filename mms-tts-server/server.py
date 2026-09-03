@@ -12,6 +12,8 @@ import os
 import queue as _queue_mod
 import struct
 import threading
+import time
+from contextlib import contextmanager
 from threading import Lock
 
 import numpy as np
@@ -101,6 +103,27 @@ def _build_wav(pcm_bytes: bytes, sample_rate: int, num_channels: int = 1, bits: 
     return buf.getvalue()
 
 
+@contextmanager
+def _load_heartbeat(label):
+    """Log every 5s while a blocking model load runs. The .NET readiness
+    monitor (SidecarReadiness) counts log output as the ONLY sign of life —
+    a load that stays silent past EngineLoadIdleTimeoutSeconds (default 15s)
+    reads as a dead engine (Jezer 2026-09-03, live-server SaT incident).
+    MMS models also DOWNLOAD on first use, so the silent window is unbounded."""
+    stop = threading.Event()
+    start = time.monotonic()
+
+    def _beat():
+        while not stop.wait(5):
+            logger.info(f"{label}: still loading ({int(time.monotonic() - start)}s so far)")
+
+    threading.Thread(target=_beat, daemon=True, name="load-heartbeat").start()
+    try:
+        yield
+    finally:
+        stop.set()
+
+
 def _load_model(lang_code: str):
     """Load or retrieve cached MMS-TTS model for a language."""
     with _models_lock:
@@ -110,8 +133,9 @@ def _load_model(lang_code: str):
         model_name = f"facebook/mms-tts-{lang_code}"
         logger.info(f"Loading MMS-TTS model: {model_name}")
         try:
-            model = VitsModel.from_pretrained(model_name)
-            tokenizer = AutoTokenizer.from_pretrained(model_name)
+            with _load_heartbeat(model_name):
+                model = VitsModel.from_pretrained(model_name)
+                tokenizer = AutoTokenizer.from_pretrained(model_name)
             model.eval()
             _models[lang_code] = (model, tokenizer)
             logger.info(f"Model loaded: {model_name} (sample_rate={model.config.sampling_rate})")
