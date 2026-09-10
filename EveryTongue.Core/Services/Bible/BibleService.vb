@@ -143,7 +143,7 @@ Namespace Services.Bible
         ' Chapword/versword may arrive capitalized (STT capitalizes after the
         ' periods it inserts); validation sets are folded, so case is free.
         Private Shared ReadOnly RefPattern As New Regex(
-            "(?<book>(?:\d\s*)?[\p{Lu}][\p{Ll}]+(?:\s+(?:[\p{Ll}]{1,3}\s+)?[\p{Lu}\p{Ll}][\p{Ll}]+)*)(?:\s*,)?\s+(?:(?:[\p{Ll}]{1,3}\s+){0,2}(?<chapword>[\p{Lu}\p{Ll}][\p{Ll}'’]+)\s+)?(?<chapter>\d{1,3})(?:\s*:\s*(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3}))?|(?:\s*,)?\s+(?<versword>[\p{Lu}\p{Ll}][\p{Ll}'’]+)\s+(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3}))?)?",
+            "(?<book>(?:\d\s*)?[\p{Lu}][\p{Ll}]+(?:\s+(?:[\p{Ll}]{1,3}\s+)?[\p{Lu}\p{Ll}][\p{Ll}]+)*)(?:\s*,)?\s+(?:(?:[\p{Ll}]{1,3}\s+){0,2}(?<chapword>[\p{Lu}\p{Ll}][\p{Ll}'’]+)\s+)?(?<chapter>\d{1,3})(?:\s*:\s*(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3})|\s+(?<rangeword>[\p{Ll}]{1,7})\s+(?<vend>\d{1,3})(?!\d))?|(?:\s*,)?\s+(?<versword>[\p{Lu}\p{Ll}][\p{Ll}'’]+)\s+(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3})|\s+(?<rangeword>[\p{Ll}]{1,7})\s+(?<vend>\d{1,3})(?!\d))?)?",
             RegexOptions.Compiled)
 
         ''' <summary>
@@ -156,7 +156,7 @@ Namespace Services.Bible
         ''' claimed by the main pass are skipped.
         ''' </summary>
         Private Shared ReadOnly LowercaseRefPattern As New Regex(
-            "(?<book>[\p{Ll}][\p{Ll}'’]+)(?:\s*,)?\s+(?:(?:[\p{Ll}]{1,3}\s+){0,2}(?<chapword>[\p{Lu}\p{Ll}][\p{Ll}'’]+)\s+)?(?<chapter>\d{1,3})(?:\s*:\s*(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3}))?|(?:\s*,)?\s+(?<versword>[\p{Lu}\p{Ll}][\p{Ll}'’]+)\s+(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3}))?)?",
+            "(?<book>[\p{Ll}][\p{Ll}'’]+)(?:\s*,)?\s+(?:(?:[\p{Ll}]{1,3}\s+){0,2}(?<chapword>[\p{Lu}\p{Ll}][\p{Ll}'’]+)\s+)?(?<chapter>\d{1,3})(?:\s*:\s*(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3})|\s+(?<rangeword>[\p{Ll}]{1,7})\s+(?<vend>\d{1,3})(?!\d))?|(?:\s*,)?\s+(?<versword>[\p{Lu}\p{Ll}][\p{Ll}'’]+)\s+(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3})|\s+(?<rangeword>[\p{Ll}]{1,7})\s+(?<vend>\d{1,3})(?!\d))?)?",
             RegexOptions.Compiled)
 
         ''' <summary>
@@ -172,6 +172,12 @@ Namespace Services.Bible
         ''' <summary>Spoken verse words ("versículo", "verse", "verset") — same channel, folded.</summary>
         Private Shared ReadOnly SpokenVerseWords As New Lazy(Of HashSet(Of String))(
             Function() LoadLocaleWordSet("Bible_SpokenVerseWords"))
+
+        ''' <summary>Spoken range connectors ("38 al 40", "38 to 40") — same
+        ''' channel, folded. An unknown connector between two numbers keeps the
+        ''' single verse and never rejects the reference.</summary>
+        Private Shared ReadOnly SpokenRangeWords As New Lazy(Of HashSet(Of String))(
+            Function() LoadLocaleWordSet("Bible_SpokenRangeWords"))
 
         ''' <summary>Locale dirs that feed the spoken-word sets: app locales + user overlay.</summary>
         Private Shared Function LocaleDirs() As List(Of String)
@@ -749,7 +755,9 @@ Namespace Services.Bible
             If m.Groups("verse").Success Then
                 vStart = Integer.Parse(m.Groups("verse").Value)
                 vEnd = vStart
-                If m.Groups("vend").Success Then
+                If m.Groups("vend").Success AndAlso
+                   (Not m.Groups("rangeword").Success OrElse
+                    SpokenRangeWords.Value.Contains(BookAliasIndex.Fold(m.Groups("rangeword").Value))) Then
                     vEnd = Integer.Parse(m.Groups("vend").Value)
                 End If
             End If
@@ -1016,7 +1024,28 @@ Namespace Services.Bible
                     vStart = Integer.Parse(m.Groups("verse").Value)
                     vEnd = vStart
                     If m.Groups("vend").Success Then
-                        vEnd = Integer.Parse(m.Groups("vend").Value)
+                        ' A spoken connector must be a known range word ("38 al
+                        ' 40"); an unknown one ("37 en 197…") keeps the single
+                        ' verse and gives the span back — never rejects.
+                        If Not m.Groups("rangeword").Success OrElse
+                           SpokenRangeWords.Value.Contains(BookAliasIndex.Fold(m.Groups("rangeword").Value)) Then
+                            vEnd = Integer.Parse(m.Groups("vend").Value)
+                            If vEnd < vStart Then vEnd = vStart
+                        Else
+                            effLength = m.Groups("verse").Index + m.Groups("verse").Length - refStart
+                        End If
+                    End If
+                    ' Nonexistent verses can't be references either — degrade to
+                    ' chapter-only, like an invalid versword (the announced
+                    ' chapter is still real). 0 = structure unknown, skip check.
+                    Dim maxV = If(_aliasIndex?.MaxVerse(resolved.BookNumber, chap), 0)
+                    If maxV > 0 AndAlso vStart > maxV Then
+                        hasVerse = False
+                        vStart = 0
+                        vEnd = 0
+                        effLength = m.Groups("chapter").Index + m.Groups("chapter").Length - refStart
+                    ElseIf maxV > 0 AndAlso vEnd > maxV Then
+                        vEnd = maxV
                     End If
                 End If
 
@@ -1062,16 +1091,56 @@ Namespace Services.Bible
                     Dim mIndex = m.Index, mLen = m.Length
                     If detectedRefs.Any(Function(d) mIndex < d.StartIndex + d.Length AndAlso mIndex + mLen > d.StartIndex) Then Continue For
 
-                    Dim bookNum = ContextBookMention(ctx, scanText)
-                    If bookNum = 0 Then bookNum = ctx.LastBook
-                    Dim entry As RefContext.BookEntry = Nothing
-                    If bookNum = 0 OrElse Not ctx.Books.TryGetValue(bookNum, entry) Then Continue For
-                    If (DateTime.UtcNow - entry.LastSeenUtc).TotalMinutes > ContextExpiryMinutes Then Continue For
-
                     Dim vStart = Integer.Parse(m.Groups("verse").Value)
-                    Dim vEnd = If(m.Groups("vend").Success, Integer.Parse(m.Groups("vend").Value), vStart)
                     If vStart < 1 Then Continue For
+                    Dim vEnd = vStart
                     Dim effLength = m.Length
+                    If m.Groups("vend").Success Then
+                        If Not m.Groups("rangeword").Success OrElse
+                           SpokenRangeWords.Value.Contains(BookAliasIndex.Fold(m.Groups("rangeword").Value)) Then
+                            vEnd = Integer.Parse(m.Groups("vend").Value)
+                            If vEnd < vStart Then vEnd = vStart
+                        Else
+                            effLength = m.Groups("verse").Index + m.Groups("verse").Length - m.Index
+                        End If
+                    End If
+
+                    ' Candidate owners: an explicit book mention ("versículo 15
+                    ' del salmo") is the preacher's own disambiguation — trust
+                    ' it alone. Otherwise recency order — BUT the verse must
+                    ' EXIST in the candidate's remembered chapter, else try the
+                    ' next remembered book. The Jezer 2026-09-06 failure: a
+                    ' one-off cross-reference (1Tim 6:10) stole LastBook from
+                    ' the sermon psalm, and "verset 37" linked 1Tim 6:37 — a
+                    ' verse that doesn't exist (1Tim 6 has 21); falling back
+                    ' finds Ps 119:37, the verse the preacher then quoted.
+                    Dim mentioned = ContextBookMention(ctx, scanText)
+                    Dim candidates As List(Of Integer)
+                    If mentioned <> 0 Then
+                        candidates = New List(Of Integer) From {mentioned}
+                    Else
+                        candidates = ctx.Books.
+                            OrderByDescending(Function(kv) kv.Value.LastSeenUtc).
+                            Select(Function(kv) kv.Key).ToList()
+                        If ctx.LastBook <> 0 AndAlso candidates.Remove(ctx.LastBook) Then
+                            candidates.Insert(0, ctx.LastBook)
+                        End If
+                    End If
+
+                    Dim bookNum = 0
+                    Dim entry As RefContext.BookEntry = Nothing
+                    For Each cand In candidates
+                        Dim e As RefContext.BookEntry = Nothing
+                        If Not ctx.Books.TryGetValue(cand, e) Then Continue For
+                        If (DateTime.UtcNow - e.LastSeenUtc).TotalMinutes > ContextExpiryMinutes Then Continue For
+                        Dim maxV = If(_aliasIndex?.MaxVerse(cand, e.Chapter), 0)
+                        If maxV > 0 AndAlso vStart > maxV Then Continue For
+                        If maxV > 0 AndAlso vEnd > maxV Then vEnd = maxV
+                        bookNum = cand
+                        entry = e
+                        Exit For
+                    Next
+                    If bookNum = 0 Then Continue For
                     For Each r In subRanges
                         If m.Index + effLength > r.Start AndAlso m.Index + effLength <= r.EndEx Then
                             effLength = r.EndEx - m.Index
@@ -1109,7 +1178,7 @@ Namespace Services.Bible
         ''' validated against the locale set by the caller; capital allowed (STT
         ''' capitalizes after the periods it inserts).</summary>
         Private Shared ReadOnly BareVersePattern As New Regex(
-            "(?<versword>[\p{Lu}\p{Ll}][\p{Ll}'’]+)\s+(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3}))?",
+            "(?<versword>[\p{Lu}\p{Ll}][\p{Ll}'’]+)\s+(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3})|\s+(?<rangeword>[\p{Ll}]{1,7})\s+(?<vend>\d{1,3})(?!\d))?",
             RegexOptions.Compiled)
 
         ''' <summary>Record a full detection in the room's reading memory (bounded per-book map + recency pointer).</summary>

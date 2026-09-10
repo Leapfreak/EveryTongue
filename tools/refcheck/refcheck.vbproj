@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>RefCheck</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\EveryTongue.Core\EveryTongue.Core.vbproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\locales\*.json" CopyToOutputDirectory="PreserveNewest" LinkBase="locales" />
+  </ItemGroup>
+</Project>

@@ -3,6 +3,7 @@
   "Bible_SpokenChapterWords": "chapter,chapters",
   "Bible_SpokenBookNames": "psalm:230",
   "Bible_SpokenVerseWords": "verse,verses",
+  "Bible_SpokenRangeWords": "to,through,and",
   "Bible_Books": "Books",
   "Bible_Go": "Go",
   "Bm_Title": "Engine Benchmark",

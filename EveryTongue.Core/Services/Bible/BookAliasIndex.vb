@@ -129,6 +129,9 @@ Namespace Services.Bible
             Public Property AbbrevNames As List(Of String)
             ''' <summary>book_number → highest chapter in this Bible (impossible-reference guard).</summary>
             Public Property MaxChapters As Dictionary(Of Integer, Integer)
+            ''' <summary>"book_number:chapter" → highest verse in this Bible
+            ''' (nonexistent-verse guard — "1Tim 6:37" linked a dead verse, Jezer 2026-09-06).</summary>
+            Public Property MaxVerses As Dictionary(Of String, Integer)
             ''' <summary>Locale-supplied spoken book words (folded) whose verse-text
             ''' frequency this scan counted — a cache entry missing any currently
             ''' requested word is stale (also gates the accent-fold migration).</summary>
@@ -223,6 +226,7 @@ Namespace Services.Bible
                     If cache.TryGetValue(dbPath, entry) AndAlso entry IsNot Nothing AndAlso
                        entry.Size = fi.Length AndAlso entry.MTimeTicks = fi.LastWriteTimeUtc.Ticks AndAlso
                        entry.AbbrevNames IsNot Nothing AndAlso entry.MaxChapters IsNot Nothing AndAlso
+                       entry.MaxVerses IsNot Nothing AndAlso
                        entry.ExtraTargets IsNot Nothing AndAlso
                        localeBookWords.Keys.All(Function(w) entry.ExtraTargets.Contains(w, StringComparer.Ordinal)) Then
                         ' ExtraTargets check doubles as the fold-migration gate: old caches
@@ -344,6 +348,13 @@ Namespace Services.Bible
                         idx._maxChapter(mc.Key) = Math.Max(cur, mc.Value)
                     Next
                 End If
+                If entry.MaxVerses IsNot Nothing Then
+                    For Each mv In entry.MaxVerses
+                        Dim cur = 0
+                        idx._maxVerse.TryGetValue(mv.Key, cur)
+                        idx._maxVerse(mv.Key) = Math.Max(cur, mv.Value)
+                    Next
+                End If
             Next
 
             ' Inject the locale-file SPOKEN book names last. These are DELIBERATE
@@ -373,6 +384,15 @@ Namespace Services.Bible
         Public Function MaxChapter(bookNumber As Integer) As Integer
             Dim n = 0
             _maxChapter.TryGetValue(bookNumber, n)
+            Return n
+        End Function
+
+        Private ReadOnly _maxVerse As New Dictionary(Of String, Integer)(StringComparer.Ordinal)
+
+        ''' <summary>Highest verse of a chapter across the installed Bibles (0 = unknown, skip validation).</summary>
+        Public Function MaxVerse(bookNumber As Integer, chapter As Integer) As Integer
+            Dim n = 0
+            _maxVerse.TryGetValue($"{bookNumber}:{chapter}", n)
             Return n
         End Function
 
@@ -418,6 +438,18 @@ Namespace Services.Bible
                     Using reader = cmd.ExecuteReader()
                         While reader.Read()
                             If Not reader.IsDBNull(1) Then entry.MaxChapters(reader.GetInt32(0)) = reader.GetInt32(1)
+                        End While
+                    End Using
+                End Using
+
+                ' Highest verse per chapter — the nonexistent-verse guard
+                ' ("1Tim 6:37": 1 Timothy 6 has 21 verses) derives the same way.
+                entry.MaxVerses = New Dictionary(Of String, Integer)
+                Using cmd = conn.CreateCommand()
+                    cmd.CommandText = "SELECT book_number, chapter, MAX(verse) FROM verses GROUP BY book_number, chapter"
+                    Using reader = cmd.ExecuteReader()
+                        While reader.Read()
+                            If Not reader.IsDBNull(2) Then entry.MaxVerses($"{reader.GetInt32(0)}:{reader.GetInt32(1)}") = reader.GetInt32(2)
                         End While
                     End Using
                 End Using
