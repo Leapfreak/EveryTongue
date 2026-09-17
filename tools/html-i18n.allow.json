@@ -1,0 +1,13 @@
+[
+  { "file": "index.html", "text": "Segoe UI", "reason": "font family name — proper noun, shown as the font itself" },
+  { "file": "index.html", "text": "Arial", "reason": "font family name — proper noun" },
+  { "file": "index.html", "text": "Courier New", "reason": "font family name — proper noun" },
+  { "file": "index.html", "text": "Georgia", "reason": "font family name — proper noun" },
+  { "file": "index.html", "text": "Times New Roman", "reason": "font family name — proper noun" },
+  { "file": "index.html", "text": "Verdana", "reason": "font family name — proper noun" },
+  { "file": "index.html", "text": "Trebuchet MS", "reason": "font family name — proper noun" },
+  { "file": "index.html", "text": "Tahoma", "reason": "font family name — proper noun" },
+  { "file": "index.html", "text": "Every Tongue", "reason": "brand name — logo alt text" },
+  { "file": "lobby.html", "text": "Every Tongue", "reason": "brand name — page title and logo alt" },
+  { "file": "admin.html", "text": "QR", "reason": "acronym — language-neutral" }
+]

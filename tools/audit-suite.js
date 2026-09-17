@@ -21,6 +21,8 @@ const AUDITS = [
   { script: 'audit-es5-appjs.js',         tier: 'publish', desc: 'app.js stays ES5 (old phone browsers)' },
   { script: 'audit-api-footgun.js',       tier: 'publish', desc: 'VB minimal-API async lambda silent-200 footgun' },
   { script: 'audit-code-bans.js',         tier: 'publish', desc: 'Debug.WriteLine / List(Of Object) bans' },
+  { script: 'audit-webclient-i18n.js',    tier: 'publish', desc: 'web-client locale-key parity: t()/data-i18n keys exist in fallback tables + en.json' },
+  { script: 'audit-html-i18n.js',         tier: 'publish', desc: 'wwwroot HTML display text is localizable (data-i18n*/t() wiring, reasoned allowlist)' },
   { script: 'audit-language-lists.js',    tier: 'full',    desc: 'HEURISTIC: inline language-code lists (canonical = language-codes.json)' },
   { script: 'audit-pipe-drain.js',        tier: 'full',    desc: 'HEURISTIC: pipe redirect + WaitForExit without draining both pipes' },
   { script: 'audit-static-timeouts.js',   tier: 'full',    desc: 'HEURISTIC: wall-clock give-up deadlines outside SidecarReadiness + blind sleeps' },

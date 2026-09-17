@@ -79,7 +79,7 @@ Namespace Server.Hubs
                 ElseIf room.IsLocked Then
                     ' Room is locked — send error and close
                     Try
-                        Dim errJson = Encoding.UTF8.GetBytes("{""type"":""error"",""message"":""Room is locked""}")
+                        Dim errJson = Encoding.UTF8.GetBytes("{""type"":""error"",""message"":""Room is locked"",""errorCode"":""roomLocked""}")
                         Await ws.SendAsync(New ArraySegment(Of Byte)(errJson),
                             WebSocketMessageType.Text, True, context.RequestAborted).ConfigureAwait(False)
                         Await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Room is locked", context.RequestAborted).ConfigureAwait(False)

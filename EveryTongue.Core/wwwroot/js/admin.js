@@ -12,6 +12,7 @@
     //    UI language auto-detected from the browser (no language step). ──
     const LT = {
         admTitle: "Server Administration", admSub: "Every Tongue",
+        admNt: "NT", admOt: "OT", admLogEmpty: "(empty)",
         admEnter: "Enter", admRefresh: "Refresh", admLive: "Live session",
         admBootstrap: "No admin PIN is set — anyone can open this page. Set a PIN below now.",
         admDefaultPin: "The admin PIN is still the default (1234) — change it below.",
@@ -65,6 +66,13 @@
         netError: "Network error"
     };
     function t(k) { return LT[k] || k; }
+    // Server errors carry a stable errorCode; map it to a localized web.err_*
+    // key, falling back to the response's English .error text.
+    function errT(r, fallbackKey) {
+        if (r && r.errorCode && LT["err_" + r.errorCode]) return LT["err_" + r.errorCode];
+        if (r && r.error) return r.error;
+        return t(fallbackKey || "setBadPin");
+    }
     function fmt(k, v) { return t(k).replace("{0}", v); }
     function esc(x) {
         return String(x).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -87,10 +95,12 @@
                 .then(r => r.json()).then(data => {
                     for (const k in data) { if (Object.prototype.hasOwnProperty.call(data, k)) LT[k] = data[k]; }
                     applyI18n();
+                    document.title = t("admTitle");
                 }).catch(() => { });
         } catch (e) { /* English defaults remain */ }
     })();
     applyI18n();
+    document.title = t("admTitle");
 
     // ── State ──
     let pin = sessionStorage.getItem("adminPin") || "";
@@ -193,7 +203,7 @@
             const action = btn.getAttribute("data-live");
             $("liveStatus").textContent = t("sending");
             fetch("/api/control?action=" + action + "&" + qpin()).then(r => r.json()).then(d => {
-                $("liveStatus").textContent = d.error ? d.error : (action + t("cmdSent"));
+                $("liveStatus").textContent = d.error ? errT(d, "cmdFail") : (action + t("cmdSent"));
                 setTimeout(pollLive, 800);
             }).catch(() => { $("liveStatus").textContent = t("cmdFail"); });
         });
@@ -247,7 +257,7 @@
         if (!settings.adminPinSet && !newPin) { msg("setMsg", t("setPinRequired")); return; }
         fetch("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
             .then(jsonOrStatus).then(res => {
-                if (!res.ok) { msg("setMsg", res.error || t("setBadPin")); return; }
+                if (!res.ok) { msg("setMsg", errT(res)); return; }
                 msg("setMsg", t("setSaved"), true);
                 if (newPin) { pin = newPin; sessionStorage.setItem("adminPin", pin); }
                 // refresh the keySet/pinSet indicators
@@ -278,7 +288,7 @@
     }
     function loadTemplates() {
         fetch("/api/settings/templates?" + qpin()).then(r => r.json()).then(res => {
-            if (res.error) { $("tplList").innerHTML = '<div class="hint">' + esc(res.error) + "</div>"; return; }
+            if (res.error) { $("tplList").innerHTML = '<div class="hint">' + esc(errT(res)) + "</div>"; return; }
             tplData = res.templates || [];
             renderTemplates();
         }).catch(() => { $("tplList").innerHTML = '<div class="hint">' + t("netError") + "</div>"; });
@@ -339,7 +349,7 @@
         if (did) {
             if (!window.confirm(t("setTplsDeleteConfirm"))) return;
             fetch("/api/settings/templates/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin: pin, id: did }) })
-                .then(r => r.json()).then(res => { if (res.ok) loadTemplates(); else msg("tplMsg", res.error || t("setBadPin")); });
+                .then(r => r.json()).then(res => { if (res.ok) loadTemplates(); else msg("tplMsg", errT(res)); });
         }
     });
     $("btnTplSave").addEventListener("click", () => {
@@ -361,7 +371,7 @@
         fetch("/api/settings/templates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
             .then(jsonOrStatus).then(res => {
                 if (res.ok) { $("tplForm").style.display = "none"; loadTemplates(); }
-                else msg("tplMsg", res.error || t("setBadPin"));
+                else msg("tplMsg", errT(res));
             }).catch(() => msg("tplMsg", t("cmdFail")));
     });
 
@@ -388,7 +398,7 @@
     $("bibSearch").addEventListener("input", renderBibles);
     function bibLoad() {
         fetch("/api/settings/bibles?" + qpin()).then(r => r.json()).then(b => {
-            if (b.error) { $("bibList").innerHTML = '<div class="hint" style="color:#f44">' + esc(b.error) + "</div>"; bibStopPoll(); return; }
+            if (b.error) { $("bibList").innerHTML = '<div class="hint" style="color:#f44">' + esc(errT(b)) + "</div>"; bibStopPoll(); return; }
             bibData = b;
             renderBibles();
             if (bibHasActive()) { if (!bibPoll) bibPoll = setInterval(bibPollStates, 2500); }
@@ -420,7 +430,7 @@
             if (!show) continue;
             total++;
             if (rows.length >= 50) continue;
-            const books = c.ot && c.nt ? "" : (c.nt ? " · NT" : (c.ot ? " · OT" : ""));
+            const books = c.ot && c.nt ? "" : (c.nt ? " · " + t("admNt") : (c.ot ? " · " + t("admOt") : ""));
             const err = st.indexOf("error") === 0 ? st : "";
             let right;
             if (c.installed || st === "done") right = '<span style="color:#4f4;font-size:12px;white-space:nowrap">✓ ' + t("setBiblesInstalled") + "</span>";
@@ -455,7 +465,7 @@
     $("rawCard").addEventListener("toggle", () => {
         if (!$("rawCard").open) return;
         fetch("/api/settings/rawconfig?" + qpin()).then(r => r.json()).then(rc => {
-            if (rc.error) { msg("rawMsg", rc.error); return; }
+            if (rc.error) { msg("rawMsg", errT(rc)); return; }
             $("rawText").value = rc.json || "";
         }).catch(() => msg("rawMsg", t("setRawLoadFail")));
     });
@@ -464,7 +474,7 @@
         try { JSON.parse(txt); } catch (e) { msg("rawMsg", t("setRawInvalid") + e.message); return; }
         fetch("/api/settings/rawconfig", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin: pin, json: txt }) })
             .then(jsonOrStatus).then(res => {
-                if (!res.ok) { msg("rawMsg", res.error || t("setBadPin")); return; }
+                if (!res.ok) { msg("rawMsg", errT(res)); return; }
                 if (res.pinCleared) { msg("rawMsg", t("setRawPinCleared")); $("bootstrapWarn").style.display = ""; }
                 else msg("rawMsg", res.needsRestart ? t("setRawRestart") : t("setRawSaved"), true);
             }).catch(() => msg("rawMsg", t("cmdFail")));
@@ -474,7 +484,7 @@
     function loadLog() {
         fetch("/api/settings/logtail?" + qpin()).then(r => r.json()).then(lg => {
             const pre = $("logView");
-            pre.textContent = (lg.lines || []).join("\n") || "(empty)";
+            pre.textContent = (lg.lines || []).join("\n") || t("admLogEmpty");
             pre.scrollTop = pre.scrollHeight;
         }).catch(() => { });
     }

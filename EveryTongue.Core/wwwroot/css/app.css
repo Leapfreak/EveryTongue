@@ -405,6 +405,15 @@ body {
     margin-right: 2px;
 }
 
+/* The focused verse (tapped link, typed ref, or the Bible button's
+   remembered position) inside the full chapter. */
+.bible-verse.focused {
+    background: rgba(68, 119, 255, 0.14);
+    border-left: 3px solid #47f;
+    padding-left: 6px;
+    color: #fff;
+}
+
 .bible-search-result {
     padding: 8px 0;
     border-bottom: 1px solid #222;

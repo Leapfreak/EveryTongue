@@ -66,9 +66,9 @@ Namespace Server
             app.MapGet("/api/settings",
                 Function(context As HttpContext) As IResult
                     Dim cfg = SettingsConfigProvider?.Invoke()
-                    If cfg Is Nothing Then Return Results.Json(New With {.error = "settings not available"}, statusCode:=503)
+                    If cfg Is Nothing Then Return Results.Json(New With {.error = "settings not available", .errorCode = "settingsUnavailable"}, statusCode:=503)
                     If Not SettingsPinOk(context, context.Request.Query("pin").ToString()) Then
-                        Return Results.Json(New With {.error = "invalid pin"}, statusCode:=403)
+                        Return Results.Json(New With {.error = "invalid pin", .errorCode = "invalidPin"}, statusCode:=403)
                     End If
 
                     Dim opts = context.RequestServices.GetService(Of IOptions(Of ServerOptions))
@@ -108,7 +108,7 @@ Namespace Server
                     Dim cfg = SettingsConfigProvider?.Invoke()
                     If cfg Is Nothing Then
                         context.Response.StatusCode = 503
-                        Await context.Response.WriteAsJsonAsync(New With {.error = "settings not available"})
+                        Await context.Response.WriteAsJsonAsync(New With {.error = "settings not available", .errorCode = "settingsUnavailable"})
                         Return
                     End If
 
@@ -118,7 +118,7 @@ Namespace Server
 
                         If Not SettingsPinOk(context, getStr("pin")) Then
                             context.Response.StatusCode = 403
-                            Await context.Response.WriteAsJsonAsync(New With {.error = "invalid pin"})
+                            Await context.Response.WriteAsJsonAsync(New With {.error = "invalid pin", .errorCode = "invalidPin"})
                             Return
                         End If
 
@@ -214,9 +214,9 @@ Namespace Server
             app.MapGet("/api/settings/templates",
                 Function(context As HttpContext) As IResult
                     Dim cfg = SettingsConfigProvider?.Invoke()
-                    If cfg Is Nothing Then Return Results.Json(New With {.error = "settings not available"}, statusCode:=503)
+                    If cfg Is Nothing Then Return Results.Json(New With {.error = "settings not available", .errorCode = "settingsUnavailable"}, statusCode:=503)
                     If Not SettingsPinOk(context, context.Request.Query("pin").ToString()) Then
-                        Return Results.Json(New With {.error = "invalid pin"}, statusCode:=403)
+                        Return Results.Json(New With {.error = "invalid pin", .errorCode = "invalidPin"}, statusCode:=403)
                     End If
                     Dim libStore = Services.Config.TemplateLibraryStore.Instance
                     Dim snapshot As List(Of Models.ConferenceTemplate)
@@ -245,7 +245,7 @@ Namespace Server
                     Dim cfg = SettingsConfigProvider?.Invoke()
                     If cfg Is Nothing Then
                         context.Response.StatusCode = 503
-                        Await context.Response.WriteAsJsonAsync(New With {.error = "settings not available"})
+                        Await context.Response.WriteAsJsonAsync(New With {.error = "settings not available", .errorCode = "settingsUnavailable"})
                         Return
                     End If
 
@@ -255,7 +255,7 @@ Namespace Server
 
                         If Not SettingsPinOk(context, getStr("pin")) Then
                             context.Response.StatusCode = 403
-                            Await context.Response.WriteAsJsonAsync(New With {.error = "invalid pin"})
+                            Await context.Response.WriteAsJsonAsync(New With {.error = "invalid pin", .errorCode = "invalidPin"})
                             Return
                         End If
 
@@ -263,7 +263,7 @@ Namespace Server
                         Dim hostingCode = If(getStr("hostingCode"), "").Trim()
                         If tplName = "" OrElse hostingCode = "" Then
                             context.Response.StatusCode = 400
-                            Await context.Response.WriteAsJsonAsync(New With {.error = "name and hostingCode are required"})
+                            Await context.Response.WriteAsJsonAsync(New With {.error = "name and hostingCode are required", .errorCode = "nameAndCodeRequired"})
                             Return
                         End If
 
@@ -277,13 +277,13 @@ Namespace Server
                         Dim stt = getStr("sttBackend")           ' Nothing = not sent
                         If Not String.IsNullOrEmpty(stt) AndAlso Services.Stt.SttBackendRegistry.Find(stt) Is Nothing Then
                             context.Response.StatusCode = 400
-                            Await context.Response.WriteAsJsonAsync(New With {.error = $"unknown sttBackend '{stt}'"})
+                            Await context.Response.WriteAsJsonAsync(New With {.error = $"unknown sttBackend '{stt}'", .errorCode = "unknownSttBackend"})
                             Return
                         End If
                         Dim trans = getStr("translationBackend") ' Nothing = not sent
                         If Not String.IsNullOrEmpty(trans) AndAlso Services.Translation.TranslationBackendRegistry.Find(trans) Is Nothing Then
                             context.Response.StatusCode = 400
-                            Await context.Response.WriteAsJsonAsync(New With {.error = $"unknown translationBackend '{trans}'"})
+                            Await context.Response.WriteAsJsonAsync(New With {.error = $"unknown translationBackend '{trans}'", .errorCode = "unknownTranslationBackend"})
                             Return
                         End If
 
@@ -300,7 +300,7 @@ Namespace Server
                         End SyncLock
                         If tpl Is Nothing Then
                             context.Response.StatusCode = 404
-                            Await context.Response.WriteAsJsonAsync(New With {.error = "unknown template id"})
+                            Await context.Response.WriteAsJsonAsync(New With {.error = "unknown template id", .errorCode = "unknownTemplate"})
                             Return
                         End If
 
@@ -369,7 +369,7 @@ Namespace Server
                     Dim cfg = SettingsConfigProvider?.Invoke()
                     If cfg Is Nothing Then
                         context.Response.StatusCode = 503
-                        Await context.Response.WriteAsJsonAsync(New With {.error = "settings not available"})
+                        Await context.Response.WriteAsJsonAsync(New With {.error = "settings not available", .errorCode = "settingsUnavailable"})
                         Return
                     End If
                     Using doc = Await JsonDocument.ParseAsync(context.Request.Body)
@@ -377,7 +377,7 @@ Namespace Server
                         Dim getStr = Function(name As String) JsonStr(root, name)
                         If Not SettingsPinOk(context, getStr("pin")) Then
                             context.Response.StatusCode = 403
-                            Await context.Response.WriteAsJsonAsync(New With {.error = "invalid pin"})
+                            Await context.Response.WriteAsJsonAsync(New With {.error = "invalid pin", .errorCode = "invalidPin"})
                             Return
                         End If
                         Dim id = If(getStr("id"), "")
@@ -388,7 +388,7 @@ Namespace Server
                         End SyncLock
                         If tpl Is Nothing Then
                             context.Response.StatusCode = 404
-                            Await context.Response.WriteAsJsonAsync(New With {.error = "unknown template id"})
+                            Await context.Response.WriteAsJsonAsync(New With {.error = "unknown template id", .errorCode = "unknownTemplate"})
                             Return
                         End If
                         ' Remove the 1:1 display template we own; leave shared ones alone.
@@ -418,9 +418,9 @@ Namespace Server
             app.MapGet("/api/settings/rawconfig",
                 Function(context As HttpContext) As IResult
                     Dim cfg = SettingsConfigProvider?.Invoke()
-                    If cfg Is Nothing Then Return Results.Json(New With {.error = "settings not available"}, statusCode:=503)
+                    If cfg Is Nothing Then Return Results.Json(New With {.error = "settings not available", .errorCode = "settingsUnavailable"}, statusCode:=503)
                     If Not SettingsPinOk(context, context.Request.Query("pin").ToString()) Then
-                        Return Results.Json(New With {.error = "invalid pin"}, statusCode:=403)
+                        Return Results.Json(New With {.error = "invalid pin", .errorCode = "invalidPin"}, statusCode:=403)
                     End If
                     Return Results.Json(New With {
                         .json = JsonSerializer.Serialize(cfg, Models.ConfigManager.SerializerOptions)
@@ -432,7 +432,7 @@ Namespace Server
                     Dim cfg = SettingsConfigProvider?.Invoke()
                     If cfg Is Nothing Then
                         context.Response.StatusCode = 503
-                        Await context.Response.WriteAsJsonAsync(New With {.error = "settings not available"})
+                        Await context.Response.WriteAsJsonAsync(New With {.error = "settings not available", .errorCode = "settingsUnavailable"})
                         Return
                     End If
 
@@ -442,14 +442,14 @@ Namespace Server
 
                         If Not SettingsPinOk(context, getStr("pin")) Then
                             context.Response.StatusCode = 403
-                            Await context.Response.WriteAsJsonAsync(New With {.error = "invalid pin"})
+                            Await context.Response.WriteAsJsonAsync(New With {.error = "invalid pin", .errorCode = "invalidPin"})
                             Return
                         End If
 
                         Dim jsonText = getStr("json")
                         If String.IsNullOrWhiteSpace(jsonText) Then
                             context.Response.StatusCode = 400
-                            Await context.Response.WriteAsJsonAsync(New With {.error = "empty config"})
+                            Await context.Response.WriteAsJsonAsync(New With {.error = "empty config", .errorCode = "emptyConfig"})
                             Return
                         End If
 
@@ -464,7 +464,8 @@ Namespace Server
                         If parsed Is Nothing Then
                             context.Response.StatusCode = 400
                             Await context.Response.WriteAsJsonAsync(New With {
-                                .error = If(parseError Is Nothing, "invalid config JSON", $"invalid config JSON: {parseError}")
+                                .error = If(parseError Is Nothing, "invalid config JSON", $"invalid config JSON: {parseError}"),
+                                .errorCode = "invalidConfigJson"
                             })
                             Return
                         End If
@@ -543,13 +544,13 @@ Namespace Server
                 Async Function(context As HttpContext) As Task
                     If Not SettingsPinOk(context, context.Request.Query("pin").ToString()) Then
                         context.Response.StatusCode = 403
-                        Await context.Response.WriteAsJsonAsync(New With {.error = "invalid pin"})
+                        Await context.Response.WriteAsJsonAsync(New With {.error = "invalid pin", .errorCode = "invalidPin"})
                         Return
                     End If
                     Dim bible = context.RequestServices.GetService(Of Services.Interfaces.IBibleService)
                     If bible Is Nothing Then
                         context.Response.StatusCode = 503
-                        Await context.Response.WriteAsJsonAsync(New With {.error = "bible service not available"})
+                        Await context.Response.WriteAsJsonAsync(New With {.error = "bible service not available", .errorCode = "bibleUnavailable"})
                         Return
                     End If
 
@@ -567,7 +568,7 @@ Namespace Server
                         catalog = Services.Bible.BibleDownloadService.LoadCachedCatalog(biblesDir)
                         If catalog.Count = 0 Then
                             context.Response.StatusCode = 502
-                            Await context.Response.WriteAsJsonAsync(New With {.error = $"catalog fetch failed: {fetchError}"})
+                            Await context.Response.WriteAsJsonAsync(New With {.error = $"catalog fetch failed: {fetchError}", .errorCode = "catalogFetchFailed"})
                             Return
                         End If
                     End If
@@ -595,19 +596,19 @@ Namespace Server
 
                         If Not SettingsPinOk(context, getStr("pin")) Then
                             context.Response.StatusCode = 403
-                            Await context.Response.WriteAsJsonAsync(New With {.error = "invalid pin"})
+                            Await context.Response.WriteAsJsonAsync(New With {.error = "invalid pin", .errorCode = "invalidPin"})
                             Return
                         End If
                         Dim translationId = getStr("translationId")
                         If String.IsNullOrWhiteSpace(translationId) Then
                             context.Response.StatusCode = 400
-                            Await context.Response.WriteAsJsonAsync(New With {.error = "translationId required"})
+                            Await context.Response.WriteAsJsonAsync(New With {.error = "translationId required", .errorCode = "translationIdRequired"})
                             Return
                         End If
                         Dim bible = context.RequestServices.GetService(Of Services.Interfaces.IBibleService)
                         If bible Is Nothing Then
                             context.Response.StatusCode = 503
-                            Await context.Response.WriteAsJsonAsync(New With {.error = "bible service not available"})
+                            Await context.Response.WriteAsJsonAsync(New With {.error = "bible service not available", .errorCode = "bibleUnavailable"})
                             Return
                         End If
 
@@ -617,7 +618,7 @@ Namespace Server
                             Function(c) String.Equals(c.TranslationId, translationId, StringComparison.OrdinalIgnoreCase))
                         If entry Is Nothing Then
                             context.Response.StatusCode = 404
-                            Await context.Response.WriteAsJsonAsync(New With {.error = "unknown translationId (fetch the catalog first)"})
+                            Await context.Response.WriteAsJsonAsync(New With {.error = "unknown translationId (fetch the catalog first)", .errorCode = "unknownTranslationId"})
                             Return
                         End If
 
@@ -666,7 +667,7 @@ Namespace Server
             app.MapGet("/api/settings/bibles/status",
                 Function(context As HttpContext) As IResult
                     If Not SettingsPinOk(context, context.Request.Query("pin").ToString()) Then
-                        Return Results.Json(New With {.error = "invalid pin"}, statusCode:=403)
+                        Return Results.Json(New With {.error = "invalid pin", .errorCode = "invalidPin"}, statusCode:=403)
                     End If
                     Return Results.Json(New With {
                         .states = _bibleDownloadStates.ToDictionary(Function(kv) kv.Key, Function(kv) kv.Value)
@@ -677,7 +678,7 @@ Namespace Server
             app.MapGet("/api/settings/logtail",
                 Function(context As HttpContext) As IResult
                     If Not SettingsPinOk(context, context.Request.Query("pin").ToString()) Then
-                        Return Results.Json(New With {.error = "invalid pin"}, statusCode:=403)
+                        Return Results.Json(New With {.error = "invalid pin", .errorCode = "invalidPin"}, statusCode:=403)
                     End If
                     Try
                         Dim logFile = AppLogger.GetLogPath()
@@ -696,7 +697,7 @@ Namespace Server
                         Return Results.Json(New With {.lines = tail})
                     Catch ex As Exception
                         ' Error surfaced to the caller as JSON 500.
-                        Return Results.Json(New With {.error = ex.Message}, statusCode:=500)
+                        Return Results.Json(New With {.error = ex.Message, .errorCode = "internalError"}, statusCode:=500)
                     End Try
                 End Function)
         End Sub

@@ -1,4 +1,4 @@
-Imports System.Collections.Concurrent
+﻿Imports System.Collections.Concurrent
 Imports System.IO
 Imports System.Text.Json
 Imports System.Text.RegularExpressions
@@ -32,83 +32,13 @@ Namespace Services.Bible
         Private Shared ReadOnly TagPattern As New Regex("<[^>]+>", RegexOptions.Compiled)
         Private Shared ReadOnly BracketPattern As New Regex("\[.*?\]", RegexOptions.Compiled)
 
-        ' Book name aliases for reference parsing (English)
-        ' Maps display name/abbreviation -> short_name used in DB queries
-        ' Maps display name/abbreviation -> short_name matching KJV+ schema
-        ' These are used by ParseReference and DetectReferences; ResolveBookNumber
-        ' also checks the DB's own bookMap (short_name + long_name) for direct matches
-        Private Shared ReadOnly BookAliases As New Dictionary(Of String, String)(StringComparer.OrdinalIgnoreCase) From {
-            {"Genesis", "Gen"}, {"Gen", "Gen"}, {"Ge", "Gen"},
-            {"Exodus", "Exo"}, {"Exod", "Exo"}, {"Ex", "Exo"},
-            {"Leviticus", "Lev"}, {"Lev", "Lev"},
-            {"Numbers", "Num"}, {"Num", "Num"},
-            {"Deuteronomy", "Deu"}, {"Deut", "Deu"}, {"Dt", "Deu"},
-            {"Joshua", "Josh"}, {"Josh", "Josh"}, {"Jos", "Josh"},
-            {"Judges", "Judg"}, {"Judg", "Judg"}, {"Jdg", "Judg"},
-            {"Ruth", "Ruth"}, {"Rut", "Ruth"},
-            {"1 Samuel", "1Sam"}, {"1Sam", "1Sam"}, {"1 Sam", "1Sam"}, {"1Sa", "1Sam"},
-            {"2 Samuel", "2Sam"}, {"2Sam", "2Sam"}, {"2 Sam", "2Sam"}, {"2Sa", "2Sam"},
-            {"1 Kings", "1Kin"}, {"1Kings", "1Kin"}, {"1 Kgs", "1Kin"}, {"1Ki", "1Kin"},
-            {"2 Kings", "2Kin"}, {"2Kings", "2Kin"}, {"2 Kgs", "2Kin"}, {"2Ki", "2Kin"},
-            {"1 Chronicles", "1Chr"}, {"1Chr", "1Chr"}, {"1 Chr", "1Chr"}, {"1Ch", "1Chr"},
-            {"2 Chronicles", "2Chr"}, {"2Chr", "2Chr"}, {"2 Chr", "2Chr"}, {"2Ch", "2Chr"},
-            {"Ezra", "Ezr"}, {"Ezr", "Ezr"},
-            {"Nehemiah", "Neh"}, {"Neh", "Neh"},
-            {"Esther", "Esth"}, {"Esth", "Esth"}, {"Est", "Esth"},
-            {"Job", "Job"},
-            {"Psalms", "Ps"}, {"Psalm", "Ps"}, {"Ps", "Ps"}, {"Psa", "Ps"},
-            {"Proverbs", "Prov"}, {"Prov", "Prov"}, {"Pr", "Prov"}, {"Pro", "Prov"},
-            {"Ecclesiastes", "Eccl"}, {"Eccl", "Eccl"}, {"Ecc", "Eccl"},
-            {"Song of Solomon", "Song"}, {"Song", "Song"}, {"SoS", "Song"}, {"Sol", "Song"},
-            {"Isaiah", "Isa"}, {"Isa", "Isa"}, {"Is", "Isa"},
-            {"Jeremiah", "Jer"}, {"Jer", "Jer"},
-            {"Lamentations", "Lam"}, {"Lam", "Lam"},
-            {"Ezekiel", "Ezek"}, {"Ezek", "Ezek"}, {"Eze", "Ezek"},
-            {"Daniel", "Dan"}, {"Dan", "Dan"},
-            {"Hosea", "Hos"}, {"Hos", "Hos"},
-            {"Joel", "Joel"}, {"Joe", "Joel"},
-            {"Amos", "Am"}, {"Am", "Am"}, {"Amo", "Am"},
-            {"Obadiah", "Oba"}, {"Obad", "Oba"},
-            {"Jonah", "Jona"}, {"Jona", "Jona"}, {"Jon", "Jona"},
-            {"Micah", "Mic"}, {"Mic", "Mic"},
-            {"Nahum", "Nah"}, {"Nah", "Nah"},
-            {"Habakkuk", "Hab"}, {"Hab", "Hab"},
-            {"Zephaniah", "Zeph"}, {"Zeph", "Zeph"}, {"Zep", "Zeph"},
-            {"Haggai", "Hag"}, {"Hag", "Hag"},
-            {"Zechariah", "Zech"}, {"Zech", "Zech"}, {"Zec", "Zech"},
-            {"Malachi", "Mal"}, {"Mal", "Mal"},
-            {"Matthew", "Mat"}, {"Matt", "Mat"}, {"Mt", "Mat"},
-            {"Mark", "Mar"}, {"Mk", "Mar"},
-            {"Luke", "Luk"}, {"Lk", "Luk"},
-            {"John", "John"}, {"Jn", "John"}, {"Joh", "John"},
-            {"Acts", "Acts"}, {"Act", "Acts"},
-            {"Romans", "Rom"}, {"Rom", "Rom"},
-            {"1 Corinthians", "1Cor"}, {"1Cor", "1Cor"}, {"1 Cor", "1Cor"}, {"1Co", "1Cor"},
-            {"2 Corinthians", "2Cor"}, {"2Cor", "2Cor"}, {"2 Cor", "2Cor"}, {"2Co", "2Cor"},
-            {"Galatians", "Gal"}, {"Gal", "Gal"},
-            {"Ephesians", "Eph"}, {"Eph", "Eph"},
-            {"Philippians", "Phil"}, {"Phil", "Phil"}, {"Phi", "Phil"},
-            {"Colossians", "Col"}, {"Col", "Col"},
-            {"1 Thessalonians", "1Ths"}, {"1Thess", "1Ths"}, {"1 Thess", "1Ths"}, {"1Th", "1Ths"},
-            {"2 Thessalonians", "2Ths"}, {"2Thess", "2Ths"}, {"2 Thess", "2Ths"}, {"2Th", "2Ths"},
-            {"1 Timothy", "1Tim"}, {"1Tim", "1Tim"}, {"1 Tim", "1Tim"}, {"1Ti", "1Tim"},
-            {"2 Timothy", "2Tim"}, {"2Tim", "2Tim"}, {"2 Tim", "2Tim"}, {"2Ti", "2Tim"},
-            {"Titus", "Tit"}, {"Tit", "Tit"},
-            {"Philemon", "Phlm"}, {"Phlm", "Phlm"}, {"Phm", "Phlm"},
-            {"Hebrews", "Heb"}, {"Heb", "Heb"},
-            {"James", "Jam"}, {"Jas", "Jam"},
-            {"1 Peter", "1Pet"}, {"1Pet", "1Pet"}, {"1 Pet", "1Pet"}, {"1Pe", "1Pet"},
-            {"2 Peter", "2Pet"}, {"2Pet", "2Pet"}, {"2 Pet", "2Pet"}, {"2Pe", "2Pet"},
-            {"1 John", "1Jn"}, {"1John", "1Jn"}, {"1Jn", "1Jn"}, {"1Jo", "1Jn"},
-            {"2 John", "2Jn"}, {"2John", "2Jn"}, {"2Jn", "2Jn"}, {"2Jo", "2Jn"},
-            {"3 John", "3Jn"}, {"3John", "3Jn"}, {"3Jn", "3Jn"}, {"3Jo", "3Jn"},
-            {"Jude", "Jud"}, {"Jud", "Jud"},
-            {"Revelation", "Rev"}, {"Rev", "Rev"}, {"Apocalypse", "Rev"}
-        }
-
-        ' Standard USFM book_number values for alias targets
-        ' Used as final fallback: maps KJV-style alias target → standard book_number used in USFM Bible DBs
-        ' These numbers match the numbering scheme used by the Bible databases (10=Gen, 20=Exo, ..., 730=Rev)
+        ' Book NAMES live in data, never here: the derived BookAliasIndex
+        ' (installed Bibles' own books tables) plus the locale channel
+        ' (Bible_BookNames / Bible_SpokenBookNames). This table holds only the
+        ' app's WIRE CODES — identifiers, not language text: RefDto.book on the
+        ' wire, log lines ("1Tim 6:10"), StandardNumberForCode.
+        ' The numbers are the universal USFM book_number scheme every Bible DB
+        ' uses in every language (10=Gen, 230=Ps, ..., 730=Rev).
         Private Shared ReadOnly StandardBookNumbers As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase) From {
             {"Gen", 10}, {"Exo", 20}, {"Lev", 30}, {"Num", 40}, {"Deu", 50},
             {"Josh", 60}, {"Judg", 70}, {"Ruth", 80}, {"1Sam", 90}, {"2Sam", 100},
@@ -132,9 +62,7 @@ Namespace Services.Bible
         ' Book group allows capitalized continuation words so ordinal spans
         ' ("Primera de Joan", "Primer Reis") arrive whole; ResolveBookAlias
         ' drops unmatchable leading tokens, so a preceding capitalized word
-        ' can't swallow a real reference. The book's first letter may be
-        ' lowercase (STT case-drop) — accepted in code ONLY for names the
-        ' frequency data proves are not ordinary words (see LowercaseStart gate).
+        ' can't swallow a real reference.
         ' Between book and chapter: an optional comma, up to two short lowercase
         ' connectors, then ONE filler word ("Mateo, en el capítulo 27" — the
         ' spoken announcement form). The filler is only ACCEPTED when it is a
@@ -142,21 +70,18 @@ Namespace Services.Bible
         ' the match, so the loosening adds no false positives ("Mateu, en 4 dies").
         ' Chapword/versword may arrive capitalized (STT capitalizes after the
         ' periods it inserts); validation sets are folded, so case is free.
+        '
+        ' DELIBERATELY NOT covered (decided 2026-09-18): lowercase-start books
+        ' ("el salmo 22"), clock-garbled verse words ("7:35" for "verset 35"),
+        ' and trailing-filler unwinding for comma-less announcements ("Mateo en
+        ' el capítulo 27"). Each was a pass or rescue here once; the Bible
+        ' button now reopens at the room's remembered reading position, so a
+        ' missed exotic announcement costs one tap instead of a lost verse.
+        ' Only the well-formed announcement (with the filler re-anchor for
+        ' "La primera, Timoteu 6:10"-shaped prefixes) and the bare verse word
+        ' (context pass) remain.
         Private Shared ReadOnly RefPattern As New Regex(
             "(?<book>(?:\d\s*)?[\p{Lu}][\p{Ll}]+(?:\s+(?:[\p{Ll}]{1,3}\s+)?[\p{Lu}\p{Ll}][\p{Ll}]+)*)(?:\s*,)?\s+(?:(?:[\p{Ll}]{1,3}\s+){0,2}(?<chapword>[\p{Lu}\p{Ll}][\p{Ll}'’]+)\s+)?(?<chapter>\d{1,3})(?:\s*:\s*(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3})|\s+(?<rangeword>[\p{Ll}]{1,7})\s+(?<vend>\d{1,3})(?!\d))?|(?:\s*,)?\s+(?<versword>[\p{Lu}\p{Ll}][\p{Ll}'’]+)\s+(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3})|\s+(?<rangeword>[\p{Ll}]{1,7})\s+(?<vend>\d{1,3})(?!\d))?)?",
-            RegexOptions.Compiled)
-
-        ''' <summary>
-        ''' Second, NARROW pass for lowercase-start books ("el salmo 22" — STT
-        ''' case-drop). A capital-start book group must stay the primary anchor:
-        ''' letting the MAIN pattern start lowercase made junk prefixes steal
-        ''' spans ("…de Jesús, en Mateu 4" died on chapword validation). This
-        ''' pattern allows a SINGLE lowercase word as the book, the code gate
-        ''' requires it to be frequency-proven non-ambiguous, and spans already
-        ''' claimed by the main pass are skipped.
-        ''' </summary>
-        Private Shared ReadOnly LowercaseRefPattern As New Regex(
-            "(?<book>[\p{Ll}][\p{Ll}'’]+)(?:\s*,)?\s+(?:(?:[\p{Ll}]{1,3}\s+){0,2}(?<chapword>[\p{Lu}\p{Ll}][\p{Ll}'’]+)\s+)?(?<chapter>\d{1,3})(?:\s*:\s*(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3})|\s+(?<rangeword>[\p{Ll}]{1,7})\s+(?<vend>\d{1,3})(?!\d))?|(?:\s*,)?\s+(?<versword>[\p{Lu}\p{Ll}][\p{Ll}'’]+)\s+(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3})|\s+(?<rangeword>[\p{Ll}]{1,7})\s+(?<vend>\d{1,3})(?!\d))?)?",
             RegexOptions.Compiled)
 
         ''' <summary>
@@ -356,24 +281,24 @@ Namespace Services.Bible
 
             ' Build the DERIVED book-alias index (reference detection in every
             ' installed Bible's language) in the background. Cached per Bible
-            ' file, so steady-state cost is one small JSON read; until the index
-            ' lands, detection falls back to the static English table.
+            ' file, so steady-state cost is one small JSON read. ALWAYS built,
+            ' even with zero Bibles — the locale files' Bible_BookNames feed it,
+            ' which is the whole no-Bibles fallback (no static table in code).
+            ' Until the index lands (~1-2s), detection finds nothing.
             Dim dbPaths = _translations.Values.Select(Function(e) e.DbPath).ToList()
-            If dbPaths.Count > 0 Then
-                Task.Run(Sub()
-                             Try
-                                 Dim idx = BookAliasIndex.Build(dbPaths)
-                                 _aliasIndex = idx
-                                 ' Structured event → lands in session.log, so field
-                                 ' verification can confirm the index built.
-                                 Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.BIBLE_ALIAS_INDEX,
-                                     $"Book-alias index ready: {idx.Count} names from {dbPaths.Count} Bible(s), {idx.AmbiguousCount} ambiguous")
-                             Catch ex As Exception
-                                 Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.BIBLE_ERROR,
-                                     $"Book-alias index build failed: {ex.Message} — detection stays on the English fallback")
-                             End Try
-                         End Sub)
-            End If
+            Task.Run(Sub()
+                         Try
+                             Dim idx = BookAliasIndex.Build(dbPaths)
+                             _aliasIndex = idx
+                             ' Structured event → lands in session.log, so field
+                             ' verification can confirm the index built.
+                             Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.BIBLE_ALIAS_INDEX,
+                                 $"Book-alias index ready: {idx.Count} names from {dbPaths.Count} Bible(s), {idx.AmbiguousCount} ambiguous")
+                         Catch ex As Exception
+                             Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.BIBLE_ERROR,
+                                 $"Book-alias index build failed: {ex.Message} — reference detection disabled")
+                         End Try
+                     End Sub)
         End Sub
 
         Private Sub LoadTranslation(dbFile As String)
@@ -543,16 +468,16 @@ Namespace Services.Bible
             Dim bookNum As Integer
             If entry.BookMap.TryGetValue(book, bookNum) Then Return bookNum
 
-            ' Try alias lookup -> KJV short_name -> direct DB match
-            Dim shortName As String = Nothing
-            If BookAliases.TryGetValue(book, shortName) Then
-                If entry.BookMap.TryGetValue(shortName, bookNum) Then Return bookNum
+            ' Derived alias index: a name in ANY installed Bible's language (or
+            ' a locale-file fallback name) → universal book_number.
+            Dim info = _aliasIndex?.Lookup(book)
+            If info IsNot Nothing AndAlso entry.BookMap.ContainsValue(info.BookNumber) Then
+                Return info.BookNumber
             End If
 
-            ' Final fallback: use standard USFM book_number (10=Gen, 500=John, etc.)
+            ' A wire code ("Ps", "1Tim") → universal book_number.
             Dim stdNum As Integer
-            Dim target = If(shortName, book)
-            If StandardBookNumbers.TryGetValue(target, stdNum) Then
+            If StandardBookNumbers.TryGetValue(book, stdNum) Then
                 If entry.BookMap.ContainsValue(stdNum) Then Return stdNum
             End If
 
@@ -740,9 +665,19 @@ Namespace Services.Bible
                 End If
             End If
 
-            ' 2. Fall back to English aliases
+            ' 2. Derived alias index: any installed Bible's language + locale
+            '    fallback names, with span-shedding and ordinal forms ("Primera
+            '    de Joan"). Typed lookups accept abbreviations ("Gèn 1"), so the
+            '    Abbreviation flag is not checked here.
             If bookCode Is Nothing Then
-                BookAliases.TryGetValue(bookName, bookCode)
+                Dim rb = ResolveBookAlias(bookName)
+                If rb IsNot Nothing Then bookCode = rb.Code
+            End If
+
+            ' 3. A wire code typed directly ("Ps 23", "1Tim 6").
+            If bookCode Is Nothing Then
+                Dim stdNum = 0
+                If StandardBookNumbers.TryGetValue(bookName, stdNum) Then bookCode = CodeForNumber(stdNum)
             End If
 
             If bookCode Is Nothing Then
@@ -813,30 +748,13 @@ Namespace Services.Bible
         End Class
 
         ''' <summary>
-        ''' Full English book names from the static fallback table. Live caption
-        ''' detection only trusts FULL names — the abbreviations exist for typed
-        ''' lookups; in spoken text they only arise from STT garbles ("Amb disset
-        ''' anys" → "Am 10 set anys" false-fired Amos 10 on 2026-07-31).
-        ''' </summary>
-        Private Shared ReadOnly FullEnglishNames As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase) From {
-            "Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy", "Joshua", "Judges", "Ruth",
-            "1 Samuel", "2 Samuel", "1 Kings", "2 Kings", "1 Chronicles", "2 Chronicles",
-            "Ezra", "Nehemiah", "Esther", "Job", "Psalms", "Psalm", "Proverbs", "Ecclesiastes",
-            "Song of Solomon", "Isaiah", "Jeremiah", "Lamentations", "Ezekiel", "Daniel",
-            "Hosea", "Joel", "Amos", "Obadiah", "Jonah", "Micah", "Nahum", "Habakkuk",
-            "Zephaniah", "Haggai", "Zechariah", "Malachi",
-            "Matthew", "Mark", "Luke", "John", "Acts", "Romans", "1 Corinthians", "2 Corinthians",
-            "Galatians", "Ephesians", "Philippians", "Colossians", "1 Thessalonians", "2 Thessalonians",
-            "1 Timothy", "2 Timothy", "Titus", "Philemon", "Hebrews", "James", "1 Peter", "2 Peter",
-            "1 John", "2 John", "3 John", "Jude", "Revelation", "Apocalypse"}
-
-        ''' <summary>
         ''' Resolve a matched book name via the derived index (any installed
-        ''' Bible's language). Tries the full captured span, then drops leading
-        ''' tokens (a preceding capitalized word must not hide a reference).
-        ''' Ordinal prefixes resolve through pairs derived from the Bibles' own
-        ''' numbered names ("Primera de Joan" → 1 John, never the gospel).
-        ''' Static English table remains the no-Bibles fallback.
+        ''' Bible's language, plus the locale files' fallback names). Tries the
+        ''' full captured span, then drops leading tokens (a preceding
+        ''' capitalized word must not hide a reference). Ordinal prefixes
+        ''' resolve through pairs derived from the Bibles' own numbered names
+        ''' ("Primera de Joan" → 1 John, never the gospel). Nothing resolves
+        ''' until the index lands (~1-2s after startup, cached).
         ''' </summary>
         Private Shared Function ResolveBookAlias(rawName As String) As ResolvedBook
             Dim name = BookAliasIndex.NormName(rawName)
@@ -874,15 +792,6 @@ Namespace Services.Bible
                     End If
                 Next
             End If
-            Dim fallback As String = Nothing
-            If BookAliases.TryGetValue(name, fallback) Then
-                Dim num = 0
-                StandardBookNumbers.TryGetValue(fallback, num)
-                Return New ResolvedBook With {.Code = fallback, .Ambiguous = False, .HadOrdinal = False,
-                                              .BookNumber = num,
-                                              .Abbreviation = Not FullEnglishNames.Contains(name),
-                                              .LowercaseStart = name.Length > 0 AndAlso Char.IsLower(name(0))}
-            End If
             Return Nothing
         End Function
 
@@ -902,33 +811,25 @@ Namespace Services.Bible
             Dim subRanges As New List(Of SubRange)()
             Dim scanText = NormalizeSpokenNumbers(text, opts?.LangHint, subRanges)
 
-            ' Two passes: capital-start primary, then the narrow lowercase pattern
-            ' over whatever the primary didn't claim.
-            Dim refPasses = {RefPattern, LowercaseRefPattern}
-            For passIdx = 0 To refPasses.Length - 1
-            For Each m As Match In refPasses(passIdx).Matches(scanText)
-                If passIdx = 1 Then
-                    Dim mIdx = m.Index, mL = m.Length
-                    If detectedRefs.Any(Function(d) mIdx < d.StartIndex + d.Length AndAlso mIdx + mL > d.StartIndex) Then Continue For
-                End If
+            For Each m As Match In RefPattern.Matches(scanText)
                 Dim bookName = m.Groups("book").Value.Trim()
                 Dim refStart = m.Index
-                Dim resolved As ResolvedBook = Nothing
                 ' A filler word between book and number ("Mateu, capítol 4",
                 ' "Mateo, en el capítulo 27") is accepted ONLY when it is a known
                 ' chapter word — and then it is STRONG evidence ("Mateu capítol 4"
                 ' cannot be the verb reading of "mateu", even sentence-initial,
                 ' which is exactly where reading announcements live).
                 Dim hadChapterWord = False
+                Dim resolved As ResolvedBook = Nothing
                 If m.Groups("chapword").Success Then
                     If SpokenChapterWords.Value.Contains(BookAliasIndex.Fold(m.Groups("chapword").Value)) Then
                         hadChapterWord = True
                     Else
                         ' Not a chapter word — but it may BE the book: in
-                        ' "…de Jesús, en Mateu 4" the loosened filler slot
-                        ' captures "Mateu". The old pattern matched these as the
-                        ' book directly; rejecting outright would eat the span
-                        ' and lose the reference. Re-anchor on the filler word.
+                        ' "La primera, Timoteu 6:10" the filler slot captures
+                        ' "Timoteu" (a preceding capitalized word swallowed the
+                        ' book slot). Re-anchor on the filler word; anything
+                        ' that resolves to no book rejects the match.
                         Dim cw = m.Groups("chapword")
                         resolved = ResolveBookAlias(cw.Value)
                         If resolved Is Nothing Then Continue For
@@ -937,29 +838,6 @@ Namespace Services.Bible
                     End If
                 End If
                 If resolved Is Nothing Then resolved = ResolveBookAlias(bookName)
-                ' "Mateo en el capítulo 27" without a comma: the greedy book group
-                ' swallows the fillers, and the resolver only drops LEADING junk
-                ' ("en Mateu"). Unwind from the end: known chapter words freely;
-                ' short lowercase connectors ("en", "el") ONLY once a chapter word
-                ' proved this is a reference — so "Mateu parlava 4" can't resolve.
-                If resolved Is Nothing Then
-                    Dim toks = bookName.Split(" "c)
-                    Dim connectorStrips = 0
-                    While toks.Length > 1
-                        Dim lastTok = toks(toks.Length - 1)
-                        If SpokenChapterWords.Value.Contains(BookAliasIndex.Fold(lastTok)) Then
-                            hadChapterWord = True
-                        ElseIf hadChapterWord AndAlso connectorStrips < 3 AndAlso
-                               lastTok.Length <= 3 AndAlso Char.IsLower(lastTok(0)) Then
-                            connectorStrips += 1
-                        Else
-                            Exit While
-                        End If
-                        toks = toks.Take(toks.Length - 1).ToArray()
-                        resolved = ResolveBookAlias(String.Join(" ", toks))
-                        If resolved IsNot Nothing Then Exit While
-                    End While
-                End If
                 If resolved Is Nothing Then Continue For
                 ' Anchor the underline at the resolved name, not the whole
                 ' announcement prefix ("Los primeros intérpretes … el Salmo 22"
@@ -1072,7 +950,6 @@ Namespace Services.Bible
                     .Length = effLength
                 })
             Next
-            Next
 
             ' ── Reading-context pass: bare "versículo N" ─────────────────────
             ' Owner semantics: a full reference sets the room's book; later bare
@@ -1114,18 +991,7 @@ Namespace Services.Bible
                     ' the sermon psalm, and "verset 37" linked 1Tim 6:37 — a
                     ' verse that doesn't exist (1Tim 6 has 21); falling back
                     ' finds Ps 119:37, the verse the preacher then quoted.
-                    Dim mentioned = ContextBookMention(ctx, scanText)
-                    Dim candidates As List(Of Integer)
-                    If mentioned <> 0 Then
-                        candidates = New List(Of Integer) From {mentioned}
-                    Else
-                        candidates = ctx.Books.
-                            OrderByDescending(Function(kv) kv.Value.LastSeenUtc).
-                            Select(Function(kv) kv.Key).ToList()
-                        If ctx.LastBook <> 0 AndAlso candidates.Remove(ctx.LastBook) Then
-                            candidates.Insert(0, ctx.LastBook)
-                        End If
-                    End If
+                    Dim candidates = ContextCandidates(ctx, scanText)
 
                     Dim bookNum = 0
                     Dim entry As RefContext.BookEntry = Nothing
@@ -1149,6 +1015,7 @@ Namespace Services.Bible
                     Next
 
                     entry.LastSeenUtc = DateTime.UtcNow
+                    entry.Verse = vStart
                     ctx.LastBook = bookNum
                     detectedRefs.Add(New DetectedReference With {
                         .Reference = New BibleReference With {
@@ -1165,14 +1032,31 @@ Namespace Services.Bible
                         .FromContext = True
                     })
                 Next
+
             End If
 
             Return detectedRefs
         End Function
 
+        ''' <summary>Owner candidates for a context-resolved token: an explicit
+        ''' book mention in the phrase wins alone; otherwise every remembered
+        ''' book in recency order, LastBook first.</summary>
+        Private Shared Function ContextCandidates(ctx As RefContext, scanText As String) As List(Of Integer)
+            Dim mentioned = ContextBookMention(ctx, scanText)
+            If mentioned <> 0 Then Return New List(Of Integer) From {mentioned}
+            Dim candidates = ctx.Books.
+                OrderByDescending(Function(kv) kv.Value.LastSeenUtc).
+                Select(Function(kv) kv.Key).ToList()
+            If ctx.LastBook <> 0 AndAlso candidates.Remove(ctx.LastBook) Then
+                candidates.Insert(0, ctx.LastBook)
+            End If
+            Return candidates
+        End Function
+
         ''' <summary>Reading-context freshness window — a memory older than this
-        ''' can't resolve bare verses (no stale carry-over into a next service).</summary>
-        Private Const ContextExpiryMinutes As Integer = 30
+        ''' can't resolve bare verses (no stale carry-over into a next service).
+        ''' Public: the /api/rooms/{id}/reading endpoint applies the same window.</summary>
+        Public Const ContextExpiryMinutes As Integer = 30
 
         ''' <summary>Bare "versword N" ("Versículo 18", "versículo 7-9") — versword
         ''' validated against the locale set by the caller; capital allowed (STT
@@ -1195,6 +1079,7 @@ Namespace Services.Bible
             End If
             e.BookCode = ref.Book
             e.Chapter = ref.Chapter
+            e.Verse = ref.VerseStart
             e.LastSeenUtc = DateTime.UtcNow
             ctx.LastBook = ref.BookNumber
         End Sub

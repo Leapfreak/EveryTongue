@@ -19,7 +19,27 @@
         lbConversation: "Conversation", lbDictation: "Dictation",
         lbTypeConversation: "conversation", lbTypeConference: "conference",
         lbTypeDictation: "dictation",
-        lbQrPermanent: "Permanent — print this. It always joins the current room made from this template."
+        lbQrPermanent: "Permanent — print this. It always joins the current room made from this template.",
+        lbYourRooms: "Your Rooms",
+        lbOpenRooms: "Open Rooms",
+        lbHostTools: "Host tools",
+        lbEnterHostCode: "Enter host code",
+        lbOk: "OK",
+        lbHostConference: "Host Conference",
+        lbTemplate: "Template",
+        lbLoading: "Loading...",
+        lbHostingCode: "Hosting Code",
+        lbEnterHostingCode: "Enter hosting code",
+        lbCreateConference: "Create Conference",
+        lbCreateConversation: "Create Conversation",
+        lbPrivateRoom: "Private Room",
+        lbTranslationEngine: "Translation engine",
+        lbDefault: "Default",
+        lbStartDictation: "Start Dictation",
+        lbJoinRoom: "Join Room",
+        lbClose: "Close",
+        lbServerReturned: "Server returned {0}",
+        lbRoomQrAlt: "Room QR Code"
     };
     function t(k) { return LT[k] || k; }
     function fmt(k, v) { return t(k).replace("{0}", v); }
@@ -31,6 +51,10 @@
         document.querySelectorAll("[data-i18n-ph]").forEach(el => {
             const v = LT[el.getAttribute("data-i18n-ph")];
             if (v) el.placeholder = v;
+        });
+        document.querySelectorAll("[data-i18n-alt]").forEach(el => {
+            const v = LT[el.getAttribute("data-i18n-alt")];
+            if (v) el.alt = v;
         });
     }
     (function () {
@@ -246,7 +270,7 @@
                     creatorCode: creatorCode()
                 })
             });
-            if (!res.ok) throw new Error("Server returned " + res.status);
+            if (!res.ok) throw new Error(fmt("lbServerReturned", res.status));
             const room = await res.json();
             addMyRoom(room);
             location.href = "/index.html?room=" + encodeURIComponent(room.id);
@@ -276,7 +300,7 @@
                     creatorCode: creatorCode()
                 })
             });
-            if (!res.ok) throw new Error("Server returned " + res.status);
+            if (!res.ok) throw new Error(fmt("lbServerReturned", res.status));
             createdRoom = await res.json();
             addMyRoom(createdRoom);
             location.href = "/index.html?room=" + encodeURIComponent(createdRoom.id);
@@ -378,7 +402,7 @@
                 conferenceError.style.display = "block";
                 return;
             }
-            if (!res.ok) throw new Error("Server returned " + res.status);
+            if (!res.ok) throw new Error(fmt("lbServerReturned", res.status));
 
             createdRoom = await res.json();
             addMyRoom(createdRoom);

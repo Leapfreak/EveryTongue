@@ -1,3 +1,4 @@
+Imports System.IO
 Imports System.Threading
 Imports EveryTongue.Server
 Imports EveryTongue.Services.Bible
@@ -71,12 +72,75 @@ Module Program
         Dim optsEn As New RefDetectionOptions With {.LangHint = "en", .Context = ctx2, .UpdateContext = False}
         Check(svc, optsEn, "Look at verses 12 to 14.", "Ps", 119, 12, 14, "English 'to' range against the same room context")
 
+        ' ── Replay the Jezer 2026-09-12 time-garbles ──
+        ' Speechmatics heard ca "verset 35" as "7:35" ("set" = 7) three times.
+        ' The garble-rescue pass that recovered these was REMOVED 2026-09-18:
+        ' the Bible button now reopens at the room's remembered position, so a
+        ' garbled verse costs one tap, not a rescue pass. Time-shaped tokens
+        ' must produce NO link — clock or garble alike.
+        Dim ctx3 As New RefContext()
+        Dim opts3 As New RefDetectionOptions With {.LangHint = "ca", .Context = ctx3, .UpdateContext = True}
+        Check(svc, opts3, "Estem al Salm 119, mireu el que diu.",
+              "Ps", 119, 0, 0, "fresh context for the garble replay")
+        Check(svc, opts3, "Guia'm per la senda per a 7:35 dels manaments, que jo l'estimo de debò.",
+              "", 0, 0, 0, "garbled 'per a 7:35' is NOT rescued (removed 2026-09-18) -> no link")
+        Check(svc, opts3, "Per a 7:38 al 40.",
+              "", 0, 0, 0, "garbled range is NOT rescued -> no link")
+        Check(svc, opts3, "El culte comença a les 7:30.",
+              "", 0, 0, 0, "clock time -> no link")
+        Check(svc, opts3, "Joan 3:16 ho diu.",
+              "John", 3, 16, 16, "cross-ref to John still detects")
+        Check(svc, opts3, "Mireu, 7:12.",
+              "", 0, 0, 0, "time-shaped token -> no link")
+
+        ' ── Typed lookups (ParseReferenceAsync) after the static-table removal ──
+        CheckParse(svc, "Salms 23", "Ps", 230, 23, "typed Catalan title resolves via the derived index")
+        CheckParse(svc, "Ps 23", "Ps", 230, 23, "typed wire code resolves via StandardBookNumbers")
+        CheckParse(svc, "1 Corinthians 13", "1Cor", 530, 13, "typed English name resolves via locale fallback names")
+
+        ' ── Zero Bibles installed: locale Bible_BookNames IS the fallback ──
+        ' The alias index is class-shared, so this section must stay LAST:
+        ' rebuilding from an empty dir replaces the Bible-derived index.
+        Dim emptyDir = Path.Combine(Path.GetTempPath(), "refcheck-empty-bibles")
+        Directory.CreateDirectory(emptyDir)
+        Dim svcEmpty As New BibleService(
+            NullLogger(Of BibleService).Instance,
+            Options.Create(New ServerOptions With {.BiblesDirectory = emptyDir}))
+        ' German names exist ONLY in the German Bible (no de.json) — when
+        ' "Johannes 3" stops detecting, the locale-only rebuild has landed.
+        Dim rebuilt = False
+        For i = 1 To 120
+            If svcEmpty.DetectReferencesInText("Johannes 3").Count = 0 Then
+                rebuilt = True
+                Exit For
+            End If
+            Thread.Sleep(500)
+        Next
+        If Not rebuilt Then
+            Console.WriteLine("FATAL: locale-only alias index never replaced the Bible-derived one")
+            Environment.Exit(2)
+        End If
+        Check(svcEmpty, Nothing, "John 3:16 says it plainly.",
+              "John", 3, 16, 16, "NO Bibles: English detection via en.json Bible_BookNames")
+        Check(svcEmpty, Nothing, "Estem al Salm 119.",
+              "Ps", 119, 0, 0, "NO Bibles: Catalan detection via ca.json locale names")
+
         If _failures = 0 Then
             Console.WriteLine("ALL CHECKS PASSED")
         Else
             Console.WriteLine($"{_failures} CHECK(S) FAILED")
             Environment.Exit(1)
         End If
+    End Sub
+
+    Private Sub CheckParse(svc As BibleService, reference As String,
+                           book As String, bookNumber As Integer, chapter As Integer, label As String)
+        Dim r = svc.ParseReferenceAsync(reference).Result
+        Dim ok = r.IsValid AndAlso r.Book = book AndAlso r.BookNumber = bookNumber AndAlso r.Chapter = chapter
+        Dim got = If(r.IsValid, $"{r.Book}({r.BookNumber}) {r.Chapter}", "invalid")
+        Dim tag = If(ok, "PASS", "FAIL")
+        If Not ok Then _failures += 1
+        Console.WriteLine($"{tag}  [{label}] ""{reference}"" -> {got} (want {book}({bookNumber}) {chapter})")
     End Sub
 
     Private Sub Check(svc As BibleService, opts As RefDetectionOptions, text As String,

@@ -215,12 +215,22 @@ class SpeechmaticsStreamingPipeline:
         # Union of the vocab layers, deduped by content (case-insensitive).
         # Service layer wins on collision — a person's spelling from the notes
         # beats the Bible-derived form.
+        # Entries are stripped to the two properties the Speechmatics schema
+        # allows (content, sounds_like): the vocab files carry an app-internal
+        # "books" key for book scoping, and ONE unknown property makes the API
+        # reject the whole config with protocol_error and close the session —
+        # every reconnect then resends the same config, so the session never
+        # recovers (2026-09-13: three mid-service subtitle outages, each
+        # triggered by the first book-scoped vocab push).
         merged, seen = [], set()
         for entry in list(self._vocab_service) + list(self._vocab_book_names):
             key = str(entry.get("content", "")).strip().lower()
             if key and key not in seen:
                 seen.add(key)
-                merged.append(entry)
+                clean = {"content": entry["content"]}
+                if entry.get("sounds_like"):
+                    clean["sounds_like"] = entry["sounds_like"]
+                merged.append(clean)
         return merged
 
     def start(self):

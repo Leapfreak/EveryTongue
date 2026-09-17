@@ -24,7 +24,7 @@ Namespace Server
             app.MapGet("/api/templates", Function(context As HttpContext) As Task
                                               If Not CreatorCodeOk(context) Then
                                                   context.Response.StatusCode = 403
-                                                  Return context.Response.WriteAsJsonAsync(New With {.error = "creator code required"})
+                                                  Return context.Response.WriteAsJsonAsync(New With {.error = "creator code required", .errorCode = "creatorCodeRequired"})
                                               End If
                                               Dim store = context.RequestServices.GetRequiredService(Of TemplateStore)()
                                               Dim result = store.GetAll().Select(Function(t) New With {
@@ -44,7 +44,7 @@ Namespace Server
                 Function(id As String, context As HttpContext) As IResult
                     Dim store = context.RequestServices.GetRequiredService(Of TemplateStore)()
                     If store.GetById(id) Is Nothing Then
-                        Return Results.Json(New With {.error = "unknown template"}, statusCode:=404)
+                        Return Results.Json(New With {.error = "unknown template", .errorCode = "unknownTemplate"}, statusCode:=404)
                     End If
                     Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
                     Dim room = mgr.GetAllRooms().
@@ -59,7 +59,7 @@ Namespace Server
                 Function(id As String, context As HttpContext) As IResult
                     Dim store = context.RequestServices.GetRequiredService(Of TemplateStore)()
                     If store.GetById(id) Is Nothing Then
-                        Return Results.Json(New With {.error = "unknown template"}, statusCode:=404)
+                        Return Results.Json(New With {.error = "unknown template", .errorCode = "unknownTemplate"}, statusCode:=404)
                     End If
                     Dim scheme = If(context.Request.IsHttps, "https", "http")
                     Dim joinUrl = $"{scheme}://{PublicHostFor(context)}/index.html?join={id}"
@@ -95,7 +95,7 @@ Namespace Server
                                                              End If
                                                              If Not codeValid Then
                                                                  context.Response.StatusCode = 403
-                                                                 Await context.Response.WriteAsJsonAsync(New With {.error = "Invalid hosting code"})
+                                                                 Await context.Response.WriteAsJsonAsync(New With {.error = "Invalid hosting code", .errorCode = "invalidHostingCode"})
                                                                  Return
                                                              End If
 
@@ -107,7 +107,7 @@ Namespace Server
 
                                                              ' Create conference room linked to template
                                                              Dim room = mgr.CreateRoom(
-                                                                 If(template.Name, "Conference"),
+                                                                 If(template.Name, LanguagePackService.Instance.GetString("Room_DefaultConference")),
                                                                  RoomType.Conference,
                                                                  visibility,
                                                                  hostClientId,
@@ -136,7 +136,7 @@ Namespace Server
                                                          Catch ex As Exception
                                                              AppLogger.Log(LogEvents.SERVER_ERROR, $"template room-create failed (returned 400): {ex.Message}")
                                                              context.Response.StatusCode = 400
-                                                             context.Response.WriteAsync("{""error"":""Invalid request""}").Wait()
+                                                             context.Response.WriteAsync("{""error"":""Invalid request"",""errorCode"":""invalidRequest""}").Wait()
                                                          Finally
                                                              doc?.Dispose()
                                                          End Try
@@ -166,7 +166,7 @@ Namespace Server
                                                           Dim room = mgr.GetRoom(roomId)
                                                           If room Is Nothing Then
                                                               context.Response.StatusCode = 404
-                                                              Await context.Response.WriteAsJsonAsync(New With {.error = "Room not found"})
+                                                              Await context.Response.WriteAsJsonAsync(New With {.error = "Room not found", .errorCode = "roomNotFound"})
                                                               Return
                                                           End If
 
@@ -174,7 +174,7 @@ Namespace Server
                                                                        (Not String.IsNullOrEmpty(clientId) AndAlso room.HostClientId = clientId)
                                                           If Not isHost Then
                                                               context.Response.StatusCode = 403
-                                                              Await context.Response.WriteAsJsonAsync(New With {.error = "Not authorized"})
+                                                              Await context.Response.WriteAsJsonAsync(New With {.error = "Not authorized", .errorCode = "notAuthorized"})
                                                               Return
                                                           End If
 
@@ -205,7 +205,7 @@ Namespace Server
                                                           Dim handler = PipelineConfigHandler
                                                           If handler Is Nothing Then
                                                               context.Response.StatusCode = 503
-                                                              Await context.Response.WriteAsJsonAsync(New With {.error = "Pipeline not available"})
+                                                              Await context.Response.WriteAsJsonAsync(New With {.error = "Pipeline not available", .errorCode = "pipelineUnavailable"})
                                                               Return
                                                           End If
 
@@ -220,7 +220,7 @@ Namespace Server
                                                       Catch ex As Exception
                                                           AppLogger.Log(LogEvents.SERVER_ERROR, $"template save failed (returned 400): {ex.Message}")
                                                           context.Response.StatusCode = 400
-                                                          context.Response.WriteAsync("{""error"":""Invalid request""}").Wait()
+                                                          context.Response.WriteAsync("{""error"":""Invalid request"",""errorCode"":""invalidRequest""}").Wait()
                                                       Finally
                                                           doc?.Dispose()
                                                       End Try
@@ -245,20 +245,20 @@ Namespace Server
                                                                 Dim room = mgr.GetRoom(roomId)
                                                                 If room Is Nothing Then
                                                                     context.Response.StatusCode = 404
-                                                                    Await context.Response.WriteAsJsonAsync(New With {.error = "Room not found"})
+                                                                    Await context.Response.WriteAsJsonAsync(New With {.error = "Room not found", .errorCode = "roomNotFound"})
                                                                     Return
                                                                 End If
 
                                                                 If String.IsNullOrEmpty(clientId) OrElse room.HostClientId <> clientId Then
                                                                     context.Response.StatusCode = 403
-                                                                    Await context.Response.WriteAsJsonAsync(New With {.error = "Not authorized"})
+                                                                    Await context.Response.WriteAsJsonAsync(New With {.error = "Not authorized", .errorCode = "notAuthorized"})
                                                                     Return
                                                                 End If
 
                                                                 Dim handler = PipelineResetHandler
                                                                 If handler Is Nothing Then
                                                                     context.Response.StatusCode = 503
-                                                                    Await context.Response.WriteAsJsonAsync(New With {.error = "Pipeline not available"})
+                                                                    Await context.Response.WriteAsJsonAsync(New With {.error = "Pipeline not available", .errorCode = "pipelineUnavailable"})
                                                                     Return
                                                                 End If
 
@@ -269,7 +269,7 @@ Namespace Server
                                                             Catch ex As Exception
                                                                 AppLogger.Log(LogEvents.SERVER_ERROR, $"template delete failed (returned 400): {ex.Message}")
                                                                 context.Response.StatusCode = 400
-                                                                context.Response.WriteAsync("{""error"":""Invalid request""}").Wait()
+                                                                context.Response.WriteAsync("{""error"":""Invalid request"",""errorCode"":""invalidRequest""}").Wait()
                                                             Finally
                                                                 doc?.Dispose()
                                                             End Try

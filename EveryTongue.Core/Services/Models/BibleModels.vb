@@ -88,6 +88,9 @@ Namespace Services.Models
         Public Class BookEntry
             Public Property BookCode As String
             Public Property Chapter As Integer
+            ''' <summary>Last verse heard for this book (0 = chapter only) — the
+            ''' "return to where the reading was" anchor for the Bible button.</summary>
+            Public Property Verse As Integer
             Public Property LastSeenUtc As DateTime
         End Class
         ''' <summary>bookNumber → last chapter+timestamp heard for that book.</summary>

@@ -28,7 +28,7 @@ Namespace Server
                                                   If bibleService Is Nothing Then
                                                       logger?.LogWarning("Bible service not available")
                                                       Await context.Response.WriteAsJsonAsync(
-                                                          New With {.error = "Bible service not available"})
+                                                          New With {.error = "Bible service not available", .errorCode = "bibleUnavailable"})
                                                       Return
                                                   End If
                                                   Dim lang = context.Request.Query("lang").FirstOrDefault()
@@ -58,7 +58,7 @@ Namespace Server
                     Dim bibleService = context.RequestServices.GetService(Of IBibleService)
                     If bibleService Is Nothing Then
                         Await context.Response.WriteAsJsonAsync(
-                            New With {.error = "Bible service not available"})
+                            New With {.error = "Bible service not available", .errorCode = "bibleUnavailable"})
                         Return
                     End If
                     Dim sw = Diagnostics.Stopwatch.StartNew()
@@ -75,7 +75,7 @@ Namespace Server
                     Dim bibleService = context.RequestServices.GetService(Of IBibleService)
                     If bibleService Is Nothing Then
                         Await context.Response.WriteAsJsonAsync(
-                            New With {.error = "Bible service not available"})
+                            New With {.error = "Bible service not available", .errorCode = "bibleUnavailable"})
                         Return
                     End If
                     Dim parts = verses.Split("-"c)
@@ -94,7 +94,7 @@ Namespace Server
                                                 GetService(Of IBibleService)
                                             If bibleService Is Nothing Then
                                                 Await context.Response.WriteAsJsonAsync(
-                                                    New With {.error = "Bible service not available"})
+                                                    New With {.error = "Bible service not available", .errorCode = "bibleUnavailable"})
                                                 Return
                                             End If
                                             Dim q = context.Request.Query("q").FirstOrDefault()
@@ -102,7 +102,7 @@ Namespace Server
                                             If String.IsNullOrEmpty(q) OrElse String.IsNullOrEmpty(transId) Then
                                                 context.Response.StatusCode = 400
                                                 Await context.Response.WriteAsJsonAsync(
-                                                    New With {.error = "q and translation required"})
+                                                    New With {.error = "q and translation required", .errorCode = "qAndTranslationRequired"})
                                                 Return
                                             End If
                                             Dim maxResults = 50
@@ -119,14 +119,14 @@ Namespace Server
                                                GetService(Of IBibleService)
                                            If bibleService Is Nothing Then
                                                Await context.Response.WriteAsJsonAsync(
-                                                   New With {.error = "Bible service not available"})
+                                                   New With {.error = "Bible service not available", .errorCode = "bibleUnavailable"})
                                                Return
                                            End If
                                            Dim ref = context.Request.Query("ref").FirstOrDefault()
                                            If String.IsNullOrEmpty(ref) Then
                                                context.Response.StatusCode = 400
                                                Await context.Response.WriteAsJsonAsync(
-                                                   New With {.error = "ref parameter required"})
+                                                   New With {.error = "ref parameter required", .errorCode = "refRequired"})
                                                Return
                                            End If
                                            Dim lang = If(context.Request.Query("lang").FirstOrDefault(), "en")

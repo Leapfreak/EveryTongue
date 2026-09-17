@@ -432,6 +432,20 @@ Namespace Pipeline
                     $"POST /start → port {_host.Port} (engine={backendKey}, source={AudioSource}, lang={inputLanguage}, body {jsonBody.Length} chars)")
                 Dim response = _httpClient.PostAsync($"http://127.0.0.1:{_host.Port}/start", content).Result
 
+                ' Parked-spare race (2026-09-13): the closing room parks its spare
+                ' with /stop on a background task, so a room that claims the spare
+                ' immediately can land /start first and get 409 already_capturing.
+                ' The leftover capture belongs to no room — stop it and start once
+                ' more with THIS room's config.
+                If CInt(response.StatusCode) = 409 Then
+                    AppLogger.Log(LogEvents.STT_CAPTURE_LIFECYCLE,
+                        $"POST /start → HTTP 409 (port {_host.Port}) — stopping the leftover parked capture and retrying once")
+                    _httpClient.PostAsync($"http://127.0.0.1:{_host.Port}/stop",
+                                          New StringContent("{}", Encoding.UTF8, "application/json")).Wait(5000)
+                    content = New StringContent(jsonBody, Encoding.UTF8, "application/json")
+                    response = _httpClient.PostAsync($"http://127.0.0.1:{_host.Port}/start", content).Result
+                End If
+
                 If response.IsSuccessStatusCode Then
                     AppLogger.Log(LogEvents.STT_CAPTURE_LIFECYCLE, $"POST /start → HTTP {CInt(response.StatusCode)} (port {_host.Port})")
                 Else

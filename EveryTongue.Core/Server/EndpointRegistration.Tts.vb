@@ -25,7 +25,7 @@ Namespace Server
                     Dim audioService = context.RequestServices.
                         GetService(Of IAudioStreamService)
                     If audioService Is Nothing Then
-                        Await context.Response.WriteAsJsonAsync(New With {.error = "Audio service not available"})
+                        Await context.Response.WriteAsJsonAsync(New With {.error = "Audio service not available", .errorCode = "audioUnavailable"})
                         Return
                     End If
                     Dim sources = Await audioService.GetNdiSourcesAsync(context.RequestAborted)
@@ -99,7 +99,7 @@ Namespace Server
                     ' Validate filename — no path traversal
                     If filename.Contains("..") OrElse filename.Contains("/") OrElse
                        filename.Contains("\") Then
-                        Return Results.BadRequest(New With {.error = "invalid filename"})
+                        Return Results.BadRequest(New With {.error = "invalid filename", .errorCode = "invalidFilename"})
                     End If
 
                     Dim cache = context.RequestServices.GetService(Of TtsCache)()
@@ -109,7 +109,7 @@ Namespace Server
 
                     Dim filePath = IO.Path.Combine(cache.CacheDirectory, filename)
                     If Not IO.File.Exists(filePath) Then
-                        Return Results.NotFound(New With {.error = "not found"})
+                        Return Results.NotFound(New With {.error = "not found", .errorCode = "notFound"})
                     End If
 
                     Dim contentType = "audio/mpeg"

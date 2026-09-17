@@ -202,7 +202,7 @@ Namespace Server
                                            Dim metricsSvc = context.RequestServices.
                                                GetService(Of IMetricsService)
                                            If metricsSvc Is Nothing Then
-                                               Return context.Response.WriteAsJsonAsync(New With {.error = "Metrics not available"})
+                                               Return context.Response.WriteAsJsonAsync(New With {.error = "Metrics not available", .errorCode = "metricsUnavailable"})
                                            End If
                                            Return context.Response.WriteAsJsonAsync(metricsSvc.GetSnapshot())
                                        End Function)
@@ -219,7 +219,7 @@ Namespace Server
                                GetService(Of Services.Translation.PivotPolicy)
                            If translationSvc Is Nothing OrElse policy Is Nothing Then
                                context.Response.StatusCode = 503
-                               Return context.Response.WriteAsJsonAsync(New With {.error = "Translation service not available"})
+                               Return context.Response.WriteAsJsonAsync(New With {.error = "Translation service not available", .errorCode = "translationUnavailable"})
                            End If
 
                            ' Room source languages arrive as whisper/ISO-1 codes ("ca",
@@ -322,13 +322,13 @@ Namespace Server
                     Dim pin = context.Request.Query("pin").ToString()
 
                     If String.IsNullOrEmpty(serverOpts.AdminPin) Then
-                        Return Results.Json(New With {.ok = False, .error = "Admin not configured"})
+                        Return Results.Json(New With {.ok = False, .error = "Admin not configured", .errorCode = "adminNotConfigured"})
                     End If
 
                     If CredentialOk(context, pin, serverOpts.AdminPin) Then
                         Return Results.Json(New With {.ok = True})
                     Else
-                        Return Results.Json(New With {.ok = False, .error = "Invalid PIN"})
+                        Return Results.Json(New With {.ok = False, .error = "Invalid PIN", .errorCode = "invalidPin"})
                     End If
                 End Function)
 
@@ -339,7 +339,7 @@ Namespace Server
                                     Dim certBytes = certService?.GetCertificateBytes()
                                     If certBytes Is Nothing Then
                                         Return Results.NotFound(New With {
-                                            .error = "No certificate available"})
+                                            .error = "No certificate available", .errorCode = "noCertificate"})
                                     End If
                                     Return Results.File(
                                         certBytes,

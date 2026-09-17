@@ -62,7 +62,7 @@ Namespace Server
                                            Dim subtitleService = context.RequestServices.
                                                GetService(Of ISubtitleService)
                                            If subtitleService Is Nothing Then
-                                               Return Results.Json(New With {.error = "service unavailable"})
+                                               Return Results.Json(New With {.error = "service unavailable", .errorCode = "serviceUnavailable"})
                                            End If
 
                                            Dim action = context.Request.Query("action").FirstOrDefault()
@@ -83,7 +83,7 @@ Namespace Server
                                            Dim ctlPin = If(ctlOpts?.Value?.AdminPin, "")
                                            If Not String.IsNullOrEmpty(ctlPin) AndAlso
                                               Not CredentialOk(context, context.Request.Query("pin").ToString(), ctlPin) Then
-                                               Return Results.Json(New With {.error = "invalid pin"}, statusCode:=403)
+                                               Return Results.Json(New With {.error = "invalid pin", .errorCode = "invalidPin"}, statusCode:=403)
                                            End If
 
                                            Select Case action.ToLower()
@@ -101,7 +101,7 @@ Namespace Server
                                                            Return Results.Text(json, "application/json")
                                                        End If
                                                    End If
-                                                   Return Results.Json(New With {.error = "not available"})
+                                                   Return Results.Json(New With {.error = "not available", .errorCode = "serviceUnavailable"})
 
                                                Case "setsliders"
                                                    Dim maxSeg = context.Request.Query("maxSeg").FirstOrDefault()
@@ -110,10 +110,10 @@ Namespace Server
                                                        RemoteCommandHandler?.Invoke($"setSliders:{maxSeg},{vadSilence}")
                                                        Return Results.Json(New With {.ok = True})
                                                    End If
-                                                   Return Results.Json(New With {.error = "missing params"})
+                                                   Return Results.Json(New With {.error = "missing params", .errorCode = "missingParams"})
 
                                                Case Else
-                                                   Return Results.BadRequest(New With {.error = "unknown action"})
+                                                   Return Results.BadRequest(New With {.error = "unknown action", .errorCode = "unknownAction"})
                                            End Select
                                        End Function)
         End Sub
@@ -135,7 +135,7 @@ Namespace Server
                                          ' code configured) keeps the legacy public listing.
                                          If Not CreatorCodeOk(context) Then
                                              context.Response.StatusCode = 403
-                                             Return context.Response.WriteAsJsonAsync(New With {.error = "creator code required"})
+                                             Return context.Response.WriteAsJsonAsync(New With {.error = "creator code required", .errorCode = "creatorCodeRequired"})
                                          End If
                                          Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
                                          Dim rooms = mgr.GetPublicRooms()
@@ -174,7 +174,7 @@ Namespace Server
                                                            .type = closedRoom.Type.ToString().ToLower()})
                                                    End If
                                                    context.Response.StatusCode = 404
-                                                   Return context.Response.WriteAsJsonAsync(New With {.error = "Room not found"})
+                                                   Return context.Response.WriteAsJsonAsync(New With {.error = "Room not found", .errorCode = "roomNotFound"})
                                                End If
                                                Dim clientId = If(context.Request.Query("clientId").FirstOrDefault(), "")
                                                Dim isHost = Not String.IsNullOrEmpty(clientId) AndAlso room.HostClientId = clientId
@@ -245,7 +245,8 @@ Namespace Server
                                                   Not TranscribeCapable(If(capOpts?.Value, New ServerOptions())) Then
                                                    context.Response.StatusCode = 409
                                                    Await context.Response.WriteAsJsonAsync(New With {
-                                                       .error = "This server has no offline speech model, so conversation rooms can't transcribe. Use a conference or dictation room instead."})
+                                                       .error = "This server has no offline speech model, so conversation rooms can't transcribe. Use a conference or dictation room instead.",
+                                                       .errorCode = "noOfflineSttModel"})
                                                    Return
                                                End If
 
@@ -261,7 +262,7 @@ Namespace Server
                                                    ' Rate-limited (shared per-IP window with the other credential gates).
                                                    If Not CredentialOk(context, supplied, gateCode) Then
                                                        context.Response.StatusCode = 403
-                                                       Await context.Response.WriteAsJsonAsync(New With {.error = "creator code required"})
+                                                       Await context.Response.WriteAsJsonAsync(New With {.error = "creator code required", .errorCode = "creatorCodeRequired"})
                                                        Return
                                                    End If
                                                End If
@@ -277,7 +278,7 @@ Namespace Server
                                                    ' Web-mic is the only audio source a dictation room has. sourceLang
                                                    ' is optional (kept for API compat): the creator picks their language
                                                    ' on room entry, which retunes the pipeline in-place.
-                                                   If String.IsNullOrEmpty(room.Name) Then room.Name = "Dictation"
+                                                   If String.IsNullOrEmpty(room.Name) Then room.Name = LanguagePackService.Instance.GetString("Room_DefaultDictation")
                                                    room.AudioSource = "web"
                                                    Dim slProp As JsonElement = Nothing
                                                    If root.TryGetProperty("sourceLang", slProp) Then
@@ -296,7 +297,7 @@ Namespace Server
                                            Catch ex As Exception
                                                AppLogger.Log(LogEvents.SERVER_ERROR, $"room create failed (returned 400): {ex.Message}")
                                                context.Response.StatusCode = 400
-                                               context.Response.WriteAsync("{""error"":""Invalid request""}").Wait()
+                                               context.Response.WriteAsync("{""error"":""Invalid request"",""errorCode"":""invalidRequest""}").Wait()
                                            Finally
                                                doc?.Dispose()
                                            End Try
@@ -323,7 +324,7 @@ Namespace Server
                                                   Dim ok = mgr.CloseRoom(id, If(clientId, ""))
                                                   If Not ok Then
                                                       context.Response.StatusCode = 403
-                                                      Return context.Response.WriteAsJsonAsync(New With {.error = "Not authorized or room not found"})
+                                                      Return context.Response.WriteAsJsonAsync(New With {.error = "Not authorized or room not found", .errorCode = "notAuthorized"})
                                                   End If
                                                   ' Broadcast roomClosed to all room members — the reach count in
                                                   ' the log is the field evidence for whether phones were told.
@@ -348,8 +349,9 @@ Namespace Server
                                                         Dim lang = ""
                                                         Dim clientId = ""
                                                         Dim err As String = Nothing
+                                                        Dim errCode As String = Nothing
                                                         If room Is Nothing OrElse room.Type <> RoomType.Conference Then
-                                                            err = "Room not found"
+                                                            err = "Room not found" : errCode = "roomNotFound"
                                                         Else
                                                             Try
                                                                 Using doc = Await JsonDocument.ParseAsync(context.Request.Body)
@@ -361,15 +363,15 @@ Namespace Server
                                                                     If root.TryGetProperty("clientId", el) AndAlso el.ValueKind = JsonValueKind.String Then clientId = If(el.GetString(), "")
                                                                 End Using
                                                             Catch
-                                                                err = "Bad request"
+                                                                err = "Bad request" : errCode = "badRequest"
                                                             End Try
                                                         End If
-                                                        If err Is Nothing AndAlso (rating < 1 OrElse rating > 5) Then err = "Bad rating"
-                                                        If err Is Nothing AndAlso String.IsNullOrEmpty(clientId) Then err = "Missing clientId"
-                                                        If err Is Nothing AndAlso Not room.FeedbackClientIds.TryAdd(clientId, 0) Then err = "Already submitted"
+                                                        If err Is Nothing AndAlso (rating < 1 OrElse rating > 5) Then err = "Bad rating" : errCode = "badRating"
+                                                        If err Is Nothing AndAlso String.IsNullOrEmpty(clientId) Then err = "Missing clientId" : errCode = "missingClientId"
+                                                        If err Is Nothing AndAlso Not room.FeedbackClientIds.TryAdd(clientId, 0) Then err = "Already submitted" : errCode = "alreadySubmitted"
                                                         If err IsNot Nothing Then
                                                             context.Response.StatusCode = 400
-                                                            Await context.Response.WriteAsJsonAsync(New With {.ok = False, .error = err})
+                                                            Await context.Response.WriteAsJsonAsync(New With {.ok = False, .error = err, .errorCode = errCode})
                                                             Return
                                                         End If
                                                         ' One log line: collapse whitespace/newlines, cap lengths.
@@ -392,7 +394,7 @@ Namespace Server
                                                   Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
                                                   Dim room = mgr.GetRoom(id)
                                                   If room Is Nothing Then
-                                                      Return Results.NotFound(New With {.error = "Room not found"})
+                                                      Return Results.NotFound(New With {.error = "Room not found", .errorCode = "roomNotFound"})
                                                   End If
                                                   ' The QR must encode an address PHONES can reach. Request.Host is
                                                   ' whatever the operator's browser used — correct on a LAN IP, but
@@ -597,7 +599,7 @@ Namespace Server
                                                         Dim room = mgr.GetRoom(id)
                                                         If room Is Nothing Then
                                                             context.Response.StatusCode = 404
-                                                            Return context.Response.WriteAsJsonAsync(New With {.error = "Room not found"})
+                                                            Return context.Response.WriteAsJsonAsync(New With {.error = "Room not found", .errorCode = "roomNotFound"})
                                                         End If
                                                         Dim members As New List(Of RoomMemberDto)()
                                                         ' Real clients
@@ -623,6 +625,19 @@ Namespace Server
                                                         Next
                                                         Return context.Response.WriteAsJsonAsync(members)
                                                     End Function)
+
+            ' The room's current reading position (last detected book/chapter/verse)
+            ' — the Bible button's "reopen where the reading is" fallback for a
+            ' viewer with no panel history of their own. 404 = no fresh position.
+            app.MapGet("/api/rooms/{id}/reading", Function(id As String, context As HttpContext) As Task
+                                                      Dim subtitleSvc = TryCast(context.RequestServices.GetRequiredService(Of ISubtitleService)(), SubtitleService)
+                                                      Dim pos = subtitleSvc?.ReadingPosition(id)
+                                                      If pos Is Nothing Then
+                                                          context.Response.StatusCode = 404
+                                                          Return context.Response.WriteAsJsonAsync(New With {.error = "No reading position", .errorCode = "noReadingPosition"})
+                                                      End If
+                                                      Return context.Response.WriteAsJsonAsync(pos)
+                                                  End Function)
 
             ' Add a virtual member (host only)
             app.MapPost("/api/rooms/{id}/virtual-members", Async Function(id As String, context As HttpContext) As Task
@@ -657,10 +672,10 @@ Namespace Server
                                                                  End Try
                                                                  If failed Then
                                                                      context.Response.StatusCode = 400
-                                                                     Await context.Response.WriteAsJsonAsync(New With {.error = "Invalid request"})
+                                                                     Await context.Response.WriteAsJsonAsync(New With {.error = "Invalid request", .errorCode = "invalidRequest"})
                                                                  ElseIf notAuth Then
                                                                      context.Response.StatusCode = 403
-                                                                     Await context.Response.WriteAsJsonAsync(New With {.error = "Not authorized"})
+                                                                     Await context.Response.WriteAsJsonAsync(New With {.error = "Not authorized", .errorCode = "notAuthorized"})
                                                                  Else
                                                                      context.Response.StatusCode = 201
                                                                      Await context.Response.WriteAsJsonAsync(New With {
@@ -706,7 +721,7 @@ Namespace Server
                                               Dim translationSvc = context.RequestServices.GetService(Of ITranslationService)()
                                               If translationSvc Is Nothing Then
                                                   context.Response.StatusCode = 503
-                                                  Await context.Response.WriteAsJsonAsync(New With {.error = "Translation not available"})
+                                                  Await context.Response.WriteAsJsonAsync(New With {.error = "Translation not available", .errorCode = "translationUnavailable"})
                                                   Return
                                               End If
 
@@ -720,7 +735,7 @@ Namespace Server
                                               End Try
                                               If Not parseOk Then
                                                   context.Response.StatusCode = 400
-                                                  Await context.Response.WriteAsJsonAsync(New With {.error = "Invalid JSON"})
+                                                  Await context.Response.WriteAsJsonAsync(New With {.error = "Invalid JSON", .errorCode = "invalidJson"})
                                                   Return
                                               End If
 
@@ -731,7 +746,7 @@ Namespace Server
                                                  Not body.TryGetProperty("sourceLang", srcProp) OrElse
                                                  Not body.TryGetProperty("targetLang", tgtProp) Then
                                                   context.Response.StatusCode = 400
-                                                  Await context.Response.WriteAsJsonAsync(New With {.error = "Missing text, sourceLang, or targetLang"})
+                                                  Await context.Response.WriteAsJsonAsync(New With {.error = "Missing text, sourceLang, or targetLang", .errorCode = "missingTranslateParams"})
                                                   Return
                                               End If
 
@@ -741,7 +756,7 @@ Namespace Server
 
                                               If String.IsNullOrEmpty(text) OrElse String.IsNullOrEmpty(sourceLang) OrElse String.IsNullOrEmpty(targetLang) Then
                                                   context.Response.StatusCode = 400
-                                                  Await context.Response.WriteAsJsonAsync(New With {.error = "Empty text, sourceLang, or targetLang"})
+                                                  Await context.Response.WriteAsJsonAsync(New With {.error = "Empty text, sourceLang, or targetLang", .errorCode = "emptyTranslateParams"})
                                                   Return
                                               End If
 
@@ -764,7 +779,7 @@ Namespace Server
                                               End Try
                                               If Not translateOk Then
                                                   context.Response.StatusCode = 500
-                                                  Await context.Response.WriteAsJsonAsync(New With {.error = "Translation failed"})
+                                                  Await context.Response.WriteAsJsonAsync(New With {.error = "Translation failed", .errorCode = "translationFailed"})
                                                   Return
                                               End If
                                               Await context.Response.WriteAsJsonAsync(New With {.text = translated})

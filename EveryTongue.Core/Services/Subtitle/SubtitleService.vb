@@ -646,6 +646,35 @@ Namespace Services.Subtitle
         ''' </summary>
         Private ReadOnly _refContexts As New Concurrent.ConcurrentDictionary(Of String, Models.RefContext)()
 
+        ''' <summary>Wire DTO for /api/rooms/{id}/reading.</summary>
+        Public Class ReadingPositionDto
+            Public Property book As String
+            Public Property chapter As Integer
+            Public Property verse As Integer
+        End Class
+
+        ''' <summary>
+        ''' The room's current reading position (last-heard book, chapter, verse)
+        ''' from the reading context, or Nothing when the room has none or it is
+        ''' older than the detection freshness window. Backs the Bible button's
+        ''' "open where the reading is" fallback for viewers with no history.
+        ''' </summary>
+        Public Function ReadingPosition(roomKey As String) As ReadingPositionDto
+            Dim ctx As Models.RefContext = Nothing
+            If Not _refContexts.TryGetValue(If(roomKey, ""), ctx) Then Return Nothing
+            Try
+                Dim entry As Models.RefContext.BookEntry = Nothing
+                If ctx.LastBook = 0 OrElse Not ctx.Books.TryGetValue(ctx.LastBook, entry) Then Return Nothing
+                If (DateTime.UtcNow - entry.LastSeenUtc).TotalMinutes > Bible.BibleService.ContextExpiryMinutes Then Return Nothing
+                Return New ReadingPositionDto With {
+                    .book = entry.BookCode, .chapter = entry.Chapter, .verse = entry.Verse}
+            Catch
+                ' The context is mutated on the caption thread without a lock; a
+                ' torn read here answers 404 rather than risking the feed.
+                Return Nothing
+            End Try
+        End Function
+
         ''' <summary>
         ''' Detect Bible references in text and return them as wire DTOs (Nothing when none).
         ''' Also stores refs on the CommittedEntry for replay. roomKey scopes the

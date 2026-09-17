@@ -171,7 +171,12 @@ Namespace Services.Bible
             '   Bible_SpokenBookNames = "salmo:230,..."          → spoken forms the
             '     Bibles' own books tables don't teach (titles are plural "Salmos";
             '     preachers say the singular). App locales + user overlay dir.
+            '   Bible_BookNames       = "Genesis:10,..."         → fallback names for
+            '     when NO installed Bible teaches that language's titles; add-if-
+            '     absent, so a Bible-derived entry (with computed ambiguity)
+            '     always wins. Replaced the static English table in code.
             Dim localeBookWords As New Dictionary(Of String, Integer)(StringComparer.Ordinal)
+            Dim localeFallbackWords As New Dictionary(Of String, Integer)(StringComparer.Ordinal)
             Dim localeDirs As New List(Of String) From {
                 Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "locales")}
             Try
@@ -204,6 +209,17 @@ Namespace Services.Bible
                                         If bits.Length = 2 AndAlso Integer.TryParse(bits(1).Trim(), n) Then
                                             Dim w = FoldName(bits(0))
                                             If w.Length >= 3 Then localeBookWords(w) = n
+                                        End If
+                                    Next
+                                End If
+                                If doc.RootElement.TryGetProperty("Bible_BookNames", el) AndAlso
+                                   el.ValueKind = JsonValueKind.String Then
+                                    For Each pair In el.GetString().Split(","c)
+                                        Dim bits = pair.Split(":"c)
+                                        Dim n = 0
+                                        If bits.Length = 2 AndAlso Integer.TryParse(bits(1).Trim(), n) Then
+                                            Dim w = FoldName(bits(0))
+                                            If w.Length >= 3 Then localeFallbackWords(w) = n
                                         End If
                                     Next
                                 End If
@@ -354,6 +370,18 @@ Namespace Services.Bible
                         idx._maxVerse.TryGetValue(mv.Key, cur)
                         idx._maxVerse(mv.Key) = Math.Max(cur, mv.Value)
                     Next
+                End If
+            Next
+
+            ' Inject the locale-file FALLBACK book names add-if-absent: they fill
+            ' names no installed Bible teaches (fresh install, or an English
+            ' feed with only Catalan Bibles installed). A Bible-derived entry
+            ' keeps its computed ambiguity; a fallback entry has no verse text
+            ' to compute from, so it enters full-trust — the same trust the
+            ' retired static English table had.
+            For Each lb In localeFallbackWords
+                If Not idx._aliases.ContainsKey(lb.Key) Then
+                    idx._aliases(lb.Key) = New AliasInfo With {.BookNumber = lb.Value, .Ambiguous = False, .Abbreviation = False}
                 End If
             Next
 

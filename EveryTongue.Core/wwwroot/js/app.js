@@ -92,7 +92,16 @@ var T={connecting:'Connecting...',connected:'Connected',disconnected:'Disconnect
     bold:'Bold',font:'Font',style:'Style',voice:'Voice',speed:'Speed',color:'Text Color',
     slow:'Slow',normal:'Normal',fast:'Fast',vfast:'Very Fast',
     start:'Start',stop:'Stop',restart:'Restart',clear:'Clear',
-    saveTranscript:'Save Transcript',transLang:'Translation',remote:'Remote Control',settings:'Settings',readAloud:'Read aloud',keepScreen:'Keep screen on',scrollDir:'Scroll Direction',scrollUp:'Bottom-up (newest at bottom)',scrollDown:'Top-down (newest at top)',tags:'Tags',tagOff:'Off',tagLang:'Language',tagTime:'Time',tagBoth:'Language + Time',bible:'Bible',bibleOT:'Old Testament',bibleNT:'New Testament',bibleSearch:'Search',bibleNoResults:'No results found',bibleSelectTrans:'Select a translation',cloudVoice:'Every Tongue Voices',ttsBehind:'{0} behind \u2014 tap to skip',readAll:'Read All',readVerse:'Read',bibleTranslate:'Translate',bibleOriginal:'Original',hostSpeaker:'Speaker',hostSpeakerDefault:'(template default)',hostMode:'Connectivity',hostModeOnline:'Online',hostModeOffline:'Offline',chooseLang:'Choose your language',lpPopular:'Popular',lpAll:'All Languages',searchLangs:'Search languages...',noTranslation:'No translation',browseAll:'Browse All',adminLabel:'Administrator',adminPin:'PIN',adminBad:'Invalid PIN',adminOk:'Admin access granted',lpViaEnglish:'via English',hostPivot:'Translation pivot'};
+    saveTranscript:'Save Transcript',transLang:'Translation',remote:'Remote Control',settings:'Settings',readAloud:'Read aloud',keepScreen:'Keep screen on',scrollDir:'Scroll Direction',scrollUp:'Bottom-up (newest at bottom)',scrollDown:'Top-down (newest at top)',tags:'Tags',tagOff:'Off',tagLang:'Language',tagTime:'Time',tagBoth:'Language + Time',bible:'Bible',bibleOT:'Old Testament',bibleNT:'New Testament',bibleSearch:'Search',bibleNoResults:'No results found',bibleSelectTrans:'Select a translation',cloudVoice:'Every Tongue Voices',ttsBehind:'{0} behind \u2014 tap to skip',readAll:'Read All',readVerse:'Read',bibleTranslate:'Translate',bibleOriginal:'Original',hostSpeaker:'Speaker',hostSpeakerDefault:'(template default)',hostMode:'Connectivity',hostModeOnline:'Online',hostModeOffline:'Offline',chooseLang:'Choose your language',lpPopular:'Popular',lpAll:'All Languages',searchLangs:'Search languages...',noTranslation:'No translation',browseAll:'Browse All',adminLabel:'Administrator',adminPin:'PIN',adminBad:'Invalid PIN',adminOk:'Admin access granted',lpViaEnglish:'via English',hostPivot:'Translation pivot',
+    home:'Home',shareRoom:'Share Room',roomQr:'Room QR',close:'Close',
+    bibleRefPh:'John 3:16',bibleGo:'Go',bibleSearchPh:'Search...',
+    roomLabel:'Room',diagTitle:'Captions received on this device (tap to hide)',
+    diagOffline:'offline',diagNoCaptions:'0 captions',
+    paused:'Paused',playing:'Playing',loading:'Loading...',
+    pttTap:'Tap to speak',pttHold:'Hold to speak',speakingBanner:'{0} speaking...',
+    lockRoom:'Lock Room',pttToggleLbl:'PTT: Tap to toggle',pipelineLbl:'Pipeline',
+    err_metricsUnavailable:'Metrics not available',err_translationUnavailable:'Translation not available',err_adminNotConfigured:'Admin not configured',err_invalidPin:'Invalid PIN',err_noCertificate:'No certificate available',err_serviceUnavailable:'Service unavailable',err_missingParams:'Missing parameters',err_unknownAction:'Unknown action',err_creatorCodeRequired:'Host code required',err_roomNotFound:'Room not found',err_noOfflineSttModel:'This server has no offline speech model, so conversation rooms can\'t transcribe. Use a conference or dictation room instead.',err_invalidRequest:'Invalid request',err_notAuthorized:'Not authorized',err_badRequest:'Bad request',err_badRating:'Invalid rating',err_missingClientId:'Missing client id',err_alreadySubmitted:'Already submitted',err_invalidJson:'Invalid JSON',err_missingTranslateParams:'Missing text, source language, or target language',err_emptyTranslateParams:'Empty text, source language, or target language',err_translationFailed:'Translation failed',err_settingsUnavailable:'Settings not available',err_nameAndCodeRequired:'Name and hosting code are required',err_unknownSttBackend:'Unknown speech engine',err_unknownTranslationBackend:'Unknown translation engine',err_unknownTemplate:'Unknown template',err_emptyConfig:'Empty configuration',err_invalidConfigJson:'Invalid configuration JSON',err_bibleUnavailable:'Bible service not available',err_catalogFetchFailed:'Catalog fetch failed',err_translationIdRequired:'Translation id required',err_unknownTranslationId:'Unknown translation — fetch the catalog first',err_installError:'Install error',err_internalError:'Internal server error',err_qAndTranslationRequired:'Search text and translation required',err_refRequired:'Reference required',err_invalidHostingCode:'Invalid hosting code',err_pipelineUnavailable:'Pipeline not available',err_audioUnavailable:'Audio service not available',err_invalidFilename:'Invalid filename',err_notFound:'Not found',err_roomLocked:'Room is locked',
+    feedbackTitle:'Did the subtitles give you any trouble today?',feedbackCommentPh:'Describe any problem you noticed — wrong words, delays, freezes… (optional)',feedbackSubmit:'Send',feedbackSkip:'No problems — skip',feedbackThanks:'Thank you — this helps us fix it!'};
 /* Detect browser language and fetch matching server-side locale */
 var detectedBrowserLang='';
 (function(){
@@ -110,6 +119,10 @@ var detectedBrowserLang='';
         try{
           var data=JSON.parse(xhr.responseText);
           for(var k in data){if(data.hasOwnProperty(k))T[k]=data[k]}
+          /* Re-apply the static labels — this callback fires after the whole
+             script has run, so the first applyStaticI18n() pass used the
+             English fallbacks (function declarations hoist; it exists). */
+          if(typeof applyStaticI18n==='function')applyStaticI18n();
         }catch(e){LOG('locale parse error: '+e)}
       }
     };
@@ -474,7 +487,7 @@ function initRoomShareButton(){
     if(xhr.status===200){
       try{
         var room=JSON.parse(xhr.responseText);
-        document.getElementById('roomQrTitle').textContent=room.name||'Room';
+        document.getElementById('roomQrTitle').textContent=room.name||t('roomLabel');
       }catch(e){}
     }
   };
@@ -548,7 +561,7 @@ function ensureCapBadge(){
   if(capBadge||!inRoomView()||!capDiag)return;
   capBadge=document.createElement('div');
   capBadge.id='capBadge';
-  capBadge.title='Captions received on this device (tap to hide)';
+  capBadge.title=t('diagTitle');
   capBadge.style.cssText='position:fixed;bottom:8px;right:8px;z-index:150;font-size:11px;padding:4px 9px;border-radius:10px;background:rgba(0,0,0,0.55);font-family:monospace;cursor:pointer;user-select:none';
   capBadge.addEventListener('click',function(){capBadge.style.display='none'});
   document.body.appendChild(capBadge);
@@ -558,8 +571,8 @@ function updateCapBadge(){
   if(!capBadge)return;
   var age=capLastAt?Math.round((Date.now()-capLastAt)/1000):-1;
   var col,txt;
-  if(!wsRef||wsRef.readyState!==1){col='#f55';txt='● offline'}
-  else if(capCount===0){col='#fa4';txt='● 0 captions'}
+  if(!wsRef||wsRef.readyState!==1){col='#f55';txt='● '+t('diagOffline')}
+  else if(capCount===0){col='#fa4';txt='● '+t('diagNoCaptions')}
   else if(age>=0&&age<=20){col='#5c5';txt='● '+capCount}
   else{col='#fa4';txt='● '+capCount+' · '+age+'s'}
   capBadge.style.color=col;capBadge.textContent=txt;
@@ -909,7 +922,7 @@ function addLineSpeakBtn(lineEl,text,ttsLang){
   var btn=document.createElement('span');
   btn.className='line-speak-btn';
   btn.textContent='\u25B6';
-  btn.title='Read aloud';
+  btn.title=t('readAloud');
   btn.addEventListener('click',function(e){
     e.stopPropagation();
     var lang=ttsLang||getActiveIdentityLang();
@@ -1065,7 +1078,7 @@ function connect(){
       else if(msg.type==='tts'){handleTtsMessage(msg)}
       else if(msg.type==='welcome'){myClientId=msg.clientId||'';LOG('My client ID: '+myClientId);if(_hadWelcome){checkRoomOpen()}_hadWelcome=true;initPushToTalk();tryClaimHost()}
       else if(msg.type==='pong'){}
-      else if(msg.type==='error'){showRoomError(msg.message||'Error')}
+      else if(msg.type==='error'){showRoomError(msg.errorCode&&T['err_'+msg.errorCode]?t('err_'+msg.errorCode):(msg.message||t('errorLabel')))}
       else if(msg.type==='broadcastState'){handleBroadcastState(msg)}
       else if(msg.type==='roomClosed'){onRoomClosed()}
       else if(msg.type==='kicked'){showRoomError(t('roomKicked'));setTimeout(afterRoomGone,3000)}
@@ -1074,7 +1087,7 @@ function connect(){
       else if(msg.type==='pauseStateChanged'){
         window._roomPaused=!!msg.paused;
         var pb=document.getElementById('hcPauseBtn');
-        if(pb){pb.style.background=msg.paused?'#e74c3c':'#27ae60';pb.textContent=msg.paused?'\u23F8 Paused':'\u25B6 Playing'}
+        if(pb){pb.style.background=msg.paused?'#e74c3c':'#27ae60';pb.textContent=msg.paused?'\u23F8 '+t('paused'):'\u25B6 '+t('playing')}
         LOG('Room paused: '+msg.paused);
       }
       else if(msg.type==='memberJoined'){addRoomMember(msg)}
@@ -1099,10 +1112,22 @@ setInterval(function(){
   if(wsRef&&wsRef.readyState===1){try{wsRef.send(JSON.stringify({type:'ping'}))}catch(ex){}}
 },15000);
 
-/* ── Apply i18n to HTML elements (pre-connect) ── */
+/* ── Apply i18n to HTML elements (pre-connect) ──
+   Runs once immediately (English fallbacks) and AGAIN from the /api/locale
+   XHR callback — the XHR is async, so the whole script executes before the
+   locale arrives; without the re-run every static label stayed English. */
+function applyStaticI18n(){
 document.title=t('title');
-statusEl.textContent=t('connecting');
+/* Only while still disconnected — a re-run must not clobber "Connected". */
+if(typeof wsRef==='undefined'||!wsRef||wsRef.readyState!==1)statusEl.textContent=t('connecting');
 document.getElementById('btnSettings').title=t('settings');
+document.getElementById('btnHome').title=t('home');
+document.getElementById('btnShareRoom').title=t('shareRoom');
+document.getElementById('roomQrImg').alt=t('roomQr');
+document.getElementById('btnRoomQrClose').textContent=t('close');
+document.getElementById('bibleRefInput').placeholder=t('bibleRefPh');
+document.getElementById('btnRefGo').textContent=t('bibleGo');
+document.getElementById('bibleSearchInput').placeholder=t('bibleSearchPh');
 document.getElementById('lblSpeak').textContent=t('readAloud');
 if(!speakEnabled){btnSpeak.innerHTML='&#128264; '+t('readAloud')}
 document.getElementById('lblFont').textContent=t('font');
@@ -1112,10 +1137,8 @@ document.getElementById('lblVoice').textContent=t('voice');
 document.getElementById('lblSpeed').textContent=t('speed');
 document.getElementById('lblScroll').textContent=t('scrollDir');
 var sdOpts=document.getElementById('scrollDir').options;sdOpts[0].textContent=t('scrollUp');sdOpts[1].textContent=t('scrollDown');
-(function(){var sd=document.getElementById('scrollDir');sd.value=scrollMode;})();
 document.getElementById('lblTags').textContent=t('tags');
 var tmOpts=document.getElementById('tagMode').options;tmOpts[0].textContent=t('tagOff');tmOpts[1].textContent=t('tagLang');tmOpts[2].textContent=t('tagTime');tmOpts[3].textContent=t('tagBoth');
-(function(){var tm=document.getElementById('tagMode');tm.value=tagMode;})();
 document.getElementById('btnSave').innerHTML='&#128190; '+t('saveTranscript');
 document.getElementById('lblDisplayName').textContent=t('yourName');
 document.getElementById('displayNameInput').placeholder=t('enterYourName');
@@ -1123,6 +1146,11 @@ document.getElementById('lpTitle').textContent=t('chooseLang');
 document.getElementById('lpSearch').placeholder=t('searchLangs');
 document.getElementById('lpSkip').textContent=t('noTranslation');
 document.getElementById('lpAdminToggle').textContent=t('adminLabel');
+if(typeof rateSelect!=='undefined'&&rateSelect){var rO=rateSelect.options;rO[0].textContent=t('slow');rO[1].textContent=t('normal');rO[2].textContent=t('fast');rO[3].textContent=t('vfast')}
+}
+applyStaticI18n();
+(function(){var sd=document.getElementById('scrollDir');sd.value=scrollMode;})();
+(function(){var tm=document.getElementById('tagMode');tm.value=tagMode;})();
 
 /* ── Admin moved to /admin.html (three-tier IA): the picker's Administrator
    link navigates there; ALL server config UI lives on that page now. ── */
@@ -1226,6 +1254,10 @@ var bibleSearchBox=document.getElementById('bibleSearchBox');
 var bibleTranslations=[];
 var bibleNavStack=[];
 var currentBibleTrans='';
+/* Last chapter shown in the panel ({book,chapter,vs,ve}) — the Bible button
+   reopens here. Null until the first view; then the room's server-side
+   reading position is only used as the no-history fallback. */
+var lastBibleView=null;
 document.getElementById('btnBible').title=t('bible');
 
 /* OT/NT book order for display (short_name codes matching BibleService BookAliases) */
@@ -1236,6 +1268,27 @@ function toggleBible(){LOG('toggleBible');
   if(biblePanel.classList.contains('open')){biblePanel.classList.remove('open');return}
   closeAllPanels();
   biblePanel.classList.add('open');
+  /* Reopen where the reader last was; back arrow still gives chapters →
+     books for changing book from there. */
+  if(lastBibleView){openBibleRef(lastBibleView.book,lastBibleView.chapter,lastBibleView.vs,lastBibleView.ve);return}
+  /* No history yet: fall back to the room's reading position (the last
+     announcement the detection heard), so a viewer who joins late lands in
+     the passage. 404 = no fresh position → book list as before. */
+  var roomMatch=location.search.match(/[?&]room=([^&]+)/);
+  if(roomMatch){
+    fetch('/api/rooms/'+encodeURIComponent(roomMatch[1])+'/reading',{cache:'no-store'})
+      .then(function(r){if(!r.ok)throw 0;return r.json()})
+      .then(function(pos){
+        if(pos&&pos.book&&pos.chapter>0){openBibleRef(pos.book,pos.chapter,pos.verse||0,pos.verse||0)}
+        else if(bibleTranslations.length===0){loadBibleTranslations()}
+        else{showBookList()}
+      })
+      .catch(function(){
+        if(bibleTranslations.length===0){loadBibleTranslations()}
+        else{showBookList()}
+      });
+    return;
+  }
   if(bibleTranslations.length===0){loadBibleTranslations()}
   else{showBookList()}
 }
@@ -1265,7 +1318,7 @@ function getBibleLang(){
 }
 
 function loadBibleTranslations(){
-  bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">Loading...</div>';
+  bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">'+t('loading')+'</div>';
   currentBibleTrans='';
   var lang=getBibleLang();
   fetch('/bible/translations?lang='+encodeURIComponent(lang),{cache:'no-store'}).then(function(r){return r.json()}).then(function(data){
@@ -1376,7 +1429,7 @@ function showBookList(){
     return;
   }
 
-  bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">Loading...</div>';
+  bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">'+t('loading')+'</div>';
   fetch('/bible/'+encodeURIComponent(currentBibleTrans)+'/books').then(function(r){return r.json()}).then(function(books){
     cachedBooks=books||[];
     cachedBooksTransId=currentBibleTrans;
@@ -1457,7 +1510,7 @@ function showChapters(book){
   for(var b=0;b<cachedBooks.length;b++){if(cachedBooks[b].shortName===book){displayName=cachedBooks[b].longName;break}}
   bibleNavTitle.textContent=displayName;
   bibleSearchBox.style.display='none';
-  bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">Loading...</div>';
+  bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">'+t('loading')+'</div>';
 
   fetch('/bible/'+encodeURIComponent(currentBibleTrans)+'/'+encodeURIComponent(book)+'/1').then(function(r){return r.json()}).then(function(data){
     /* Get chapter count from cached books data, fallback to hardcoded */
@@ -1492,23 +1545,35 @@ function appendCopyrightFooter(){
   }
 }
 
-function showVerses(book,chapter){
-  LOG('showVerses: '+book+' ch='+chapter);
+/* Always the FULL chapter; focusVs/focusVe (optional) highlight that verse
+   range and scroll it into view. Every path that shows scripture lands here
+   (button, tapped caption link, typed reference, navigation) so the
+   behaviour is identical everywhere, and lastBibleView remembers the spot
+   for the Bible button's "reopen where I was". */
+function showVerses(book,chapter,focusVs,focusVe){
+  focusVs=focusVs||0;focusVe=focusVe||focusVs;
+  LOG('showVerses: '+book+' ch='+chapter+(focusVs?' focus='+focusVs+(focusVe>focusVs?'-'+focusVe:''):''));
   if(!currentBibleTrans){bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleSelectTrans')+'</div>';return}
+  lastBibleView={book:book,chapter:chapter,vs:focusVs,ve:focusVe};
   bibleNavStack=[{type:'books'},{type:'chapters',book:book}];
   btnBibleBack.style.display='';
-  bibleNavTitle.textContent=book+' '+chapter;
+  bibleNavTitle.textContent=book+' '+chapter+(focusVs>0?':'+focusVs+(focusVe>focusVs?'-'+focusVe:''):'');
   bibleSearchBox.style.display='none';
-  bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">Loading...</div>';
+  bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">'+t('loading')+'</div>';
 
   fetch('/bible/'+encodeURIComponent(currentBibleTrans)+'/'+encodeURIComponent(book)+'/'+chapter).then(function(r){return r.json()}).then(function(data){
     bibleContent.innerHTML='';
     if(!data||!data.verses||data.verses.length===0){
       bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:20px">'+t('bibleNoVerses')+'</div>';return;
     }
+    var focusEl=null;
     for(var i=0;i<data.verses.length;i++){
       var v=data.verses[i];
       var div=document.createElement('div');div.className='bible-verse';
+      if(focusVs>0&&v.verse>=focusVs&&v.verse<=focusVe){
+        div.className='bible-verse focused';
+        if(!focusEl)focusEl=div;
+      }
       var num=document.createElement('span');num.className='vnum';num.textContent=v.verse;
       div.appendChild(num);
       div.appendChild(document.createTextNode(' '+v.text));
@@ -1517,7 +1582,8 @@ function showVerses(book,chapter){
     }
     addReadAllBtn();
     appendCopyrightFooter();
-    bibleContent.scrollTop=0;
+    if(focusEl){bibleContent.scrollTop=Math.max(0,focusEl.offsetTop-bibleContent.offsetTop-8)}
+    else{bibleContent.scrollTop=0}
   }).catch(function(){
     bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleLoadFail')+'</div>';
   });
@@ -1535,29 +1601,8 @@ function lookupRef(){LOG('lookupRef');
   if(!input||!currentBibleTrans)return;
   fetch('/bible/parse?ref='+encodeURIComponent(input)+'&translation='+encodeURIComponent(currentBibleTrans)).then(function(r){return r.json()}).then(function(ref){
     if(!ref||!ref.isValid){bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleBadRef')+'</div>';return}
-    if(ref.verseStart>0){
-      var versePath=ref.verseStart+(ref.verseEnd>ref.verseStart?'-'+ref.verseEnd:'');
-      fetch('/bible/'+encodeURIComponent(currentBibleTrans)+'/'+encodeURIComponent(ref.book)+'/'+ref.chapter+'/'+versePath).then(function(r2){return r2.json()}).then(function(data){
-        bibleNavStack=[{type:'books'},{type:'chapters',book:ref.book}];
-        btnBibleBack.style.display='';
-        bibleNavTitle.textContent=ref.book+' '+ref.chapter+':'+versePath;
-        bibleSearchBox.style.display='none';
-        bibleContent.innerHTML='';
-        var verses=Array.isArray(data)?data:(data&&data.verses?data.verses:[]);
-        for(var i=0;i<verses.length;i++){
-          var v=verses[i];
-          var div=document.createElement('div');div.className='bible-verse';
-          var num=document.createElement('span');num.className='vnum';num.textContent=v.verse;
-          div.appendChild(num);div.appendChild(document.createTextNode(' '+v.text));
-          addVerseSpeakBtn(div,v.text);
-          bibleContent.appendChild(div);
-        }
-        addReadAllBtn();
-        appendCopyrightFooter();
-      }).catch(function(){});
-    }else{
-      showVerses(ref.book,ref.chapter);
-    }
+    /* Full chapter, typed verse focused — same behaviour as every other path. */
+    showVerses(ref.book,ref.chapter,ref.verseStart,ref.verseEnd);
   }).catch(function(){
     bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleRefError')+'</div>';
   });
@@ -1619,31 +1664,9 @@ function openBibleRef(book,chapter,verseStart,verseEnd){
     },150);
     return;
   }
-  /* verseStart 0 = chapter-only reference ("Matthew 4") — show the whole
-     chapter, never a literal ":0" */
-  var versePath=verseStart>0?verseStart+(verseEnd>verseStart?'-'+verseEnd:''):'';
-  bibleNavStack=[{type:'books'},{type:'chapters',book:book}];
-  btnBibleBack.style.display='';
-  bibleNavTitle.textContent=book+' '+chapter+(versePath?':'+versePath:'');
-  bibleSearchBox.style.display='none';
-  bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">Loading...</div>';
-
-  var refUrl='/bible/'+encodeURIComponent(currentBibleTrans)+'/'+encodeURIComponent(book)+'/'+chapter+(versePath?'/'+versePath:'');
-  fetch(refUrl).then(function(r){return r.json()}).then(function(data){
-    bibleContent.innerHTML='';
-    var verses=Array.isArray(data)?data:(data&&data.verses?data.verses:[]);
-    for(var i=0;i<verses.length;i++){
-      var v=verses[i];
-      var div=document.createElement('div');div.className='bible-verse';
-      var num=document.createElement('span');num.className='vnum';num.textContent=v.verse;
-      div.appendChild(num);div.appendChild(document.createTextNode(' '+v.text));
-      addVerseSpeakBtn(div,v.text);
-      bibleContent.appendChild(div);
-    }
-    addReadAllBtn();
-  }).catch(function(){
-    bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleLoadFail')+'</div>';
-  });
+  /* Full chapter with the verse focused — same behaviour as every other
+     path (verseStart 0 = chapter-only reference, no focus). */
+  showVerses(book,chapter,verseStart,verseEnd);
 }
 
 /* ── Bible Verse TTS ── */
@@ -2173,7 +2196,7 @@ function createPttButton(){
   var label=document.createElement('div');
   label.id='ptt-label';
   label.style.cssText='display:none';
-  label.textContent=pttMode==='toggle'?'Tap to speak':'Hold to speak';
+  label.textContent=pttMode==='toggle'?t('pttTap'):t('pttHold');
   dock.appendChild(label);
 
   /* Row with text input and mic button overlapping on the right */
@@ -2186,6 +2209,8 @@ function createPttButton(){
   btn.id='ptt-btn';
   btn.style.cssText='width:48px;height:48px;min-width:48px;border-radius:50%;background:#7c9cf7;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.4);user-select:none;-webkit-user-select:none;touch-action:none;transition:background 0.15s,transform 0.15s';
   btn.innerHTML='<svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>';
+  btn.setAttribute('role','button');
+  btn.setAttribute('aria-label',pttMode==='toggle'?t('pttTap'):t('pttHold'));
   row.appendChild(btn);
 
   /* Padding so scrolled content clears the fixed dock — recalculated dynamically */
@@ -2329,7 +2354,7 @@ function startRecording(btn,label){
       btn.style.background='#7c9cf7';
       btn.style.transform='';
       label.textContent=t('micDenied');
-      var dl=pttMode==='toggle'?'Tap to speak':'Hold to speak';
+      var dl=pttMode==='toggle'?t('pttTap'):t('pttHold');
       setTimeout(function(){label.textContent=dl},2000);
     });
 }
@@ -2345,7 +2370,7 @@ function stopRecording(btn,label){
   if(pttRecorder&&pttRecorder.state==='recording'){
     pttRecorder.stop();
   }
-  var defaultLabel=pttMode==='toggle'?'Tap to speak':'Hold to speak';
+  var defaultLabel=pttMode==='toggle'?t('pttTap'):t('pttHold');
   setTimeout(function(){label.textContent=defaultLabel},2000);
 }
 
@@ -2355,7 +2380,7 @@ function cancelRecording(btn,label){
   btn.style.background='#7c9cf7';
   btn.style.transform='';
   btn.classList.remove('ptt-recording');
-  label.textContent=pttMode==='toggle'?'Tap to speak':'Hold to speak';
+  label.textContent=pttMode==='toggle'?t('pttTap'):t('pttHold');
   localRecording=false;updateSpeakingUI();
   if(wsRef&&wsRef.readyState===1){wsRef.send(JSON.stringify({type:'stopSpeaking'}))}
   if(pttRecorder&&pttRecorder.state==='recording'){
@@ -2628,7 +2653,7 @@ function updateParticipantBar(){
   var title=document.getElementById('participantBarTitle');
   if(!title)return;
   var roomMatch=location.search.match(/[?&]room=([^&]+)/);
-  var roomName='Room';
+  var roomName=t('roomLabel');
   var total=roomMembers.length+virtualMembers.length;
   title.textContent=roomName+' ('+total+')';
   renderParticipantDetails();
@@ -2767,7 +2792,7 @@ function updateSpeakingUI(){
     banner.style.display='flex';
     banner.style.borderBottomColor='#e74c3c';
   }else if(otherNames.length>0){
-    nameEl.textContent=otherNames.join(', ')+' speaking...';
+    nameEl.textContent=t('speakingBanner').replace('{0}',otherNames.join(', '));
     banner.style.display='flex';
     banner.style.borderBottomColor='#e74c3c';
   }else{
@@ -2808,7 +2833,7 @@ function toggleHostPanel(){
     '<button id="hcAdmin" style="width:100%;padding:10px;border:1px solid #7c9cf7;border-radius:8px;background:transparent;color:#7c9cf7;font-size:14px;cursor:pointer;margin-bottom:8px">⚙ '+t('hostAdmin')+'</button>';
   if(pttRoomType==='conference'){
     var isPaused=window._roomPaused||false;
-    hostHtml+='<button id="hcPauseBtn" style="width:100%;padding:10px;border:none;border-radius:8px;background:'+(isPaused?'#e74c3c':'#27ae60')+';color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">'+(isPaused?'\u23F8 Paused':'\u25B6 Playing')+'</button>';
+    hostHtml+='<button id="hcPauseBtn" style="width:100%;padding:10px;border:none;border-radius:8px;background:'+(isPaused?'#e74c3c':'#27ae60')+';color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:8px">'+(isPaused?'\u23F8 '+t('paused'):'\u25B6 '+t('playing'))+'</button>';
     if(roomAudioSource==='web'){
       /* Web-mic room: THIS device is the microphone. Button + live level meter. */
       hostHtml+='<button id="hcBroadcast" style="width:100%;padding:10px;border:none;border-radius:8px;background:'+(bcActive?'#e74c3c':'#7c9cf7')+';color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:4px">'+(bcActive?'\u25CF '+t('bcStop'):'\uD83C\uDF99 '+t('bcStart'))+'</button>'+
@@ -2817,8 +2842,8 @@ function toggleHostPanel(){
   }
   if(pttRoomType!=='conference'){
     hostHtml+=
-      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="color:#ccc;font-size:13px">Lock Room</span><div id="hcLockToggle" class="hc-toggle" style="width:40px;height:22px;background:#444;border-radius:11px;position:relative;cursor:pointer;transition:background 0.2s"><div style="width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s"></div></div></div>'+
-      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><span style="color:#ccc;font-size:13px">PTT: Tap to toggle</span><div id="hcPttToggle" class="hc-toggle" style="width:40px;height:22px;background:#444;border-radius:11px;position:relative;cursor:pointer;transition:background 0.2s"><div style="width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s"></div></div></div>'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="color:#ccc;font-size:13px">'+t('lockRoom')+'</span><div id="hcLockToggle" class="hc-toggle" style="width:40px;height:22px;background:#444;border-radius:11px;position:relative;cursor:pointer;transition:background 0.2s"><div style="width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s"></div></div></div>'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><span style="color:#ccc;font-size:13px">'+t('pttToggleLbl')+'</span><div id="hcPttToggle" class="hc-toggle" style="width:40px;height:22px;background:#444;border-radius:11px;position:relative;cursor:pointer;transition:background 0.2s"><div style="width:18px;height:18px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:transform 0.2s"></div></div></div>'+
       '<button id="hcAddGuest" style="width:100%;padding:10px;border:1px solid #7c9cf7;border-radius:8px;background:transparent;color:#7c9cf7;font-size:14px;cursor:pointer">+ '+t('addGuest')+'</button>';
   }
   panel.innerHTML=hostHtml;
@@ -2843,7 +2868,7 @@ function toggleHostPanel(){
       '<option value="offline"'+(roomMode==='offline'?' selected':'')+'>'+t('hostModeOffline')+'</option>'+
       '</select>';
     var pipeHtml='<div style="border-top:1px solid #444;margin-top:12px;padding-top:12px">'+
-      '<div style="color:#aaa;font-size:12px;font-weight:600;margin-bottom:8px">Pipeline</div>'+
+      '<div style="color:#aaa;font-size:12px;font-weight:600;margin-bottom:8px">'+t('pipelineLbl')+'</div>'+
       spkHtml+modeHtml+
       '<label style="color:#888;font-size:11px">'+t('hostSpeakerLang')+'</label>'+
       '<select id="hcPipeLang" style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:13px;margin-bottom:8px;box-sizing:border-box">'+
@@ -2974,7 +2999,7 @@ function toggleHostPanel(){
           var res=JSON.parse(xhr.responseText);
           if(res.ok){if(st){st.textContent=t('pipeResetOk');st.style.color='#4f4'}}
           else{if(st){st.textContent=res.error||t('resetFailed');st.style.color='#f44'}}
-        }catch(e){if(st){st.textContent='Error';st.style.color='#f44'}}
+        }catch(e){if(st){st.textContent=t('errorLabel');st.style.color='#f44'}}
       };
       xhr.onerror=function(){if(st){st.textContent=t('netError');st.style.color='#f44'}};
       xhr.send(JSON.stringify({roomId:roomId,clientId:myClientId}));
@@ -3212,7 +3237,9 @@ function adjustDockPadding(){
 
 function updatePttLabel(){
   var label=document.getElementById('ptt-label');
-  if(label)label.textContent=pttMode==='toggle'?'Tap to speak':'Hold to speak';
+  if(label)label.textContent=pttMode==='toggle'?t('pttTap'):t('pttHold');
+  var pbtn=document.getElementById('ptt-btn');
+  if(pbtn)pbtn.setAttribute('aria-label',pttMode==='toggle'?t('pttTap'):t('pttHold'));
 }
 
 /* Text chat (Conversation rooms) — inserted into the pttChatRow before the mic button */

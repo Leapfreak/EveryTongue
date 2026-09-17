@@ -37,24 +37,26 @@ Namespace Server.Middleware
             If TypeOf caught Is BadHttpRequestException Then
                 _logger.LogWarning(caught, "Bad request: {Path}", context.Request.Path)
                 context.Response.StatusCode = CInt(HttpStatusCode.BadRequest)
-                Await WriteErrorResponse(context, "Bad request", caught.Message)
+                Await WriteErrorResponse(context, "Bad request", "badRequest", caught.Message)
             ElseIf caught IsNot Nothing Then
                 _logger.LogError(caught, "Unhandled exception: {Method} {Path}",
                                 context.Request.Method, context.Request.Path)
                 context.Response.StatusCode = CInt(HttpStatusCode.InternalServerError)
-                Await WriteErrorResponse(context, "Internal server error")
+                Await WriteErrorResponse(context, "Internal server error", "internalError")
             End If
         End Function
 
         Private Shared Async Function WriteErrorResponse(
                 context As HttpContext,
                 error_msg As String,
+                errorCode As String,
                 Optional detail As String = Nothing) As Task
             If context.Response.HasStarted Then Return
 
             context.Response.ContentType = "application/json"
             Dim errorObj As New Dictionary(Of String, String) From {
-                {"error", error_msg}
+                {"error", error_msg},
+                {"errorCode", errorCode}
             }
             If detail IsNot Nothing Then
                 errorObj("detail") = detail
