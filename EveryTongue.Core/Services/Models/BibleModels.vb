@@ -28,6 +28,14 @@ Namespace Services.Models
         Public Property Book As String
         Public Property Chapter As Integer
         Public Property Verses As List(Of BibleVerse)
+        ''' <summary>Universal book_number the requested book resolved to (0 = not found).
+        ''' The request may name the book by a wire code ("Mar") that is not this
+        ''' Bible's own short_name ("Mrk"), so clients match books by this number.</summary>
+        Public Property BookNumber As Integer
+        ''' <summary>This Bible's long name for the book ("" when not found).</summary>
+        Public Property BookName As String = ""
+        ''' <summary>Chapters the book has in this Bible (0 when not found).</summary>
+        Public Property ChapterCount As Integer
     End Class
 
     ''' <summary>
@@ -46,6 +54,8 @@ Namespace Services.Models
     Public Class BibleSearchResult
         Public Property TranslationId As String
         Public Property Book As String
+        ''' <summary>Universal book_number - clients open the result's chapter by this.</summary>
+        Public Property BookNumber As Integer
         Public Property Chapter As Integer
         Public Property Verse As Integer
         Public Property Text As String

@@ -621,7 +621,11 @@ Namespace Controllers
                     Return
                 End If
 
-                Dim chapter = Await bibleSvc.GetChapterAsync(trans.Id, parsed.Book, parsed.Chapter, CancellationToken.None)
+                ' By book NUMBER: the wire code can be another book's name in this Bible
+                ' (BCI's "Jer" is book 315, the Letter of Jeremiah).
+                Dim chapter = Await bibleSvc.GetChapterAsync(trans.Id,
+                    If(parsed.BookNumber > 0, parsed.BookNumber.ToString(Globalization.CultureInfo.InvariantCulture), parsed.Book),
+                    parsed.Chapter, CancellationToken.None)
                 If chapter Is Nothing OrElse chapter.Verses Is Nothing OrElse chapter.Verses.Count = 0 Then
                     ClearBibleText()
                     _rtbBibleText.AppendText(String.Format(Services.Infrastructure.LanguagePackService.Instance.GetString("Bible_NoVerses"), refText))

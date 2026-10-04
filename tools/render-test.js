@@ -31,9 +31,9 @@ const STUB = `<script>
       /* Ref rendering: valid offsets -> inline underline; start=-1 (source-language
          ref on a translated feed) -> trailing chip, never a wrong underline. */
       deliver({type:'commit',id:3,text:'Reading from Matthew 4 today.',lang:'en',sourceLang:'eng_Latn',time:'12:00:10',
-        refs:[{book:'Mat',chapter:4,verseStart:0,verseEnd:0,matched:'Matthew 4',start:13,len:9}]},1100);
+        refs:[{book:'Mat',bookNumber:470,chapter:4,verseStart:0,verseEnd:0,matched:'Matthew 4',start:13,len:9}]},1100);
       deliver({type:'commit',id:4,text:'CHIP_MODE_MARKER translated text here.',lang:'en',sourceLang:'cat_Latn',time:'12:00:15',
-        refs:[{book:'Mat',chapter:4,verseStart:0,verseEnd:0,matched:'Mateu 4',start:-1,len:0}]},1300);
+        refs:[{book:'Mat',bookNumber:470,chapter:4,verseStart:0,verseEnd:0,matched:'Mateu 4',start:-1,len:0}]},1300);
     },30);
     self.send=function(d){self.sent.push(d)};
     self.close=function(){self.readyState=3};
@@ -147,7 +147,9 @@ server.listen(PORT, async () => {
     console.log("last line physically visible:", report.lastLineVisible);
     console.log("ref links:", JSON.stringify(report.refLinks));
     const refsOk = report.refLinks && report.refLinks.indexOf("Matthew 4") >= 0 &&
-        report.refLinks.some(x => x.indexOf("📖") >= 0 && x.indexOf("Mat 4") >= 0) &&
+        /* Chip shows a real name (no Bible list loaded here: the spoken words), never the internal book code "Mat". */
+        report.refLinks.some(x => x.indexOf("📖") >= 0 && x.indexOf("Mateu 4") >= 0) &&
+        !report.refLinks.some(x => x.indexOf("Mat 4") >= 0) &&
         !report.refLinks.some(x => x.indexOf(":0") >= 0);
     console.log("ref rendering (inline + chip, no :0):", refsOk);
     const pass = report.hasCommit1 && report.hasCommit2 && report.lastLineVisible && report.containerParent === "BODY" && refsOk;

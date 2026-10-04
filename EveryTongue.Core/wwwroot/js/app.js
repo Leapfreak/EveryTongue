@@ -953,7 +953,7 @@ function makeRefLink(r,label){
   var link=document.createElement('span');
   link.className='bible-ref-link';
   link.textContent=label;
-  link.dataset.book=r.book;link.dataset.ch=r.chapter;
+  link.dataset.book=r.bookNumber||r.book;link.dataset.ch=r.chapter;
   link.dataset.vs=r.verseStart;link.dataset.ve=r.verseEnd;
   link.onclick=function(e){
     e.stopPropagation();
@@ -983,7 +983,10 @@ function renderTextWithRefs(el,text,refs){
   if(pos<text.length){el.appendChild(document.createTextNode(text.substring(pos)))}
   for(var i=0;i<chips.length;i++){
     var c=chips[i];
-    var label='📖 '+c.book+' '+c.chapter+(c.verseStart>0?':'+c.verseStart+(c.verseEnd>c.verseStart?'-'+c.verseEnd:''):'');
+    /* The selected Bible's own name for the book, else the words the speaker
+       said - never the app's internal book code ("Mar"). */
+    var chipName=bibleBookName(c.bookNumber);
+    var label='📖 '+(chipName?chipName+' '+c.chapter+(c.verseStart>0?':'+c.verseStart+(c.verseEnd>c.verseStart?'-'+c.verseEnd:''):''):(c.matched||c.book+' '+c.chapter));
     el.appendChild(document.createTextNode(' '));
     el.appendChild(makeRefLink(c,label));
   }
@@ -1256,15 +1259,22 @@ var bibleSearchBox=document.getElementById('bibleSearchBox');
 var bibleTranslations=[];
 var bibleNavStack=[];
 var currentBibleTrans='';
-/* Last chapter shown in the panel ({book,chapter,vs,ve}) — the Bible button
+/* Last chapter shown in the panel ({book,chapter,vs,ve}; book = book number) — the Bible button
    reopens here. Null until the first view; then the room's server-side
    reading position is only used as the no-history fallback. */
 var lastBibleView=null;
 document.getElementById('btnBible').title=t('bible');
 
-/* OT/NT book order for display (short_name codes matching BibleService BookAliases) */
-var otBooks=['Gen','Exod','Lev','Num','Deut','Josh','Judg','Ruth','1Sam','2Sam','1Kgs','2Kgs','1Chr','2Chr','Ezra','Neh','Esth','Job','Ps','Prov','Eccl','Song','Isa','Jer','Lam','Ezek','Dan','Hos','Joel','Amos','Obad','Jonah','Mic','Nah','Hab','Zeph','Hag','Zech','Mal'];
-var ntBooks=['Matt','Mark','Luke','John','Acts','Rom','1Cor','2Cor','Gal','Eph','Phil','Col','1Thess','2Thess','1Tim','2Tim','Titus','Phlm','Heb','Jas','1Pet','2Pet','1John','2John','3John','Jude','Rev'];
+/* Books are identified ONLY by the universal book number (480 = Mark) in this
+   viewer. Names differ per Bible and language and are not unique across Bibles
+   (BCI's "Jer" is book 315, every other Bible's "Jer" is Jeremiah 300), so a
+   name is only ever displayed, never looked up. */
+function bibleBookName(bookNum){
+  bookNum=parseInt(bookNum);
+  if(!bookNum||cachedBooksTransId!==currentBibleTrans)return '';
+  for(var i=0;i<cachedBooks.length;i++){if(cachedBooks[i].number===bookNum)return cachedBooks[i].longName||cachedBooks[i].shortName}
+  return '';
+}
 
 function toggleBible(){LOG('toggleBible');
   if(biblePanel.classList.contains('open')){biblePanel.classList.remove('open');return}
@@ -1281,7 +1291,7 @@ function toggleBible(){LOG('toggleBible');
     fetch('/api/rooms/'+encodeURIComponent(roomMatch[1])+'/reading',{cache:'no-store'})
       .then(function(r){if(!r.ok)throw 0;return r.json()})
       .then(function(pos){
-        if(pos&&pos.book&&pos.chapter>0){openBibleRef(pos.book,pos.chapter,pos.verse||0,pos.verse||0)}
+        if(pos&&(pos.bookNumber||pos.book)&&pos.chapter>0){openBibleRef(pos.bookNumber||pos.book,pos.chapter,pos.verse||0,pos.verse||0)}
         else if(bibleTranslations.length===0){loadBibleTranslations()}
         else{showBookList()}
       })
@@ -1381,21 +1391,11 @@ function onBibleTransChange(val){
   /* Re-execute current view with the new translation */
   var refInput=document.getElementById('bibleRefInput').value.trim();
   var searchInput=document.getElementById('bibleSearchInput').value.trim();
-  var navTitle=bibleNavTitle.textContent||'';
 
-  /* If viewing a chapter (nav stack has books + chapters entry) */
-  if(bibleNavStack.length>=2&&bibleNavStack[bibleNavStack.length-1].type==='chapters'){
-    var book=bibleNavStack[bibleNavStack.length-1].book;
-    /* Check if we were viewing specific verses (title contains ':') */
-    var colIdx=navTitle.indexOf(':');
-    if(colIdx>-1){
-      /* Re-run the reference lookup */
-      if(refInput){lookupRef();return}
-    }
-    /* Re-show the chapter we were on — parse chapter from title */
-    var parts=navTitle.split(' ');
-    var ch=parseInt(parts[parts.length-1]);
-    if(ch>0){showVerses(book,ch);return}
+  /* Viewing a chapter: the same passage in the new translation, by book
+     number (a name from the old Bible can mean another book in the new one). */
+  if(bibleNavStack.length>=2&&bibleNavStack[bibleNavStack.length-1].type==='chapters'&&lastBibleView){
+    showVerses(lastBibleView.book,lastBibleView.chapter,lastBibleView.vs,lastBibleView.ve);return;
   }
 
   /* If a search was active, re-run it */
@@ -1437,8 +1437,7 @@ function showBookList(){
     cachedBooksTransId=currentBibleTrans;
     renderBookGrid(cachedBooks);
   }).catch(function(){
-    /* Fallback to hardcoded English list */
-    renderBookGridFallback();
+    bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleLoadFail')+'</div>';
   });
 }
 
@@ -1456,7 +1455,7 @@ function renderBookGrid(books){
   var otGrid=document.createElement('div');otGrid.className='bible-book-grid';
   for(var i=0;i<otList.length;i++){
     var btn=document.createElement('button');btn.className='bible-book-btn';
-    btn.textContent=otList[i].shortName;btn.dataset.book=otList[i].shortName;
+    btn.textContent=otList[i].shortName;btn.dataset.book=otList[i].number;
     btn.title=otList[i].longName;
     btn.onclick=function(){showChapters(this.dataset.book)};
     otGrid.appendChild(btn);
@@ -1468,33 +1467,8 @@ function renderBookGrid(books){
   var ntGrid=document.createElement('div');ntGrid.className='bible-book-grid';
   for(var j=0;j<ntList.length;j++){
     var btn2=document.createElement('button');btn2.className='bible-book-btn';
-    btn2.textContent=ntList[j].shortName;btn2.dataset.book=ntList[j].shortName;
+    btn2.textContent=ntList[j].shortName;btn2.dataset.book=ntList[j].number;
     btn2.title=ntList[j].longName;
-    btn2.onclick=function(){showChapters(this.dataset.book)};
-    ntGrid.appendChild(btn2);
-  }
-  bibleContent.appendChild(ntGrid);
-  bibleContent.scrollTop=0;
-}
-
-function renderBookGridFallback(){
-  bibleContent.innerHTML='';
-  var ot=document.createElement('div');ot.className='bible-ot-label';ot.textContent=t('bibleOT');
-  bibleContent.appendChild(ot);
-  var otGrid=document.createElement('div');otGrid.className='bible-book-grid';
-  for(var i=0;i<otBooks.length;i++){
-    var btn=document.createElement('button');btn.className='bible-book-btn';
-    btn.textContent=otBooks[i];btn.dataset.book=otBooks[i];
-    btn.onclick=function(){showChapters(this.dataset.book)};
-    otGrid.appendChild(btn);
-  }
-  bibleContent.appendChild(otGrid);
-  var nt=document.createElement('div');nt.className='bible-nt-label';nt.style.marginTop='16px';nt.textContent=t('bibleNT');
-  bibleContent.appendChild(nt);
-  var ntGrid=document.createElement('div');ntGrid.className='bible-book-grid';
-  for(var j=0;j<ntBooks.length;j++){
-    var btn2=document.createElement('button');btn2.className='bible-book-btn';
-    btn2.textContent=ntBooks[j];btn2.dataset.book=ntBooks[j];
     btn2.onclick=function(){showChapters(this.dataset.book)};
     ntGrid.appendChild(btn2);
   }
@@ -1507,17 +1481,19 @@ function showChapters(book){
   if(!currentBibleTrans){bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleSelectTrans')+'</div>';return}
   bibleNavStack=[{type:'books'}];
   btnBibleBack.style.display='';
-  /* Show long name in title if available */
-  var displayName=book;
-  for(var b=0;b<cachedBooks.length;b++){if(cachedBooks[b].shortName===book){displayName=cachedBooks[b].longName;break}}
-  bibleNavTitle.textContent=displayName;
+  bibleNavTitle.textContent=bibleBookName(book);
   bibleSearchBox.style.display='none';
   bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">'+t('loading')+'</div>';
 
+  /* Name and chapter count come from the server for THIS Bible (a local
+     guess showed Mark with 50 chapters - field 2026-10-04). */
   fetch('/bible/'+encodeURIComponent(currentBibleTrans)+'/'+encodeURIComponent(book)+'/1').then(function(r){return r.json()}).then(function(data){
-    /* Get chapter count from cached books data, fallback to hardcoded */
-    var maxCh=getBookChapterCount(book);
-    for(var b=0;b<cachedBooks.length;b++){if(cachedBooks[b].shortName===book&&cachedBooks[b].chapters>0){maxCh=cachedBooks[b].chapters;break}}
+    var maxCh=data&&data.chapterCount>0?data.chapterCount:0;
+    if(maxCh===0){
+      slogDiag('bible chapters: no book "'+book+'" in '+currentBibleTrans);
+      bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:20px">'+t('bibleNoVerses')+'</div>';return;
+    }
+    if(data.bookName)bibleNavTitle.textContent=data.bookName;
     bibleContent.innerHTML='';
     var grid=document.createElement('div');grid.className='bible-chapter-grid';
     for(var c=1;c<=maxCh;c++){
@@ -1559,12 +1535,14 @@ function showVerses(book,chapter,focusVs,focusVe){
   lastBibleView={book:book,chapter:chapter,vs:focusVs,ve:focusVe};
   bibleNavStack=[{type:'books'},{type:'chapters',book:book}];
   btnBibleBack.style.display='';
-  bibleNavTitle.textContent=book+' '+chapter+(focusVs>0?':'+focusVs+(focusVe>focusVs?'-'+focusVe:''):'');
+  bibleNavTitle.textContent=(bibleBookName(book)+' '+chapter+(focusVs>0?':'+focusVs+(focusVe>focusVs?'-'+focusVe:''):'')).replace(/^ /,'');
   bibleSearchBox.style.display='none';
   bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:40px">'+t('loading')+'</div>';
 
   fetch('/bible/'+encodeURIComponent(currentBibleTrans)+'/'+encodeURIComponent(book)+'/'+chapter).then(function(r){return r.json()}).then(function(data){
     bibleContent.innerHTML='';
+    /* This Bible's own book name (the viewer only holds the number) */
+    if(data&&data.bookName)bibleNavTitle.textContent=data.bookName+' '+chapter+(focusVs>0?':'+focusVs+(focusVe>focusVs?'-'+focusVe:''):'');
     if(!data||!data.verses||data.verses.length===0){
       bibleContent.innerHTML='<div style="color:#888;text-align:center;padding:20px">'+t('bibleNoVerses')+'</div>';return;
     }
@@ -1584,7 +1562,16 @@ function showVerses(book,chapter,focusVs,focusVe){
     }
     addReadAllBtn();
     appendCopyrightFooter();
-    if(focusEl){bibleContent.scrollTop=Math.max(0,focusEl.offsetTop-bibleContent.offsetTop-8)}
+    if(focusEl){
+      bibleContent.scrollTop=Math.max(0,focusEl.offsetTop-bibleContent.offsetTop-8);
+      /* The sticky Read-all bar stays over the top of the text: measure where it
+         ends (it can wrap to two rows) and move the verse to just below it. */
+      var bar=bibleContent.querySelector('.bible-read-all-bar');
+      if(bar){
+        var gap=focusEl.getBoundingClientRect().top-bar.getBoundingClientRect().bottom;
+        if(gap<8)bibleContent.scrollTop=Math.max(0,bibleContent.scrollTop-(8-gap));
+      }
+    }
     else{bibleContent.scrollTop=0}
   }).catch(function(){
     bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleLoadFail')+'</div>';
@@ -1604,7 +1591,7 @@ function lookupRef(){LOG('lookupRef');
   fetch('/bible/parse?ref='+encodeURIComponent(input)+'&translation='+encodeURIComponent(currentBibleTrans)).then(function(r){return r.json()}).then(function(ref){
     if(!ref||!ref.isValid){bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleBadRef')+'</div>';return}
     /* Full chapter, typed verse focused — same behaviour as every other path. */
-    showVerses(ref.book,ref.chapter,ref.verseStart,ref.verseEnd);
+    showVerses(ref.bookNumber||ref.book,ref.chapter,ref.verseStart,ref.verseEnd);
   }).catch(function(){
     bibleContent.innerHTML='<div style="color:#f44;text-align:center;padding:20px">'+t('bibleRefError')+'</div>';
   });
@@ -1635,7 +1622,7 @@ function bibleSearch(){LOG('bibleSearch');
     for(var i=0;i<results.length;i++){
       var r=results[i];
       var div=document.createElement('div');div.className='bible-search-result';
-      div.dataset.book=r.book;div.dataset.ch=r.chapter;div.dataset.v=r.verse;
+      div.dataset.book=r.bookNumber||r.book;div.dataset.ch=r.chapter;div.dataset.v=r.verse;
       div.onclick=function(){showVerses(this.dataset.book,parseInt(this.dataset.ch))};
       var ref=document.createElement('div');ref.className='bible-search-ref';ref.textContent=r.book+' '+r.chapter+':'+r.verse;
       var txt=document.createElement('div');txt.className='bible-search-text';txt.textContent=r.text;
@@ -3410,8 +3397,3 @@ function initTextChat(){
   setTimeout(adjustDockPadding,50);
 }
 
-/* Chapter counts by book (standard Protestant canon) */
-function getBookChapterCount(book){
-  var counts={Gen:50,Exod:40,Lev:27,Num:36,Deut:34,Josh:24,Judg:21,Ruth:4,'1Sam':31,'2Sam':24,'1Kgs':22,'2Kgs':25,'1Chr':29,'2Chr':36,Ezra:10,Neh:13,Esth:10,Job:42,Ps:150,Prov:31,Eccl:12,Song:8,Isa:66,Jer:52,Lam:5,Ezek:48,Dan:12,Hos:14,Joel:3,Amos:9,Obad:1,Jonah:4,Mic:7,Nah:3,Hab:3,Zeph:3,Hag:2,Zech:14,Mal:4,Matt:28,Mark:16,Luke:24,John:21,Acts:28,Rom:16,'1Cor':16,'2Cor':13,Gal:6,Eph:6,Phil:4,Col:4,'1Thess':5,'2Thess':3,'1Tim':6,'2Tim':4,Titus:3,Phlm:1,Heb:13,Jas:5,'1Pet':5,'2Pet':3,'1John':5,'2John':1,'3John':1,Jude:1,Rev:22};
-  return counts[book]||50;
-}

@@ -136,6 +136,9 @@ Namespace Services.Bible
             ''' frequency this scan counted — a cache entry missing any currently
             ''' requested word is stale (also gates the accent-fold migration).</summary>
             Public Property ExtraTargets As List(Of String)
+            ''' <summary>True when Aliases leaves out names this Bible gives to two
+            ''' books. Older cache entries lack it and rescan once.</summary>
+            Public Property SharedNamesDropped As Boolean
         End Class
 
         Private Shared ReadOnly Property CachePath As String
@@ -243,7 +246,7 @@ Namespace Services.Bible
                        entry.Size = fi.Length AndAlso entry.MTimeTicks = fi.LastWriteTimeUtc.Ticks AndAlso
                        entry.AbbrevNames IsNot Nothing AndAlso entry.MaxChapters IsNot Nothing AndAlso
                        entry.MaxVerses IsNot Nothing AndAlso
-                       entry.ExtraTargets IsNot Nothing AndAlso
+                       entry.ExtraTargets IsNot Nothing AndAlso entry.SharedNamesDropped AndAlso
                        localeBookWords.Keys.All(Function(w) entry.ExtraTargets.Contains(w, StringComparer.Ordinal)) Then
                         ' ExtraTargets check doubles as the fold-migration gate: old caches
                         ' (unfolded Freq keys, no locale-word counts) rescan exactly once.
@@ -310,6 +313,8 @@ Namespace Services.Bible
             ' Union into one index. Ambiguity: ANY Bible reporting the word as
             ' frequent marks it ambiguous (conservative). Digit-prefixed and
             ' multi-word names are inherently safe.
+            ' votes: name -> (book_number -> how many Bibles use the name for it).
+            Dim votes As New Dictionary(Of String, Dictionary(Of Integer, Integer))(StringComparer.Ordinal)
             For Each entry In live.Values
                 If entry?.Aliases Is Nothing Then Continue For
                 Dim entryAbbrevs As New HashSet(Of String)(
@@ -318,6 +323,14 @@ Namespace Services.Bible
                     Dim name = FoldName(kvp.Key)
                     If name.Length < 3 Then Continue For ' "Sl"/"Mt" abbreviations: high false-positive risk, never spoken
                     Dim isAbbrev = entryAbbrevs.Contains(name)
+                    Dim nameVotes As Dictionary(Of Integer, Integer) = Nothing
+                    If Not votes.TryGetValue(name, nameVotes) Then
+                        nameVotes = New Dictionary(Of Integer, Integer)
+                        votes(name) = nameVotes
+                    End If
+                    Dim prior = 0
+                    nameVotes.TryGetValue(kvp.Value, prior)
+                    nameVotes(kvp.Value) = prior + 1
                     Dim singleWord = Not name.Contains(" "c)
                     Dim ambiguous = False
                     If singleWord AndAlso Not Char.IsDigit(name(0)) Then
@@ -372,6 +385,29 @@ Namespace Services.Bible
                     Next
                 End If
             Next
+
+            ' Same name, different books in different Bibles (BCI's short_name "Jer" is
+            ' book 315; four other Bibles' "Jer" is Jeremiah 300): the book most Bibles
+            ' use the name for wins - not whichever Bible loaded first. A tie identifies
+            ' no book, so the name is dropped (a locale fallback name may refill it below).
+            Dim settled As New List(Of String)
+            For Each v In votes
+                If v.Value.Count < 2 Then Continue For
+                Dim ranked = v.Value.OrderByDescending(Function(p) p.Value).ToList()
+                Dim existing As AliasInfo = Nothing
+                If Not idx._aliases.TryGetValue(v.Key, existing) Then Continue For
+                If ranked(0).Value = ranked(1).Value Then
+                    idx._aliases.Remove(v.Key)
+                    settled.Add($"{v.Key}=dropped")
+                Else
+                    existing.BookNumber = ranked(0).Key
+                    settled.Add($"{v.Key}={ranked(0).Key}")
+                End If
+            Next
+            If settled.Count > 0 Then
+                Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.BIBLE_ALIAS_INDEX,
+                    $"Book names that installed Bibles give to different books, settled by majority: {String.Join(", ", settled)}")
+            End If
 
             ' Inject the locale-file FALLBACK book names add-if-absent: they fill
             ' names no installed Bible teaches (fresh install, or an English
@@ -433,13 +469,18 @@ Namespace Services.Bible
                 .Size = fi.Length, .MTimeTicks = fi.LastWriteTimeUtc.Ticks,
                 .Aliases = New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase),
                 .Freq = New Dictionary(Of String, Integer)(),
-                .ExtraTargets = extraTargets.ToList()
+                .ExtraTargets = extraTargets.ToList(),
+                .SharedNamesDropped = True
             }
             Using conn As New SqliteConnection(New SqliteConnectionStringBuilder() With {
                 .DataSource = dbPath, .Mode = SqliteOpenMode.ReadOnly}.ToString())
                 conn.Open()
                 Dim shortNames As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
                 Dim longNames As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+                ' A name this Bible gives to TWO books identifies neither (BCI: "Jeremies"
+                ' = Jeremiah 300 AND the Letter of Jeremiah 315 - it hid every spoken
+                ' Catalan "Jeremies 5"), so it is left out of this Bible's aliases.
+                Dim sharedNames As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
                 Using cmd = conn.CreateCommand()
                     cmd.CommandText = "SELECT short_name, long_name, book_number FROM books"
                     Using reader = cmd.ExecuteReader()
@@ -448,13 +489,21 @@ Namespace Services.Bible
                             For col = 0 To 1
                                 Dim name = NormName(reader.GetString(col))
                                 If name.Length >= 3 Then
-                                    entry.Aliases(name) = bookNum
+                                    Dim known As Integer
+                                    If entry.Aliases.TryGetValue(name, known) AndAlso known <> bookNum Then
+                                        sharedNames.Add(name)
+                                    Else
+                                        entry.Aliases(name) = bookNum
+                                    End If
                                     If col = 0 Then shortNames.Add(name) Else longNames.Add(name)
                                 End If
                             Next
                         End While
                     End Using
                 End Using
+                For Each sharedName In sharedNames
+                    entry.Aliases.Remove(sharedName)
+                Next
                 ' Abbreviation = appears only as a short_name, never as a full name.
                 entry.AbbrevNames = shortNames.Where(Function(n) Not longNames.Contains(n)).ToList()
 

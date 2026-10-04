@@ -206,6 +206,9 @@ Namespace Services.Bible
             Public Property Info As BibleTranslation
             Public Property DbPath As String
             Public Property BookMap As Dictionary(Of String, Integer) ' short_name/long_name -> book_number
+            ''' <summary>Every book_number in this Bible - also those whose names were all
+            ''' dropped as shared (a book must stay openable by its number).</summary>
+            Public Property BookNumbers As HashSet(Of Integer)
         End Class
 
         Public Sub New(logger As ILogger(Of BibleService), options As IOptions(Of ServerOptions))
@@ -314,6 +317,7 @@ Namespace Services.Bible
             Dim lang = folderName  ' fallback: folder name
             Dim copyright As String = Nothing
             Dim bookMap As New Dictionary(Of String, Integer)(StringComparer.OrdinalIgnoreCase)
+            Dim bookNumbers As New HashSet(Of Integer)
 
             Using conn As New SqliteConnection(connStr)
                 conn.Open()
@@ -346,19 +350,35 @@ Namespace Services.Bible
                     Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.BIBLE_ERROR, $"BibleService.LoadTranslation: failed reading info for '{dbFile}' - {ex.Message}")
                 End Try
 
-                ' Build book_number map from books table (both short_name and long_name)
+                ' Build book_number map from books table (both short_name and long_name).
+                ' A name this Bible gives to TWO books identifies neither, so it is left
+                ' out (BCI names both Jeremiah 300 and the Letter of Jeremiah 315
+                ' "Jeremies": typed "Jeremies 5" opened the one-chapter letter).
+                Dim sharedNames As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
                 Using cmd = conn.CreateCommand()
                     cmd.CommandText = "SELECT book_number, short_name, long_name FROM books"
                     Using reader = cmd.ExecuteReader()
                         While reader.Read()
                             Dim bookNum = reader.GetInt32(0)
-                            Dim shortName = reader.GetString(1)
-                            Dim longName = reader.GetString(2)
-                            bookMap(shortName) = bookNum
-                            bookMap(longName) = bookNum
+                            bookNumbers.Add(bookNum)
+                            For Each bookName In {reader.GetString(1), reader.GetString(2)}
+                                Dim known As Integer
+                                If bookMap.TryGetValue(bookName, known) AndAlso known <> bookNum Then
+                                    sharedNames.Add(bookName)
+                                Else
+                                    bookMap(bookName) = bookNum
+                                End If
+                            Next
                         End While
                     End Using
                 End Using
+                For Each sharedName In sharedNames
+                    bookMap.Remove(sharedName)
+                Next
+                If sharedNames.Count > 0 Then
+                    Services.Infrastructure.AppLogger.Log(Services.Infrastructure.LogEvents.BIBLE_ALIAS_INDEX,
+                        $"Bible '{id}': book name(s) used for more than one book, not used for lookup: {String.Join(", ", sharedNames)}")
+                End If
             End Using
 
             _translations(id) = New BibleTranslationEntry With {
@@ -370,7 +390,8 @@ Namespace Services.Bible
                     .Copyright = copyright
                 },
                 .DbPath = dbFile,
-                .BookMap = bookMap
+                .BookMap = bookMap,
+                .BookNumbers = bookNumbers
             }
 
             _logger.LogInformation("Bible: loaded {Id} ({Lang}) — {Name}", id, lang, name)
@@ -464,21 +485,29 @@ Namespace Services.Bible
             Dim entry As BibleTranslationEntry = Nothing
             If Not _translations.TryGetValue(translationId, entry) Then Return -1
 
-            ' Try direct match on short_name or long_name from DB
+            ' A universal book_number ("480") - what the web viewer sends. Names are
+            ' not unique across Bibles (BCI's "Jer" is book 315, every other Bible's
+            ' "Jer" is Jeremiah, 300), so a client that carries a name from one Bible
+            ' into another can open the wrong book; a number cannot.
             Dim bookNum As Integer
+            If Integer.TryParse(book, Globalization.NumberStyles.None, Globalization.CultureInfo.InvariantCulture, bookNum) Then
+                Return If(entry.BookNumbers.Contains(bookNum), bookNum, -1)
+            End If
+
+            ' Try direct match on short_name or long_name from DB
             If entry.BookMap.TryGetValue(book, bookNum) Then Return bookNum
 
             ' Derived alias index: a name in ANY installed Bible's language (or
             ' a locale-file fallback name) → universal book_number.
             Dim info = _aliasIndex?.Lookup(book)
-            If info IsNot Nothing AndAlso entry.BookMap.ContainsValue(info.BookNumber) Then
+            If info IsNot Nothing AndAlso entry.BookNumbers.Contains(info.BookNumber) Then
                 Return info.BookNumber
             End If
 
             ' A wire code ("Ps", "1Tim") → universal book_number.
             Dim stdNum As Integer
             If StandardBookNumbers.TryGetValue(book, stdNum) Then
-                If entry.BookMap.ContainsValue(stdNum) Then Return stdNum
+                If entry.BookNumbers.Contains(stdNum) Then Return stdNum
             End If
 
             Return -1
@@ -530,6 +559,8 @@ Namespace Services.Bible
                                         chapter As Integer, ct As CancellationToken
         ) As Task(Of BibleChapter) Implements IBibleService.GetChapterAsync
             Dim verses As New List(Of BibleVerse)()
+            Dim bookName = ""
+            Dim chapterCount = 0
             Dim bookNum = ResolveBookNumber(translationId, book)
             If bookNum < 0 Then
                 Return Task.FromResult(New BibleChapter With {
@@ -558,11 +589,26 @@ Namespace Services.Bible
                         End While
                     End Using
                 End Using
+                ' The book's own name and chapter count in THIS Bible: the web viewer
+                ' builds its chapter grid from these (field 2026-10-04: a caption link
+                ' for "Mar" matched no short_name and showed a 50-chapter default).
+                Using cmd = conn.CreateCommand()
+                    cmd.CommandText = "SELECT b.long_name, (SELECT MAX(v.chapter) FROM verses v WHERE v.book_number = @bn) " &
+                        "FROM books b WHERE b.book_number = @bn"
+                    cmd.Parameters.AddWithValue("@bn", bookNum)
+                    Using reader = cmd.ExecuteReader()
+                        If reader.Read() Then
+                            bookName = If(reader.IsDBNull(0), "", reader.GetString(0))
+                            chapterCount = If(reader.IsDBNull(1), 0, reader.GetInt32(1))
+                        End If
+                    End Using
+                End Using
             End Using
 
             Return Task.FromResult(New BibleChapter With {
                 .TranslationId = translationId, .Book = book,
-                .Chapter = chapter, .Verses = verses})
+                .Chapter = chapter, .Verses = verses,
+                .BookNumber = bookNum, .BookName = bookName, .ChapterCount = chapterCount})
         End Function
 
         Public Function GetVersesAsync(translationId As String, book As String,
@@ -625,6 +671,7 @@ Namespace Services.Bible
                             searchResults.Add(New BibleSearchResult With {
                                 .TranslationId = translationId,
                                 .Book = reader.GetString(4),
+                                .BookNumber = reader.GetInt32(0),
                                 .Chapter = reader.GetInt32(1),
                                 .Verse = reader.GetInt32(2),
                                 .Text = StripTags(reader.GetString(3)),
@@ -650,6 +697,10 @@ Namespace Services.Bible
 
             Dim bookName = m.Groups("book").Value.Trim()
             Dim bookCode As String = Nothing
+            ' The number each step resolved. The code is NOT looked up again by
+            ' name: a wire code can be another book's short_name in this Bible
+            ' (wire "Jer" = Jeremiah 300; BCI's short_name "Jer" = book 315).
+            Dim resolvedBookNum = 0
 
             ' 1. Try translation's own BookMap (short_name + long_name from DB)
             If Not String.IsNullOrEmpty(translationId) Then
@@ -657,6 +708,7 @@ Namespace Services.Bible
                 If _translations.TryGetValue(translationId, entry) Then
                     Dim bookNum As Integer
                     If entry.BookMap.TryGetValue(bookName, bookNum) Then
+                        resolvedBookNum = bookNum
                         bookCode = entry.BookMap.
                             Where(Function(kv) kv.Value = bookNum).
                             OrderBy(Function(kv) kv.Key.Length).
@@ -671,13 +723,19 @@ Namespace Services.Bible
             '    Abbreviation flag is not checked here.
             If bookCode Is Nothing Then
                 Dim rb = ResolveBookAlias(bookName)
-                If rb IsNot Nothing Then bookCode = rb.Code
+                If rb IsNot Nothing Then
+                    bookCode = rb.Code
+                    resolvedBookNum = rb.BookNumber
+                End If
             End If
 
             ' 3. A wire code typed directly ("Ps 23", "1Tim 6").
             If bookCode Is Nothing Then
                 Dim stdNum = 0
-                If StandardBookNumbers.TryGetValue(bookName, stdNum) Then bookCode = CodeForNumber(stdNum)
+                If StandardBookNumbers.TryGetValue(bookName, stdNum) Then
+                    bookCode = CodeForNumber(stdNum)
+                    resolvedBookNum = stdNum
+                End If
             End If
 
             If bookCode Is Nothing Then
@@ -695,15 +753,6 @@ Namespace Services.Bible
                     SpokenRangeWords.Value.Contains(BookAliasIndex.Fold(m.Groups("rangeword").Value))) Then
                     vEnd = Integer.Parse(m.Groups("vend").Value)
                 End If
-            End If
-
-            ' Resolve the book_number for the caller
-            Dim resolvedBookNum = 0
-            If Not String.IsNullOrEmpty(translationId) Then
-                resolvedBookNum = ResolveBookNumber(translationId, bookCode)
-            End If
-            If resolvedBookNum <= 0 Then
-                StandardBookNumbers.TryGetValue(bookCode, resolvedBookNum)
             End If
 
             Return Task.FromResult(New BibleReference With {

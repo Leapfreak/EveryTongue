@@ -623,6 +623,9 @@ Namespace Services.Subtitle
         ''' </summary>
         Private NotInheritable Class RefDto
             Public Property book As String
+            ''' <summary>Universal book_number (480 = Mark). Clients open and label the
+            ''' book by this; "book" is the app's wire code, never shown or looked up by name.</summary>
+            Public Property bookNumber As Integer
             Public Property chapter As Integer
             Public Property verseStart As Integer
             Public Property verseEnd As Integer
@@ -649,6 +652,8 @@ Namespace Services.Subtitle
         ''' <summary>Wire DTO for /api/rooms/{id}/reading.</summary>
         Public Class ReadingPositionDto
             Public Property book As String
+            ''' <summary>Universal book_number - what clients open the Bible by.</summary>
+            Public Property bookNumber As Integer
             Public Property chapter As Integer
             Public Property verse As Integer
         End Class
@@ -667,7 +672,7 @@ Namespace Services.Subtitle
                 If ctx.LastBook = 0 OrElse Not ctx.Books.TryGetValue(ctx.LastBook, entry) Then Return Nothing
                 If (DateTime.UtcNow - entry.LastSeenUtc).TotalMinutes > Bible.BibleService.ContextExpiryMinutes Then Return Nothing
                 Return New ReadingPositionDto With {
-                    .book = entry.BookCode, .chapter = entry.Chapter, .verse = entry.Verse}
+                    .book = entry.BookCode, .bookNumber = ctx.LastBook, .chapter = entry.Chapter, .verse = entry.Verse}
             Catch
                 ' The context is mutated on the caption thread without a lock; a
                 ' torn read here answers 404 rather than risking the feed.
@@ -723,6 +728,7 @@ Namespace Services.Subtitle
             For Each r In refs
                 result.Add(New RefDto With {
                     .book = r.Reference.Book,
+                    .bookNumber = r.Reference.BookNumber,
                     .chapter = r.Reference.Chapter,
                     .verseStart = r.Reference.VerseStart,
                     .verseEnd = r.Reference.VerseEnd,
