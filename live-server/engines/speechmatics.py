@@ -274,6 +274,11 @@ class SpeechmaticsStreamingPipeline:
             self._thread = None
         logger.info("[SPEECHMATICS] Stopped")
 
+    def is_session_ready(self):
+        """True while a Speechmatics session is live (set on "Session started",
+        cleared on session close) - /health's session_ready for room readiness."""
+        return bool(self._session_live)
+
     def is_alive(self):
         if self._thread is None:
             return False, "no thread"

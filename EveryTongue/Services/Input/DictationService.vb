@@ -216,10 +216,7 @@ Namespace Services.Input
             Dim wantName = If(_config.DictationDeviceName, "").Trim()
             If wantName.Length > 0 Then
                 Try
-                    Dim pythonPath = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "python-embed", "python.exe")
-                    Dim devices = SttBackendRegistry.CreateBackend().EnumerateDevicesAsync(pythonPath)
-                    Dim byName = devices?.FirstOrDefault(Function(d) d IsNot Nothing AndAlso d.Id >= 0 AndAlso
-                        String.Equals(If(d.Name, "").Trim(), wantName, StringComparison.OrdinalIgnoreCase))
+                    Dim byName = Services.Audio.InputDeviceCatalog.FindByName(Services.Audio.InputDeviceCatalog.Enumerate(), wantName)
                     If byName IsNot Nothing Then
                         _log(LogEvents.DICT_SESSION_STARTED, $"Dictation mic '{wantName}' resolved to device index {byName.Id}")
                         Return byName.Id

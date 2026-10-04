@@ -816,6 +816,14 @@ async def health():
         result["pipeline_status"] = reason
         if not alive:
             result["status"] = "degraded"
+        # Cloud-session readiness: an engine that connects to a service reports
+        # whether its session is actually live (Speechmatics: between "Session
+        # started" and session close); engines without a session are ready once
+        # their pipeline is alive. Room readiness waits for this instead of an idle
+        # timer; a connection that keeps failing ends as pipeline_alive=False with
+        # the engine's own reason (e.g. Speechmatics after its reconnect attempts).
+        session_ready_fn = getattr(_vad_pipeline, "is_session_ready", None)
+        result["session_ready"] = bool(session_ready_fn()) if callable(session_ready_fn) else True
         # Web-mic sessions: "capturing" must mean frames are actually FLOWING,
         # not merely "session started" — readiness banners/chimes depend on it.
         if getattr(_vad_pipeline, "audio_source", "local") == "web":

@@ -37,6 +37,10 @@ Namespace Pipeline
 
         Private _isCapturing As Boolean = False
         Private _serverReady As Boolean = False
+        ' Why the last /start failed ("" = it did not fail). /start runs in the
+        ' background while room readiness is polled, so the probe must be told -
+        ' otherwise a refused start would read as "still starting" for ever.
+        Private _startFailure As String = ""
         Private _transcript As New StringBuilder()
         Private _cts As CancellationTokenSource
 
@@ -186,6 +190,7 @@ Namespace Pipeline
         Public Sub Start(config As AppConfig, deviceIndex As Integer, inputLanguage As String, translateToEnglish As Boolean)
             If _isCapturing Then Return
 
+            Threading.Volatile.Write(_startFailure, "")
             _host.Port = config.LiveServerPort
             _transcript.Clear()
             _cts = New CancellationTokenSource()
@@ -220,6 +225,11 @@ Namespace Pipeline
                              If ready Then
                                  StartCapture(config, deviceIndex, inputLanguage, translateToEnglish)
                                  ReadSseLoop(ct)
+                             ElseIf Not ct.IsCancellationRequested Then
+                                 ' The server never became ready (no progress / exited): /start
+                                 ' never runs, so CheckReadinessAsync must report Failed - not
+                                 ' Starting for ever.
+                                 Threading.Volatile.Write(_startFailure, "live server did not become ready")
                              End If
                          Catch ex As Exception When ct.IsCancellationRequested
                              ' Expected during shutdown — ignore
@@ -455,11 +465,13 @@ Namespace Pipeline
                     ' never be invisible in the file log.
                     AppLogger.Log(LogEvents.STT_WHISPER_SERVER_ERROR,
                         $"POST /start → HTTP {CInt(response.StatusCode)} (port {_host.Port}): {body}")
+                    Threading.Volatile.Write(_startFailure, $"start refused (HTTP {CInt(response.StatusCode)}): {body}")
                     RaiseEvent ErrorReceived(Me, $"Failed to start capture: {body}")
                 End If
             Catch ex As Exception
                 AppLogger.Log(LogEvents.STT_WHISPER_SERVER_ERROR,
                     $"POST /start threw (port {_host.Port}): {If(ex.InnerException?.Message, ex.Message)}")
+                Threading.Volatile.Write(_startFailure, $"start failed: {If(ex.InnerException?.Message, ex.Message)}")
                 RaiseEvent ErrorReceived(Me, $"Failed to start capture: {ex.Message}")
             End Try
         End Sub
@@ -547,6 +559,54 @@ Namespace Pipeline
             Catch
                 ' Health probe — any failure means "down"; the caller acts on False.
                 Return False
+            End Try
+        End Function
+
+        ''' <summary>
+        ''' The engine's STATE for room readiness - Starting / Ready / Failed - read from
+        ''' what the live-server already reports, so the waiter needs no idle timer:
+        '''   /start refused or threw                 -> Failed (the reason).
+        '''   server not up yet / not capturing yet   -> Starting.
+        '''   capturing but pipeline_alive = false    -> Failed (the engine's pipeline_status,
+        '''                                              e.g. "thread dead (authentication failed)").
+        '''   capturing, alive, session_ready = false -> Starting (e.g. Speechmatics still
+        '''                                              connecting / reconnecting) - only when
+        '''                                              <paramref name="requireSession"/>; the
+        '''                                              vocab push must NOT wait for the session
+        '''                                              (a change sent while it connects needs no
+        '''                                              reconnect; one sent after it is live does).
+        '''   otherwise                               -> Ready.
+        ''' A request that fails or is capped reads as Starting (no answer yet); process
+        ''' death is the waiter's processAlive check.
+        ''' </summary>
+        Public Async Function CheckReadinessAsync(ct As Threading.CancellationToken, Optional requireSession As Boolean = True) As Task(Of EngineStateResult)
+            Dim failure = Threading.Volatile.Read(_startFailure)
+            If Not String.IsNullOrEmpty(failure) Then Return EngineStateResult.Failed(failure)
+            If Not _serverReady Then Return EngineStateResult.Starting()
+            Try
+                Dim response = Await _httpClient.GetAsync($"http://127.0.0.1:{_host.Port}/health", ct)
+                If Not response.IsSuccessStatusCode Then Return EngineStateResult.Starting()
+                Dim body = Await response.Content.ReadAsStringAsync()
+                Using doc = JsonDocument.Parse(body)
+                    Dim root = doc.RootElement
+                    ' A dead pipeline first: in a web-mic room "capturing" stays False until
+                    ' the host broadcasts, which would hide the failure as Starting for ever.
+                    ' (pipeline_alive is reported only once the pipeline has been started.)
+                    Dim pipeProp As JsonElement = Nothing
+                    If root.TryGetProperty("pipeline_alive", pipeProp) AndAlso Not pipeProp.GetBoolean() Then
+                        Dim reasonProp As JsonElement = Nothing
+                        Dim reason = If(root.TryGetProperty("pipeline_status", reasonProp), reasonProp.GetString(), "")
+                        Return EngineStateResult.Failed(If(String.IsNullOrEmpty(reason), "engine pipeline stopped", reason))
+                    End If
+                    Dim capProp As JsonElement = Nothing
+                    If Not (root.TryGetProperty("capturing", capProp) AndAlso capProp.GetBoolean()) Then Return EngineStateResult.Starting()
+                    Dim sessProp As JsonElement = Nothing
+                    If requireSession AndAlso root.TryGetProperty("session_ready", sessProp) AndAlso Not sessProp.GetBoolean() Then Return EngineStateResult.Starting()
+                    Return EngineStateResult.Ready()
+                End Using
+            Catch ex As Exception When Not ct.IsCancellationRequested
+                ' No answer yet (busy server / malformed body) - the waiter keeps asking.
+                Return EngineStateResult.Starting()
             End Try
         End Function
 

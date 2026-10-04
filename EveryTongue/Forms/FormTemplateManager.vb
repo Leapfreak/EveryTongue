@@ -10,6 +10,15 @@ Public Class FormTemplateManager
     Private _editingTemplate As ConferenceTemplate
     Private _isNewTemplate As Boolean
     Private _deviceList As New List(Of AudioDeviceInfo)
+    ' True once the device list has been enumerated into the combo. Until then the combo
+    ' holds only Default + the web-mic entries, so a Save must keep the template's saved
+    ' device instead of storing "Default" (field 2026-09-27: Edit clicked while the list
+    ' was still loading showed Default, and saving lost the USB line-in).
+    Private _devicesLoaded As Boolean
+    ''' <summary>The edited template's saved input is not connected now (detachable USB),
+    ''' so the combo fell back to Default. Until the user picks a device, Save keeps the
+    ''' saved device - editing another field must not erase it.</summary>
+    Private _savedDeviceMissing As Boolean
 
     Public Sub New(config As AppConfig)
         _config = config
@@ -90,11 +99,10 @@ Public Class FormTemplateManager
     End Sub
 
     Private Sub PopulateAudioDevices()
-        Dim previousId As Integer = -1
-        If cboAudioDevice.SelectedItem IsNot Nothing Then
-            Dim sel = TryCast(cboAudioDevice.SelectedItem, AudioDeviceInfo)
-            If sel IsNot Nothing Then previousId = sel.Id
-        End If
+        ' Remember the current choice by NAME (a re-enumeration can renumber devices).
+        Dim previous = TryCast(cboAudioDevice.SelectedItem, AudioDeviceInfo)
+        Dim hadSelection = previous IsNot Nothing AndAlso _devicesLoaded
+        _devicesLoaded = False
 
         cboAudioDevice.Items.Clear()
         _deviceList.Clear()
@@ -116,28 +124,27 @@ Public Class FormTemplateManager
         cboAudioDevice.Enabled = False
         btnRefreshDevices.Enabled = False
 
-        Dim pythonPath = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "python-embed", "python.exe")
-
         Threading.Tasks.Task.Run(Sub()
                                      Try
-                                         Dim backend = Services.Stt.SttBackendRegistry.CreateBackend()
-                                         Dim devices = backend.EnumerateDevicesAsync(pythonPath)
+                                         Dim devices = Services.Audio.InputDeviceCatalog.Enumerate()
                                          Me.BeginInvoke(Sub()
                                                             For Each d In devices
                                                                 _deviceList.Add(d)
                                                                 cboAudioDevice.Items.Add(d)
                                                             Next
-                                                            ' Restore previous selection
-                                                            Dim found = False
-                                                            For i = 0 To cboAudioDevice.Items.Count - 1
-                                                                Dim dev = TryCast(cboAudioDevice.Items(i), AudioDeviceInfo)
-                                                                If dev IsNot Nothing AndAlso dev.Id = previousId Then
-                                                                    cboAudioDevice.SelectedIndex = i
-                                                                    found = True
-                                                                    Exit For
-                                                                End If
-                                                            Next
-                                                            If Not found Then cboAudioDevice.SelectedIndex = 0
+                                                            _devicesLoaded = True
+                                                            ' Keep the user's pick across a Refresh; otherwise
+                                                            ' show the edited template's saved device (the
+                                                            ' editor may have opened before the list arrived).
+                                                            ' (Not when the saved input was missing: after a Refresh
+                                                            ' it may be plugged in again - select it.)
+                                                            If hadSelection AndAlso Not _savedDeviceMissing AndAlso SelectDeviceItem(previous.Id, If(previous.Id >= 0, previous.Name, Nothing)) Then
+                                                                ' restored
+                                                            ElseIf _editingTemplate IsNot Nothing Then
+                                                                SelectTemplateDevice(_editingTemplate)
+                                                            Else
+                                                                cboAudioDevice.SelectedIndex = 0
+                                                            End If
                                                             cboAudioDevice.Enabled = True
                                                             btnRefreshDevices.Enabled = True
                                                         End Sub)
@@ -151,6 +158,43 @@ Public Class FormTemplateManager
                                      End Try
                                  End Sub)
     End Sub
+
+    ''' <summary>Select the template's audio source in the combo: web-mic templates their
+    ''' sentinel entry; local templates by NAME (PortAudio indices drift), else by saved
+    ''' index (templates saved before names existed), else Default.</summary>
+    Private Sub SelectTemplateDevice(t As ConferenceTemplate)
+        _savedDeviceMissing = False
+        If String.Equals(t.AudioSource, "web", StringComparison.OrdinalIgnoreCase) Then
+            If SelectDeviceItem(If(t.WebMicRaw, -3, -2), Nothing) Then Return
+        End If
+        If Not String.IsNullOrWhiteSpace(t.AudioDeviceName) AndAlso SelectDeviceItem(Integer.MinValue, t.AudioDeviceName) Then Return
+        If String.IsNullOrWhiteSpace(t.AudioDeviceName) AndAlso SelectDeviceItem(t.AudioDeviceId, Nothing) Then Return
+        If cboAudioDevice.Items.Count > 0 Then cboAudioDevice.SelectedIndex = 0
+        _savedDeviceMissing = _devicesLoaded AndAlso Not String.IsNullOrWhiteSpace(t.AudioDeviceName)
+    End Sub
+
+    ''' <summary>The user chose an entry (fires for user picks only, not for code
+    ''' selection): from now on Save stores the combo's device.</summary>
+    Private Sub cboAudioDevice_SelectionChangeCommitted(sender As Object, e As EventArgs) Handles cboAudioDevice.SelectionChangeCommitted
+        _savedDeviceMissing = False
+    End Sub
+
+    ''' <summary>Select the combo entry matching <paramref name="name"/> (trimmed, case-
+    ''' insensitive) when given, else the entry with <paramref name="id"/>. False if none.</summary>
+    Private Function SelectDeviceItem(id As Integer, name As String) As Boolean
+        For i = 0 To cboAudioDevice.Items.Count - 1
+            Dim dev = TryCast(cboAudioDevice.Items(i), AudioDeviceInfo)
+            If dev Is Nothing Then Continue For
+            Dim match = If(Not String.IsNullOrWhiteSpace(name) AndAlso dev.Id >= 0,
+                           String.Equals(If(dev.Name, "").Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase),
+                           String.IsNullOrWhiteSpace(name) AndAlso dev.Id = id)
+            If match Then
+                cboAudioDevice.SelectedIndex = i
+                Return True
+            End If
+        Next
+        Return False
+    End Function
 
     Private Sub RefreshList()
         lvTemplates.Items.Clear()
@@ -348,42 +392,7 @@ Public Class FormTemplateManager
         ' Translation engine
         SelectEngineCombo(cboTransEngine, t.TranslationBackendKey)
 
-        ' Audio device — web-mic templates select their sentinel entry; local templates
-        ' prefer matching by NAME (PortAudio indices drift), else by ID
-        Dim deviceFound = False
-        If String.Equals(t.AudioSource, "web", StringComparison.OrdinalIgnoreCase) Then
-            Dim wantId = If(t.WebMicRaw, -3, -2)
-            For i = 0 To cboAudioDevice.Items.Count - 1
-                Dim dev = TryCast(cboAudioDevice.Items(i), AudioDeviceInfo)
-                If dev IsNot Nothing AndAlso dev.Id = wantId Then
-                    cboAudioDevice.SelectedIndex = i
-                    deviceFound = True
-                    Exit For
-                End If
-            Next
-        End If
-        If Not deviceFound AndAlso Not String.IsNullOrEmpty(t.AudioDeviceName) Then
-            For i = 0 To cboAudioDevice.Items.Count - 1
-                Dim dev = TryCast(cboAudioDevice.Items(i), AudioDeviceInfo)
-                If dev IsNot Nothing AndAlso
-                   String.Equals(dev.Name?.Trim(), t.AudioDeviceName.Trim(), StringComparison.OrdinalIgnoreCase) Then
-                    cboAudioDevice.SelectedIndex = i
-                    deviceFound = True
-                    Exit For
-                End If
-            Next
-        End If
-        If Not deviceFound Then
-            For i = 0 To cboAudioDevice.Items.Count - 1
-                Dim dev = TryCast(cboAudioDevice.Items(i), AudioDeviceInfo)
-                If dev IsNot Nothing AndAlso dev.Id = t.AudioDeviceId Then
-                    cboAudioDevice.SelectedIndex = i
-                    deviceFound = True
-                    Exit For
-                End If
-            Next
-        End If
-        If Not deviceFound AndAlso cboAudioDevice.Items.Count > 0 Then cboAudioDevice.SelectedIndex = 0
+        SelectTemplateDevice(t)
 
         PopulateModelDropdown(t.ModelPath)
 
@@ -557,8 +566,13 @@ Public Class FormTemplateManager
         ' Audio device from combo — store BOTH id and name (name survives PortAudio index drift).
         ' The sentinel web-mic entries (-2 processed / -3 raw) set AudioSource="web" instead
         ' of a device: the room's audio then comes from the host's browser Broadcast button.
+        ' While the device list is still loading the combo cannot show the saved device -
+        ' keep the template's audio fields exactly as they are.
         Dim selDev = TryCast(cboAudioDevice.SelectedItem, AudioDeviceInfo)
-        If selDev IsNot Nothing AndAlso (selDev.Id = -2 OrElse selDev.Id = -3) Then
+        If Not _devicesLoaded OrElse _savedDeviceMissing Then
+            ' unchanged (list still loading, or the saved input is unplugged and the
+            ' user has not chosen another one)
+        ElseIf selDev IsNot Nothing AndAlso (selDev.Id = -2 OrElse selDev.Id = -3) Then
             t.AudioSource = "web"
             t.WebMicRaw = (selDev.Id = -3)
             t.AudioDeviceId = -1

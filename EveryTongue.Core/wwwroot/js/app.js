@@ -100,6 +100,8 @@ var T={connecting:'Connecting...',connected:'Connected',disconnected:'Disconnect
     paused:'Paused',playing:'Playing',loading:'Loading...',
     pttTap:'Tap to speak',pttHold:'Hold to speak',speakingBanner:'{0} speaking...',
     lockRoom:'Lock Room',pttToggleLbl:'PTT: Tap to toggle',pipelineLbl:'Pipeline',
+    rsFailedHost:'Speech engine did not start: {0} — tap Reset Pipeline in the host panel',rsFailed:'Captions are not available right now',
+    hostAudioInput:'Audio input',hostAudioChange:'Use this input',hostAudioRefresh:'Refresh list',hostAudioLoading:'Loading inputs…',hostAudioSwitching:'Switching input…',hostAudioSwitched:'Input changed — saved for next time',hostAudioMissing:'Saved input "{0}" not found — choose an input',hostAudioNone:'No inputs found',hostAudioGone:'That input is no longer connected — refresh the list',hostAudioBanner:'Audio input "{0}" not found — tap to choose',
     err_metricsUnavailable:'Metrics not available',err_translationUnavailable:'Translation not available',err_adminNotConfigured:'Admin not configured',err_invalidPin:'Invalid PIN',err_noCertificate:'No certificate available',err_serviceUnavailable:'Service unavailable',err_missingParams:'Missing parameters',err_unknownAction:'Unknown action',err_creatorCodeRequired:'Host code required',err_roomNotFound:'Room not found',err_noOfflineSttModel:'This server has no offline speech model, so conversation rooms can\'t transcribe. Use a conference or dictation room instead.',err_invalidRequest:'Invalid request',err_notAuthorized:'Not authorized',err_badRequest:'Bad request',err_badRating:'Invalid rating',err_missingClientId:'Missing client id',err_alreadySubmitted:'Already submitted',err_invalidJson:'Invalid JSON',err_missingTranslateParams:'Missing text, source language, or target language',err_emptyTranslateParams:'Empty text, source language, or target language',err_translationFailed:'Translation failed',err_settingsUnavailable:'Settings not available',err_nameAndCodeRequired:'Name and hosting code are required',err_unknownSttBackend:'Unknown speech engine',err_unknownTranslationBackend:'Unknown translation engine',err_unknownTemplate:'Unknown template',err_emptyConfig:'Empty configuration',err_invalidConfigJson:'Invalid configuration JSON',err_bibleUnavailable:'Bible service not available',err_catalogFetchFailed:'Catalog fetch failed',err_translationIdRequired:'Translation id required',err_unknownTranslationId:'Unknown translation — fetch the catalog first',err_installError:'Install error',err_internalError:'Internal server error',err_qAndTranslationRequired:'Search text and translation required',err_refRequired:'Reference required',err_invalidHostingCode:'Invalid hosting code',err_pipelineUnavailable:'Pipeline not available',err_audioUnavailable:'Audio service not available',err_invalidFilename:'Invalid filename',err_notFound:'Not found',err_roomLocked:'Room is locked',
     feedbackTitle:'Did the subtitles give you any trouble today?',feedbackCommentPh:'Describe any problem you noticed — wrong words, delays, freezes… (optional)',feedbackSubmit:'Send',feedbackSkip:'No problems — skip',feedbackThanks:'Thank you — this helps us fix it!'};
 /* Detect browser language and fetch matching server-side locale */
@@ -307,10 +309,10 @@ function loadPivotRoutes(){
           var q=document.getElementById('lpSearch');
           renderLangList(q&&q.value?q.value:'');
         }
-      }catch(e){SLOG('pivot routes parse error: '+e)}
+      }catch(e){slogDiag('pivot routes parse error: '+e)}
     };
     xhr.send();
-  }catch(e){SLOG('pivot routes fetch error: '+e)}
+  }catch(e){slogDiag('pivot routes fetch error: '+e)}
 }
 
 function renderLangList(query){
@@ -2300,6 +2302,14 @@ function handleRoomStatus(msg){
       if(_sttSafetyTimer){clearTimeout(_sttSafetyTimer);_sttSafetyTimer=null}
       rsSetLine('stt',t('rsReady'));
       setTimeout(function(){rsRemoveLine('stt')},1500);
+    }else if(state==='failed'){
+      /* The engine itself reported it could not start (reason in msg.detail) - say
+         so instead of a false 'ready'. The host gets the reason and the fix; the
+         line stays until a Reset brings a new 'preparing'/'ready'. */
+      _sttReady=true;setPttEnabled(true);
+      if(_sttSafetyTimer){clearTimeout(_sttSafetyTimer);_sttSafetyTimer=null}
+      rsSetLine('stt',isHost?t('rsFailedHost').split('{0}').join(msg.detail||''):t('rsFailed'));
+      slogDiag('Room STT failed to start: '+(msg.detail||''));
     }
   }else if(scope==='translation'){
     if(state==='preparing')rsSetLine('trans',t('rsTransWarming'));
@@ -2800,8 +2810,118 @@ function updateSpeakingUI(){
   }
 }
 
+/* Audio input (local-capture conference rooms). The room's input used to be
+   changeable only in the desktop Template Manager; the host now picks it in the
+   host panel. The server saves the choice to the room's template BY NAME (USB
+   inputs renumber when re-plugged) and restarts the capture on it. */
+var _audioMissingChecked=false;
+function audioInputUrl(roomId){return '/api/rooms/'+encodeURIComponent(roomId)+'/audio-input'}
+function setAudioStatus(text,isError,isOk){
+  var st=document.getElementById('hcAudioStatus');
+  if(!st)return;
+  st.style.color=isError?'#e74c3c':(isOk?'#27ae60':'#888');
+  st.textContent=text;
+}
+function setAudioMissingBanner(missing){
+  var b=document.getElementById('audioMissingBanner');
+  if(!missing){if(b)b.parentNode.removeChild(b);return}
+  if(!b){
+    b=document.createElement('div');
+    b.id='audioMissingBanner';
+    b.style.cssText='position:fixed;top:50px;left:8px;right:8px;background:#e74c3c;color:#fff;padding:10px;border-radius:8px;z-index:150;font-size:14px;font-weight:600;text-align:center;cursor:pointer';
+    b.addEventListener('click',function(){if(!document.getElementById('hostPanel'))toggleHostPanel()});
+    document.body.appendChild(b);
+  }
+  b.textContent=t('hostAudioBanner').split('{0}').join(missing); /* split/join: a '$' in a device name is not a replace() pattern */
+}
+function renderAudioInputs(res){
+  var sel=document.getElementById('hcAudioSel');
+  var cur=document.getElementById('hcAudioCur');
+  if(!sel)return;
+  while(sel.firstChild)sel.removeChild(sel.firstChild);
+  var devs=res.devices||[];
+  for(var i=0;i<devs.length;i++){
+    var o=document.createElement('option');
+    o.value=devs[i];
+    o.textContent=devs[i];
+    if(devs[i]===res.current)o.selected=true;
+    sel.appendChild(o);
+  }
+  sel.disabled=devs.length===0;
+  if(cur)cur.textContent=res.current||'\u2014';
+  if(res.missing)setAudioStatus(t('hostAudioMissing').split('{0}').join(res.missing),true,false);
+  else if(devs.length===0)setAudioStatus(t('hostAudioNone'),true,false);
+  else setAudioStatus('',false,false);
+  setAudioMissingBanner(res.missing||'');
+}
+function loadAudioInputs(roomId){
+  var sel=document.getElementById('hcAudioSel');
+  if(!sel)return;
+  sel.disabled=true;
+  setAudioStatus(t('hostAudioLoading'),false,false);
+  var xhr=new XMLHttpRequest();
+  xhr.open('GET',audioInputUrl(roomId)+'?clientId='+encodeURIComponent(myClientId),true);
+  xhr.onload=function(){
+    var res=null;
+    try{res=JSON.parse(xhr.responseText)}catch(e){}
+    if(xhr.status!==200||!res||res.source!=='local'){setAudioStatus(t('failed'),true,false);return}
+    renderAudioInputs(res);
+  };
+  xhr.onerror=function(){setAudioStatus(t('netError'),true,false)};
+  xhr.send();
+}
+function applyAudioInput(roomId){
+  var sel=document.getElementById('hcAudioSel');
+  if(!sel||!sel.value)return;
+  var wanted=sel.value;
+  setAudioStatus(t('hostAudioSwitching'),false,false);
+  var xhr=new XMLHttpRequest();
+  xhr.open('POST',audioInputUrl(roomId),true);
+  xhr.setRequestHeader('Content-Type','application/json');
+  xhr.onload=function(){
+    var res=null;
+    try{res=JSON.parse(xhr.responseText)}catch(e){}
+    if(xhr.status===200&&res&&res.ok){
+      var cur=document.getElementById('hcAudioCur');
+      if(cur)cur.textContent=res.device;
+      setAudioStatus(t('hostAudioSwitched'),false,true);
+      setAudioMissingBanner('');
+      slogDiag('Audio input changed to '+res.device);
+    }else if(xhr.status===409&&res&&res.errorCode==='deviceNotFound'){
+      setAudioStatus(t('hostAudioGone'),true,false);
+    }else{
+      setAudioStatus(t('failed'),true,false);
+      slogDiag('Audio input change to '+wanted+' failed: HTTP '+xhr.status);
+    }
+  };
+  xhr.onerror=function(){setAudioStatus(t('netError'),true,false)};
+  xhr.send(JSON.stringify({clientId:myClientId,deviceName:wanted}));
+}
+/* Once per page: if the room started without its saved input (USB box unplugged
+   or renamed), show a banner that opens the host panel's picker. */
+function checkAudioInputMissing(){
+  if(_audioMissingChecked||!myClientId||pttRoomType!=='conference'||roomAudioSource==='web')return;
+  var roomMatch=location.search.match(/[?&]room=([^&]+)/);
+  var roomId=roomMatch?roomMatch[1]:'';
+  if(!roomId)return;
+  _audioMissingChecked=true;
+  var xhr=new XMLHttpRequest();
+  xhr.open('GET',audioInputUrl(roomId)+'?clientId='+encodeURIComponent(myClientId),true);
+  /* A failed check may run again (next showHostControls); only an answer is final. */
+  xhr.onerror=function(){_audioMissingChecked=false};
+  xhr.onload=function(){
+    if(xhr.status!==200){_audioMissingChecked=false;return}
+    try{
+      var res=JSON.parse(xhr.responseText);
+      if(res&&res.source==='local'&&res.missing)setAudioMissingBanner(res.missing);
+    }catch(e){}
+  };
+  xhr.send();
+}
+
 /* Host controls */
 function showHostControls(){
+  checkAudioInputMissing();
   /* If the waiting-for-mic banner rendered before host status arrived,
      upgrade the listener wording to the host call-to-action. */
   if(roomAudioSource==='web'&&!bcActive&&document.getElementById('rs-stt')){
@@ -2838,6 +2958,19 @@ function toggleHostPanel(){
       /* Web-mic room: THIS device is the microphone. Button + live level meter. */
       hostHtml+='<button id="hcBroadcast" style="width:100%;padding:10px;border:none;border-radius:8px;background:'+(bcActive?'#e74c3c':'#7c9cf7')+';color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:4px">'+(bcActive?'\u25CF '+t('bcStop'):'\uD83C\uDF99 '+t('bcStart'))+'</button>'+
         '<div id="hcBcMeterWrap" style="height:8px;background:#333;border-radius:4px;margin-bottom:8px;overflow:hidden"><div id="hcBcMeter" style="height:100%;width:0%;background:#27ae60;transition:width 0.1s"></div></div>';
+    }else{
+      /* Local-capture room: pick the server machine's input here (saved to the
+         room's template by name, so the next room starts with it). */
+      hostHtml+='<div style="margin-bottom:8px">'+
+        '<label style="color:#888;font-size:11px">'+t('hostAudioInput')+'</label>'+
+        '<div id="hcAudioCur" style="color:#fff;font-size:13px;margin:2px 0 6px;word-break:break-word">'+t('loading')+'</div>'+
+        '<select id="hcAudioSel" disabled style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#252540;color:#fff;font-size:13px;margin-bottom:6px;box-sizing:border-box"></select>'+
+        '<div style="display:flex;gap:6px">'+
+        '<button id="hcAudioRefresh" style="flex:1;padding:8px;border:1px solid #7c9cf7;border-radius:8px;background:transparent;color:#7c9cf7;font-size:12px;cursor:pointer">\u21BB '+t('hostAudioRefresh')+'</button>'+
+        '<button id="hcAudioApply" style="flex:1;padding:8px;border:none;border-radius:8px;background:#7c9cf7;color:#1a1a2e;font-size:12px;font-weight:600;cursor:pointer">'+t('hostAudioChange')+'</button>'+
+        '</div>'+
+        '<div id="hcAudioStatus" style="color:#888;font-size:11px;margin-top:4px;text-align:center"></div>'+
+        '</div>';
     }
   }
   if(pttRoomType!=='conference'){
@@ -2883,6 +3016,12 @@ function toggleHostPanel(){
   }
 
   document.body.appendChild(panel);
+
+  if(document.getElementById('hcAudioSel')){
+    loadAudioInputs(roomId);
+    document.getElementById('hcAudioRefresh').addEventListener('click',function(){loadAudioInputs(roomId)});
+    document.getElementById('hcAudioApply').addEventListener('click',function(){applyAudioInput(roomId)});
+  }
 
   var _hcAdm=document.getElementById('hcAdmin');
   if(_hcAdm)_hcAdm.addEventListener('click',function(){window.open('/admin.html','_blank')});

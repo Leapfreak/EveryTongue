@@ -13,6 +13,12 @@ Namespace Services.Rooms
     '''
     ''' Wire protocol (room-scoped WebSocket text frame):
     '''   {"type":"roomStatus","scope":"stt"|"translation","state":"preparing"|"ready"}
+    '''   {"type":"roomStatus","scope":"stt","state":"failed","detail":"<engine's reason>"}
+    '''
+    ''' When the caller supplies an STT STATE probe (the engine says starting / ready /
+    ''' failed), the STT wait has no timer and no fail-open: it ends on the engine's own
+    ''' answer, and a failure is sent as "failed" with the reason instead of a false
+    ''' "ready". The legacy yes/no probes below keep their fail-open timeout.
     '''
     ''' STT readiness gates the mic/PTT on the client; translation readiness is a
     ''' non-blocking note (you can speak before it loads — the translation just appears
@@ -30,6 +36,12 @@ Namespace Services.Rooms
             Public SttReady As Boolean
             Public TranslationApplies As Boolean
             Public TranslationReady As Boolean
+            Public SttFailed As Boolean
+            Public SttFailDetail As String = ""
+            ''' <summary>Which watch owns this state. A replacing watch (engine restart)
+            ''' increments it; an older watch still finishing must not broadcast or
+            ''' change state (it would report the stopped engine as "failed").</summary>
+            Public Generation As Integer
         End Class
 
         Public Sub New(subtitle As ISubtitleService, logger As ILogger(Of RoomReadinessNotifier))
@@ -56,18 +68,27 @@ Namespace Services.Rooms
                          Optional timeoutSeconds As Integer = 60,
                          Optional sttProcessAlive As Func(Of Boolean) = Nothing,
                          Optional sttActivityMs As Func(Of Long) = Nothing,
-                         Optional onSummary As Action(Of Boolean, Long, Boolean, Long) = Nothing)
-            If String.IsNullOrEmpty(roomId) OrElse sttProbe Is Nothing Then Return
+                         Optional onSummary As Action(Of Boolean, Long, Boolean, Long) = Nothing,
+                         Optional sttStateProbe As Func(Of CancellationToken, Task(Of Pipeline.EngineStateResult)) = Nothing,
+                         Optional replace As Boolean = False,
+                         Optional ct As CancellationToken = Nothing)
+            If String.IsNullOrEmpty(roomId) OrElse (sttProbe Is Nothing AndAlso sttStateProbe Is Nothing) Then Return
             Dim st = _states.GetOrAdd(roomId, Function(k) New RoomState())
+            Dim gen As Integer
             SyncLock st
-                If st.Watching Then
+                If st.Watching AndAlso Not replace Then
                     ' Already tracked — do NOT re-broadcast to the whole room (that would flash
                     ' the indicator at members who already saw it / are unaffected). A new client
                     ' gets the current state targeted via ResendStateToClient instead.
+                    ' replace=True (a NEW engine after a restart) takes the room over instead.
                     Return
                 End If
+                st.Generation += 1
+                gen = st.Generation
                 st.Watching = True
                 st.SttReady = sttAlreadyReady
+                st.SttFailed = False
+                st.SttFailDetail = ""
                 st.TranslationApplies = (translationProbe IsNot Nothing)
                 st.TranslationReady = (translationProbe Is Nothing)
             End SyncLock
@@ -76,6 +97,14 @@ Namespace Services.Rooms
             ' conversation room reusing the already-warm shared live-server) nothing is broadcast,
             ' so unaffected people never see a message.
             BroadcastPreparing(roomId, st)
+
+            ' This watch still owns the room: not replaced, not cancelled, room not closed.
+            Dim isCurrent = Function() As Boolean
+                                Dim now As RoomState = Nothing
+                                Return Not ct.IsCancellationRequested AndAlso
+                                       _states.TryGetValue(roomId, now) AndAlso now Is st AndAlso
+                                       st.Generation = gen
+                            End Function
 
             Task.Run(Async Function()
                          Dim watchStart = Environment.TickCount64
@@ -91,7 +120,39 @@ Namespace Services.Rooms
                                  ' fires only on real silence or process death. Without
                                  ' signals, the legacy fixed-timeout poll applies.
                                  Dim sttOk As Boolean
-                                 If sttProcessAlive IsNot Nothing AndAlso sttActivityMs IsNot Nothing Then
+                                 If sttStateProbe IsNot Nothing Then
+                                     ' The engine reports its own state - wait for a definite
+                                     ' answer; no idle timer, no fail-open.
+                                     Dim r = Await Pipeline.SidecarReadiness.WaitForStateAsync(
+                                         $"room={roomId} STT readiness",
+                                         sttStateProbe, sttProcessAlive,
+                                         ct, pollIntervalMs:=400).ConfigureAwait(False)
+                                     ' Replaced by a restart's watch, cancelled, or the room closed:
+                                     ' the stopped engine's outcome is not news - say nothing.
+                                     If Not isCurrent() Then Return
+                                     sttMs = Environment.TickCount64 - watchStart
+                                     If r.Outcome = Pipeline.ReadinessOutcome.Ready Then
+                                         st.SttReady = True
+                                         sttOkForSummary = True
+                                         Send(roomId, "stt", "ready")
+                                         AppLogger.Log(LogEvents.ROOM_READINESS, $"room={roomId} STT ready")
+                                     Else
+                                         Dim reason = If(r.Outcome = Pipeline.ReadinessOutcome.ProcessExited,
+                                                         "speech engine process stopped",
+                                                         If(String.IsNullOrEmpty(r.LastProbeError), r.Outcome.ToString(), r.LastProbeError))
+                                         st.SttFailed = True
+                                         st.SttFailDetail = reason
+                                         sttOkForSummary = False
+                                         SendFailed(roomId, reason)
+                                         ' A failed start is not final: the host's Reset Pipeline
+                                         ' restarts the engine and must be watched (and announced) again.
+                                         SyncLock st
+                                             st.Watching = False
+                                         End SyncLock
+                                         AppLogger.Log(LogEvents.ROOM_READINESS_FAILED,
+                                             $"room={roomId} STT FAILED to start ({r.Outcome}): {reason} - 'failed' sent to the room")
+                                     End If
+                                 ElseIf sttProcessAlive IsNot Nothing AndAlso sttActivityMs IsNot Nothing Then
                                      Dim r = Await Pipeline.SidecarReadiness.WaitAsync(
                                          $"room={roomId} STT readiness",
                                          sttProbe, sttProcessAlive, sttActivityMs,
@@ -100,17 +161,20 @@ Namespace Services.Rooms
                                  Else
                                      sttOk = Await PollUntil(sttProbe, timeoutSeconds, 400).ConfigureAwait(False)
                                  End If
-                                 st.SttReady = True
-                                 sttOkForSummary = sttOk
-                                 sttMs = Environment.TickCount64 - watchStart
-                                 Send(roomId, "stt", "ready")
-                                 If sttOk Then
-                                     AppLogger.Log(LogEvents.ROOM_READINESS, $"room={roomId} STT ready")
-                                 Else
-                                     AppLogger.Log(LogEvents.ROOM_READINESS_TIMEOUT,
-                                         $"room={roomId} STT readiness gave up (no progress or engine died) — 'ready' sent fail-open, but the engine never reported capturing")
+                                 If sttStateProbe Is Nothing Then
+                                     st.SttReady = True
+                                     sttOkForSummary = sttOk
+                                     sttMs = Environment.TickCount64 - watchStart
+                                     Send(roomId, "stt", "ready")
+                                     If sttOk Then
+                                         AppLogger.Log(LogEvents.ROOM_READINESS, $"room={roomId} STT ready")
+                                     Else
+                                         AppLogger.Log(LogEvents.ROOM_READINESS_TIMEOUT,
+                                             $"room={roomId} STT readiness gave up (no progress or engine died) — 'ready' sent fail-open, but the engine never reported capturing")
+                                     End If
                                  End If
                              End If
+                             If Not isCurrent() Then Return
                              If st.TranslationApplies AndAlso Not st.TranslationReady AndAlso translationProbe IsNot Nothing Then
                                  Dim txStart = Environment.TickCount64
                                  Dim txOk = Await PollUntil(translationProbe, timeoutSeconds, 500).ConfigureAwait(False)
@@ -128,6 +192,7 @@ Namespace Services.Rooms
                          Catch
                              ' One-shot readiness push is best-effort — the room UI also polls /status.
                          End Try
+                         If Not isCurrent() Then Return
                          Try
                              onSummary?.Invoke(sttOkForSummary, sttMs, txOkForSummary, txMs)
                          Catch
@@ -166,7 +231,11 @@ Namespace Services.Rooms
         Public Sub ResendStateToClient(roomId As String, clientId As String)
             Dim st As RoomState = Nothing
             If Not _states.TryGetValue(roomId, st) Then Return
-            If Not st.SttReady Then SendTo(clientId, "stt", "preparing")
+            If st.SttFailed Then
+                _subtitle.SendRawToClient(clientId, FailedMsg(st.SttFailDetail))
+            ElseIf Not st.SttReady Then
+                SendTo(clientId, "stt", "preparing")
+            End If
             If st.TranslationApplies AndAlso Not st.TranslationReady Then
                 SendTo(clientId, "translation", "preparing")
             End If
@@ -180,7 +249,7 @@ Namespace Services.Rooms
 
         ''' <summary>Broadcast "preparing" to the room, but only for engines that are still loading.</summary>
         Private Sub BroadcastPreparing(roomId As String, st As RoomState)
-            If Not st.SttReady Then Send(roomId, "stt", "preparing")
+            If Not st.SttReady AndAlso Not st.SttFailed Then Send(roomId, "stt", "preparing")
             If st.TranslationApplies AndAlso Not st.TranslationReady Then
                 Send(roomId, "translation", "preparing")
             End If
@@ -193,6 +262,16 @@ Namespace Services.Rooms
         Private Sub SendTo(clientId As String, scope As String, state As String)
             _subtitle.SendRawToClient(clientId, Msg(scope, state))
         End Sub
+
+        Private Sub SendFailed(roomId As String, detail As String)
+            _subtitle.BroadcastRawToRoom(roomId, FailedMsg(detail), "")
+        End Sub
+
+        ''' <summary>The STT "failed" frame; the engine's reason is JSON-escaped (it is free text).</summary>
+        Private Shared Function FailedMsg(detail As String) As String
+            Return Text.Json.JsonSerializer.Serialize(New With {
+                .type = "roomStatus", .scope = "stt", .state = "failed", .detail = If(detail, "")})
+        End Function
 
         Private Shared Function Msg(scope As String, state As String) As String
             Return $"{{""type"":""roomStatus"",""scope"":""{scope}"",""state"":""{state}""}}"

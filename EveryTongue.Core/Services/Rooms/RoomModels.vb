@@ -48,6 +48,13 @@ Namespace Services.Rooms
         ''' <summary>Web-mic capture hint: False = browser processing on (echo cancellation
         ''' etc., right for laptop/phone mics), True = raw (right for PA/soundboard feeds).</summary>
         Public Property WebMicRaw As Boolean = False
+        ''' <summary>Local-capture rooms: the input device the room is capturing from right now
+        ''' (resolved at room start / restart), shown in the host panel's audio-input picker.</summary>
+        Public Property AudioDeviceName As String = ""
+        ''' <summary>Local-capture rooms: the template's saved input when it was NOT found at the
+        ''' last capture start (USB box unplugged, renamed) — the room fell back to the default
+        ''' input and the host panel asks the host to choose. "" = the saved input was used.</summary>
+        Public Property AudioDeviceMissing As String = ""
         Public Property MaxSegmentSec As Integer = 15
         Public Property VadSilenceMs As Integer = 800
         Public Property BeamSize As Integer = 7

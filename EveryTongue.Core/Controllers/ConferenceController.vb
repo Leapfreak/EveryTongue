@@ -103,6 +103,10 @@ Namespace Controllers
         Private ReadOnly _roomSttResidencyKeys As New Concurrent.ConcurrentDictionary(Of String, String)()
         ' Room-start stopwatches for the timing summary line (CONF_ROOM_READY).
         Private ReadOnly _roomStartTicks As New Concurrent.ConcurrentDictionary(Of String, Long)()
+        ''' <summary>Per room: cancels the current engine's readiness watch and vocab push
+        ''' on restart / close (a parked warm spare stays alive, so these waits would
+        ''' otherwise poll it and act on the NEXT room's engine).</summary>
+        Private ReadOnly _roomEngineWaits As New Concurrent.ConcurrentDictionary(Of String, Threading.CancellationTokenSource)()
         Private ReadOnly _roomSpareHits As New Concurrent.ConcurrentDictionary(Of String, Boolean)()
 
         Public Sub New(config As AppConfig,
@@ -180,23 +184,25 @@ Namespace Controllers
         ''' that). Fire-and-forget; skipped when the list is empty (avoids a
         ''' pointless session reconnect right after start).
         ''' </summary>
-        Private Sub PushServiceVocabWhenReady(roomId As String, backend As ISttBackend)
+        Private Sub PushServiceVocabWhenReady(roomId As String, backend As ISttBackend, ct As Threading.CancellationToken)
             Dim payload = BuildServiceVocabPayload()
             If payload.Count = 0 Then Return
             Task.Run(Async Function()
                          Try
-                             ' Progress-aware wait (ENGINE_CONCURRENCY_PLAN): no fixed
-                             ' 60s budget — wait while the live-server shows progress.
-                             Dim rb = TryCast(backend, Services.Stt.RunnerBackedSttBackend)
-                             Dim readiness = Await Pipeline.SidecarReadiness.WaitAsync(
+                             ' Wait for the engine's own answer (starting / ready / failed) -
+                             ' no idle timer. A failed engine gets no vocab push: there is no
+                             ' session to receive it, and the readiness watch reports the failure.
+                             Dim readiness = Await Pipeline.SidecarReadiness.WaitForStateAsync(
                                  $"room {roomId} STT (service-vocab gate)",
-                                 Function(pct) backend.CheckHealthAsync(pct),
-                                 Function() If(rb IsNot Nothing, rb.ServerProcessRunning, backend.IsRunning),
-                                 Function() If(rb IsNot Nothing, rb.ServerMillisecondsSinceLastActivity, 0L),
-                                 Threading.CancellationToken.None)
+                                 SttStateProbe(backend, requireSession:=False), SttProcessAlive(backend),
+                                 ct)
+                             ' Restarted or closed: this engine is gone - its vocab must not reach
+                             ' whatever engine (or warm spare) comes next.
+                             If ct.IsCancellationRequested Then Return
                              If readiness.Outcome <> Pipeline.ReadinessOutcome.Ready Then
-                                 AppLogger.Log(LogEvents.ROOM_READINESS_TIMEOUT,
-                                     $"room={roomId}: STT never reported capturing ({readiness.Outcome}) — pushing service vocab anyway")
+                                 AppLogger.Log(LogEvents.ROOM_READINESS_FAILED,
+                                     $"room={roomId}: STT did not start ({readiness.Outcome}) — service vocab not pushed")
+                                 Return
                              End If
                              Await backend.UpdateConfigAsync(New Dictionary(Of String, Object) From {{"service_vocab", payload}})
                              AppLogger.Log(LogEvents.STT_SERVICE_VOCAB,
@@ -452,7 +458,7 @@ Namespace Controllers
 
             Dim sttConfig As New SttSessionConfig With {
                 .EngineKey = backendKey,
-                .DeviceIndex = ResolveAudioDeviceIndex(template),
+                .DeviceIndex = ResolveAudioDeviceIndex(template, roomId),
                 .AudioSource = If(String.IsNullOrEmpty(template.AudioSource), "local", template.AudioSource),
                 .Language = If(template.SourceLanguage, "auto"),
                 .TranslateToEnglish = False,
@@ -529,8 +535,9 @@ Namespace Controllers
                 If String.Equals(sttConfig.AudioSource, "web", StringComparison.OrdinalIgnoreCase) Then
                     Services.Rooms.WebMicRouter.Instance.RegisterRoom(roomId, sttConfig.ServerPort)
                 End If
-                StartReadinessWatch(roomId, backend)
-                PushServiceVocabWhenReady(roomId, backend)
+                Dim engineWait = NewEngineWaitToken(roomId)
+                StartReadinessWatch(roomId, backend, engineWait)
+                PushServiceVocabWhenReady(roomId, backend, engineWait)
             Else
                 _log($"[Conference] Backend FAILED to start for room {roomId}")
                 DropKey(_sttBackends, roomId)
@@ -582,62 +589,80 @@ Namespace Controllers
         End Function
 
         ''' <summary>
-        ''' Resolve the CURRENT PortAudio input-device index for a template at capture start.
-        ''' PortAudio indices renumber when devices are added/removed, so a stored index can
-        ''' drift to the wrong device (e.g. S/PDIF, no input) → silent capture. If the template
-        ''' has a saved device NAME, we enumerate the current input devices and use the index of
-        ''' the device whose name matches. Otherwise (or if not found/invalid) we fall back to the
-        ''' stored AudioDeviceId, validated against the current enumeration, finally defaulting to 0.
-        ''' Enumeration happens once per room start (cheap relative to the capture session) — never
-        ''' per audio frame.
+        ''' Resolve the CURRENT PortAudio input-device index for a room's template at capture
+        ''' start, and record on the room what it is capturing from (host-panel picker).
+        ''' PortAudio indices renumber when devices are added/removed (the detachable USB
+        ''' line-in), so the template's saved device NAME is matched against the current
+        ''' enumeration. If a saved name is NOT found, the room does not guess by the old
+        ''' index - that index may now belong to another device (e.g. the laptop mic), which
+        ''' would capture the wrong audio with no sign of it. It falls back to the default
+        ''' input instead and flags the room, so the host panel asks the host to choose.
+        ''' Templates saved before names existed (no name) still use their saved index.
+        ''' Enumeration happens once per capture start - never per audio frame.
         ''' </summary>
-        Private Function ResolveAudioDeviceIndex(template As ConferenceTemplate) As Integer
-            ' Web-mic rooms have no local capture device — skip the (slow) enumeration.
-            If String.Equals(template?.AudioSource, "web", StringComparison.OrdinalIgnoreCase) Then Return 0
+        Private Function ResolveAudioDeviceIndex(template As ConferenceTemplate, roomId As String) As Integer
+            Dim room = _getRoomManager()?.GetRoom(roomId)
+            ' Web-mic rooms have no local capture device - skip the (slow) enumeration.
+            If String.Equals(template?.AudioSource, "web", StringComparison.OrdinalIgnoreCase) Then
+                SetRoomAudioDevice(room, "", "")
+                Return 0
+            End If
             Dim storedId = If(template IsNot Nothing AndAlso template.AudioDeviceId >= 0, template.AudioDeviceId, 0)
-            Dim storedName = If(template?.AudioDeviceName, "")
+            Dim storedName = If(template?.AudioDeviceName, "").Trim()
 
             Dim devices As List(Of AudioDeviceInfo) = Nothing
             Try
-                Dim pythonPath = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "python-embed", "python.exe")
-                devices = SttBackendRegistry.CreateBackend().EnumerateDevicesAsync(pythonPath)
+                devices = Services.Audio.InputDeviceCatalog.Enumerate()
             Catch ex As Exception
                 AppLogger.Log(LogEvents.CONF_BACKEND_ERROR,
-                    $"ResolveAudioDeviceIndex: device enumeration failed ({ex.Message}) — using stored index {storedId}")
-                Return storedId
+                    $"ResolveAudioDeviceIndex: device enumeration failed ({ex.Message}) - using stored index {storedId}")
             End Try
-
             If devices Is Nothing OrElse devices.Count = 0 Then
-                ' Couldn't enumerate — trust the stored index.
+                ' Couldn't enumerate - trust the stored index (nothing to compare it with).
+                SetRoomAudioDevice(room, storedName, "")
                 Return storedId
             End If
 
-            ' Prefer match by NAME (survives index drift).
-            If Not String.IsNullOrWhiteSpace(storedName) Then
-                Dim byName = devices.FirstOrDefault(Function(d) d IsNot Nothing AndAlso d.Id >= 0 AndAlso
-                    String.Equals(d.Name?.Trim(), storedName.Trim(), StringComparison.OrdinalIgnoreCase))
+            If storedName.Length > 0 Then
+                Dim byName = Services.Audio.InputDeviceCatalog.FindByName(devices, storedName)
                 If byName IsNot Nothing Then
                     If byName.Id <> storedId Then
                         AppLogger.Log(LogEvents.CONF_BACKEND_STARTING,
                             $"Audio device '{storedName}' re-resolved to current index {byName.Id} (saved index was {storedId}).")
                     End If
                     AppLogger.Log(LogEvents.AUDIO_DEVICE_SELECTED, $"Conference capture device: '{storedName}' (index {byName.Id})")
+                    SetRoomAudioDevice(room, byName.Name, "")
                     Return byName.Id
                 End If
+                Dim fallback = devices.FirstOrDefault(Function(d) d IsNot Nothing AndAlso d.Id = 0)
+                AppLogger.Log(LogEvents.AUDIO_DEVICE_MISSING,
+                    $"room={roomId}: saved audio input '{storedName}' not found among {devices.Count} current input devices - capturing from the default input '{If(fallback?.Name, "?")}' and asking the host to choose (the saved index {storedId} is NOT used: indices change when devices are plugged in or removed).")
+                SetRoomAudioDevice(room, If(fallback?.Name, ""), storedName)
+                Return 0
             End If
 
-            ' No name match — validate the stored index is still a real input device.
+            ' No saved name (older template) - validate the stored index is still a real input device.
             Dim byId = devices.FirstOrDefault(Function(d) d IsNot Nothing AndAlso d.Id = storedId)
             If byId IsNot Nothing Then
                 AppLogger.Log(LogEvents.AUDIO_DEVICE_SELECTED, $"Conference capture device: '{byId.Name}' (saved index {storedId})")
+                SetRoomAudioDevice(room, byId.Name, "")
                 Return storedId
             End If
 
-            ' Stored index isn't present/valid → fall back to default and warn.
+            ' Stored index isn't present/valid -> fall back to default and warn.
+            Dim dflt = devices.FirstOrDefault(Function(d) d IsNot Nothing AndAlso d.Id = 0)
             AppLogger.Log(LogEvents.CONF_BACKEND_ERROR,
-                $"Audio device '{storedName}' (saved index {storedId}) not found among current input devices — using default. PortAudio indices change when devices are added/removed.")
+                $"Audio device (saved index {storedId}) not found among current input devices - using default. PortAudio indices change when devices are added/removed.")
+            SetRoomAudioDevice(room, If(dflt?.Name, ""), "")
             Return 0
         End Function
+
+        ''' <summary>Record on the room what it captures from, for the host-panel picker.</summary>
+        Private Shared Sub SetRoomAudioDevice(room As Services.Rooms.Room, deviceName As String, missingName As String)
+            If room Is Nothing Then Return
+            room.AudioDeviceName = If(deviceName, "").Trim()
+            room.AudioDeviceMissing = If(missingName, "").Trim()
+        End Sub
 
         ''' <summary>
         ''' Handles pipeline config changes from the web host control panel.
@@ -679,6 +704,10 @@ Namespace Controllers
                         If TrySwitchSpeaker(roomId, room, CStr(kvp.Value)) Then needsRestart = True
                     Case "mode"
                         If TrySwitchMode(roomId, room, CStr(kvp.Value)) Then needsRestart = True
+                    Case "audioDevice"
+                        ' The endpoint has already saved the new input to the room's
+                        ' template by name; the restart re-resolves it (ResolveAudioDeviceIndex).
+                        needsRestart = True
                 End Select
             Next
 
@@ -721,12 +750,15 @@ Namespace Controllers
             Dim template = If(Not String.IsNullOrEmpty(tplId),
                 _config.ConferenceTemplates.FirstOrDefault(Function(t) t.Id = tplId), Nothing)
 
+            ' End the old engine's readiness/vocab waits BEFORE stopping it, so its
+            ' process exit is not reported as a failed start.
+            CancelEngineWaits(roomId)
             backend.Stop()
 
             Dim hasTpl = template IsNot Nothing
 
             Dim cfgDevice As Integer = 0
-            If hasTpl Then cfgDevice = ResolveAudioDeviceIndex(template)
+            If hasTpl Then cfgDevice = ResolveAudioDeviceIndex(template, roomId)
 
             Dim cfgLang As String = "auto"
             Dim restartRoom = _getRoomManager()?.GetRoom(roomId)
@@ -754,6 +786,7 @@ Namespace Controllers
             Dim sttConfig As New SttSessionConfig With {
                 .EngineKey = restartBackendKey,
                 .DeviceIndex = cfgDevice,
+                .AudioSource = If(hasTpl AndAlso Not String.IsNullOrEmpty(template.AudioSource), template.AudioSource, "local"),
                 .Language = cfgLang,
                 .TranslateToEnglish = False,
                 .ServerPort = _nextConferencePort,
@@ -793,9 +826,32 @@ Namespace Controllers
             AppLogger.Log(LogEvents.CONF_PIPELINE_RESTART, $"room {roomId}: restarting backend (port={sttConfig.ServerPort})")
             newBackend.Start(sttConfig)
             If newBackend.IsRunning Then
-                StartReadinessWatch(roomId, newBackend)
-                PushServiceVocabWhenReady(roomId, newBackend)
+                ' Web-mic rooms: the new live-server listens on a NEW port - move the
+                ' hub->live-server frame route there, or the host's broadcast would keep
+                ' feeding the stopped server and the room would go silent.
+                If String.Equals(sttConfig.AudioSource, "web", StringComparison.OrdinalIgnoreCase) Then
+                    Services.Rooms.WebMicRouter.Instance.RepointRoom(roomId, sttConfig.ServerPort)
+                End If
+                Dim engineWait = NewEngineWaitToken(roomId)
+                StartReadinessWatch(roomId, newBackend, engineWait)
+                PushServiceVocabWhenReady(roomId, newBackend, engineWait)
             End If
+        End Sub
+
+        ''' <summary>A fresh cancellation token for the room's engine waits (readiness
+        ''' watch + vocab push); any previous one is cancelled.</summary>
+        Private Function NewEngineWaitToken(roomId As String) As Threading.CancellationToken
+            CancelEngineWaits(roomId)
+            Dim fresh As New Threading.CancellationTokenSource()
+            _roomEngineWaits(roomId) = fresh
+            Return fresh.Token
+        End Function
+
+        ''' <summary>Cancel the room's engine waits (restart / room close). The source is
+        ''' not disposed: a wait may still be reading its token.</summary>
+        Private Sub CancelEngineWaits(roomId As String)
+            Dim old As Threading.CancellationTokenSource = Nothing
+            If _roomEngineWaits.TryRemove(roomId, old) Then old.Cancel()
         End Sub
 
         ''' <summary>
@@ -803,22 +859,40 @@ Namespace Controllers
         ''' STT readiness gates the (informational, no web mic) indicator; translation readiness
         ''' is shown separately and only for OFFLINE engines that need to load (cloud/inline = instant).
         ''' </summary>
-        Private Sub StartReadinessWatch(roomId As String, backend As ISttBackend)
+        Private Sub StartReadinessWatch(roomId As String, backend As ISttBackend, ct As Threading.CancellationToken)
             If _readiness Is Nothing Then Return
-            Dim capturedBackend = backend
-            Dim sttProbe As Func(Of Threading.CancellationToken, Task(Of Boolean)) =
-                Function(ct) capturedBackend.CheckHealthAsync(ct)
-            ' Progress signals let the notifier hold "preparing" while the engine is
-            ' visibly loading instead of fail-opening on a fixed 60s clock.
-            Dim rb = TryCast(backend, Services.Stt.RunnerBackedSttBackend)
-            Dim alive As Func(Of Boolean) = If(rb Is Nothing, Nothing,
-                                              Function() rb.ServerProcessRunning)
-            Dim activity As Func(Of Long) = If(rb Is Nothing, Nothing,
-                                               Function() rb.ServerMillisecondsSinceLastActivity)
-            _readiness.Watch(roomId, sttProbe, BuildConferenceTranslationProbe(roomId),
-                             sttProcessAlive:=alive, sttActivityMs:=activity,
-                             onSummary:=Sub(sttOk, sttMs, txOk, txMs) LogRoomReadySummary(roomId, sttOk, sttMs, txOk, txMs))
+            ' The engine reports its own state, so the notifier waits for a definite
+            ' answer (ready, or failed with the engine's reason) - no idle timer and no
+            ' fail-open "ready" for a room whose engine never started. replace: every
+            ' (re)start is a new engine, watched and announced even if the old one was
+            ' ready; ct ends the wait when the engine is restarted or the room closes.
+            _readiness.Watch(roomId, Nothing, BuildConferenceTranslationProbe(roomId),
+                             sttProcessAlive:=SttProcessAlive(backend),
+                             onSummary:=Sub(sttOk, sttMs, txOk, txMs) LogRoomReadySummary(roomId, sttOk, sttMs, txOk, txMs),
+                             sttStateProbe:=SttStateProbe(backend, requireSession:=True),
+                             replace:=True, ct:=ct)
         End Sub
+
+        ''' <summary>The room STT engine's state probe (starting / ready / failed). Runner-
+        ''' backed engines report it from the live-server; any other backend maps its
+        ''' yes/no health to ready / still starting. requireSession: ready only once the
+        ''' engine's cloud session is live (room readiness) rather than once it captures
+        ''' (the vocab push, which must land while the session is still connecting).</summary>
+        Private Shared Function SttStateProbe(backend As ISttBackend, requireSession As Boolean) As Func(Of Threading.CancellationToken, Task(Of Pipeline.EngineStateResult))
+            Dim rb = TryCast(backend, Services.Stt.RunnerBackedSttBackend)
+            If rb IsNot Nothing Then Return Function(ct) rb.CheckReadinessAsync(ct, requireSession)
+            Return Async Function(ct)
+                       Dim healthy = Await backend.CheckHealthAsync(ct).ConfigureAwait(False)
+                       Return If(healthy, Pipeline.EngineStateResult.Ready(), Pipeline.EngineStateResult.Starting())
+                   End Function
+        End Function
+
+        ''' <summary>Is the room STT engine's process still running (death ends a wait at once).</summary>
+        Private Shared Function SttProcessAlive(backend As ISttBackend) As Func(Of Boolean)
+            Dim rb = TryCast(backend, Services.Stt.RunnerBackedSttBackend)
+            If rb IsNot Nothing Then Return Function() rb.ServerProcessRunning
+            Return Function() backend.IsRunning
+        End Function
 
         ''' <summary>The one-line room-start explanation (approved 2026-09-03): total
         ''' time to ready, per-engine breakdown, warm-spare hit/miss — so a field log
@@ -832,7 +906,7 @@ Namespace Controllers
             Dim txPart = If(txMs < 0, "translation=instant(cloud/inline)",
                             $"translation={txMs}ms{If(txOk, "", " (FAIL-OPEN)")}")
             AppLogger.Log(LogEvents.CONF_ROOM_READY,
-                $"room={roomId} ready in {totalMs}ms — stt={sttMs}ms{If(sttOk, "", " (FAIL-OPEN)")} sttSpare={If(spareHit, "hit", "miss")} {txPart}")
+                $"room={roomId} ready in {totalMs}ms — stt={sttMs}ms{If(sttOk, "", " (FAILED - see ROOM_READINESS_FAILED)")} sttSpare={If(spareHit, "hit", "miss")} {txPart}")
         End Sub
 
         ''' <summary>Translation-readiness probe for a conference room, or Nothing when no note is needed.</summary>
@@ -910,6 +984,7 @@ Namespace Controllers
             ' Lock any pending Speechmatics clause before stopping.
             _clauseCoordinator.ForceLockClause(roomId)
             _clauseCoordinator.ClearRoom(roomId)
+            CancelEngineWaits(roomId)
             _readiness?.ClearRoom(roomId)
             Services.Rooms.WebMicRouter.Instance.UnregisterRoom(roomId)
             DropKey(_roomFilters, roomId)
@@ -1256,11 +1331,18 @@ Namespace Controllers
 
             Dim sw = Diagnostics.Stopwatch.StartNew()
             Dim orchestrator = _getTranslationOrchestrator?.Invoke()
+            ' Why the room's own engine produced nothing ("" = it was not tried) - the
+            ' NO-translation line below names THIS, not unrelated install advice.
+            Dim orchFailure = ""
             If orchestrator IsNot Nothing AndAlso orchestrator.GetAllBackends().Any(Function(b) b.IsAvailable) Then
                 Dim actualBackend = If(isInline, orchestrator.ActiveBackend, backendName)
                 Dim engineLabel = If(isInline, $"{roomKey}->fallback", roomKey)
-                Try
-                    Using cts As New Threading.CancellationTokenSource(TimeSpan.FromSeconds(10))
+                ' Where this call's time goes (queue / engine gate / engine), so a slow or
+                ' timed-out caption is explained by the log line itself.
+                Dim timing As New Services.Translation.TranslationTiming()
+                Using cts As New Threading.CancellationTokenSource(TimeSpan.FromSeconds(10))
+                    Services.Translation.TranslationTiming.Current = timing
+                    Try
                         Dim result = Await orchestrator.TranslateAsync(
                             text, sourceLang, targets, cts.Token, Services.Scheduling.TranslationPriority.Room,
                             filters:=RoomTranslationFilters(roomId), backendOverride:=backendName,
@@ -1268,16 +1350,25 @@ Namespace Controllers
                         If result IsNot Nothing Then
                             For Each kvp In result : translations(kvp.Key) = kvp.Value : Next
                         End If
-                    End Using
-                Catch ex As Exception
-                    AppLogger.Log(LogEvents.TRANS_ERROR,
-                        $"room={roomId} engine={engineLabel} backend={actualBackend} {sourceLang}→[{String.Join(",", targets)}] failed: {ex.Message}")
-                End Try
+                        timing.Stage = "done"
+                        If translations.Count = 0 Then orchFailure = $"{actualBackend} returned no translation ({timing.Describe()})"
+                    Catch ex As OperationCanceledException When cts.IsCancellationRequested
+                        orchFailure = $"{actualBackend} timed out after {sw.ElapsedMilliseconds}ms - the room's 10s limit ({timing.Describe()})"
+                        AppLogger.Log(LogEvents.TRANS_ERROR,
+                            $"room={roomId} engine={engineLabel} backend={actualBackend} {sourceLang}→[{String.Join(",", targets)}] {orchFailure}")
+                    Catch ex As Exception
+                        orchFailure = $"{actualBackend} failed: {ex.Message} ({timing.Describe()})"
+                        AppLogger.Log(LogEvents.TRANS_ERROR,
+                            $"room={roomId} engine={engineLabel} backend={actualBackend} {sourceLang}→[{String.Join(",", targets)}] failed: {ex.Message} ({timing.Describe()})")
+                    Finally
+                        Services.Translation.TranslationTiming.Current = Nothing
+                    End Try
+                End Using
                 If translations.Count > 0 Then
                     ' Broadcast result → remember it for the window (future LLM prefix).
                     ctxHolder?.AttachTranslations(ctxEntry, translations)
                     AppLogger.Log(LogEvents.TRANS_RESULT,
-                        $"room={roomId} engine={engineLabel} backend={actualBackend} {sourceLang}→[{String.Join(",", translations.Keys)}] ok={translations.Count}/{targets.Count} {sw.ElapsedMilliseconds}ms{If(ctxSnapshot IsNot Nothing, " " & ctxSnapshot.Describe(), "")}" &
+                        $"room={roomId} engine={engineLabel} backend={actualBackend} {sourceLang}→[{String.Join(",", translations.Keys)}] ok={translations.Count}/{targets.Count} {sw.ElapsedMilliseconds}ms{If(ctxSnapshot IsNot Nothing, " " & ctxSnapshot.Describe(), "")} {timing.Describe()}" &
                         FormatTransBlock(sourceLang, text, translations))
                     Return translations
                 End If
@@ -1309,19 +1400,27 @@ Namespace Controllers
             ' a whole service ran caption-less with zero log evidence). Say exactly
             ' which stage was unavailable so the operator can fix it mid-service.
             If translations.Count = 0 Then
-                Dim orchState As String
-                If orchestrator Is Nothing Then
-                    orchState = "orchestrator not running"
+                If orchFailure.Length > 0 Then
+                    ' The room's engine WAS available and tried - name what happened to it.
+                    ' (Field 2026-09-27: a 10s timeout was reported as "sidecar service
+                    ' missing ... install the model", which sent the reader the wrong way.)
+                    AppLogger.Log(LogEvents.TRANS_ERROR,
+                        $"room={roomId} NO translation produced for {sourceLang}→[{String.Join(",", targets)}] — {orchFailure}. Clients on these languages are getting NO subtitle for this sentence.")
                 Else
-                    Dim avail = orchestrator.GetAllBackends().Where(Function(b) b.IsAvailable).Select(Function(b) b.Name).ToList()
-                    orchState = If(avail.Count = 0, "orchestrator has NO available backends",
-                                   $"orchestrator backends available: {String.Join(",", avail)}")
+                    Dim orchState As String
+                    If orchestrator Is Nothing Then
+                        orchState = "orchestrator not running"
+                    Else
+                        Dim avail = orchestrator.GetAllBackends().Where(Function(b) b.IsAvailable).Select(Function(b) b.Name).ToList()
+                        orchState = If(avail.Count = 0, "orchestrator has NO available backends",
+                                       $"orchestrator backends available: {String.Join(",", avail)}")
+                    End If
+                    Dim sidecarState = If(svc Is Nothing, "sidecar service missing",
+                                          If(Not svc.IsRunning, "sidecar not running",
+                                             If(Not svc.IsModelLoaded, "sidecar model not loaded", "sidecar ok")))
+                    AppLogger.Log(LogEvents.TRANS_ERROR,
+                        $"room={roomId} NO translation produced for {sourceLang}→[{String.Join(",", targets)}] — {orchState}; {sidecarState}. Clients on these languages are getting NO subtitles. Check Options → Translation engine, or install the model via Download Manager.")
                 End If
-                Dim sidecarState = If(svc Is Nothing, "sidecar service missing",
-                                      If(Not svc.IsRunning, "sidecar not running",
-                                         If(Not svc.IsModelLoaded, "sidecar model not loaded", "sidecar ok")))
-                AppLogger.Log(LogEvents.TRANS_ERROR,
-                    $"room={roomId} NO translation produced for {sourceLang}→[{String.Join(",", targets)}] — {orchState}; {sidecarState}. Clients on these languages are getting NO subtitles. Check Options → Translation engine, or install the model via Download Manager.")
             End If
             Return translations
         End Function

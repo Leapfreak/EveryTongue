@@ -181,15 +181,28 @@ Namespace Services.Translation
             Dim req As New HttpRequestMessage(HttpMethod.Post, $"http://127.0.0.1:{_host.Port}/completion")
             req.Headers.Authorization = New System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _host.ApiKey)
             req.Content = New StringContent(payload, System.Text.Encoding.UTF8, "application/json")
-            Dim resp = Await _httpClient.SendAsync(req, ct)
-            If Not resp.IsSuccessStatusCode Then
-                Dim errBody = Await resp.Content.ReadAsStringAsync()
-                AppLogger.Log(LogEvents.TRANS_ERROR,
-                    $"SalamandraBackend: HTTP {CInt(resp.StatusCode)} for {sourceLang}→{targetLang}: {If(errBody, "").Substring(0, Math.Min(160, If(errBody, "").Length))}")
-                Return ""
-            End If
-            Dim body = Await resp.Content.ReadAsStringAsync()
+            ' Time inside llama-server for the room's timing record - counted even when
+            ' the request is cancelled (a timeout's time ran out HERE, not in a queue).
+            Dim timing = TranslationTiming.Current
+            Dim reqStart = Environment.TickCount64
+            Dim body As String
+            Try
+                Dim resp = Await _httpClient.SendAsync(req, ct)
+                If Not resp.IsSuccessStatusCode Then
+                    Dim errBody = Await resp.Content.ReadAsStringAsync()
+                    AppLogger.Log(LogEvents.TRANS_ERROR,
+                        $"SalamandraBackend: HTTP {CInt(resp.StatusCode)} for {sourceLang}→{targetLang}: {If(errBody, "").Substring(0, Math.Min(160, If(errBody, "").Length))}")
+                    Return ""
+                End If
+                body = Await resp.Content.ReadAsStringAsync()
+            Finally
+                If timing IsNot Nothing Then
+                    timing.EngineMs += Environment.TickCount64 - reqStart
+                    timing.Requests += 1
+                End If
+            End Try
             Using doc = JsonDocument.Parse(body)
+                If timing IsNot Nothing Then RecordLlamaTimings(doc.RootElement, timing)
                 Dim contentEl As JsonElement = Nothing
                 If doc.RootElement.TryGetProperty("content", contentEl) Then
                     Return CleanReply(contentEl.GetString(), targetName,
@@ -198,6 +211,27 @@ Namespace Services.Translation
             End Using
             Return ""
         End Function
+
+        ''' <summary>Add llama-server's own /completion timings (prompt evaluation vs generation,
+        ''' tokens re-used from its prompt cache) to the room's timing record - the split that
+        ''' tells "the GPU was slow" from "the prompt was long" or "the cache was lost".</summary>
+        Private Shared Sub RecordLlamaTimings(root As JsonElement, timing As TranslationTiming)
+            Dim t As JsonElement = Nothing
+            If root.TryGetProperty("timings", t) AndAlso t.ValueKind = JsonValueKind.Object Then
+                ' Try* reads only: measurement must never throw into a translation that
+                ' llama-server returned correctly (a non-Int32 number would).
+                Dim v As JsonElement = Nothing
+                Dim n As Integer
+                Dim d As Double
+                If t.TryGetProperty("prompt_n", v) AndAlso v.ValueKind = JsonValueKind.Number AndAlso v.TryGetInt32(n) Then timing.PromptTokens += n
+                If t.TryGetProperty("prompt_ms", v) AndAlso v.ValueKind = JsonValueKind.Number AndAlso v.TryGetDouble(d) Then timing.PromptMs += d
+                If t.TryGetProperty("predicted_n", v) AndAlso v.ValueKind = JsonValueKind.Number AndAlso v.TryGetInt32(n) Then timing.GenTokens += n
+                If t.TryGetProperty("predicted_ms", v) AndAlso v.ValueKind = JsonValueKind.Number AndAlso v.TryGetDouble(d) Then timing.GenMs += d
+            End If
+            Dim cached As JsonElement = Nothing
+            Dim c As Integer
+            If root.TryGetProperty("tokens_cached", cached) AndAlso cached.ValueKind = JsonValueKind.Number AndAlso cached.TryGetInt32(c) Then timing.CachedTokens += c
+        End Sub
 
         Public Async Function TranslateAsync(text As String,
                                              sourceLang As String,
@@ -224,7 +258,16 @@ Namespace Services.Translation
                     Continue For
                 End If
 
-                Await _gate.WaitAsync(ct)
+                Dim timing = TranslationTiming.Current
+                Dim gateStart = Environment.TickCount64
+                Try
+                    Await _gate.WaitAsync(ct)
+                Finally
+                    ' Recorded also when the room's limit cancels the wait: the timeout
+                    ' log must show how long the call waited at the gate.
+                    If timing IsNot Nothing Then timing.EngineWaitMs += Environment.TickCount64 - gateStart
+                End Try
+                If timing IsNot Nothing Then timing.Stage = "engine"
                 Try
                     Dim built = BuildPrompt(text, sourceLang, targetLang, context)
                     Dim tgtName = LanguageName(targetLang)

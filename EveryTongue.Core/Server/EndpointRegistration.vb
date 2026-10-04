@@ -149,6 +149,7 @@ Namespace Server
             MapAudioEndpoints(app)
             MapTtsEndpoints(app)
             MapRoomEndpoints(app)
+            MapAudioInputEndpoints(app)
             MapTemplateEndpoints(app)
             MapSettingsEndpoints(app)
         End Sub

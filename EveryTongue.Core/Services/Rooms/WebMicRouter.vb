@@ -40,6 +40,27 @@ Namespace Services.Rooms
             AppLogger.Log(LogEvents.CONF_WEBMIC, $"room={roomId} web-mic route registered (live-server port {liveServerPort})")
         End Sub
 
+        ''' <summary>Called when the room's backend is RESTARTED on a new live-server port
+        ''' (reset, speaker/mode switch). Keeps the broadcaster - the host's Broadcast button
+        ''' stays live - and moves the forwarder to the new port (it reconnects on the next
+        ''' frame). Registers the room if it had no route.</summary>
+        Public Sub RepointRoom(roomId As String, liveServerPort As Integer)
+            Dim route As RoomRoute = Nothing
+            If Not _routes.TryGetValue(roomId, route) Then
+                RegisterRoom(roomId, liveServerPort)
+                Return
+            End If
+            route.SendLock.Wait()
+            Try
+                CloseSocket(route)
+                route.Port = liveServerPort
+                route.PermanentRefusal = False
+            Finally
+                route.SendLock.Release()
+            End Try
+            AppLogger.Log(LogEvents.CONF_WEBMIC, $"room={roomId} web-mic route moved to live-server port {liveServerPort} (broadcaster kept)")
+        End Sub
+
         ''' <summary>Called when the room's backend stops. Closes the forwarder socket.</summary>
         Public Sub UnregisterRoom(roomId As String)
             Dim route As RoomRoute = Nothing

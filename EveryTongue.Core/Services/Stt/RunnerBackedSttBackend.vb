@@ -141,17 +141,16 @@ Namespace Services.Stt
             Return Runner.CheckCapturingAsync(ct)
         End Function
 
-        ''' <summary>Live-server process alive — progress signal for SidecarReadiness.</summary>
+        ''' <summary>The engine's own state (Starting / Ready / Failed with reason) for room
+        ''' readiness - lets the waiter end on a definite answer instead of an idle timer.</summary>
+        Public Overridable Function CheckReadinessAsync(ct As CancellationToken, Optional requireSession As Boolean = True) As Task(Of EngineStateResult)
+            Return Runner.CheckReadinessAsync(ct, requireSession)
+        End Function
+
+        ''' <summary>Live-server process alive — a dead process ends a readiness wait at once.</summary>
         Public ReadOnly Property ServerProcessRunning As Boolean
             Get
                 Return Runner.IsServerProcessRunning
-            End Get
-        End Property
-
-        ''' <summary>Ms since the live-server last showed activity (log tail / start).</summary>
-        Public ReadOnly Property ServerMillisecondsSinceLastActivity As Long
-            Get
-                Return Runner.MillisecondsSinceLastActivity
             End Get
         End Property
 

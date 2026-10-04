@@ -114,6 +114,7 @@ Namespace Services.Infrastructure
         Public Const ROOM_READINESS As Integer = 5108
         Public Const ROOM_FEEDBACK As Integer = 5109
         Public Const ROOM_READINESS_TIMEOUT As Integer = 5110
+        Public Const ROOM_READINESS_FAILED As Integer = 5111
 
         ' ── Subtitle (5200–5299) ──
         Public Const SUB_CLIENT_CONNECTED As Integer = 5201
@@ -139,6 +140,8 @@ Namespace Services.Infrastructure
         ' ── Audio (6200–6299) ──
         Public Const AUDIO_DEVICE_SELECTED As Integer = 6200
         Public Const AUDIO_PLAYBACK_ERROR As Integer = 6201
+        Public Const AUDIO_DEVICE_MISSING As Integer = 6202
+        Public Const AUDIO_DEVICE_CHANGED As Integer = 6203
 
         ' ── Localization (6300–6399) ──
         Public Const LOCALE_LOADED As Integer = 6300
@@ -313,6 +316,7 @@ Namespace Services.Infrastructure
             R(ROOM_TRANSLATION_ROUTING, LogCategory.Rooms, LogSeverity.Info, "Conversation-room translation routing (recipients, languages, targets)")
             R(ROOM_READINESS, LogCategory.Rooms, LogSeverity.Info, "Room engine readiness (STT/translation preparing → ready) relayed to clients")
             R(ROOM_READINESS_TIMEOUT, LogCategory.Rooms, LogSeverity.Warning, "Room engine readiness poll timed out — 'ready' was broadcast fail-open but the engine never reported ready")
+            R(ROOM_READINESS_FAILED, LogCategory.Rooms, LogSeverity.[Error], "Room speech engine reported failure at start — 'failed' (with the reason) sent to the room instead of 'ready'")
             R(ROOM_FEEDBACK, LogCategory.Rooms, LogSeverity.Info, "Audience feedback submitted after a conference room closed (rating, language, comment)")
 
             ' Subtitle
@@ -339,6 +343,8 @@ Namespace Services.Infrastructure
             ' Audio
             R(AUDIO_DEVICE_SELECTED, LogCategory.Audio, LogSeverity.Info, "Audio device selected")
             R(AUDIO_PLAYBACK_ERROR, LogCategory.Audio, LogSeverity.[Error], "Audio playback error")
+            R(AUDIO_DEVICE_MISSING, LogCategory.Audio, LogSeverity.Warning, "Saved audio input not found at room start")
+            R(AUDIO_DEVICE_CHANGED, LogCategory.Audio, LogSeverity.Info, "Room audio input changed by the host")
 
             ' Localization
             R(LOCALE_LOADED, LogCategory.Localization, LogSeverity.Info, "Language pack loaded")

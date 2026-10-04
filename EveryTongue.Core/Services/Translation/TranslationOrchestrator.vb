@@ -160,10 +160,17 @@ Namespace Services.Translation
             Dim ovr = backendOverride
             Dim skipPivot = noPivot
             Dim ctx = context
+            ' Queue wait for the caller's timing record (room translations), if any.
+            Dim timing = TranslationTiming.Current
+            Dim enqueuedTicks = Environment.TickCount64
             ' Route through the priority queue — the queue gates concurrency
             ' so the translation backend isn't overwhelmed under multi-room load.
             Return Await _queue.EnqueueAsync(
                 Async Function(ct2)
+                    If timing IsNot Nothing Then
+                        timing.QueueMs = Environment.TickCount64 - enqueuedTicks
+                        timing.Stage = "engine-wait"
+                    End If
                     Return Await TranslateInternal(text, sourceLang, targetLangs, ct2, skipCache, filters, ovr, skipPivot, ctx)
                 End Function,
                 CInt(priority),

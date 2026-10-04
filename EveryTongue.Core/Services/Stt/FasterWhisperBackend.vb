@@ -1,5 +1,6 @@
 Imports System.Threading
 Imports EveryTongue.Models
+Imports EveryTongue.Pipeline
 Imports EveryTongue.Services.Interfaces
 Imports EveryTongue.Services.Models
 
@@ -55,6 +56,14 @@ Namespace Services.Stt
         Public Overrides Async Function CheckHealthAsync(ct As CancellationToken) As Task(Of Boolean)
             Await Task.CompletedTask
             Return Runner.IsServerReady
+        End Function
+
+        ''' <summary>Same "ready" meaning as CheckHealthAsync above (server up), but a refused
+        ''' start or a dead engine pipeline still ends the wait as Failed with its reason.</summary>
+        Public Overrides Async Function CheckReadinessAsync(ct As CancellationToken, Optional requireSession As Boolean = True) As Task(Of EngineStateResult)
+            Dim reported = Await Runner.CheckReadinessAsync(ct, requireSession).ConfigureAwait(False)
+            If reported.State = EngineState.Failed Then Return reported
+            Return If(Runner.IsServerReady, EngineStateResult.Ready(), EngineStateResult.Starting())
         End Function
 
     End Class

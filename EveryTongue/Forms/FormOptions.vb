@@ -78,11 +78,10 @@ Public Class FormOptions
         cboDictDevice.Items.Clear()
         cboDictDevice.Items.Add(New Services.Models.AudioDeviceInfo(-1, lp.GetString("Live_DefaultDevice")))
         cboDictDevice.Enabled = False
-        Dim pythonPath = IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "python-embed", "python.exe")
         Threading.Tasks.Task.Run(
             Sub()
                 Try
-                    Dim devices = Services.Stt.SttBackendRegistry.CreateBackend().EnumerateDevicesAsync(pythonPath)
+                    Dim devices = Services.Audio.InputDeviceCatalog.Enumerate()
                     Me.BeginInvoke(Sub()
                                        For Each d In devices
                                            cboDictDevice.Items.Add(d)
