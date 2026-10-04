@@ -49,9 +49,11 @@ function caRest(n) { // 2..99 -> array of spoken forms (hyphenated canonical + s
   return res;
 }
 function genCa() {
-  // standalone 1 ("u"/"un") excluded: article collision — chapter/verse 1 in
-  // Catalan arrives as a digit or via Bible_Ordinals ("primer")
-  const out = [];
+  // Standalone 1: the counting form "u" (as es "uno", en "one") and "un" (the STT
+  // writes "Joan, un 38" - field 2026-09-27). "un" is also the article "a"; it
+  // is safe because a short number word after a name is read only when another
+  // number follows it (NormalizeSpokenNumbers). "una" stays out.
+  const out = [['u', 1], ['un', 1]];
   for (let n = 2; n <= 99; n++) for (const f of caRest(n)) out.push([f, n]);
   out.push(['cent', 100]);
   for (let n = 101; n <= 199; n++) {

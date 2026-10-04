@@ -102,12 +102,26 @@ Namespace Services.Models
             ''' "return to where the reading was" anchor for the Bible button.</summary>
             Public Property Verse As Integer
             Public Property LastSeenUtc As DateTime
+            ''' <summary>Earlier chapters heard for this book, most recent first (at most
+            ''' <see cref="MaxPreviousChapters"/>). A passing mention of another chapter
+            ''' ("al principi del salm 1" inside a Psalm 119 sermon) must not erase the
+            ''' chapter being read: a verse that does not exist in the new chapter falls
+            ''' back to these.</summary>
+            Public ReadOnly Property PreviousChapters As New List(Of Integer)
         End Class
+        Public Const MaxPreviousChapters As Integer = 4
         ''' <summary>bookNumber → last chapter+timestamp heard for that book.</summary>
         Public ReadOnly Property Books As New Dictionary(Of Integer, BookEntry)
         ''' <summary>bookNumber of the most recently heard (or rescued) reference; 0 = none.</summary>
         Public Property LastBook As Integer
         Public Const MaxBooks As Integer = 8
+        ''' <summary>book_number named at the very END of the previous caption with no
+        ''' number after it ("... l'Evangeli de Joan." / "Veniu i ho veureu. Joan."),
+        ''' 0 = none. The STT often puts the numbers in the next caption; that caption
+        ''' may complete the reference. Replaced by every caption.</summary>
+        Public Property PendingBookNumber As Integer
+        ''' <summary>The pending name is also an ordinary word: completing it needs a chapter word.</summary>
+        Public Property PendingBookAmbiguous As Boolean
     End Class
 
     ''' <summary>Options for reference detection over live caption text.</summary>

@@ -77,11 +77,42 @@ Namespace Services.Bible
         ' el capítulo 27"). Each was a pass or rescue here once; the Bible
         ' button now reopens at the room's remembered reading position, so a
         ' missed exotic announcement costs one tap instead of a lost verse.
+        ' 2026-10-05: the book group may START lowercase. Before, a lowercase
+        ' "salm 119" was found only when an earlier capitalized word happened to
+        ' chain to it ("El salm 119" yes, "amb el salm 119" no - 3 field misses on
+        ' 2026-09-13). Whether a lowercase name is accepted is decided ONLY by the
+        ' existing gate below (LowercaseStart + the Bibles' own word frequency),
+        ' the same way every time - no word of any language lives in the pattern.
         ' Only the well-formed announcement (with the filler re-anchor for
         ' "La primera, Timoteu 6:10"-shaped prefixes) and the bare verse word
         ' (context pass) remain.
         Private Shared ReadOnly RefPattern As New Regex(
-            "(?<book>(?:\d\s*)?[\p{Lu}][\p{Ll}]+(?:\s+(?:[\p{Ll}]{1,3}\s+)?[\p{Lu}\p{Ll}][\p{Ll}]+)*)(?:\s*,)?\s+(?:(?:[\p{Ll}]{1,3}\s+){0,2}(?<chapword>[\p{Lu}\p{Ll}][\p{Ll}'’]+)\s+)?(?<chapter>\d{1,3})(?:\s*:\s*(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3})|\s+(?<rangeword>[\p{Ll}]{1,7})\s+(?<vend>\d{1,3})(?!\d))?|(?:\s*,)?\s+(?<versword>[\p{Lu}\p{Ll}][\p{Ll}'’]+)\s+(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3})|\s+(?<rangeword>[\p{Ll}]{1,7})\s+(?<vend>\d{1,3})(?!\d))?)?",
+            "(?<book>(?:\d\s*)?[\p{Lu}\p{Ll}][\p{Ll}]+(?:\s+(?:[\p{Ll}]{1,3}\s+)?[\p{Lu}\p{Ll}][\p{Ll}]+)*)(?:\s*,)?\s+(?:(?:[\p{Ll}]{1,3}\s+){0,2}(?<chapword>[\p{Lu}\p{Ll}][\p{Ll}'’]+)\s+)?(?<chapter>\d{1,3})(?!\d)(?:\s*:\s*(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3})|\s+(?<rangeword>[\p{Ll}]{1,7})\s+(?<vend>\d{1,3})(?!\d))?|(?:\s*,)?\s+(?<versword>[\p{Lu}\p{Ll}][\p{Ll}'’]+)\s+(?<verse>\d{1,3})(?:\s*-\s*(?<vend>\d{1,3})|\s+(?<rangeword>[\p{Ll}]{1,7})\s+(?<vend>\d{1,3})(?!\d))?)?",
+            RegexOptions.Compiled)
+
+
+        ''' <summary>At a position (after the chapter): a verse number and an optional
+        ''' range end, each after a space or comma ("1191" is not "119 1"); a number
+        ''' followed by ":" belongs to the next reference. See ReadImplicitVerses.</summary>
+        ''' <summary>At a position: a number, optional spaces, then a word.</summary>
+        Private Shared ReadOnly NumberedBookPattern As New Regex("\G(?<n>\d{1,3})\s*(?<w>[\p{L}][\p{L}'’-]+)", RegexOptions.Compiled)
+
+        Private Shared ReadOnly ImplicitVersePattern As New Regex(
+            "\G(?:\s*,\s*|\s+)(?<v1>\d{1,3})(?![\d:])(?:(?:\s*,\s*|\s+)(?<v2>\d{1,3})(?![\d:]))?",
+            RegexOptions.Compiled)
+
+        ''' <summary>A caption that STARTS with a chapter number, optionally after up to
+        ''' two short words and a chapter word ("1 39 .", "El capítol 1, ..."). The
+        ''' short words are structure only (1-3 letters, like RefPattern's connectors);
+        ''' the chapter word is validated against the locale set by the caller.</summary>
+        Private Shared ReadOnly LeadingChapterPattern As New Regex(
+            "^\s*(?:(?:[\p{Lu}\p{Ll}]{1,3}\s+){0,2}(?<chapword>[\p{Lu}\p{Ll}][\p{Ll}'’]+)\s+)?(?<chapter>\d{1,3})(?!\d)(?<second>(?:\s*,\s*|\s+)\d{1,3}(?!\d))?",
+            RegexOptions.Compiled)
+
+        ''' <summary>A caption that ENDS with a name: up to four words before the closing
+        ''' punctuation ("... l'Evangeli de Joan.", "Veniu i ho veureu. Joan.").</summary>
+        Private Shared ReadOnly TrailingNamePattern As New Regex(
+            "(?<name>(?:\d\s*)?[\p{L}][\p{L}'’-]+(?:\s+[\p{L}][\p{L}'’-]+){0,3})\s*[.!?…,;:]*\s*$",
             RegexOptions.Compiled)
 
         ''' <summary>
@@ -97,6 +128,26 @@ Namespace Services.Bible
         ''' <summary>Spoken verse words ("versículo", "verse", "verset") — same channel, folded.</summary>
         Private Shared ReadOnly SpokenVerseWords As New Lazy(Of HashSet(Of String))(
             Function() LoadLocaleWordSet("Bible_SpokenVerseWords"))
+
+        ''' <summary>The names in Bible_SpokenBookNames ("salm", "salmo", "psalm"; the
+        ''' ":230" book numbers stripped), folded. The ONLY book names accepted when
+        ''' they start lowercase: the Bibles' word frequency does not catch ordinary
+        ''' words like "job", "numbers", "acts", "marc" (tested 2026-10-05).</summary>
+        Private Shared ReadOnly SpokenBookNameWords As New Lazy(Of HashSet(Of String))(
+            Function() New HashSet(Of String)(
+                LoadLocaleWordSet("Bible_SpokenBookNames").Select(Function(w) w.Split(":"c)(0).Trim()),
+                StringComparer.Ordinal))
+
+        ''' <summary>A resolved name that starts lowercase is trusted only when it is not
+        ''' an ordinary word AND it is a spoken book name from the locale files or the
+        ''' reference is explicit (<paramref name="explicitRef"/>: chapter:verse, verse
+        ''' word or chapter word).</summary>
+        Private Shared Function LowercaseNameRejected(resolved As ResolvedBook, explicitRef As Boolean) As Boolean
+            If Not resolved.LowercaseStart Then Return False
+            If resolved.Ambiguous Then Return True
+            If SpokenBookNameWords.Value.Contains(BookAliasIndex.Fold(resolved.ResolvedName)) Then Return False
+            Return Not explicitRef
+        End Function
 
         ''' <summary>Spoken range connectors ("38 al 40", "38 to 40") — same
         ''' channel, folded. An unknown connector between two numbers keeps the
@@ -182,7 +233,11 @@ Namespace Services.Bible
                                         Dim v = 0
                                         If sep > 0 AndAlso Integer.TryParse(pair.Substring(sep + 1).Trim(), v) AndAlso v >= 1 AndAlso v <= 999 Then
                                             Dim phrase = BookAliasIndex.Fold(pair.Substring(0, sep).Trim())
-                                            If phrase.Length >= 3 Then
+                                            ' Any length: Catalan's counting 1 is "u" (as es "uno", en
+                                            ' "one"). Short words cannot fire loosely - after a book name
+                                            ' NormalizeSpokenNumbers needs 4+ letters, so a short number
+                                            ' word is read only right after a chapter/verse word.
+                                            If phrase.Length >= 1 Then
                                                 table.Add(phrase, v)
                                                 union.Add(phrase, v)
                                             End If
@@ -886,7 +941,19 @@ Namespace Services.Bible
                         refStart = cw.Index
                     End If
                 End If
-                If resolved Is Nothing Then resolved = ResolveBookAlias(bookName)
+                ' No comma before the chapter word: the book group accepts lowercase
+                ' words, so it swallows the chapter word ("Jeremies capítol 31" ->
+                ' book "Jeremies capítol"). When the span's LAST word is a chapter word
+                ' from the locale files, it is the chapter word, not part of the name.
+                If resolved Is Nothing AndAlso Not hadChapterWord Then
+                    Dim lastSpace = bookName.LastIndexOf(" "c)
+                    If lastSpace > 0 AndAlso
+                       SpokenChapterWords.Value.Contains(BookAliasIndex.Fold(bookName.Substring(lastSpace + 1))) Then
+                        bookName = bookName.Substring(0, lastSpace).TrimEnd()
+                        hadChapterWord = True
+                    End If
+                End If
+                If resolved Is Nothing Then resolved = ResolveCaptionBook(bookName)
                 If resolved Is Nothing Then Continue For
                 ' Anchor the underline at the resolved name, not the whole
                 ' announcement prefix ("Los primeros intérpretes … el Salmo 22"
@@ -902,10 +969,6 @@ Namespace Services.Bible
                 ' and re-scoped the vocab book, 2026-07-31). Typed lookups
                 ' (ParseReferenceAsync) still accept abbreviations.
                 If resolved.Abbreviation Then Continue For
-                ' Lowercase-start names (STT case-drop, "el salmo 22") pass only
-                ' when the frequency data proves the word is rare as ordinary
-                ' prose — the capital remains required for everything ambiguous.
-                If resolved.LowercaseStart AndAlso resolved.Ambiguous Then Continue For
                 Dim bookCode = resolved.Code
 
                 ' Spoken-verse tail: "Salmo 22, versículo 7". An invalid versword
@@ -918,6 +981,12 @@ Namespace Services.Bible
                         effLength = m.Groups("chapter").Index + m.Groups("chapter").Length - refStart
                     End If
                 End If
+                ' Lowercase-start names (STT case-drop, "el salmo 22") pass only when the
+                ' frequency data proves the word is rare as ordinary prose AND either it is
+                ' a spoken book name from the locale files or the reference itself is
+                ' explicit (chapter:verse, a verse word, a chapter word) - "llegim gènesi
+                ' 1:1" yes; "my job 3 years", "marc 3 gols" no.
+                If LowercaseNameRejected(resolved, hasVerse OrElse hadChapterWord) Then Continue For
 
                 ' Tiered evidence: names that are also ordinary words ("mateu"
                 ' = the verb "kill", "fets" = deeds — derived from the Bibles'
@@ -925,9 +994,19 @@ Namespace Services.Bible
                 ' chapter:verse, a digit/ordinal prefix, OR a mid-sentence
                 ' capital ("en Mateu 4" — the STT capitalized it as a name;
                 ' sentence-initial capitals prove nothing).
+                ' A verse written as a plain second number ("Romans 8 39", "Joan 1, 29":
+                ' the STT drops the colon) is evidence too - but only when it IS a verse
+                ' of that chapter (ReadImplicitVerses: exists in the Bibles, not the start
+                ' of the next numbered book). "Mateu 5 100 vegades" is no evidence.
+                Dim chapGroup = m.Groups("chapter")
+                Dim ivStart = 0, ivEnd = 0, ivSpan = 0
+                Dim followedByNumber = Not hasVerse AndAlso
+                    ReadImplicitVerses(scanText, chapGroup.Index + chapGroup.Length, resolved.BookNumber,
+                                       Integer.Parse(chapGroup.Value), ivStart, ivEnd, ivSpan)
                 If resolved.Ambiguous AndAlso
                    Not hasVerse AndAlso
                    Not hadChapterWord AndAlso
+                   Not followedByNumber AndAlso
                    Not resolved.HadOrdinal AndAlso
                    Not Char.IsDigit(bookName(0)) Then
                     Dim midSentence = False
@@ -975,6 +1054,15 @@ Namespace Services.Bible
                         vEnd = maxV
                     End If
                 End If
+                ' No colon and no verse word: the STT writes a spoken verse as a plain
+                ' second number ("Joan 1, 29", "Romans 8 39", "Filipencs 4, 6 7").
+                If Not hasVerse Then
+                    Dim cg = m.Groups("chapter")
+                    Dim verseEnd = 0
+                    If ReadImplicitVerses(scanText, cg.Index + cg.Length, resolved.BookNumber, chap, vStart, vEnd, verseEnd) Then
+                        effLength = verseEnd - refStart
+                    End If
+                End If
 
                 ' A match ending inside a substituted span underlines the whole
                 ' spoken phrase ("…capítulo veintisiete", not "…capítulo ve").
@@ -1008,6 +1096,14 @@ Namespace Services.Bible
             Dim ctx = opts?.Context
             If ctx IsNot Nothing Then
                 If opts.UpdateContext Then
+                    ' Split reference: the previous caption ended with a book name and this
+                    ' one starts with its chapter ("Joan." + "1 39 ."). Consumed here, then
+                    ' replaced from THIS caption's ending below.
+                    Dim split = DetectSplitReference(ctx, text, scanText, detectedRefs)
+                    If split IsNot Nothing Then detectedRefs.Insert(0, split)
+                    ctx.PendingBookNumber = 0
+                    ctx.PendingBookAmbiguous = False
+                    SetPendingBook(ctx, scanText)
                     For Each d In detectedRefs
                         RememberContext(ctx, d.Reference)
                     Next
@@ -1048,9 +1144,21 @@ Namespace Services.Bible
                         Dim e As RefContext.BookEntry = Nothing
                         If Not ctx.Books.TryGetValue(cand, e) Then Continue For
                         If (DateTime.UtcNow - e.LastSeenUtc).TotalMinutes > ContextExpiryMinutes Then Continue For
-                        Dim maxV = If(_aliasIndex?.MaxVerse(cand, e.Chapter), 0)
-                        If maxV > 0 AndAlso vStart > maxV Then Continue For
-                        If maxV > 0 AndAlso vEnd > maxV Then vEnd = maxV
+                        ' The current chapter first, then this book's earlier chapters: a
+                        ' passing "salm 1" inside a Psalm 119 sermon must not make "verset
+                        ' 165" impossible (field 2026-09-13).
+                        Dim chosenChapter = 0
+                        Dim chosenEnd = vEnd
+                        For Each ch In {e.Chapter}.Concat(e.PreviousChapters)
+                            Dim maxV = If(_aliasIndex?.MaxVerse(cand, ch), 0)
+                            If maxV > 0 AndAlso vStart > maxV Then Continue For
+                            chosenChapter = ch
+                            chosenEnd = If(maxV > 0 AndAlso vEnd > maxV, maxV, vEnd)
+                            Exit For
+                        Next
+                        If chosenChapter = 0 Then Continue For
+                        If chosenChapter <> e.Chapter Then SwitchChapter(e, chosenChapter)
+                        vEnd = chosenEnd
                         bookNum = cand
                         entry = e
                         Exit For
@@ -1085,6 +1193,148 @@ Namespace Services.Bible
             End If
 
             Return detectedRefs
+        End Function
+
+        ''' <summary>
+        ''' Verses written as plain numbers right after the chapter, with no colon and
+        ''' no verse word: "1, 29" -> 29, "4, 6 7" -> 6-7. Digits, spaces and commas
+        ''' only - a full stop ends it, and a number followed by ":" starts another
+        ''' reference. Every verse must exist in the chapter in the installed Bibles
+        ''' (no Bibles = no structure = no guess); a range end that does not exist or
+        ''' is not higher keeps the single verse. Returns False = chapter only.
+        ''' </summary>
+        Private Shared Function ReadImplicitVerses(scanText As String, pos As Integer, bookNum As Integer, chap As Integer,
+                                                   ByRef vStart As Integer, ByRef vEnd As Integer, ByRef spanEnd As Integer) As Boolean
+            Dim vm = ImplicitVersePattern.Match(scanText, pos)
+            If Not vm.Success Then Return False
+            Dim maxV = If(_aliasIndex?.MaxVerse(bookNum, chap), 0)
+            If maxV <= 0 Then Return False
+            Dim v1 = Integer.Parse(vm.Groups("v1").Value)
+            If v1 < 1 OrElse v1 > maxV Then Return False
+            ' "Romans 8, 1 Corinthians 13": the 1 starts the next (numbered) book.
+            If StartsNumberedBook(scanText, vm.Groups("v1").Index) Then Return False
+            vStart = v1
+            vEnd = v1
+            spanEnd = vm.Groups("v1").Index + vm.Groups("v1").Length
+            If vm.Groups("v2").Success AndAlso Not StartsNumberedBook(scanText, vm.Groups("v2").Index) Then
+                Dim v2 = Integer.Parse(vm.Groups("v2").Value)
+                If v2 > v1 AndAlso v2 <= maxV Then
+                    vEnd = v2
+                    spanEnd = vm.Groups("v2").Index + vm.Groups("v2").Length
+                End If
+            End If
+            Return True
+        End Function
+
+        ''' <summary>The number at <paramref name="pos"/> plus the next word is a numbered
+        ''' book name ("1 Corinthians", "1 Joan") - resolved through the alias index with
+        ''' the digit included, so no language data lives here.</summary>
+        Private Shared Function StartsNumberedBook(scanText As String, pos As Integer) As Boolean
+            Dim m = NumberedBookPattern.Match(scanText, pos)
+            If Not m.Success Then Return False
+            Dim n = m.Groups("n").Value
+            Dim r = ResolveBookAlias(n & " " & m.Groups("w").Value)
+            Return r IsNot Nothing AndAlso r.ResolvedName.StartsWith(n, StringComparison.Ordinal)
+        End Function
+
+        ''' <summary>Resolve a caption's book span the way it was resolved before the span
+        ''' could start lowercase: from its first capitalized word (with a digit before
+        ''' it) first; the whole span only when that finds nothing. Otherwise a lowercase
+        ''' prefix could resolve first and then be rejected, hiding the capitalized name
+        ''' ("i la primera cosa que diu Joan 3:16" -> "primera ... Joan" = 1 John).</summary>
+        Private Shared Function ResolveCaptionBook(span As String) As ResolvedBook
+            Dim toks = span.Split(" "c)
+            For i = 0 To toks.Length - 1
+                If toks(i).Length > 0 AndAlso Char.IsUpper(toks(i)(0)) Then
+                    Dim first = If(i > 0 AndAlso toks(i - 1).Length > 0 AndAlso toks(i - 1).All(AddressOf Char.IsDigit), i - 1, i)
+                    If first = 0 Then Exit For
+                    Dim capSpan = String.Join(" ", toks.Skip(first))
+                    Dim r = ResolveBookAlias(capSpan)
+                    If r IsNot Nothing Then Return r
+                    Exit For
+                End If
+            Next
+            Return ResolveBookAlias(span)
+        End Function
+
+        ''' <summary>Make <paramref name="chapter"/> the book's current chapter; the
+        ''' previous current chapter goes to the front of PreviousChapters.</summary>
+        Private Shared Sub SwitchChapter(e As RefContext.BookEntry, chapter As Integer)
+            e.PreviousChapters.Remove(chapter)
+            If e.Chapter > 0 AndAlso e.Chapter <> chapter Then
+                e.PreviousChapters.Remove(e.Chapter)
+                e.PreviousChapters.Insert(0, e.Chapter)
+            End If
+            While e.PreviousChapters.Count > RefContext.MaxPreviousChapters
+                e.PreviousChapters.RemoveAt(e.PreviousChapters.Count - 1)
+            End While
+            e.Chapter = chapter
+        End Sub
+
+        ''' <summary>
+        ''' Remember the book named at the very end of this caption (no number after
+        ''' it), so the next caption can complete a reference the STT split in two.
+        ''' Same gates as a direct detection: abbreviations never count, and a
+        ''' lowercase name that is also an ordinary word is not trusted.
+        ''' </summary>
+        Private Shared Sub SetPendingBook(ctx As RefContext, scanText As String)
+            Dim m = TrailingNamePattern.Match(scanText)
+            If Not m.Success Then Return
+            Dim resolved = ResolveCaptionBook(m.Groups("name").Value)
+            If resolved Is Nothing OrElse resolved.Abbreviation Then Return
+            If LowercaseNameRejected(resolved, explicitRef:=False) Then Return
+            ' The resolved name must be the caption's last word(s), not an earlier part of the span.
+            If Not BookAliasIndex.NormName(m.Groups("name").Value).EndsWith(resolved.ResolvedName, StringComparison.OrdinalIgnoreCase) Then Return
+            ctx.PendingBookNumber = resolved.BookNumber
+            ctx.PendingBookAmbiguous = resolved.Ambiguous
+        End Sub
+
+        ''' <summary>
+        ''' The second half of a split reference: this caption STARTS with a chapter
+        ''' number (optionally after a locale chapter word) and the previous caption
+        ''' ended with a book name. A lone number is never enough - a chapter word or a
+        ''' second number ("1 39") is required, and the chapter must exist in the book.
+        ''' The second number is read as the verse (ReadImplicitVerses).
+        ''' </summary>
+        Private Shared Function DetectSplitReference(ctx As RefContext, text As String, scanText As String,
+                                                     detectedRefs As List(Of DetectedReference)) As DetectedReference
+            Dim bookNum = ctx.PendingBookNumber
+            If bookNum = 0 Then Return Nothing
+            Dim code As String = Nothing
+            If Not CodeForNumber.TryGetValue(bookNum, code) Then Return Nothing
+            Dim m = LeadingChapterPattern.Match(scanText)
+            If Not m.Success Then Return Nothing
+            Dim hadChapterWord = False
+            If m.Groups("chapword").Success Then
+                If Not SpokenChapterWords.Value.Contains(BookAliasIndex.Fold(m.Groups("chapword").Value)) Then Return Nothing
+                hadChapterWord = True
+            End If
+            ' Always more evidence than a lone number: a caption that merely starts with
+            ' a number after a name ("el seu fill Joan." + "3 anys després") is not a
+            ' reference. A chapter word or a second number ("1 39") is required.
+            If Not hadChapterWord AndAlso Not m.Groups("second").Success Then Return Nothing
+            ' A name that is also an ordinary word ("Fets." = deeds) needs the chapter word:
+            ' "Fets." + "2, 3 persones" is not Acts 2:3.
+            If ctx.PendingBookAmbiguous AndAlso Not hadChapterWord Then Return Nothing
+            Dim chapGroup = m.Groups("chapter")
+            Dim chap = Integer.Parse(chapGroup.Value)
+            Dim maxCh = If(_aliasIndex?.MaxChapter(bookNum), 0)
+            If chap < 1 OrElse (maxCh > 0 AndAlso chap > maxCh) Then Return Nothing
+            Dim start = If(hadChapterWord, m.Groups("chapword").Index, chapGroup.Index)
+            Dim length = chapGroup.Index + chapGroup.Length - start
+            Dim vStart = 0, vEnd = 0, verseEnd = 0
+            If ReadImplicitVerses(scanText, chapGroup.Index + chapGroup.Length, bookNum, chap, vStart, vEnd, verseEnd) Then
+                length = verseEnd - start
+            End If
+            If detectedRefs.Any(Function(d) start < d.StartIndex + d.Length AndAlso start + length > d.StartIndex) Then Return Nothing
+            Return New DetectedReference With {
+                .Reference = New BibleReference With {
+                    .Book = code, .BookNumber = bookNum, .Chapter = chap,
+                    .VerseStart = vStart, .VerseEnd = vEnd, .IsValid = True},
+                .MatchedText = text.Substring(start, length),
+                .StartIndex = start,
+                .Length = length
+            }
         End Function
 
         ''' <summary>Owner candidates for a context-resolved token: an explicit
@@ -1127,6 +1377,7 @@ Namespace Services.Bible
                 ctx.Books(ref.BookNumber) = e
             End If
             e.BookCode = ref.Book
+            If e.Chapter > 0 AndAlso e.Chapter <> ref.Chapter Then SwitchChapter(e, ref.Chapter)
             e.Chapter = ref.Chapter
             e.Verse = ref.VerseStart
             e.LastSeenUtc = DateTime.UtcNow
@@ -1206,8 +1457,13 @@ Namespace Services.Bible
                 Dim prev = core(i2 - 1)
                 Dim anchorTrigger = prev.Length > 0 AndAlso
                     (SpokenChapterWords.Value.Contains(prev) OrElse SpokenVerseWords.Value.Contains(prev))
+                ' After a capitalized word a number word needs 4+ letters ("set", "nou",
+                ' "deu", "one", "two" are also ordinary words) - UNLESS another number
+                ' follows it: "Juan uno, 38", "John two 3", "Joan, un 38" have the
+                ' book + chapter + verse shape (checked after the phrase match below).
                 Dim capTrigger = hinted IsNot Nothing AndAlso coreLen(i2 - 1) > 0 AndAlso
-                    Char.IsUpper(text(coreStart(i2 - 1))) AndAlso core(i2).Length >= 4
+                    Char.IsUpper(text(coreStart(i2 - 1)))
+                Dim needsNextNumber = Not anchorTrigger AndAlso core(i2).Length < 4
                 If Not anchorTrigger AndAlso Not capTrigger Then i2 += 1 : Continue While
                 Dim table = If(anchorTrigger, union, hinted)
 
@@ -1226,6 +1482,13 @@ Namespace Services.Bible
                     End If
                 Next
                 If matched = 0 Then i2 += 1 : Continue While
+                If needsNextNumber AndAlso Not NextTokenIsNumber(toks, core, i2 + matched, table) Then i2 += 1 : Continue While
+                ' A 1-2 letter number word after a chapter/verse word ("u", "un" - also the
+                ' article) followed straight by an ordinary lowercase word is prose, not a
+                ' number ("versets un per un" = one by one): read it only at the end of the
+                ' phrase (punctuation / end / capital) or before another number.
+                If anchorTrigger AndAlso core(i2).Length < 3 AndAlso
+                   NextIsProseWord(toks, core, i2 + matched, table, text, coreStart) Then i2 += 1 : Continue While
 
                 Dim spanStart = coreStart(i2)
                 Dim spanEnd = coreStart(i2 + matched - 1) + coreLen(i2 + matched - 1)
@@ -1243,6 +1506,37 @@ Namespace Services.Bible
                 i2 += matched
             End While
             Return If(result Is Nothing, text, New String(result))
+        End Function
+
+        ''' <summary>A lowercase word that is not a number follows at <paramref name="idx"/>,
+        ''' with no punctuation in between.</summary>
+        Private Shared Function NextIsProseWord(toks As MatchCollection, core As String(), idx As Integer,
+                                                table As NumberTable, text As String, coreStart As Integer()) As Boolean
+            If idx <= 0 OrElse idx >= toks.Count OrElse core(idx).Length = 0 Then Return False
+            Dim prevRaw = toks(idx - 1).Value
+            If Not Char.IsLetterOrDigit(prevRaw(prevRaw.Length - 1)) Then Return False
+            If Not Char.IsLower(text(coreStart(idx))) Then Return False
+            Return Not NextTokenIsNumber(toks, core, idx, table)
+        End Function
+
+        ''' <summary>The token at <paramref name="idx"/> is a number - digits, or the
+        ''' start of a number phrase in <paramref name="table"/> - and the token before
+        ''' it does not end a sentence ("Joan u. 38" is two sentences).</summary>
+        Private Shared Function NextTokenIsNumber(toks As MatchCollection, core As String(),
+                                                  idx As Integer, table As NumberTable) As Boolean
+            If idx <= 0 OrElse idx >= toks.Count OrElse core(idx).Length = 0 Then Return False
+            Dim prevRaw = toks(idx - 1).Value
+            If ".!?…;:".Contains(prevRaw(prevRaw.Length - 1)) Then Return False
+            If core(idx).All(AddressOf Char.IsDigit) Then Return True
+            For wc = 1 To Math.Min(table.MaxWords, toks.Count - idx)
+                Dim ok = True
+                For k = idx To idx + wc - 1
+                    If core(k).Length = 0 Then ok = False : Exit For
+                Next
+                If Not ok Then Exit For
+                If table.Phrases.ContainsKey(String.Join(" ", Enumerable.Range(idx, wc).Select(Function(k) core(k)))) Then Return True
+            Next
+            Return False
         End Function
 
         ''' <summary>
