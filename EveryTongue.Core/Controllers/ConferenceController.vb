@@ -46,6 +46,8 @@ Namespace Controllers
         Private ReadOnly _marshal As Action(Of Action)
 
         Private ReadOnly _sttBackends As New Concurrent.ConcurrentDictionary(Of String, ISttBackend)()
+        ' Closes a metered STT session while the room is paused (by the host, or by the server when empty).
+        Private ReadOnly _suspendMonitor As Services.Rooms.SttSuspendMonitor
         ' Book currently scoping the STT biblical vocab (0 = none detected yet).
         Private _currentVocabBook As Integer = 0
         Private ReadOnly _roomTemplateIds As New Concurrent.ConcurrentDictionary(Of String, String)()
@@ -129,6 +131,9 @@ Namespace Controllers
             _readiness = readiness
             _log = log
             _marshal = marshal
+            _suspendMonitor = New Services.Rooms.SttSuspendMonitor(
+                getRoomManager, getSubtitleSvc,
+                Function() CType(_sttBackends, IEnumerable(Of KeyValuePair(Of String, ISttBackend))))
 
             ' Clause hold-and-lock decisions live in the engine-owned coordinator;
             ' its internal flush timer also drives the sentence-buffer flush
@@ -316,6 +321,13 @@ Namespace Controllers
             ' the whole-Bible 1000). Fires only on BOOK CHANGE; each change is
             ' one in-place session reconnect (same machinery as the EOU retune).
             ' Engines without vocab support ignore the config key.
+            ' KNOWN COST (kept on purpose, 2026-10-05): on Speechmatics each book
+            ' change PAUSES the captions for the reconnect - 2.3-3.4 s in the field
+            ' logs, usually followed ~1 min later by an EOU auto-tune reconnect (the
+            ' reconnect resets the pace). Details in live-server engines/speechmatics.py
+            ' (update_config, "vocab_book").
+            ' NOTE: the book is global (_currentVocabBook) and goes to EVERY room's
+            ' engine, so a reference in one room also pauses the other rooms' captions.
             Services.Subtitle.SubtitleService.BookDetectedHandler =
                 Sub(bookCode As String)
                     Try
@@ -334,6 +346,8 @@ Namespace Controllers
             ' Host pause → reset the STT per-speaker pace auto-tune (context change).
             ' Speechmatics handles reset_pace; other engines' pipelines ignore it.
             EndpointRegistration.RoomPausedHandler = Sub(roomId As String, paused As Boolean)
+                                                         ' Pause / resume closes / reopens a metered session at once.
+                                                         _suspendMonitor.EvaluateNow()
                                                          If Not paused Then Return   ' reset on pause, not resume
                                                          Try
                                                              Dim backend As ISttBackend = Nothing
@@ -981,6 +995,7 @@ Namespace Controllers
         ''' Stops and removes a conference backend when a room is closed.
         ''' </summary>
         Public Sub StopConferenceBackend(roomId As String)
+            _suspendMonitor.Forget(roomId)
             ' Lock any pending Speechmatics clause before stopping.
             _clauseCoordinator.ForceLockClause(roomId)
             _clauseCoordinator.ClearRoom(roomId)

@@ -234,6 +234,7 @@ Namespace Server
                             .audioSource = If(String.IsNullOrEmpty(tpl.AudioSource), "local", tpl.AudioSource),
                             .webMicRaw = tpl.WebMicRaw,
                             .visibility = If(tpl.DefaultVisibility, "public"),
+                            .autoCloseHours = tpl.AutoCloseHours,
                             .offeredLanguages = If(libStore.GetDisplayTemplate(If(tpl.DisplayTemplateId, ""))?.OfferedLanguages,
                                                    New List(Of String)).ToArray()
                         }).ToList()
@@ -327,6 +328,14 @@ Namespace Server
 
                         Dim vis = If(getStr("visibility"), "public").ToLowerInvariant()
                         tpl.DefaultVisibility = If(vis = "private", "private", "public")
+
+                        ' Absent = keep the stored value (an older admin page does not send it).
+                        Dim closeProp As JsonElement = Nothing
+                        Dim closeHours As Integer
+                        If root.TryGetProperty("autoCloseHours", closeProp) AndAlso closeProp.ValueKind = JsonValueKind.Number AndAlso
+                           closeProp.TryGetInt32(closeHours) Then
+                            tpl.AutoCloseHours = Math.Max(0, Math.Min(48, closeHours))
+                        End If
 
                         ' Offered languages → 1:1 display template (Id = template Id).
                         Dim offered As New List(Of String)

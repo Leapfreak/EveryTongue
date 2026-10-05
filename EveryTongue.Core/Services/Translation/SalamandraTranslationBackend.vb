@@ -69,6 +69,15 @@ Namespace Services.Translation
             Return If(String.IsNullOrEmpty(friendly), code, friendly)
         End Function
 
+        ''' <summary>True when the source has words but the output has no letter or
+        ''' digit at all (only dots, dashes, quotes) - a degenerate generation in any
+        ''' script, so the check needs no language knowledge.</summary>
+        Private Shared Function LostAllWords(source As String, output As String) As Boolean
+            Return Not String.IsNullOrEmpty(output) AndAlso
+                   Not output.Any(AddressOf Char.IsLetterOrDigit) AndAlso
+                   If(source, "").Any(AddressOf Char.IsLetter)
+        End Function
+
         ''' <summary>Scrub for Latin-script targets only: a Greek/Cyrillic run wedged
         ''' INSIDE a Latin word is always token corruption ("don'льt"), never
         ''' legitimate output — standalone foreign words are left alone.</summary>
@@ -293,7 +302,8 @@ Namespace Services.Translation
                         Dim lastPrior = built.PriorTranslations(built.PriorTranslations.Count - 1)
                         Dim degenerate = cleaned.Length = 0 OrElse
                                          cleaned.Length > Math.Max(60, 4 * text.Length) OrElse
-                                         (lastPrior.Length > 12 AndAlso cleaned.IndexOf(lastPrior, StringComparison.Ordinal) >= 0)
+                                         (lastPrior.Length > 12 AndAlso cleaned.IndexOf(lastPrior, StringComparison.Ordinal) >= 0) OrElse
+                                         LostAllWords(text, cleaned)
                         If degenerate Then
                             AppLogger.Log(LogEvents.TRANS_LLAMA_PROBLEM,
                                 $"context echo/empty for {sourceLang}→{targetLang} (""{text.Substring(0, Math.Min(40, text.Length))}"") — retrying without context")
@@ -302,6 +312,13 @@ Namespace Services.Translation
                         End If
                     End If
 
+                    ' Still no words (field 2026-10-05: a row of ~70 dots for a 60-char
+                    ' sentence): no caption beats a meaningless one on every screen.
+                    If LostAllWords(text, cleaned) Then
+                        AppLogger.Log(LogEvents.TRANS_LLAMA_PROBLEM,
+                            $"output without words dropped for {sourceLang}→{targetLang} (""{text.Substring(0, Math.Min(40, text.Length))}"")")
+                        cleaned = ""
+                    End If
                     If cleaned.Length > 0 Then results(targetLang) = cleaned
                 Catch ex As OperationCanceledException
                     Throw

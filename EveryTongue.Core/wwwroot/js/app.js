@@ -1087,6 +1087,7 @@ function connect(){
       else if(msg.type==='broadcastState'){handleBroadcastState(msg)}
       else if(msg.type==='roomClosed'){onRoomClosed()}
       else if(msg.type==='kicked'){showRoomError(t('roomKicked'));setTimeout(afterRoomGone,3000)}
+      else if(msg.type==='hostLost'){LOG('Host role taken by another client');loseHost()}
       else if(msg.type==='roomLocked'){LOG('Room locked: '+msg.locked)}
       else if(msg.type==='pttModeChanged'){pttMode=msg.mode||'hold';updatePttLabel()}
       else if(msg.type==='pauseStateChanged'){
@@ -2134,6 +2135,9 @@ function initPushToTalk(){
         roomAudioSource=room.audioSource||'local';
         roomWebMicRaw=!!room.webMicRaw;
         roomDisplay=room.display||null;
+        /* A host arriving in a paused room (paused earlier, or by the server when
+           nobody was connected) must see Resume, not Play. */
+        window._roomPaused=!!room.paused;
         applyRoomDisplay();
         if(roomDisplay&&roomDisplay.offeredLanguages&&roomDisplay.offeredLanguages.length>0){
           populateTransLangSelect();
@@ -2143,7 +2147,7 @@ function initPushToTalk(){
         /* Dictation: host status matters (broadcast + language retune are
            host-gated) but the host UI doesn't — the editor IS the control
            surface, and its top bar is hidden anyway. */
-        if(room.isHost){isHost=true;if(pttRoomType!=='dictation')showHostControls()}
+        if(room.isHost)becomeHost()
         /* Conference guests get Save Transcript on the FEEDBACK page (the
            natural end-of-service moment) — the menu copy is hidden for them
            so the option lives in one place. Hosts and other room types keep
@@ -2553,6 +2557,27 @@ function showRoomError(msg){
    Retries a few times: right after a page refresh the server may still list the
    PREVIOUS connection as the live host until its socket is reaped, so the first
    claim can be rejected even though we hold the valid token. */
+function isHostTab(roomId){try{return sessionStorage.getItem('hostTab:'+roomId)==='1'}catch(e){return false}}
+/* Host status arrives two ways (join reply, token claim) - one place applies it. */
+function becomeHost(){
+  isHost=true;
+  /* Dictation: the editor IS the control surface, so no host panel. */
+  if(pttRoomType!=='dictation')showHostControls();
+  var bs=document.getElementById('btnSave');if(bs)bs.style.display='';
+}
+/* Another client claimed host (the creator's other tab, or a reconnect): this one
+   becomes a guest - host panel gone, and it gets the guest end-of-room flow. */
+function loseHost(){
+  if(!isHost)return;
+  isHost=false;
+  var roomMatch=location.search.match(/[?&]room=([^&]+)/);
+  if(roomMatch){try{sessionStorage.removeItem('hostTab:'+roomMatch[1])}catch(e){}}
+  var g=document.getElementById('hostGearBtn');if(g)g.parentNode.removeChild(g);
+  var p=document.getElementById('hostPanel');if(p)p.parentNode.removeChild(p);
+  setAudioMissingBanner('');
+  if(bcActive)stopBroadcast(false);
+  if(pttRoomType==='conference'){var bs=document.getElementById('btnSave');if(bs)bs.style.display='none'}
+}
 function tryClaimHost(attempt){
   attempt=attempt||0;
   var roomMatch=location.search.match(/[?&]room=([^&]+)/);
@@ -2562,7 +2587,12 @@ function tryClaimHost(attempt){
     var myRooms=JSON.parse(localStorage.getItem('myRooms')||'[]');
     var mine=null;
     for(var i=0;i<myRooms.length;i++){if(myRooms[i].id===roomId){mine=myRooms[i];break}}
-    var token=(mine&&mine.hostToken)?mine.hostToken:'';
+    /* Only the HOST TAB claims with the stored token. Every tab of the creator's
+       browser shares localStorage (myRooms), so without this mark each tab that
+       opened the room took host from the last (field 2026-10-05: four tabs on one
+       PC, the host panel's calls then failed with 403 and no tab got the feedback
+       page). The lobby marks the tab when the creator enters the room as host. */
+    var token=(mine&&mine.hostToken&&isHostTab(roomId))?mine.hostToken:'';
     var pin=sessionStorage.getItem('adminPin')||'';
     if(!token&&!pin)return;
     var retry=function(){
@@ -2579,7 +2609,7 @@ function tryClaimHost(attempt){
       if(xhr.status===200){
         try{
           var res=JSON.parse(xhr.responseText);
-          if(res.ok){claimed=true;isHost=true;LOG('Host reclaimed');showHostControls()}
+          if(res.ok){claimed=true;LOG('Host reclaimed');becomeHost()}
         }catch(e){}
       }
       if(!claimed)retry();
@@ -2851,6 +2881,8 @@ function loadAudioInputs(roomId){
   xhr.onload=function(){
     var res=null;
     try{res=JSON.parse(xhr.responseText)}catch(e){}
+    /* 403: host moved to another client and the hostLost message was missed. */
+    if(xhr.status===403){loseHost();return}
     if(xhr.status!==200||!res||res.source!=='local'){setAudioStatus(t('failed'),true,false);return}
     renderAudioInputs(res);
   };

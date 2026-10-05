@@ -345,7 +345,14 @@ Namespace Pipeline
                 Case "E"c
                     AppLogger.Log(LogEvents.LLAMA_SERVER_LOG_ERROR, trimmed)
                 Case "W"c
-                    AppLogger.Log(LogEvents.LLAMA_SERVER_LOG_WARN, trimmed)
+                    ' The RAM prompt cache evicting its oldest entry when full is normal
+                    ' operation, not a fault, but the server tags it W: hundreds per
+                    ' session once the cache fills (field 2026-10-05: 413 lines).
+                    If trimmed.IndexOf("making room for prompt cache entry", StringComparison.Ordinal) >= 0 Then
+                        AppLogger.Log(LogEvents.LLAMA_SERVER_LOG_DEBUG, trimmed)
+                    Else
+                        AppLogger.Log(LogEvents.LLAMA_SERVER_LOG_WARN, trimmed)
+                    End If
                 Case "D"c
                     AppLogger.Log(LogEvents.LLAMA_SERVER_LOG_DEBUG, trimmed)
                 Case Else

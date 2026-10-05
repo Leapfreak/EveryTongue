@@ -38,6 +38,9 @@ Partial Class FormTemplateManager
         Me.cboTransEngine = New System.Windows.Forms.ComboBox()
         Me.lblVisibility = New System.Windows.Forms.Label()
         Me.cboVisibility = New System.Windows.Forms.ComboBox()
+        Me.chkAutoClose = New System.Windows.Forms.CheckBox()
+        Me.nudAutoCloseHours = New System.Windows.Forms.NumericUpDown()
+        Me.lblAutoCloseHours = New System.Windows.Forms.Label()
         Me.lblAudioDevice = New System.Windows.Forms.Label()
         Me.cboAudioDevice = New System.Windows.Forms.ComboBox()
         Me.btnRefreshDevices = New System.Windows.Forms.Button()
@@ -62,6 +65,7 @@ Partial Class FormTemplateManager
         Me.btnSave = New System.Windows.Forms.Button()
         Me.btnCancelEdit = New System.Windows.Forms.Button()
         Me.grpDetail.SuspendLayout()
+        CType(Me.nudAutoCloseHours, System.ComponentModel.ISupportInitialize).BeginInit()
         Me.SuspendLayout()
         '
         ' lvTemplates
@@ -161,6 +165,9 @@ Partial Class FormTemplateManager
         Me.grpDetail.Controls.Add(Me.btnRefreshDevices)
         Me.grpDetail.Controls.Add(Me.cboAudioDevice)
         Me.grpDetail.Controls.Add(Me.lblAudioDevice)
+        Me.grpDetail.Controls.Add(Me.lblAutoCloseHours)
+        Me.grpDetail.Controls.Add(Me.nudAutoCloseHours)
+        Me.grpDetail.Controls.Add(Me.chkAutoClose)
         Me.grpDetail.Controls.Add(Me.cboVisibility)
         Me.grpDetail.Controls.Add(Me.lblVisibility)
         Me.grpDetail.Controls.Add(Me.cboTransEngine)
@@ -283,6 +290,36 @@ Partial Class FormTemplateManager
         Me.cboVisibility.Name = "cboVisibility"
         Me.cboVisibility.Size = New System.Drawing.Size(70, 23)
         Me.cboVisibility.TabIndex = 19
+        '
+        ' chkAutoClose
+        '
+        Me.chkAutoClose.AutoSize = True
+        Me.chkAutoClose.Location = New System.Drawing.Point(350, 23)
+        Me.chkAutoClose.Name = "chkAutoClose"
+        Me.chkAutoClose.Size = New System.Drawing.Size(200, 19)
+        Me.chkAutoClose.TabIndex = 38
+        Me.chkAutoClose.Text = "Close the room automatically after"
+        Me.chkAutoClose.UseVisualStyleBackColor = True
+        '
+        ' nudAutoCloseHours
+        '
+        Me.nudAutoCloseHours.Enabled = False
+        Me.nudAutoCloseHours.Location = New System.Drawing.Point(368, 49)
+        Me.nudAutoCloseHours.Maximum = New Decimal(New Integer() {48, 0, 0, 0})
+        Me.nudAutoCloseHours.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
+        Me.nudAutoCloseHours.Name = "nudAutoCloseHours"
+        Me.nudAutoCloseHours.Size = New System.Drawing.Size(50, 23)
+        Me.nudAutoCloseHours.TabIndex = 39
+        Me.nudAutoCloseHours.Value = New Decimal(New Integer() {12, 0, 0, 0})
+        '
+        ' lblAutoCloseHours
+        '
+        Me.lblAutoCloseHours.AutoSize = True
+        Me.lblAutoCloseHours.Location = New System.Drawing.Point(424, 52)
+        Me.lblAutoCloseHours.Name = "lblAutoCloseHours"
+        Me.lblAutoCloseHours.Size = New System.Drawing.Size(36, 15)
+        Me.lblAutoCloseHours.TabIndex = 40
+        Me.lblAutoCloseHours.Text = "hours"
         '
         ' lblAudioDevice
         '
@@ -492,6 +529,7 @@ Partial Class FormTemplateManager
         Me.Name = "FormTemplateManager"
         Me.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent
         Me.Text = "Conference Templates"
+        CType(Me.nudAutoCloseHours, System.ComponentModel.ISupportInitialize).EndInit()
         Me.grpDetail.ResumeLayout(False)
         Me.grpDetail.PerformLayout()
         Me.ResumeLayout(False)
@@ -520,6 +558,9 @@ Partial Class FormTemplateManager
     Friend WithEvents cboTransEngine As System.Windows.Forms.ComboBox
     Friend WithEvents lblVisibility As System.Windows.Forms.Label
     Friend WithEvents cboVisibility As System.Windows.Forms.ComboBox
+    Friend WithEvents chkAutoClose As System.Windows.Forms.CheckBox
+    Friend WithEvents nudAutoCloseHours As System.Windows.Forms.NumericUpDown
+    Friend WithEvents lblAutoCloseHours As System.Windows.Forms.Label
     Friend WithEvents lblAudioDevice As System.Windows.Forms.Label
     Friend WithEvents cboAudioDevice As System.Windows.Forms.ComboBox
     Friend WithEvents btnRefreshDevices As System.Windows.Forms.Button

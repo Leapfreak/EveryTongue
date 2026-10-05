@@ -182,7 +182,7 @@ Namespace Server
         ''' <summary>True when the caller is the room's host (client id or host token).</summary>
         Private Function IsRoomHost(room As Room, clientId As String, hostToken As String) As Boolean
             Return (Not String.IsNullOrEmpty(hostToken) AndAlso room.HostToken = hostToken) OrElse
-                   (Not String.IsNullOrEmpty(clientId) AndAlso room.HostClientId = clientId)
+                   RoomManager.IsHost(room, clientId)
         End Function
 
     End Module

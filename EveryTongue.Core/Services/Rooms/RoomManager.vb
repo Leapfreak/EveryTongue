@@ -15,6 +15,19 @@ Namespace Services.Rooms
         ' a page refresh: the old connection is still listed while the same person reclaims.
         Private ReadOnly _subtitles As Interfaces.ISubtitleService
 
+        ''' <summary>A room closed itself (empty-room idle timeout or the template's
+        ''' automatic close). The server wires this to the same broadcast + backend
+        ''' stop as a host close.</summary>
+        Public Event RoomExpired(roomId As String)
+
+        ''' <summary>True only for the room's current host. An empty id is never the host:
+        ''' a room without a host has HostClientId "" (rooms are created hostless), and
+        ''' "" = "" must not let an anonymous request pause, kick or close it.</summary>
+        Public Shared Function IsHost(room As Room, clientId As String) As Boolean
+            Return room IsNot Nothing AndAlso Not String.IsNullOrEmpty(clientId) AndAlso
+                   String.Equals(room.HostClientId, clientId, StringComparison.Ordinal)
+        End Function
+
         Public Sub New(Optional subtitles As Interfaces.ISubtitleService = Nothing)
             _subtitles = subtitles
             ' Check for idle rooms every 60 seconds
@@ -117,11 +130,10 @@ Namespace Services.Rooms
             room.ClientIds.TryAdd(clientId, 0)
             room.TouchActivity()
 
-            ' If the room has no host yet, the first joiner becomes host
-            If String.IsNullOrEmpty(room.HostClientId) Then
-                room.HostClientId = clientId
-                AppLogger.Log(LogEvents.ROOM_CLIENT_JOINED, $"Client {clientId} claimed host of room '{room.Name}'")
-            End If
+            ' Joining never makes anyone host. Host is claimed only with the creator's
+            ' host token or the admin PIN (ClaimHost); a room without a host stays up.
+            ' (The old "first joiner becomes host" rule handed a lobby-created
+            ' conference to whichever guest scanned the QR before the creator arrived.)
 
             AppLogger.Log(LogEvents.ROOM_CLIENT_JOINED, $"Client {clientId} joined room '{room.Name}' ({room.ClientCount} clients)")
             Return True
@@ -132,7 +144,8 @@ Namespace Services.Rooms
         ''' A valid credential always wins (last claimer becomes host) — see comment below.
         ''' </summary>
         Public Function ClaimHost(roomId As String, hostToken As String, newClientId As String,
-                                  Optional adminPinValid As Boolean = False) As Boolean
+                                  adminPinValid As Boolean, ByRef previousHostId As String) As Boolean
+            previousHostId = ""
             Dim room = GetRoom(roomId)
             If room Is Nothing Then Return False
             Dim tokenOk = Not String.IsNullOrEmpty(hostToken) AndAlso room.HostToken = hostToken
@@ -143,14 +156,17 @@ Namespace Services.Rooms
             ' an abruptly-killed phone connection stays half-open (membership listed, socket
             ' nominally Open) until a send fails, and no timer reaps it. Field evidence
             ' 20260712_103107: reclaim rejections persisted 30s-2min after every refresh.
-            ' Cost of accepting: a second tab of the SAME browser can take host over (it has
-            ' the same token) — last-claimer-wins, which is what an owner expects anyway.
+            ' Cost of accepting: a second tab of the SAME browser could take host over (it has
+            ' the same token). The web client therefore claims only from the tab marked as
+            ' the host tab (sessionStorage), and the displaced client is told (hostLost) so
+            ' it drops its host UI - field 2026-10-05: four tabs on one PC each took host.
             If Not String.IsNullOrEmpty(room.HostClientId) AndAlso
                room.HostClientId <> newClientId AndAlso
                room.ClientIds.ContainsKey(room.HostClientId) AndAlso
                (_subtitles Is Nothing OrElse _subtitles.IsClientConnected(room.HostClientId)) Then
                 AppLogger.Log(LogEvents.ROOM_CLIENT_JOINED, $"Host transferred for room '{room.Name}' — previous host {room.HostClientId} appears connected but claimant presented a valid credential")
             End If
+            If room.HostClientId <> newClientId Then previousHostId = If(room.HostClientId, "")
             room.HostClientId = newClientId
             room.TouchActivity()
             AppLogger.Log(LogEvents.ROOM_CLIENT_JOINED, $"Host reclaimed for room '{room.Name}' by {newClientId}")
@@ -163,7 +179,7 @@ Namespace Services.Rooms
         Public Function KickClient(roomId As String, clientId As String, requestingClientId As String) As Boolean
             Dim room = GetRoom(roomId)
             If room Is Nothing Then Return False
-            If room.HostClientId <> requestingClientId Then Return False
+            If Not IsHost(room, requestingClientId) Then Return False
             Dim dummy As Byte
             Dim removed = room.ClientIds.TryRemove(clientId, dummy)
             If removed Then
@@ -179,7 +195,7 @@ Namespace Services.Rooms
         Public Function SetLocked(roomId As String, locked As Boolean, requestingClientId As String) As Boolean
             Dim room = GetRoom(roomId)
             If room Is Nothing Then Return False
-            If room.HostClientId <> requestingClientId Then Return False
+            If Not IsHost(room, requestingClientId) Then Return False
             room.IsLocked = locked
             room.TouchActivity()
             AppLogger.Log(LogEvents.ROOM_LOCKED, $"Room '{room.Name}' locked={locked} by host {requestingClientId}")
@@ -192,7 +208,7 @@ Namespace Services.Rooms
         Public Function SetPttMode(roomId As String, mode As String, requestingClientId As String) As Boolean
             Dim room = GetRoom(roomId)
             If room Is Nothing Then Return False
-            If room.HostClientId <> requestingClientId Then Return False
+            If Not IsHost(room, requestingClientId) Then Return False
             If mode <> "hold" AndAlso mode <> "toggle" Then Return False
             room.Config.PttMode = mode
             room.TouchActivity()
@@ -206,10 +222,22 @@ Namespace Services.Rooms
         Public Function SetPaused(roomId As String, paused As Boolean, requestingClientId As String) As Boolean
             Dim room = GetRoom(roomId)
             If room Is Nothing Then Return False
-            If room.HostClientId <> requestingClientId Then Return False
+            If Not IsHost(room, requestingClientId) Then Return False
             room.Config.IsPaused = paused
             room.TouchActivity()
             AppLogger.Log(LogEvents.ROOM_PAUSED, $"Room '{room.Name}' paused={paused} by host {requestingClientId}")
+            Return True
+        End Function
+
+        ''' <summary>
+        ''' Pause a room on the server's own decision (nobody connected - see
+        ''' SttSuspendMonitor). Only the host resumes it (Jeremy, 2026-10-06).
+        ''' </summary>
+        Public Function AutoPause(roomId As String, reason As String) As Boolean
+            Dim room = GetRoom(roomId)
+            If room Is Nothing OrElse room.Config.IsPaused Then Return False
+            room.Config.IsPaused = True
+            AppLogger.Log(LogEvents.ROOM_PAUSED, $"Room '{room.Name}' paused=True by the server: {reason}")
             Return True
         End Function
 
@@ -219,7 +247,7 @@ Namespace Services.Rooms
         Public Function AddVirtualMember(roomId As String, name As String, language As String, requestingClientId As String) As VirtualMember
             Dim room = GetRoom(roomId)
             If room Is Nothing Then Return Nothing
-            If room.HostClientId <> requestingClientId Then Return Nothing
+            If Not IsHost(room, requestingClientId) Then Return Nothing
             Dim vm As New VirtualMember() With {
                 .Id = "vm" & Guid.NewGuid().ToString("N").Substring(0, 8),
                 .Name = If(name, "Guest"),
@@ -237,7 +265,7 @@ Namespace Services.Rooms
         Public Function RemoveVirtualMember(roomId As String, vmId As String, requestingClientId As String) As Boolean
             Dim room = GetRoom(roomId)
             If room Is Nothing Then Return False
-            If room.HostClientId <> requestingClientId Then Return False
+            If Not IsHost(room, requestingClientId) Then Return False
             Dim removed As VirtualMember = Nothing
             Dim ok = room.VirtualMembers.TryRemove(vmId, removed)
             If ok Then
@@ -260,17 +288,16 @@ Namespace Services.Rooms
         End Sub
 
         ''' <summary>
-        ''' Close a room. Only the host or server can do this.
+        ''' Close a room. Only the host can do this.
         ''' </summary>
         Public Function CloseRoom(roomId As String, requestingClientId As String) As Boolean
             Dim room = GetRoom(roomId)
             If room Is Nothing Then Return False
 
-            ' Only host can close (empty requestingClientId = server-initiated)
-            If Not String.IsNullOrEmpty(requestingClientId) AndAlso
-               room.HostClientId <> requestingClientId Then
-                Return False
-            End If
+            ' Only the host can close. (An empty id used to mean "server-initiated", which
+            ' let any request without a clientId end any room; the server's own closes go
+            ' through CleanupIdleRooms, not here.)
+            If Not IsHost(room, requestingClientId) Then Return False
 
             room.IsActive = False
             AppLogger.Log(LogEvents.ROOM_CLOSED, $"Room '{room.Name}' closed (id={room.Id})")
@@ -299,12 +326,20 @@ Namespace Services.Rooms
             Dim now = DateTime.Now
             For Each room In _rooms.Values
                 If Not room.IsActive Then Continue For
-                If room.ClientCount > 0 Then Continue For
 
+                If room.AutoCloseHours > 0 AndAlso (now - room.CreatedAt).TotalHours >= room.AutoCloseHours Then
+                    room.IsActive = False
+                    AppLogger.Log(LogEvents.ROOM_EXPIRED, $"Room '{room.Name}' auto-closed after {room.AutoCloseHours}h (template setting, {room.ClientCount} clients, id={room.Id})")
+                    RaiseEvent RoomExpired(room.Id)
+                    Continue For
+                End If
+
+                If room.ClientCount > 0 Then Continue For
                 Dim idleMinutes = (now - room.LastActivityAt).TotalMinutes
                 If idleMinutes >= room.Config.IdleTimeoutMinutes Then
                     room.IsActive = False
                     AppLogger.Log(LogEvents.ROOM_EXPIRED, $"Room '{room.Name}' auto-closed after {CInt(idleMinutes)}min idle (id={room.Id})")
+                    RaiseEvent RoomExpired(room.Id)
                 End If
             Next
 

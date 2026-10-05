@@ -42,6 +42,8 @@ Public Class FormTemplateManager
         lblSttEngine.Text = lp.GetString("Tmpl_SttEngine")
         lblTransEngine.Text = lp.GetString("Tmpl_TransEngine")
         lblVisibility.Text = lp.GetString("Tmpl_Visibility")
+        chkAutoClose.Text = lp.GetString("Tmpl_AutoClose")
+        lblAutoCloseHours.Text = lp.GetString("Tmpl_AutoCloseHours")
         lblAudioDevice.Text = lp.GetString("Tmpl_AudioDevice")
         lblModelPath.Text = lp.GetString("Tmpl_ModelPath")
         lblSttTemplate.Text = lp.GetString("Tmpl_SttTemplate")
@@ -96,6 +98,10 @@ Public Class FormTemplateManager
         cboSourceLang.SelectedIndex = 0
 
         cboVisibility.SelectedIndex = 0
+    End Sub
+
+    Private Sub chkAutoClose_CheckedChanged(sender As Object, e As EventArgs) Handles chkAutoClose.CheckedChanged
+        nudAutoCloseHours.Enabled = chkAutoClose.Checked
     End Sub
 
     Private Sub PopulateAudioDevices()
@@ -399,6 +405,12 @@ Public Class FormTemplateManager
         Dim visIdx = cboVisibility.Items.IndexOf(t.DefaultVisibility)
         cboVisibility.SelectedIndex = If(visIdx >= 0, visIdx, 0)
 
+        ' 0 = never close (default); the hours box keeps its last value while unticked.
+        chkAutoClose.Checked = t.AutoCloseHours > 0
+        If t.AutoCloseHours > 0 Then
+            nudAutoCloseHours.Value = Math.Max(nudAutoCloseHours.Minimum, Math.Min(nudAutoCloseHours.Maximum, CDec(t.AutoCloseHours)))
+        End If
+
         PopulateSttTemplateCombo(t)
 
         cboMode.SelectedIndex = If(t.Mode = Models.Templates.ConnectivityMode.Offline, 1, 0)
@@ -594,6 +606,7 @@ Public Class FormTemplateManager
         Dim selModel = TryCast(cboModel.SelectedItem, ModelItem)
         t.ModelPath = If(selModel IsNot Nothing, selModel.Path, "")
         t.DefaultVisibility = If(cboVisibility.SelectedItem IsNot Nothing, cboVisibility.SelectedItem.ToString(), "public")
+        t.AutoCloseHours = If(chkAutoClose.Checked, CInt(nudAutoCloseHours.Value), 0)
 
         t.Mode = If(cboMode.SelectedIndex = 1,
             Models.Templates.ConnectivityMode.Offline, Models.Templates.ConnectivityMode.Online)

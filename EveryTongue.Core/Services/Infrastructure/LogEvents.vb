@@ -101,6 +101,7 @@ Namespace Services.Infrastructure
         Public Const CONF_WEBMIC As Integer = 5016
         Public Const CONF_WEBMIC_ERROR As Integer = 5017
         Public Const CONF_ROOM_READY As Integer = 5018
+        Public Const CONF_STT_SUSPEND As Integer = 5019
 
         ' ── Rooms (5100–5199) ──
         Public Const ROOM_CREATED As Integer = 5100
@@ -303,6 +304,7 @@ Namespace Services.Infrastructure
             R(CONF_WEBMIC, LogCategory.Conference, LogSeverity.Info, "Web-mic broadcast lifecycle: route registered/removed, broadcaster start/stop/takeover, forwarder connected")
             R(CONF_WEBMIC_ERROR, LogCategory.Conference, LogSeverity.Warning, "Web-mic frame forwarding to the live-server failed (rate-limited; forwarder reconnects on next frame)")
             R(CONF_ROOM_READY, LogCategory.Conference, LogSeverity.Info, "Room-start timing summary: total ms to ready, STT/translation breakdown, warm-spare hit/miss")
+            R(CONF_STT_SUSPEND, LogCategory.Conference, LogSeverity.Info, "Room paused or resumed - the metered STT session closes or reopens")
             R(CONF_SPEAKER_SWITCHED, LogCategory.Conference, LogSeverity.Info, "Conference active speaker or connectivity mode changed")
 
             ' Rooms

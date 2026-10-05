@@ -128,6 +128,19 @@ Namespace Server
 
         Private Sub MapRoomEndpoints(app As IEndpointRouteBuilder)
 
+            ' A room that closes itself (idle while empty, or the template's automatic
+            ' close) gets the same ending as a host close: guests are told (feedback
+            ' page) and the conference backend stops. Before 2026-10-06 an idle-expired
+            ' room only went inactive, leaving its capture and STT session running.
+            Dim expiryMgr = app.ServiceProvider.GetRequiredService(Of RoomManager)()
+            Dim expiryHub = app.ServiceProvider.GetRequiredService(Of SubtitleHub)()
+            AddHandler expiryMgr.RoomExpired,
+                Sub(roomId As String)
+                    Dim reached = expiryHub.BroadcastToRoom(roomId, "{""type"":""roomClosed""}", "")
+                    AppLogger.Log(LogEvents.ROOM_CLOSED, $"roomClosed broadcast reached {reached} client(s) (id={roomId}, closed by the server)")
+                    RoomClosedHandler?.Invoke(roomId)
+                End Sub
+
             ' List public rooms (for lobby)
             app.MapGet("/api/rooms", Function(context As HttpContext) As Task
                                          ' Volunteer-gated (three-tier IA): guests never browse rooms —
@@ -177,7 +190,7 @@ Namespace Server
                                                    Return context.Response.WriteAsJsonAsync(New With {.error = "Room not found", .errorCode = "roomNotFound"})
                                                End If
                                                Dim clientId = If(context.Request.Query("clientId").FirstOrDefault(), "")
-                                               Dim isHost = Not String.IsNullOrEmpty(clientId) AndAlso room.HostClientId = clientId
+                                               Dim isHost = RoomManager.IsHost(room, clientId)
                                                Return context.Response.WriteAsJsonAsync(New With {
                                                    .id = room.Id,
                                                    .name = room.Name,
@@ -185,6 +198,7 @@ Namespace Server
                                                    .visibility = room.Visibility.ToString().ToLower(),
                                                    .clients = room.ClientCount,
                                                    .createdAt = room.CreatedAt,
+                                                   .paused = room.Config.IsPaused,
                                                    .isHost = isHost,
                                                    .isLocked = room.IsLocked,
                                                    .pttMode = room.Config.PttMode,
@@ -411,11 +425,13 @@ Namespace Server
             ' Claim host via stored token or admin PIN
             app.MapPost("/api/rooms/{id}/claim-host", Async Function(id As String, context As HttpContext) As Task
                                                             Dim mgr = context.RequestServices.GetRequiredService(Of RoomManager)()
+                                                            Dim hub = context.RequestServices.GetRequiredService(Of SubtitleHub)()
                                                             Dim opts = context.RequestServices.GetService(Of IOptions(Of ServerOptions))
                                                             Dim serverOpts = If(opts?.Value, New ServerOptions())
                                                             Dim doc As JsonDocument = Nothing
                                                             Dim ok = False
                                                             Dim failed = False
+                                                            Dim previousHostId = ""
                                                             Try
                                                                 doc = Await JsonDocument.ParseAsync(context.Request.Body)
                                                                 Dim root = doc.RootElement
@@ -431,7 +447,11 @@ Namespace Server
                                                                 Dim adminPinValid = Not String.IsNullOrEmpty(pin) AndAlso
                                                                                     Not String.IsNullOrEmpty(serverOpts.AdminPin) AndAlso
                                                                                     CredentialOk(context, pin, serverOpts.AdminPin)
-                                                                ok = mgr.ClaimHost(id, hostToken, clientId, adminPinValid)
+                                                                ok = mgr.ClaimHost(id, hostToken, clientId, adminPinValid, previousHostId)
+                                                                ' The displaced host client (another tab, or a stale connection)
+                                                                ' must drop its host UI - otherwise it keeps a host panel whose
+                                                                ' calls now fail with 403.
+                                                                If ok AndAlso previousHostId <> "" Then hub.SendToClient(previousHostId, "{""type"":""hostLost""}")
                                                             Catch ex As Exception
                                                                 AppLogger.Log(LogEvents.SERVER_ERROR, $"/rooms/{id}/claim-host error: {ex.Message}")
                                                                 failed = True
@@ -546,7 +566,7 @@ Namespace Server
                                                            Dim requestingClientId = ""
                                                            If doc.RootElement.TryGetProperty("requestingClientId", reqProp) Then requestingClientId = If(reqProp.GetString(), "")
                                                            Dim room = mgr.GetRoom(id)
-                                                           If room IsNot Nothing AndAlso room.HostClientId = requestingClientId Then
+                                                           If RoomManager.IsHost(room, requestingClientId) Then
                                                                hub.BroadcastToRoom(id, "{""type"":""clear""}", "")
                                                                ok = True
                                                            End If

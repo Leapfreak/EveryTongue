@@ -73,6 +73,9 @@ Namespace Services.Rooms
         ''' <summary>Resolved Display template for this room (Nothing = app-global appearance, viewer defaults).</summary>
         Public Property Display As Global.EveryTongue.Models.Templates.DisplayTemplate
         Public Property CreatedAt As DateTime = DateTime.Now
+        ''' <summary>Hours after CreatedAt at which the room closes itself (from the
+        ''' conference template); 0 = never.</summary>
+        Public Property AutoCloseHours As Integer = 0
         Public Property IsActive As Boolean = True
         Public Property HostClientId As String
         Public Property Config As New RoomConfig()

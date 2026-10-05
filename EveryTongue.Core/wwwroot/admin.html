@@ -170,6 +170,9 @@
                             <option value="public" data-i18n="setTplsPublic">Public (listed in lobby)</option>
                             <option value="private" data-i18n="setTplsPrivate">Private (QR/link only)</option>
                         </select>
+                        <label data-i18n="setTplsAutoClose">Close the room automatically after (hours)</label>
+                        <div class="hint" data-i18n="setTplsAutoCloseHint">0 = never: the room stays open until the host ends it.</div>
+                        <input type="number" id="tplAutoClose" min="0" max="48" step="1" value="0">
                         <label data-i18n="setTplsOffered">Offered languages</label>
                         <div class="hint" data-i18n="setTplsOfferedHint">Comma-separated FLORES codes, e.g. spa_Latn, eng_Latn, cat_Latn. Empty = listeners can pick any language.</div>
                         <input type="text" id="tplOffered" autocomplete="off">

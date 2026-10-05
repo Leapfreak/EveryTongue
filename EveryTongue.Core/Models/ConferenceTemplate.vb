@@ -38,6 +38,11 @@ Namespace Models
         ''' (right for PA/soundboard feeds, which processing would mangle).</summary>
         Public Property WebMicRaw As Boolean = False
         Public Property DefaultVisibility As String = "public"
+        ''' <summary>Close a room started from this template this many hours after it
+        ''' started, even with guests still connected. 0 = never: the room stays open
+        ''' until the host or the desktop program ends it (Jeremy, 2026-10-06 - an idle
+        ''' room costs no Speechmatics time, because its session is suspended).</summary>
+        Public Property AutoCloseHours As Integer = 0
         ''' <summary>Online/Offline gate for sessions hosted from this template (explicit switch, no auto-fallback).</summary>
         Public Property Mode As Templates.ConnectivityMode = Templates.ConnectivityMode.Online
         ''' <summary>Conference speakers (SpeakerProfile ids; list order = display order).</summary>

@@ -117,6 +117,7 @@ Namespace Server
                                                              room.SourceLang = If(template.SourceLanguage, "auto")
                                                              room.AudioSource = If(String.IsNullOrEmpty(template.AudioSource), "local", template.AudioSource)
                                                              room.WebMicRaw = template.WebMicRaw
+                                                             room.AutoCloseHours = Math.Max(0, template.AutoCloseHours)
                                                              room.Mode = If(template.Mode = Models.Templates.ConnectivityMode.Offline, "offline", "online")
                                                              room.Display = Services.Config.TemplateLibraryStore.Instance.GetDisplayTemplate(
                                                                  If(template.DisplayTemplateId, ""))

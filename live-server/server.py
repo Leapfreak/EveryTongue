@@ -824,6 +824,9 @@ async def health():
         # the engine's own reason (e.g. Speechmatics after its reconnect attempts).
         session_ready_fn = getattr(_vad_pipeline, "is_session_ready", None)
         result["session_ready"] = bool(session_ready_fn()) if callable(session_ready_fn) else True
+        # Deliberately closed metered session ("pause"), "" = not.
+        suspend_fn = getattr(_vad_pipeline, "suspend_reason", None)
+        result["suspended"] = (suspend_fn() or "") if callable(suspend_fn) else ""
         # Web-mic sessions: "capturing" must mean frames are actually FLOWING,
         # not merely "session started" — readiness banners/chimes depend on it.
         if getattr(_vad_pipeline, "audio_source", "local") == "web":
@@ -1114,6 +1117,11 @@ async def update_config(request: Request):
     if body.get("reset_pace"):
         forward["reset_pace"] = True
         updated.append("reset_pace")
+    # Suspend command (transient, like reset_pace): the app's reason ("pause"), ""
+    # lifts it. Engines without a metered session ignore it.
+    if "suspend" in body:
+        forward["suspend"] = body.get("suspend") or ""
+        updated.append(f"suspend={forward['suspend'] or '-'}")
     if _vad_pipeline and forward:
         _vad_pipeline.update_config(**forward)
 

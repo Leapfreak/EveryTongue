@@ -49,6 +49,8 @@
         setTplsAudioLocal: "Local device (server machine)",
         setTplsVisibility: "Room visibility", setTplsPublic: "Public (listed in lobby)",
         setTplsPrivate: "Private (QR/link only)", setTplsOffered: "Offered languages",
+        setTplsAutoClose: "Close the room automatically after (hours)",
+        setTplsAutoCloseHint: "0 = never: the room stays open until the host ends it.",
         setTplsOfferedHint: "Comma-separated FLORES codes, e.g. spa_Latn, eng_Latn, cat_Latn. Empty = listeners can pick any language.",
         setTplsServerDefault: "(server default)", setTplsNameReq: "Name and hosting code are required",
         setBiblesBtn: "Bibles (download)",
@@ -333,6 +335,7 @@
         fillEngineSelect("tplTrans", settings.translationEngines, tp ? (tp.translationBackend || "") : "", true);
         $("tplAudio").value = tp ? (tp.audioSource === "local" ? "local" : (tp.webMicRaw ? "webraw" : "web")) : "web";
         $("tplVis").value = tp ? tp.visibility : "public";
+        $("tplAutoClose").value = tp && tp.autoCloseHours ? tp.autoCloseHours : 0;
         $("tplOffered").value = tp && tp.offeredLanguages ? tp.offeredLanguages.join(", ") : "";
         msg("tplMsg", "");
         $("tplForm").style.display = "";
@@ -365,6 +368,7 @@
             audioSource: audio === "local" ? "local" : "web",
             webMicRaw: audio === "webraw",
             visibility: $("tplVis").value,
+            autoCloseHours: Math.max(0, Math.min(48, parseInt($("tplAutoClose").value, 10) || 0)),
             offeredLanguages: offered
         };
         if (tplEditingId) body.id = tplEditingId;

@@ -71,6 +71,16 @@ RECONNECT_MAX_ATTEMPTS = 8
 RECONNECT_BACKOFF_S = 2.0
 RECONNECT_MAX_BACKOFF_S = 15.0
 
+# SUSPEND (Jeremy, 2026-10-06 - free-tier minutes must not be wasted): while the room
+# is PAUSED the session is CLOSED; capture keeps running and the room stays open. The
+# app sends the reason ("pause" - by the host, or by the server when nobody has been
+# connected for a minute) and lifts it on resume. Speechmatics does not document
+# whether an open connection or the audio sent is what is metered, and we used to
+# stream every frame during a pause too, so closing the session is the only saving
+# that holds under either rule. Rejected: suspending on silence or on "no guests" -
+# a quiet speaker below a level threshold would never wake it, and guests' phones
+# drop off whenever their screens lock.
+
 
 def _load_biblical_vocab(lang, book=None):
     """Load the generated biblical proper-noun list for `lang` (any language with a
@@ -191,6 +201,8 @@ class SpeechmaticsStreamingPipeline:
         self._current_speaker = None
         self._reset_pending = False   # set by host pause / language change → _pump_audio reconnects
         self._session_live = False    # True between Session started and session close
+        self._ever_live = False       # a session has started once (key + network proven)
+        self._external_suspend = ""   # reasons from the app ("pause"), "" = none
         # Speechmatics translation targets (its own ISO codes, e.g. "es","de","cmn").
         # Set from /start options; English-pivot only, capped at 5 by the caller.
         self._translation_targets = list(translation_targets or [])
@@ -277,7 +289,13 @@ class SpeechmaticsStreamingPipeline:
     def is_session_ready(self):
         """True while a Speechmatics session is live (set on "Session started",
         cleared on session close) - /health's session_ready for room readiness."""
-        return bool(self._session_live)
+        # A deliberately suspended session is healthy, not "still connecting" - the
+        # app's readiness check must not wait for it or treat it as a failure.
+        return bool(self._session_live) or (self._ever_live and bool(self.suspend_reason()))
+
+    def suspend_reason(self):
+        """Why the session is closed on purpose ("" = it is not)."""
+        return self._external_suspend
 
     def is_alive(self):
         if self._thread is None:
@@ -287,6 +305,15 @@ class SpeechmaticsStreamingPipeline:
         return True, f"ok (callbacks={self._audio_callback_count})"
 
     def update_config(self, **kwargs):
+        # Suspend command from the app: comma-separated reasons, "" = resume. Applied by
+        # the session loop (_pump_audio closes the session, _run reopens it).
+        if "suspend" in kwargs:
+            reasons = ",".join(r.strip() for r in str(kwargs.get("suspend") or "").split(",") if r.strip())
+            if reasons != self._external_suspend:
+                logger.info(f"[SPEECHMATICS] app suspend reasons: '{self._external_suspend}' -> '{reasons}'")
+                self._external_suspend = reasons
+            if len(kwargs) == 1:
+                return
         # Reset trigger: host pause / deliberate context change. Lightweight — clear the
         # speaker's pace and drop EOU back to baseline via a WS reconnect (no full restart).
         if kwargs.get("reset_pace"):
@@ -316,6 +343,17 @@ class SpeechmaticsStreamingPipeline:
         # names (a few dozen relevant entries, not the whole-Bible 1000).
         # Works regardless of the whole-Bible flag — book-scoped is the safe
         # mode the whole-Bible list wanted to be.
+        #
+        # KNOWN COST - a visible caption pause (kept on purpose, 2026-10-05):
+        # Speechmatics takes additional_vocab only at session start, so a new book
+        # means an in-place reconnect. Audio keeps buffering (nothing is lost), but no
+        # captions arrive for the reconnect: 2.3-3.4 s in the field logs (27 Sep, 4 Oct),
+        # ~2 s of it the deliberate quota wait in _run. The reconnect also resets the
+        # pace, so the EOU auto-tune usually reconnects AGAIN ~1 min later (a second,
+        # smaller pause). The first word after the gap can come out damaged (4 Oct
+        # 11:27: "Tres que van empresonar..." - likely "Després que"; not confirmed).
+        # Rejected alternative: hold the book names until the next reconnect that
+        # happens anyway (no extra pause; names arrive 1-6 min later in the logs).
         if "vocab_book" in kwargs:
             try:
                 nb = int(kwargs["vocab_book"])
@@ -553,6 +591,12 @@ class SpeechmaticsStreamingPipeline:
         # silence) — the buffered audio flows to the fresh session; no audio is lost.
         reconnect_failures = 0
         while not self._stop_event.is_set():
+            # Suspended: no session. The first session always opens, so a bad key or
+            # network shows up at room start, not when the first guest arrives.
+            if self._ever_live and self.suspend_reason():
+                await self._wait_suspended(loop)
+                if self._stop_event.is_set():
+                    break
             self._last_word_end = None       # word timings restart with each session
             self._current_speaker = None     # diarization voice labels restart too
             self._session_live = False
@@ -638,6 +682,7 @@ class SpeechmaticsStreamingPipeline:
                         translation_config=translation_config,
                     )
                     self._session_live = True
+                    self._ever_live = True
                     logger.info(
                         f"[SPEECHMATICS] Session started "
                         f"(eou={self._eou_silence}s max_delay={self._max_delay}s "
@@ -689,7 +734,12 @@ class SpeechmaticsStreamingPipeline:
                 await asyncio.sleep(backoff)
                 continue   # audio kept buffering → reconnect with no loss
 
-            if not retune or self._stop_event.is_set():
+            if self._stop_event.is_set():
+                break
+            self._session_live = False
+            if self.suspend_reason():
+                continue   # loop top waits, then opens a fresh session
+            if not retune:
                 break
             logger.info(f"[SPEECHMATICS] reconnecting session in-place "
                         f"(lang={self._language} EOU={self._eou_silence}s "
@@ -704,7 +754,12 @@ class SpeechmaticsStreamingPipeline:
         config change — the caller rebuilds the session from current self._* values);
         False on normal stop / send failure."""
         while not self._stop_event.is_set():
+            if self.suspend_reason():
+                logger.info(f"[SPEECHMATICS] SUSPENDED ({self.suspend_reason()}) - session closed, capture continues")
+                return False
             frame = await loop.run_in_executor(None, self._next_frame)
+            if frame is not None and self.suspend_reason():
+                continue   # captured as the pause arrived - paused audio is never sent
             if frame is not None:
                 try:
                     await client.send_audio(frame)
@@ -724,6 +779,15 @@ class SpeechmaticsStreamingPipeline:
                 if self._maybe_retune(time.monotonic()):
                     return True
         return False
+
+    async def _wait_suspended(self, loop):
+        """Hold the session closed while suspended. Capture keeps running; its frames
+        are drained and discarded here (paused audio is never sent, and the queue must
+        not replay it on resume). Returns when the app lifts its reason."""
+        while not self._stop_event.is_set() and self.suspend_reason():
+            await loop.run_in_executor(None, self._next_frame)
+        if not self._stop_event.is_set():
+            logger.info("[SPEECHMATICS] RESUMED - reopening session")
 
     def _maybe_retune(self, now):
         """Ask the shared pace tuner for a bucket change (it owns the window, p85,

@@ -194,6 +194,13 @@
     function saveMyRooms(rooms) {
         localStorage.setItem("myRooms", JSON.stringify(rooms));
     }
+    // The tab that enters a room from here is the HOST tab: only it claims host
+    // with the stored token (index.html checks this mark). Other tabs of this
+    // browser that open the room (guest link, QR, public list) join as guests.
+    function enterAsHost(roomId) {
+        try { sessionStorage.setItem("hostTab:" + roomId, "1"); } catch (e) { /* storage blocked */ }
+        location.href = "/index.html?room=" + encodeURIComponent(roomId);
+    }
     function addMyRoom(room) {
         const rooms = getMyRooms().filter(function (r) { return r.id !== room.id; });
         rooms.unshift({ id: room.id, name: room.name, type: room.type, hostToken: room.hostToken });
@@ -239,7 +246,7 @@
                 '<span class="room-type">' + escapeHtml(roomTypeLabel(room.type)) + '</span></div>' +
                 '<div class="room-meta"><span style="color:#7c9cf7">' + escapeHtml(t("lbCreatedByYou")) + '</span></div>';
             li.addEventListener("click", function () {
-                location.href = "/index.html?room=" + encodeURIComponent(room.id);
+                enterAsHost(room.id);
             });
             myRoomList.appendChild(li);
         });
@@ -273,7 +280,7 @@
             if (!res.ok) throw new Error(fmt("lbServerReturned", res.status));
             const room = await res.json();
             addMyRoom(room);
-            location.href = "/index.html?room=" + encodeURIComponent(room.id);
+            enterAsHost(room.id);
         } catch (err) {
             alert(fmt("lbDictateFailed", err.message));
         } finally {
@@ -303,7 +310,7 @@
             if (!res.ok) throw new Error(fmt("lbServerReturned", res.status));
             createdRoom = await res.json();
             addMyRoom(createdRoom);
-            location.href = "/index.html?room=" + encodeURIComponent(createdRoom.id);
+            enterAsHost(createdRoom.id);
         } catch (err) {
             alert(fmt("lbCreateFailed", err.message));
         } finally {
@@ -448,7 +455,7 @@
 
     btnJoinOwn.addEventListener("click", function () {
         if (createdRoom) {
-            location.href = "/index.html?room=" + encodeURIComponent(createdRoom.id);
+            enterAsHost(createdRoom.id);
         }
     });
 

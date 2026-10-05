@@ -33,6 +33,8 @@ const PY_CAPS = [
   { name: 'pace tuner',   re: /PaceTuner/ },
   { name: 'one-shot /transcribe', re: /def\s+_transcribe_|register_transcribe/ },
   { name: 'lang-change reconnect', re: /update_config/ },
+  // Metered engines: close the session while nobody needs captions (2026-10-06).
+  { name: 'suspend', re: /def\s+suspend_reason/ },
 ];
 
 // The whisper family's pipeline lives in vad/, not engines/ — include it as a
